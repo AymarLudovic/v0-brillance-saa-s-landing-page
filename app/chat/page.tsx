@@ -412,7 +412,7 @@ export default function SandboxPage() {
     }
   }
 
-  const fillFilesFromGeminiResponse = (text: string) => {
+    const fillFilesFromGeminiResponse = (text: string): boolean => {
     console.log("[v0] Raw AI response:", text)
 
     let jsonString = ""
@@ -428,8 +428,8 @@ export default function SandboxPage() {
     }
 
     if (!jsonString) {
-      addLog(`❌ No JSON structure found in response.`)
-      return
+      addLog(`INFO: No JSON structure found in response. Treating as text.`)
+      return false
     }
 
     try {
@@ -446,6 +446,7 @@ export default function SandboxPage() {
           applyAndSetFiles(parsed)
           updateArtifact(artifactId, { status: "completed", title: `Created ${parsed.length} files` })
         }, 1000)
+        return true
       } else if (typeof parsed === "object" && parsed !== null && parsed.type === "fileChanges") {
         const artifactId = addArtifact({
           type: "file-edit",
@@ -458,13 +459,17 @@ export default function SandboxPage() {
           applyAndSetFiles([parsed])
           updateArtifact(artifactId, { status: "completed", title: `Edited ${parsed.filePath}` })
         }, 800)
+        return true
       } else {
         addLog(`❌ JSON parsed but format not recognized.`)
+        return false
       }
     } catch (e: any) {
       addLog(`❌ Failed to parse extracted JSON. Error: ${e.message}`)
+      return false
     }
-  }
+            }
+        
 
   const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string) => {
     try {
@@ -540,7 +545,9 @@ export default function SandboxPage() {
     }
   }
 
-  const sendChat = async (promptOverride?: string) => {
+
+
+    const sendChat = async (promptOverride?: string) => {
     const userPrompt = promptOverride || chatInput
     if (!userPrompt) return
     if (!currentProject && !promptOverride) {
@@ -596,13 +603,12 @@ export default function SandboxPage() {
         if (done) break
         text += decoder.decode(value, { stream: true })
 
-        const displayText = text.replace(/```json[\s\S]*?```/g, "").replace(/\{[\s\S]*?\}/g, "")
-
+        const cleanedTextForDisplay = text.replace(/```json[\s\S]*?```/g, "").trim();
         setMessages((prev) => {
           const lastMsgIndex = prev.length - 1
           const updatedMessages = [...prev]
           if (updatedMessages[lastMsgIndex]?.role === "assistant") {
-            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: displayText }
+            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: cleanedTextForDisplay }
           }
           return updatedMessages
         })
@@ -620,8 +626,30 @@ export default function SandboxPage() {
         } catch (e) {}
       }
 
-      addLog("Response not an inspiration URL, treating as code.")
-      fillFilesFromGeminiResponse(text)
+      addLog("Response not an inspiration URL, treating as code or text.")
+      const wasJsonHandled = fillFilesFromGeminiResponse(text)
+
+      if (!wasJsonHandled) {
+        addLog("✅ Gemini sent a text response.")
+        const finalText = text.replace(/```json[\s\S]*?```/g, "").trim();
+        setMessages((prev) => {
+          const lastMsgIndex = prev.length - 1
+          const updatedMessages = [...prev]
+          if (updatedMessages[lastMsgIndex]?.role === "assistant") {
+            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: finalText }
+          }
+          return updatedMessages
+        });
+      } else {
+         setMessages((prev) => {
+          const lastMsgIndex = prev.length - 1
+          const updatedMessages = [...prev]
+          if (updatedMessages[lastMsgIndex]?.role === "assistant") {
+            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: "J'ai effectué les modifications de code." }
+          }
+          return updatedMessages
+        });
+      }
     } catch (err: any) {
       addLog(`CLIENT-SIDE ERROR: ${err.message}`)
       setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }])
@@ -629,7 +657,15 @@ export default function SandboxPage() {
       setLoading(false)
       setAnalysisStatus(null)
     }
-  }
+    }
+             
+
+    
+
+    
+
+          
+
 
   const deployToGitHub = async () => {
     const accessToken = prompt("Enter your GitHub access token:")
