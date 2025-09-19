@@ -842,6 +842,47 @@ export default function SandboxPage() {
               </Button>
             </div>
 
+
+
+            <div className="flex-1 flex flex-col min-h-0">
+  <div className="px-4 py-2 border-b border-[#1f1f1f]">
+    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+      Conversation
+    </span>
+  </div>
+  <ScrollArea className="flex-1" viewportRef={chatScrollAreaRef}>
+    <div className="p-4 space-y-4">
+      {messages.map((msg, index) => (
+        <div key={index} className={`flex flex-col gap-2 text-sm ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+          <span className="text-xs font-bold text-gray-400">
+            {msg.role === 'user' ? 'You' : 'Brillance Studio'}
+          </span>
+          <div className={`p-3 rounded-lg max-w-full ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-[#1a1a1a] text-gray-300'}`}>
+            <pre className="whitespace-pre-wrap font-sans">{msg.content}</pre>
+          </div>
+        </div>
+      ))}
+      
+      {artifacts.length > 0 && (
+        <div className="text-xs text-gray-500 border-t border-[#1f1f1f] pt-2 mt-4">
+            {artifacts.slice(-3).map((artifact) => (
+              <div key={artifact.id} className="flex items-center gap-2 rounded p-1">
+                  <div className={`w-2 h-2 rounded-full ${ artifact.status === "processing" ? "bg-yellow-500 animate-pulse" : artifact.status === "completed" ? "bg-green-500" : "bg-red-500"}`}></div>
+                  <span className="text-gray-400">{artifact.title}</span>
+                  {artifact.progress !== undefined && artifact.status === "processing" && (
+                    <div className="ml-auto text-gray-500">{artifact.progress}%</div>
+                  )}
+              </div>
+            ))}
+        </div>
+      )}
+
+    </div>
+  </ScrollArea>
+</div>
+                             
+
+            
             {/* File List */}
             <div className="space-y-1">
               {files.map((file, index) => (
