@@ -779,17 +779,7 @@ export default function SandboxPage() {
             <div className="w-3 h-3 bg-[#28ca42] rounded-full"></div>
           </div>
           <span className="text-sm text-gray-400">Brillance Studio</span>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-white">
-              <Settings className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-white">
-              <Database className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-white">
-              <Rocket className="h-3 w-3" />
-            </Button>
-          </div>
+          
         </div>
 
         {/* Project Selector */}
@@ -959,8 +949,8 @@ export default function SandboxPage() {
               ))}
             </div>
           )}
-
-          <div className="relative">
+<div className="fixed bottom-0 w-full h-[200px] rounded-[12px] ring-16 ring-[#0a0a0a]">
+  <div className="relative w-full h-full ring-6 ring-[#222]">
             <textarea
               placeholder={currentProject ? "What's next?" : "Create a project first..."}
               className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-3 pr-12 text-sm text-white placeholder:text-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-gray-600"
@@ -983,6 +973,8 @@ export default function SandboxPage() {
               <Send className="h-4 w-4" />
             </Button>
           </div>
+</div>
+          
         </div>
       </div>
 
