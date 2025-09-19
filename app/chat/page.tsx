@@ -711,29 +711,42 @@ export default function SandboxPage() {
     addLog("Starting Vercel deployment...")
 
     try {
-      const res = await fetch("/api/vercel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          files: files.reduce((acc, file) => ({ ...acc, [file.filePath]: file.content }), {}),
-          projectName: currentProject?.name || "my-project",
-          token,
-          sandboxId,
-        }),
-      })
+        // Clean the project name to match Vercel's requirements
+        const projectName = (currentProject?.name || "my-project")
+            .toLowerCase()
+            .replace(/[^a-z0-9-.]/g, '-')
+            .substring(0, 100)
+            .replace(/--+/g, '-')
+            .replace(/^-+|-+$/g, '');
 
-      const data = await res.json()
-      if (data.success) {
-        addLog(`✅ Successfully deployed to Vercel: ${data.url}`)
-      } else {
-        addLog(`❌ Vercel deployment failed: ${data.error}`)
-      }
+        addLog(`Deploying with Vercel project name: ${projectName}`);
+
+        const res = await fetch("/api/vercel", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                files: files.reduce((acc, file) => ({ ...acc, [file.filePath]: file.content }), {}),
+                projectName: projectName,
+                token,
+                sandboxId,
+            }),
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            addLog(`✅ Successfully deployed to Vercel: ${data.url}`);
+        } else {
+            addLog(`❌ Vercel deployment failed: ${data.error}`);
+        }
     } catch (err: any) {
-      addLog(`❌ Vercel deployment error: ${err.message}`)
+        addLog(`❌ Vercel deployment error: ${err.message}`);
     } finally {
-      setLoading(false)
+        setLoading(false);
     }
-  }
+        }
+          
 
   const copyLogs = () => navigator.clipboard.writeText(logs.join("\n"))
 
