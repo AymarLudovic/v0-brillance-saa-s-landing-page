@@ -987,8 +987,7 @@ export default function SandboxPage() {
           </div>
 
           
-        </div>
-      </div>
+        
 
       {/* Main Content Area */}
       <div className="flex-1 h-full flex flex-col bg-[#0a0a0a]">
