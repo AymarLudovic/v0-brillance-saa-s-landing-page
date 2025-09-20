@@ -849,7 +849,7 @@ export default function SandboxPage() {
       Conversation
     </span>
   </div>
-  <ScrollArea className="flex-1" viewportRef={chatScrollAreaRef}>
+  <ScrollArea className="flex-1 overflow-y-auto" viewportRef={chatScrollAreaRef}>
     <div className="p-4 space-y-4">
       {messages.map((msg, index) => (
         <div key={index} className={`flex flex-col gap-2 text-sm ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -946,29 +946,43 @@ export default function SandboxPage() {
             </div>
           )}
 
-  <div className="relative w-full h-full ring-16 ring-[#0a0a0a]">
-    <div className="w-full bg-[#000] ring-16 ring-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-3 pr-12 text-sm text-white placeholder:text-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-gray-600"
-       >
+  <div
+  className="relative w-full rounded-lg p-[1px] transition-all duration-300 ease-in-out
+           focus-within:ring-1 focus-within:ring-white
+           bg-gradient-to-r from-purple-500 to-blue-500"
+>
+  <div
+    className="w-full h-full relative rounded-[calc(0.5rem-1px)] bg-[#1a1a1a]
+             flex items-center p-2"
+  >
     <textarea
-              placeholder={currentProject ? "What's next?" : "Create a project first..."}
-                rows={2}
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  sendChat()
-                }
-              }}
-              disabled={!currentProject || loading}
-            />
-            <Button
-              className="absolute right-2 top-2 bg-transparent hover:bg-[#2a2a2a] text-white p-2 h-8 w-8"
-              onClick={() => sendChat()}
-              disabled={loading || !chatInput || !currentProject}
-            >
-              <Send className="h-4 w-4" />
-            </Button></div>
+      placeholder={
+        currentProject ? "What's next?" : "Create a project first..."
+      }
+      rows={1}
+      value={chatInput}
+      onChange={(e) => setChatInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendChat();
+        }
+      }}
+      disabled={!currentProject || loading}
+      className="flex-1 bg-transparent border-none outline-none
+               text-sm text-white placeholder:text-gray-500 resize-none
+               p-1 focus:ring-0 focus:border-0"
+    />
+    <Button
+      className="bg-transparent hover:bg-[#2a2a2a] text-white p-2 h-8 w-8"
+      onClick={() => sendChat()}
+      disabled={loading || !chatInput || !currentProject}
+    >
+      <Send className="h-4 w-4" />
+    </Button>
+  </div>
+</div>
+                      
             
           </div>
 
