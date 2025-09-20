@@ -773,11 +773,7 @@ export default function SandboxPage() {
       <div className="w-80 bg-[#0a0a0a] h-full flex flex-col border-r border-[#1f1f1f]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-[#1f1f1f]">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-[#ff5f57] rounded-full"></div>
-            <div className="w-3 h-3 bg-[#ffbd2e] rounded-full"></div>
-            <div className="w-3 h-3 bg-[#28ca42] rounded-full"></div>
-          </div>
+          
           <span className="text-sm text-gray-400">Brillance Studio</span>
           
         </div>
@@ -949,12 +945,13 @@ export default function SandboxPage() {
               ))}
             </div>
           )}
-<div className="fixed bottom-0 w-full h-[200px] rounded-[12px] ring-16 ring-[#0a0a0a]">
-  <div className="relative w-full h-full ring-6 ring-[#222]">
-            <textarea
+
+  <div className="relative w-full h-full ring-16 ring-[#0a0a0a]">
+    <div className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-3 pr-12 text-sm text-white placeholder:text-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-gray-600"
+       >
+    <textarea
               placeholder={currentProject ? "What's next?" : "Create a project first..."}
-              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-3 pr-12 text-sm text-white placeholder:text-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-gray-600"
-              rows={2}
+                rows={2}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
@@ -971,9 +968,10 @@ export default function SandboxPage() {
               disabled={loading || !chatInput || !currentProject}
             >
               <Send className="h-4 w-4" />
-            </Button>
+            </Button></div>
+            
           </div>
-</div>
+
           
         </div>
       </div>
