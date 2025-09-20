@@ -947,7 +947,7 @@ export default function SandboxPage() {
           )}
 
   <div className="relative w-full h-full ring-16 ring-[#0a0a0a]">
-    <div className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-3 pr-12 text-sm text-white placeholder:text-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-gray-600"
+    <div className="w-full bg-[#000] ring-16 ring-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-3 pr-12 text-sm text-white placeholder:text-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-gray-600"
        >
     <textarea
               placeholder={currentProject ? "What's next?" : "Create a project first..."}
