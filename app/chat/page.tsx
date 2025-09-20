@@ -3,1274 +3,443 @@
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import CodeMirror from "@uiw/react-codemirror"
-import { javascript } from "@codemirror/lang-javascript"
+import { Send, Paperclip, Edit3, MessageSquare, Plus, Settings, Play, RotateCcw } from "lucide-react"
 
-import { Github, HardDrive, Plus, Send, ChevronDown, FolderOpen, File, Settings, Database, Rocket } from "lucide-react"
-
-// --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
-interface CommandResult {
-  stdout: string
-  stderr: string
-  exitCode: number
-  error?: string
-}
 interface Message {
-  role: "user" | "assistant" | "system"
+  role: "user" | "assistant"
   content: string
+  timestamp?: Date
 }
+
 interface Project {
   id: string
   name: string
-  createdAt: string
-  files: { filePath: string; content: string }[]
   messages: Message[]
+  files: { filePath: string; content: string }[]
+  createdAt: Date
 }
 
 interface Artifact {
   id: string
-  type: "analysis" | "file-creation" | "file-edit"
-  status: "pending" | "processing" | "completed" | "error"
   title: string
-  url?: string
-  filePath?: string
+  status: "processing" | "completed" | "error"
   progress?: number
 }
 
-// --- LOGIQUE D'ANALYSE (Fonctions pures) ---
-const parseRootVariables = (css: string): { name: string; value: string }[] => {
-  const variables: { name: string; value: string }[] = []
-  const globalBlocksMatch = css.match(/:root\s*{[^}]*}|html\s*{[^}]*}|body\s*{[^}]*}/g)
-  if (!globalBlocksMatch) return variables
-  const globalContent = globalBlocksMatch.join("\n")
-  const variableRegex = /(--[\w-]+)\s*:\s*([^;]+);/g
-  let match
-  while ((match = variableRegex.exec(globalContent)) !== null) {
-    variables.push({ name: match[1].trim(), value: match[2].trim() })
-  }
-  return variables
-}
-const extractFontFaces = (css: string): string => {
-  const fontFaceRegex = /@font-face\s*{[^}]*}/g
-  const matches = css.match(fontFaceRegex)
-  return matches ? matches.join("\n\n") : ""
-}
-const findPotentialComponents = (html: string): { tag: string; selector: string }[] => {
-  if (typeof window === "undefined") return []
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, "text/html")
-  const components: { tag: string; selector: string }[] = []
-  const tagsToFind = ["header", "nav", "footer", "section", "button"]
-  tagsToFind.forEach((tag) => {
-    if (doc.querySelector(tag)) components.push({ tag, selector: tag })
-  })
-  const cards: { tag: string; selector: string }[] = []
-  doc.querySelectorAll("div").forEach((div, index) => {
-    if (div.querySelector("img") && div.querySelector("h1, h2, h3, p")) {
-      const uniqueSelector = `[data-gemini-card-id="${index}"]`
-      div.setAttribute("data-gemini-card-id", `${index}`)
-      cards.push({ tag: `Card (div)`, selector: uniqueSelector })
-    }
-  })
-  if (cards.length > 0) {
-    components.push(...cards.slice(0, 5))
-  }
-  return components
-}
-const cloneWithComputedStyles = (element: Element): HTMLElement => {
-  const clone = element.cloneNode(false) as HTMLElement
-  const computedStyle = window.getComputedStyle(element)
-  const stylePropertiesToCopy = [
-    "display",
-    "flex-direction",
-    "align-items",
-    "justify-content",
-    "gap",
-    "grid-template-columns",
-    "grid-template-rows",
-    "position",
-    "top",
-    "right",
-    "bottom",
-    "left",
-    "z-index",
-    "width",
-    "height",
-    "min-width",
-    "min-height",
-    "max-width",
-    "max-height",
-    "margin",
-    "padding",
-    "border",
-    "border-radius",
-    "background-color",
-    "background-image",
-    "background-size",
-    "background-position",
-    "color",
-    "font-family",
-    "font-size",
-    "font-weight",
-    "line-height",
-    "text-align",
-    "text-decoration",
-    "box-shadow",
-    "opacity",
-    "transform",
-    "transition",
-    "overflow",
-  ]
-  let styleString = ""
-  for (const prop of stylePropertiesToCopy) {
-    const value = computedStyle.getPropertyValue(prop)
-    if (value) styleString += `${prop}: ${value}; `
-  }
-  clone.setAttribute("style", styleString)
-  element.childNodes.forEach((child) => {
-    if (child.nodeType === Node.ELEMENT_NODE) clone.appendChild(cloneWithComputedStyles(child as Element))
-    else if (child.nodeType === Node.TEXT_NODE) clone.appendChild(child.cloneNode())
-  })
-  return clone
-}
-
-const applyChanges = (originalContent: string, changes: any[]): string => {
-  if (!originalContent && changes.some((c) => c.action !== "insertAfter")) return ""
-  const lines = originalContent ? originalContent.split("\n") : []
-
-  const deletions = changes.filter((c) => c.action === "delete").sort((a, b) => b.startLine - a.startLine)
-  const insertions = changes.filter((c) => c.action === "insertAfter").sort((a, b) => b.lineNumber - a.lineNumber)
-  const replacements = changes.filter((c) => c.action === "replace")
-
-  deletions.forEach((change) => {
-    const startLineIndex = change.startLine - 1
-    const endLineIndex = change.endLine - 1
-    if (startLineIndex >= 0 && endLineIndex >= startLineIndex && endLineIndex < lines.length) {
-      lines.splice(startLineIndex, endLineIndex - startLineIndex + 1)
-    }
-  })
-
-  insertions.forEach((change) => {
-    const lineIndex = change.lineNumber - 1
-    if (lineIndex >= -1 && lineIndex < lines.length) {
-      // Allow inserting at the beginning if lineNumber is 0
-      lines.splice(lineIndex + 1, 0, change.contentToInsert)
-    }
-  })
-
-  replacements.forEach((change) => {
-    const lineIndex = change.lineNumber - 1
-    if (lineIndex >= 0 && lineIndex < lines.length) {
-      lines[lineIndex] = change.newContent
-    }
-  })
-
-  return lines.join("\n")
-}
-
-// --- COMPOSANT PRINCIPAL ---
-export default function SandboxPage() {
-  const [logs, setLogs] = useState<string[]>([])
-  const [buildLogs, setBuildLogs] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
-  const [sandboxId, setSandboxId] = useState<string | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [files, setFiles] = useState<{ filePath: string; content: string }[]>([])
-  const [messages, setMessages] = useState<Message[]>([{ role: "assistant", content: "Hello! Let's build something." }])
+export default function ChatPage() {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "assistant",
+      content:
+        "Hi! I'm your AI coding assistant. I can help you build apps, websites, and more. What would you like to create today?",
+      timestamp: new Date(),
+    },
+  ])
   const [chatInput, setChatInput] = useState("")
-  const [analysisStatus, setAnalysisStatus] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"preview" | "code">("preview")
-  const [activeFile, setActiveFile] = useState(0)
-  const [logsHeight, setLogsHeight] = useState(25)
-  const [iframeRoute, setIframeRoute] = useState("/")
+  const [loading, setLoading] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
-  const [activeBottomTab, setActiveBottomTab] = useState<"build" | "logs" | "tests">("build")
+  const [files, setFiles] = useState<{ filePath: string; content: string }[]>([])
+  const [sandboxId, setSandboxId] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [logs, setLogs] = useState<string[]>([])
 
+  const chatScrollRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const chatScrollAreaRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     try {
-      const savedProjects = localStorage.getItem("studio-projects")
+      const savedProjects = localStorage.getItem("lovable-projects")
       if (savedProjects) {
-        setProjects(JSON.parse(savedProjects))
+        const parsedProjects = JSON.parse(savedProjects)
+        setProjects(parsedProjects)
+        if (parsedProjects.length > 0) {
+          setCurrentProject(parsedProjects[0])
+          setMessages(parsedProjects[0].messages || [])
+          setFiles(parsedProjects[0].files || [])
+        }
       }
     } catch (error) {
-      console.error("Failed to load projects from localStorage", error)
+      console.error("Failed to load projects:", error)
     }
   }, [])
 
   useEffect(() => {
-    if (chatScrollAreaRef.current) {
-      chatScrollAreaRef.current.scrollTo({ top: chatScrollAreaRef.current.scrollHeight, behavior: "smooth" })
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
     }
   }, [messages])
 
-  const addLog = (msg: string) => setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`])
-  const addBuildLog = (msg: string) => setBuildLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`])
-
-  const addArtifact = (artifact: Omit<Artifact, "id">) => {
-    const newArtifact = { ...artifact, id: crypto.randomUUID() }
-    setArtifacts((prev) => [...prev, newArtifact])
-    return newArtifact.id
-  }
-
-  const updateArtifact = (id: string, updates: Partial<Artifact>) => {
-    setArtifacts((prev) => prev.map((artifact) => (artifact.id === id ? { ...artifact, ...updates } : artifact)))
-  }
-
-  const saveProjectsToLocalStorage = (updatedProjects: Project[]) => {
-    try {
-      localStorage.setItem("studio-projects", JSON.stringify(updatedProjects))
-    } catch (error) {
-      addLog("Error saving projects to localStorage.")
-    }
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString()
+    setLogs((prev) => [...prev, `[${timestamp}] ${message}`])
   }
 
   const createNewProject = () => {
-    const projectName = prompt("Enter project name:", `Project ${projects.length + 1}`)
-    if (!projectName) return
     const newProject: Project = {
-      id: crypto.randomUUID(),
-      name: projectName,
-      createdAt: new Date().toISOString(),
+      id: Date.now().toString(),
+      name: `Project ${projects.length + 1}`,
+      messages: [
+        {
+          role: "assistant",
+          content: "Hi! I'm your AI coding assistant. What would you like to build?",
+          timestamp: new Date(),
+        },
+      ],
       files: [],
-      messages: [{ role: "assistant", content: `Project "${projectName}" is ready. What should we build?` }],
+      createdAt: new Date(),
     }
-    const updatedProjects = [...projects, newProject]
+
+    const updatedProjects = [newProject, ...projects]
     setProjects(updatedProjects)
-    saveProjectsToLocalStorage(updatedProjects)
-    loadProject(newProject.id)
-    addLog(`Project "${projectName}" created.`)
+    setCurrentProject(newProject)
+    setMessages(newProject.messages)
+    setFiles([])
+
+    localStorage.setItem("lovable-projects", JSON.stringify(updatedProjects))
+    addLog(`New project "${newProject.name}" created`)
   }
 
-  const saveProject = () => {
-    if (!currentProject) {
-      addLog("Cannot save: No active project.")
-      return
+  const selectProject = (project: Project) => {
+    setCurrentProject(project)
+    setMessages(project.messages)
+    setFiles(project.files || [])
+    addLog(`Switched to project "${project.name}"`)
+  }
+
+  const sendMessage = async () => {
+    if (!chatInput.trim() || loading) return
+
+    const userMessage: Message = {
+      role: "user",
+      content: chatInput.trim(),
+      timestamp: new Date(),
     }
-    const updatedProject: Project = {
-      ...currentProject,
-      files: files,
-      messages: messages,
-    }
-    const updatedProjects = projects.map((p) => (p.id === currentProject.id ? updatedProject : p))
 
-    setProjects(updatedProjects)
-    setCurrentProject(updatedProject)
-    saveProjectsToLocalStorage(updatedProjects)
-    addLog(`Project "${currentProject.name}" saved.`)
-  }
-
-  const loadProject = (projectId: string) => {
-    const projectToLoad = projects.find((p) => p.id === projectId)
-    if (!projectToLoad) return
-
-    setSandboxId(null)
-    setPreviewUrl(null)
-    addLog("Sandbox reset for new project.")
-    setCurrentProject(projectToLoad)
-    setFiles(projectToLoad.files)
-    setMessages(projectToLoad.messages)
-    setActiveFile(0)
-
-    addLog(`Project "${projectToLoad.name}" loaded.`)
-  }
-
-  const updateFile = (value: string, viewUpdate: any) => {
-    if (viewUpdate.docChanged) {
-      setFiles((prev) => {
-        const updated = [...prev]
-        if (updated[activeFile]) {
-          updated[activeFile] = { ...updated[activeFile], content: value }
-        }
-        return updated
-      })
-    }
-  }
-
-  const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
+    const updatedMessages = [...messages, userMessage]
+    setMessages(updatedMessages)
+    setChatInput("")
     setLoading(true)
+
+    addLog("Sending message to AI...")
+
     try {
-      if (action === "build" || action === "install") {
-        addBuildLog(`Running ${action}...`)
-      } else {
-        addLog(`Running action: ${action}...`)
-      }
-
-      const body: any = { action, sandboxId: sandboxId || undefined }
-
-      if (action === "addFiles") {
-        if (!files.length || files.some((f) => !f.filePath)) {
-          addLog("ERROR: Missing file path for one or more files.")
-          setLoading(false)
-          return
-        }
-        body.files = files
-      }
-
-      const res = await fetch("/api/sandbox", {
+      const response = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-
-      if (data.error) {
-        if (action === "build" || action === "install") {
-          addBuildLog(`API ERROR: ${data.error}`)
-          if (data.details) addBuildLog(`Details: ${data.details}`)
-        } else {
-          addLog(`API ERROR: ${data.error}`)
-          if (data.details) addLog(`Details: ${data.details}`)
-        }
-        setLoading(false)
-        return
-      }
-
-      if (data.sandboxId) setSandboxId(data.sandboxId)
-      if (data.url) setPreviewUrl(data.url)
-
-      if (data.action === "install" || data.action === "build") {
-        const result: CommandResult = data.result
-        if (result) {
-          addBuildLog(`Command '${data.action}' completed (Exit Code: ${result.exitCode})`)
-          if (result.stdout) {
-            addBuildLog("--- STDOUT ---")
-            result.stdout.split("\n").forEach((l) => addBuildLog(l))
-            addBuildLog("--------------")
-          }
-          if (result.stderr) {
-            addBuildLog("--- STDERR ---")
-            result.stderr.split("\n").forEach((l) => addBuildLog(l))
-            addBuildLog("--------------")
-          }
-          if (result.error) addBuildLog(`E2B Command Error: ${result.error}`)
-          if (result.exitCode !== 0) addBuildLog(`ERROR: Command '${data.action}' failed.`)
-          else addBuildLog(`SUCCESS: Command '${data.action}' completed successfully.`)
-        }
-      } else if (data.success && action === "addFiles") {
-        addLog(`${files.length} files written successfully.`)
-        if (currentProject) saveProject()
-      } else if (data.success && action === "create") {
-        addLog(`Sandbox created with ID: ${data.sandboxId}`)
-        if (currentProject && currentProject.files.length > 0) {
-          addLog("Writing current project files to the new sandbox...")
-          await runAction("addFiles")
-        }
-      } else if (data.success && action === "start") {
-        addLog(`Server started. Preview: ${data.url}`)
-      } else if (!data.success) {
-        addLog(`ERROR: Action '${action}' failed.`)
-      }
-    } catch (err: any) {
-      if (action === "build" || action === "install") {
-        addBuildLog(`CLIENT-SIDE ERROR: ${err.message}`)
-      } else {
-        addLog(`CLIENT-SIDE ERROR: ${err.message}`)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const applyAndSetFiles = (responses: any[]) => {
-    const newFiles = [...files]
-    let filesUpdated = false
-
-    responses.forEach((res) => {
-      if (res.type === "fileChanges" && res.filePath && res.changes) {
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath)
-        if (fileIndex !== -1) {
-          const originalContent = newFiles[fileIndex].content
-          newFiles[fileIndex].content = applyChanges(originalContent, res.changes)
-          filesUpdated = true
-          addLog(`Applied ${res.changes.length} changes to ${res.filePath}`)
-        } else {
-          addLog(`Warning: AI tried to change a non-existent file: ${res.filePath}`)
-        }
-      } else if (res.filePath && typeof res.content === "string") {
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath)
-        if (fileIndex !== -1) {
-          newFiles[fileIndex].content = res.content
-        } else {
-          newFiles.push({ filePath: res.filePath, content: res.content })
-        }
-        filesUpdated = true
-      }
-    })
-
-    if (filesUpdated) {
-      setFiles(newFiles)
-      addLog(`✅ Project files updated based on AI proposal.`)
-      setActiveTab("code")
-      if (currentProject) saveProject()
-    } else {
-      addLog(`❌ AI response did not contain valid file creations or changes.`)
-    }
-  }
-
-    const fillFilesFromGeminiResponse = (text: string): boolean => {
-    console.log("[v0] Raw AI response:", text)
-
-    let jsonString = ""
-    const firstBrace = text.indexOf("{")
-    const lastBrace = text.lastIndexOf("}")
-    const firstBracket = text.indexOf("[")
-    const lastBracket = text.lastIndexOf("]")
-
-    if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
-      jsonString = text.substring(firstBrace, lastBrace + 1)
-    } else if (firstBracket !== -1 && lastBracket > firstBracket) {
-      jsonString = text.substring(firstBracket, lastBracket + 1)
-    }
-
-    if (!jsonString) {
-      addLog(`INFO: No JSON structure found in response. Treating as text.`)
-      return false
-    }
-
-    try {
-      const parsed = JSON.parse(jsonString)
-
-      if (Array.isArray(parsed)) {
-        const artifactId = addArtifact({
-          type: "file-creation",
-          status: "processing",
-          title: `Creating ${parsed.length} files...`,
-        })
-
-        setTimeout(() => {
-          applyAndSetFiles(parsed)
-          updateArtifact(artifactId, { status: "completed", title: `Created ${parsed.length} files` })
-        }, 1000)
-        return true
-      } else if (typeof parsed === "object" && parsed !== null && parsed.type === "fileChanges") {
-        const artifactId = addArtifact({
-          type: "file-edit",
-          status: "processing",
-          title: `Editing ${parsed.filePath}...`,
-          filePath: parsed.filePath,
-        })
-
-        setTimeout(() => {
-          applyAndSetFiles([parsed])
-          updateArtifact(artifactId, { status: "completed", title: `Edited ${parsed.filePath}` })
-        }, 800)
-        return true
-      } else {
-        addLog(`❌ JSON parsed but format not recognized.`)
-        return false
-      }
-    } catch (e: any) {
-      addLog(`❌ Failed to parse extracted JSON. Error: ${e.message}`)
-      return false
-    }
-            }
-        
-
-  const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string) => {
-    try {
-      const artifactId = addArtifact({
-        type: "analysis",
-        status: "processing",
-        title: `Analyzing ${urlToAnalyze}...`,
-        url: urlToAnalyze,
-        progress: 0,
+        body: JSON.stringify({ message: chatInput.trim() }),
       })
 
-      updateArtifact(artifactId, { progress: 25 })
-      setAnalysisStatus(`1/4: Analyzing ${urlToAnalyze}...`)
-      addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
-
-      const analysisRes = await fetch("/api/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToAnalyze }),
-      })
-      const analysisData = await analysisRes.json()
-      if (!analysisRes.ok) throw new Error(`Analysis API failed: ${analysisData.error}`)
-
-      updateArtifact(artifactId, { progress: 50 })
-      addLog("[AUTO-FLOW] ✅ Analysis API call successful.")
-
-      const globalCssVariables = parseRootVariables(analysisData.fullCSS)
-      const fontFaces = extractFontFaces(analysisData.fullCSS)
-
-      updateArtifact(artifactId, { progress: 75 })
-      setAnalysisStatus(`2/4: Finding relevant components...`)
-      const componentsToFind = findPotentialComponents(analysisData.fullHTML)
-      const isolatedComponents = []
-      addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
-
-      for (const comp of componentsToFind) {
-        setAnalysisStatus(`3/4: Isolating component: ${comp.tag}...`)
-        addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
-
-        const hiddenIframe = document.createElement("iframe")
-        hiddenIframe.style.display = "none"
-        document.body.appendChild(hiddenIframe)
-
-        const isolatedHtml = await new Promise<string>((resolve, reject) => {
-          hiddenIframe.onload = () => {
-            const iframeDoc = hiddenIframe.contentDocument
-            if (!iframeDoc) return reject(new Error("Could not access hidden iframe document."))
-            const element = iframeDoc.querySelector(comp.selector)
-            if (element) resolve(cloneWithComputedStyles(element).outerHTML)
-            else resolve("")
-            document.body.removeChild(hiddenIframe)
-          }
-          hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${analysisData.baseURL}"><style>${analysisData.fullCSS}</style></head><body>${analysisData.fullHTML}</body></html>`
-        })
-
-        if (isolatedHtml) {
-          isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
-          addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
-        }
+      if (!response.ok || !response.body) {
+        throw new Error("Failed to get AI response")
       }
 
-      updateArtifact(artifactId, { progress: 100, status: "completed", title: `Analyzed ${urlToAnalyze}` })
-      setAnalysisStatus(`4/4: Building final prompt for Gemini...`)
-      addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
-
-      const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map((v) => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces to use in globals.css:\n\`\`\`css\n${fontFaces}\n\`\`\`\nIsolated Components (HTML with inline styles). Use these as a direct reference for structure and styling:\n${isolatedComponents.map((c) => `// Component: ${c.name}\n\`\`\`html\n${c.html}\n\`\`\``).join("\n\n")}\nBased on all the above information, generate the complete Next.js project files. IMPORTANT: Start with app/page.tsx, then app/layout.tsx, and finally app/globals.css.`
-
-      addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
-      await sendChat(finalPrompt)
-    } catch (err: any) {
-      addLog(`ERROR during automated analysis: ${err.message}`)
-      setAnalysisStatus(`Error during analysis: ${err.message}`)
-    }
-  }
-
-
-
-    const sendChat = async (promptOverride?: string) => {
-    const userPrompt = promptOverride || chatInput
-    if (!userPrompt) return
-    if (!currentProject && !promptOverride) {
-      addLog("Please create or load a project before starting a conversation.")
-      return
-    }
-
-    setLoading(true)
-    let currentMessages = messages
-    if (!promptOverride) {
-      const newUserMessage = { role: "user", content: userPrompt }
-      currentMessages = [...messages, newUserMessage]
-      setMessages(currentMessages)
-      setChatInput("")
-    }
-
-    let finalPrompt = ""
-    if (!promptOverride) {
-      const history = currentMessages.map((msg) => `${msg.role}: ${msg.content}`).join("\n")
-      const fileContext = files
-        .map((f) => {
-          const numberedContent = f.content
-            .split("\n")
-            .map((line, i) => `${i + 1}: ${line}`)
-            .join("\n")
-          return `// FilePath: ${f.filePath}\n\`\`\`\n${numberedContent}\n\`\`\``
-        })
-        .join("\n\n")
-
-      finalPrompt = `CONTEXT:\nCurrent Files:\n${fileContext}\n---\nConversation History:\n${history}\n---\nNEW USER REQUEST:\n${userPrompt}`
-    } else {
-      finalPrompt = userPrompt
-    }
-
-    addLog(`Sending prompt to Gemini...`)
-
-    try {
-      const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: finalPrompt }),
-      })
-      if (!res.ok || !res.body) throw new Error(`Gemini API request failed`)
-
-      const reader = res.body.getReader()
+      const reader = response.body.getReader()
       const decoder = new TextDecoder()
-      let text = ""
+      let aiResponse = ""
 
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }])
+      setMessages((prev) => [...prev, { role: "assistant", content: "", timestamp: new Date() }])
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        text += decoder.decode(value, { stream: true })
 
-        const cleanedTextForDisplay = text.replace(/```json[\s\S]*?```/g, "").trim();
+        const chunk = decoder.decode(value, { stream: true })
+        aiResponse += chunk
+
         setMessages((prev) => {
-          const lastMsgIndex = prev.length - 1
-          const updatedMessages = [...prev]
-          if (updatedMessages[lastMsgIndex]?.role === "assistant") {
-            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: cleanedTextForDisplay }
-          }
-          return updatedMessages
+          const newMessages = [...prev]
+          newMessages[newMessages.length - 1].content = aiResponse
+          return newMessages
         })
       }
 
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        try {
-          const parsedJson = JSON.parse(jsonMatch[0])
-          if (parsedJson.type === "inspirationUrl" && parsedJson.url) {
-            addLog(`✅ Gemini suggests inspiration URL: ${parsedJson.url}`)
-            await runAutomatedAnalysis(parsedJson.url, userPrompt)
-            return
-          }
-        } catch (e) {}
+      if (currentProject) {
+        const finalMessages = [...updatedMessages, { role: "assistant", content: aiResponse, timestamp: new Date() }]
+        const updatedProject = { ...currentProject, messages: finalMessages }
+        const updatedProjects = projects.map((p) => (p.id === currentProject.id ? updatedProject : p))
+        setProjects(updatedProjects)
+        localStorage.setItem("lovable-projects", JSON.stringify(updatedProjects))
       }
 
-      addLog("Response not an inspiration URL, treating as code or text.")
-      const wasJsonHandled = fillFilesFromGeminiResponse(text)
+      addLog("AI response received")
+    } catch (error) {
+      console.error("Chat error:", error)
+      addLog(`Error: ${error instanceof Error ? error.message : "Unknown error"}`)
 
-      if (!wasJsonHandled) {
-        addLog("✅ Gemini sent a text response.")
-        const finalText = text.replace(/```json[\s\S]*?```/g, "").trim();
-        setMessages((prev) => {
-          const lastMsgIndex = prev.length - 1
-          const updatedMessages = [...prev]
-          if (updatedMessages[lastMsgIndex]?.role === "assistant") {
-            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: finalText }
-          }
-          return updatedMessages
-        });
-      } else {
-         setMessages((prev) => {
-          const lastMsgIndex = prev.length - 1
-          const updatedMessages = [...prev]
-          if (updatedMessages[lastMsgIndex]?.role === "assistant") {
-            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: "J'ai effectué les modifications de code." }
-          }
-          return updatedMessages
-        });
-      }
-    } catch (err: any) {
-      addLog(`CLIENT-SIDE ERROR: ${err.message}`)
-      setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }])
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I encountered an error. Please try again.",
+          timestamp: new Date(),
+        },
+      ])
     } finally {
       setLoading(false)
-      setAnalysisStatus(null)
     }
+  }
+
+  const runSandbox = async () => {
+    if (!files.length) {
+      addLog("No files to run")
+      return
     }
-             
-
-    
-
-    
-
-          
-
-
-  const deployToGitHub = async () => {
-    const accessToken = prompt("Enter your GitHub access token:")
-    if (!accessToken) return
-
-    const repoName = prompt("Enter repository name:", currentProject?.name || "my-project")
-    if (!repoName) return
 
     setLoading(true)
-    addLog("Starting GitHub deployment...")
+    addLog("Starting sandbox...")
 
     try {
-      const res = await fetch("/api/github", {
+      const createResponse = await fetch("/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create" }),
+      })
+
+      const createData = await createResponse.json()
+      if (!createData.success) {
+        throw new Error(createData.error || "Failed to create sandbox")
+      }
+
+      setSandboxId(createData.sandboxId)
+      addLog(`Sandbox created: ${createData.sandboxId}`)
+
+      const filesResponse = await fetch("/api/sandbox", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          files: files.reduce((acc, file) => ({ ...acc, [file.filePath]: file.content }), {}),
-          projectName: currentProject?.name || "my-project",
-          accessToken,
-          repoName,
-          sandboxId,
+          action: "addFiles",
+          sandboxId: createData.sandboxId,
+          files: files,
         }),
       })
 
-      const data = await res.json()
-      if (data.success) {
-        addLog(`✅ Successfully deployed to GitHub: ${data.repoUrl}`)
-      } else {
-        addLog(`❌ GitHub deployment failed: ${data.error}`)
+      const filesData = await filesResponse.json()
+      if (!filesData.success) {
+        throw new Error(filesData.error || "Failed to add files")
       }
-    } catch (err: any) {
-      addLog(`❌ GitHub deployment error: ${err.message}`)
+
+      addLog("Files added to sandbox")
+
+      const installResponse = await fetch("/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "install",
+          sandboxId: createData.sandboxId,
+        }),
+      })
+
+      const installData = await installResponse.json()
+      addLog(`Install ${installData.success ? "completed" : "failed"}`)
+
+      const startResponse = await fetch("/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start",
+          sandboxId: createData.sandboxId,
+        }),
+      })
+
+      const startData = await startResponse.json()
+      if (startData.success && startData.url) {
+        setPreviewUrl(startData.url)
+        addLog(`Application started: ${startData.url}`)
+      }
+    } catch (error) {
+      console.error("Sandbox error:", error)
+      addLog(`Sandbox error: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const deployToVercel = async () => {
-    const token = prompt("Enter your Vercel access token:")
-    if (!token) return
-
-    setLoading(true)
-    addLog("Starting Vercel deployment...")
-
-    try {
-        // Clean the project name to match Vercel's requirements
-        const projectName = (currentProject?.name || "my-project")
-            .toLowerCase()
-            .replace(/[^a-z0-9-.]/g, '-')
-            .substring(0, 100)
-            .replace(/--+/g, '-')
-            .replace(/^-+|-+$/g, '');
-
-        addLog(`Deploying with Vercel project name: ${projectName}`);
-
-        const res = await fetch("/api/vercel", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                files: files.reduce((acc, file) => ({ ...acc, [file.filePath]: file.content }), {}),
-                projectName: projectName,
-                token,
-                sandboxId,
-            }),
-        });
-
-        const data = await res.json();
-        if (data.success) {
-            addLog(`✅ Successfully deployed to Vercel: ${data.url}`);
-        } else {
-            addLog(`❌ Vercel deployment failed: ${data.error}`);
-        }
-    } catch (err: any) {
-        addLog(`❌ Vercel deployment error: ${err.message}`);
-    } finally {
-        setLoading(false);
-    }
-        }
-          
-
-  const copyLogs = () => navigator.clipboard.writeText(logs.join("\n"))
-
-  const handleNavigate = () => {
-    if (iframeRef.current && previewUrl) {
-      const targetUrl = new URL(previewUrl)
-      const route = iframeRoute.startsWith("/") ? iframeRoute : `/${iframeRoute}`
-      targetUrl.pathname = route
-      iframeRef.current.src = targetUrl.toString()
-      addLog(`Navigating iframe to: ${targetUrl.toString()}`)
-    }
-  }
-
-  const handleReload = () => {
-    if (iframeRef.current) {
-      iframeRef.current.src = iframeRef.current.src
-      addLog("Reloading iframe...")
     }
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] font-sans text-white">
-      {/* Left Sidebar - File Explorer & Change History */}
-      <div className="w-80 bg-[#0a0a0a] h-full flex flex-col border-r border-[#1f1f1f]">
+    <div className="flex h-screen bg-white font-sans">
+      <div className="w-80 bg-gray-50 border-r border-gray-200 flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-[#1f1f1f]">
-          
-          <span className="text-sm text-gray-400">Brillance Studio</span>
-          
-        </div>
-
-        {/* Project Selector */}
-        <div className="px-4 py-3 border-b border-[#1f1f1f]">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-white">{currentProject?.name || "No Project"}</span>
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-semibold text-gray-900">Brillance AI</h1>
             <Button
               variant="ghost"
               size="icon"
               onClick={createNewProject}
-              className="h-6 w-6 text-gray-400 hover:text-white"
+              className="h-8 w-8 text-gray-500 hover:text-gray-700"
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-4 w-4" />
             </Button>
           </div>
-          {projects.length > 0 && (
-            <select
-              onChange={(e) => loadProject(e.target.value)}
-              value={currentProject?.id || ""}
-              className="w-full mt-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-1 text-xs text-gray-300"
-            >
-              <option value="" disabled>
-                Select Project
-              </option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
+
+          <Button onClick={createNewProject} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="h-4 w-4 mr-2" />
+            New Chat
+          </Button>
         </div>
 
-        {/* Change History Section */}
-        <div className="flex-1 flex flex-col">
-          <div className="px-4 py-2 border-b border-[#1f1f1f]">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Change History</span>
-              <ChevronDown className="h-3 w-3 text-gray-400" />
-            </div>
-          </div>
-
-          {/* Current Change */}
-          <div className="px-4 py-3 border-b border-[#1f1f1f]">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <span className="text-sm text-white">Ongoing change</span>
-            </div>
-            <p className="text-xs text-gray-400 mb-3">
-              {analysisStatus ||
-                "Create a real-time chat application that lets you send and receive messages using a streaming API. Use a retro 80s hacker theme."}
-            </p>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 mb-3">
-              <Button
-                onClick={() => runAction("create")}
-                disabled={loading}
-                size="sm"
-                className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs px-3 py-1 h-7"
+        {/* Project List */}
+        <ScrollArea className="flex-1 p-4">
+          <div className="space-y-2">
+            {projects.map((project) => (
+              <button
+                key={project.id}
+                onClick={() => selectProject(project)}
+                className={`w-full text-left p-3 rounded-lg transition-colors ${
+                  currentProject?.id === project.id ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-100"
+                }`}
               >
-                Create new chat with streaming API
-              </Button>
-            </div>
-
-
-
-            <div className="flex-1 flex flex-col min-h-0">
-  <div className="px-4 py-2 border-b border-[#1f1f1f]">
-    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-      Conversation
-    </span>
-  </div>
-  <ScrollArea className="flex-1 overflow-y-auto" viewportRef={chatScrollAreaRef}>
-    <div className="p-4 space-y-4">
-      {messages.map((msg, index) => (
-        <div key={index} className={`flex flex-col gap-2 text-sm ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-          <span className="text-xs font-bold text-gray-400">
-            {msg.role === 'user' ? 'You' : 'Brillance Studio'}
-          </span>
-          <div className={`p-3 rounded-lg max-w-full ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-[#1a1a1a] text-gray-300'}`}>
-            <pre className="whitespace-pre-wrap font-sans">{msg.content}</pre>
+                <div className="font-medium text-gray-900 text-sm mb-1">{project.name}</div>
+                <div className="text-xs text-gray-500 truncate">
+                  {project.messages[project.messages.length - 1]?.content.slice(0, 60)}...
+                </div>
+                <div className="text-xs text-gray-400 mt-1">{project.createdAt.toLocaleDateString()}</div>
+              </button>
+            ))}
           </div>
+        </ScrollArea>
+
+        {/* Settings */}
+        <div className="p-4 border-t border-gray-200">
+          <Button variant="ghost" className="w-full justify-start text-gray-600">
+            <Settings className="h-4 w-4 mr-2" />
+            Settings
+          </Button>
         </div>
-      ))}
-      
-      {artifacts.length > 0 && (
-        <div className="text-xs text-gray-500 border-t border-[#1f1f1f] pt-2 mt-4">
-            {artifacts.slice(-3).map((artifact) => (
-              <div key={artifact.id} className="flex items-center gap-2 rounded p-1">
-                  <div className={`w-2 h-2 rounded-full ${ artifact.status === "processing" ? "bg-yellow-500 animate-pulse" : artifact.status === "completed" ? "bg-green-500" : "bg-red-500"}`}></div>
-                  <span className="text-gray-400">{artifact.title}</span>
-                  {artifact.progress !== undefined && artifact.status === "processing" && (
-                    <div className="ml-auto text-gray-500">{artifact.progress}%</div>
+      </div>
+
+      <div className="flex-1 flex flex-col">
+        {/* Chat Messages */}
+        <ScrollArea className="flex-1 p-6" ref={chatScrollRef}>
+          <div className="max-w-3xl mx-auto space-y-6">
+            {messages.map((message, index) => (
+              <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    message.role === "user" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                  {message.timestamp && (
+                    <div className={`text-xs mt-2 ${message.role === "user" ? "text-blue-100" : "text-gray-500"}`}>
+                      {message.timestamp.toLocaleTimeString()}
+                    </div>
                   )}
+                </div>
               </div>
             ))}
-        </div>
-      )}
 
-    </div>
-  </ScrollArea>
-</div>
-                             
-
-            
-            {/* File List */}
-            <div className="space-y-1">
-              {files.map((file, index) => (
-                <div key={index} className="flex items-center gap-2 text-xs">
-                  <File className="h-3 w-3 text-gray-400" />
-                  <span className="text-gray-300">{file.filePath}</span>
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-2xl px-4 py-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.1s" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.2s" }}
+                    ></div>
+                  </div>
                 </div>
-              ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+
+        <div className="border-t border-gray-200 p-6">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-end space-x-3">
+              <Button variant="ghost" size="icon" className="h-10 w-10 text-gray-500 hover:text-gray-700">
+                <Paperclip className="h-5 w-5" />
+              </Button>
+
+              <div className="flex-1 relative">
+                <textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      sendMessage()
+                    }
+                  }}
+                  placeholder="Ask Brillance to make anything..."
+                  className="w-full resize-none border border-gray-300 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={1}
+                  style={{ minHeight: "48px", maxHeight: "120px" }}
+                />
+
+                <Button
+                  onClick={sendMessage}
+                  disabled={!chatInput.trim() || loading}
+                  size="icon"
+                  className="absolute right-2 top-2 h-8 w-8 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <Button variant="ghost" size="icon" className="h-10 w-10 text-gray-500 hover:text-gray-700">
+                <Edit3 className="h-5 w-5" />
+              </Button>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Files Section */}
-          <div className="flex-1">
-            <div className="px-4 py-2 border-b border-[#1f1f1f]">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Files</span>
-                <FolderOpen className="h-3 w-3 text-gray-400" />
-              </div>
+      <div className="w-96 bg-gray-50 border-l border-gray-200 flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Preview</h2>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={runSandbox}
+                disabled={loading || !files.length}
+                className="h-8 w-8 text-gray-500 hover:text-gray-700"
+              >
+                <Play className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-gray-700">
+                <RotateCcw className="h-4 w-4" />
+              </Button>
             </div>
-            <ScrollArea className="flex-1 px-4 py-2">
-              <div className="space-y-1">
-                {files.map((file, index) => (
-                  <button
-                    key={index}
-                    className={`w-full text-left text-xs p-2 rounded transition-colors flex items-center gap-2 ${
-                      activeFile === index ? "bg-[#1a1a1a] text-white" : "hover:bg-[#1a1a1a] text-gray-400"
-                    }`}
-                    onClick={() => setActiveFile(index)}
-                  >
-                    <File className="h-3 w-3" />
-                    {file.filePath}
-                  </button>
-                ))}
-              </div>
-            </ScrollArea>
           </div>
         </div>
 
-        {/* Chat Input - Bottom */}
-        <div className="p-4 border-t border-[#1f1f1f] bg-[#0a0a0a]">
-          {analysisStatus && <p className="text-xs text-gray-400 mb-2 animate-pulse">{analysisStatus}</p>}
-
-          {artifacts.length > 0 && (
-            <div className="mb-3 space-y-2">
-              {artifacts.slice(-3).map((artifact) => (
-                <div key={artifact.id} className="flex items-center gap-2 text-xs bg-[#1a1a1a] rounded p-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      artifact.status === "processing"
-                        ? "bg-yellow-500 animate-pulse"
-                        : artifact.status === "completed"
-                          ? "bg-green-500"
-                          : "bg-red-500"
-                    }`}
-                  ></div>
-                  <span className="text-gray-300">{artifact.title}</span>
-                  {artifact.progress !== undefined && artifact.status === "processing" && (
-                    <div className="ml-auto text-gray-400">{artifact.progress}%</div>
-                  )}
-                </div>
-              ))}
+        {/* Preview Content */}
+        <div className="flex-1 flex flex-col">
+          {previewUrl ? (
+            <iframe ref={iframeRef} src={previewUrl} className="flex-1 w-full border-0" title="Preview" />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-sm">No preview available</p>
+                <p className="text-xs text-gray-400 mt-1">Start a conversation to see your app</p>
+              </div>
             </div>
           )}
-
-  <div
-  className="relative w-full rounded-lg p-[1px] transition-all duration-300 ease-in-out
-           focus-within:ring-1 focus-within:ring-white
-           bg-gradient-to-r from-purple-500 to-blue-500"
->
-  <div
-    className="w-full h-full relative rounded-[calc(0.5rem-1px)] bg-[#1a1a1a]
-             flex items-center p-2"
-  >
-    <textarea
-      placeholder={
-        currentProject ? "What's next?" : "Create a project first..."
-      }
-      rows={1}
-      value={chatInput}
-      onChange={(e) => setChatInput(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          sendChat();
-        }
-      }}
-      disabled={!currentProject || loading}
-      className="flex-1 bg-transparent border-none outline-none
-               text-sm text-white placeholder:text-gray-500 resize-none
-               p-1 focus:ring-0 focus:border-0"
-    />
-    <Button
-      className="bg-transparent hover:bg-[#2a2a2a] text-white p-2 h-8 w-8"
-      onClick={() => sendChat()}
-      disabled={loading || !chatInput || !currentProject}
-    >
-      <Send className="h-4 w-4" />
-    </Button>
-  </div>
-</div>
-                      
-            
-          </div>
-
-          
-        
-
-      {/* Main Content Area */}
-      <div className="flex-1 h-full flex flex-col bg-[#0a0a0a]">
-        {/* Top Navigation */}
-        <div className="flex items-center justify-between px-6 h-12 flex-shrink-0 border-b border-[#1f1f1f]">
-          {/* Tab Navigation */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant={activeTab === "code" ? "secondary" : "ghost"}
-              size="sm"
-              className={`text-xs px-3 py-1 h-7 ${
-                activeTab === "code"
-                  ? "bg-[#1a1a1a] text-white border border-[#2a2a2a]"
-                  : "text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-              }`}
-              onClick={() => setActiveTab("code")}
-            >
-              Code
-            </Button>
-            <Button
-              variant={activeTab === "preview" ? "secondary" : "ghost"}
-              size="sm"
-              className={`text-xs px-3 py-1 h-7 ${
-                activeTab === "preview"
-                  ? "bg-[#1a1a1a] text-white border border-[#2a2a2a]"
-                  : "text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-              }`}
-              onClick={() => setActiveTab("preview")}
-            >
-              Preview
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1 h-7 text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-            >
-              Architecture
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1 h-7 text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-            >
-              Infrastructure
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1 h-7 text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-            >
-              Service Catalog
-            </Button>
-          </div>
-
-          {/* Right Actions */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-gray-400 hover:text-white"
-              onClick={deployToGitHub}
-              disabled={loading || !files.length}
-            >
-              <Github className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1 h-7 text-gray-400 hover:text-white border border-[#2a2a2a]"
-            >
-              Reset database
-            </Button>
-            <Button
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 h-7"
-              onClick={deployToVercel}
-              disabled={loading || !files.length}
-            >
-              Deploy
-            </Button>
-          </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 flex">
-          {/* Code Editor */}
-          <div className="flex-1 flex flex-col">
-            {activeTab === "code" ? (
-              <div className="flex-1 flex">
-                {/* File Tree */}
-                <div className="w-64 border-r border-[#1f1f1f] bg-[#0a0a0a]">
-                  <div className="p-3 border-b border-[#1f1f1f]">
-                    <div className="flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-300">frontend</span>
-                      <ChevronDown className="h-3 w-3 text-gray-400 ml-auto" />
-                    </div>
-                  </div>
-                  <ScrollArea className="flex-1">
-                    <div className="p-2 space-y-1">
-                      {files.map((file, index) => (
-                        <button
-                          key={index}
-                          className={`w-full text-left text-xs p-2 rounded flex items-center gap-2 ${
-                            activeFile === index
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-                          }`}
-                          onClick={() => setActiveFile(index)}
-                        >
-                          <File className="h-3 w-3" />
-                          {file.filePath.split("/").pop()}
-                        </button>
-                      ))}
-                    </div>
-                  </ScrollArea>
+        {/* Logs */}
+        {logs.length > 0 && (
+          <div className="border-t border-gray-200 bg-gray-900 text-green-400 font-mono text-xs">
+            <ScrollArea className="h-32 p-3">
+              {logs.map((log, index) => (
+                <div key={index} className="mb-1">
+                  {log}
                 </div>
-
-                {/* Code Editor */}
-                <div className="flex-1 bg-[#0a0a0a]">
-                  <div className="h-8 border-b border-[#1f1f1f] flex items-center px-4">
-                    <span className="text-xs text-gray-400">{files[activeFile]?.filePath || "No file selected"}</span>
-                  </div>
-                  <CodeMirror
-                    value={files[activeFile]?.content || ""}
-                    height="calc(100% - 32px)"
-                    theme="dark"
-                    extensions={[javascript({ jsx: true, typescript: true })]}
-                    onChange={updateFile}
-                    className="h-full"
-                  />
-                </div>
-              </div>
-            ) : (
-              /* Preview */
-              <div className="flex-1 bg-[#0a0a0a] p-4">
-                <div className="h-full bg-white rounded-lg border border-[#2a2a2a] overflow-hidden">
-                  {previewUrl ? (
-                    <iframe
-                      ref={iframeRef}
-                      src={previewUrl}
-                      className="w-full h-full border-0"
-                      title="Sandbox Preview"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">
-                      <p>Create a sandbox and start the server to see preview</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+              ))}
+            </ScrollArea>
           </div>
-        </div>
-
-        {/* Bottom Panel - BUILD/LOGS/TESTS */}
-        <div className="h-64 border-t border-[#1f1f1f] bg-[#0a0a0a] flex flex-col">
-          {/* Tab Bar */}
-          <div className="flex items-center justify-between px-4 h-10 border-b border-[#1f1f1f]">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`text-xs px-3 py-1 h-6 ${
-                  activeBottomTab === "build"
-                    ? "text-white bg-[#1a1a1a] border border-[#2a2a2a]"
-                    : "text-gray-400 hover:text-white"
-                }`}
-                onClick={() => setActiveBottomTab("build")}
-              >
-                BUILD
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`text-xs px-3 py-1 h-6 ${
-                  activeBottomTab === "logs"
-                    ? "text-white bg-[#1a1a1a] border border-[#2a2a2a]"
-                    : "text-gray-400 hover:text-white"
-                }`}
-                onClick={() => setActiveBottomTab("logs")}
-              >
-                LOGS
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`text-xs px-3 py-1 h-6 ${
-                  activeBottomTab === "tests"
-                    ? "text-white bg-[#1a1a1a] border border-[#2a2a2a]"
-                    : "text-gray-400 hover:text-white"
-                }`}
-                onClick={() => setActiveBottomTab("tests")}
-              >
-                TESTS
-              </Button>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-xs text-gray-400">Backend</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-xs text-gray-400">Frontend</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 p-4">
-            {activeBottomTab === "build" && (
-              <>
-                {buildLogs.length === 0 ? (
-                  <div className="text-center text-gray-400 text-sm">No build messages</div>
-                ) : (
-                  <ScrollArea className="h-32 bg-[#1a1a1a] rounded border border-[#2a2a2a] p-3">
-                    <pre className="text-xs font-mono text-gray-300 whitespace-pre-wrap">{buildLogs.join("\n")}</pre>
-                  </ScrollArea>
-                )}
-              </>
-            )}
-
-            {activeBottomTab === "logs" && (
-              <>
-                {logs.length === 0 ? (
-                  <div className="text-center text-gray-400 text-sm">No log messages</div>
-                ) : (
-                  <ScrollArea className="h-32 bg-[#1a1a1a] rounded border border-[#2a2a2a] p-3">
-                    <pre className="text-xs font-mono text-gray-300 whitespace-pre-wrap">{logs.join("\n")}</pre>
-                  </ScrollArea>
-                )}
-              </>
-            )}
-
-            {activeBottomTab === "tests" && <div className="text-center text-gray-400 text-sm">No test results</div>}
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 mt-4">
-              <Button
-                onClick={() => runAction("create")}
-                disabled={loading}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                Create
-              </Button>
-              <Button
-                onClick={() => runAction("install")}
-                disabled={loading || !sandboxId}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                Install
-              </Button>
-              <Button
-                onClick={() => runAction("build")}
-                disabled={loading || !sandboxId}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                Build
-              </Button>
-              <Button
-                onClick={() => runAction("start")}
-                disabled={loading || !sandboxId}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                Start
-              </Button>
-              <Button
-                onClick={() => runAction("addFiles")}
-                disabled={loading || !sandboxId}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                <HardDrive className="h-3 w-3 mr-1" />
-                Save to Sandbox
-              </Button>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )
