@@ -5,8 +5,22 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import CodeMirror from "@uiw/react-codemirror"
 import { javascript } from "@codemirror/lang-javascript"
+import { xcodeLight } from "@uiw/codemirror-theme-xcode"
 
-import { Github, HardDrive, Plus, Send, ChevronDown, FolderOpen, File, Settings, Database, Rocket } from "lucide-react"
+import {
+  Copy,
+  Zap,
+  Github,
+  ChevronsUpDown,
+  HardDrive,
+  ArrowRight,
+  RefreshCw,
+  Code,
+  Eye,
+  ExternalLink,
+  Plus,
+  Save,
+} from "lucide-react"
 
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
 interface CommandResult {
@@ -25,16 +39,6 @@ interface Project {
   createdAt: string
   files: { filePath: string; content: string }[]
   messages: Message[]
-}
-
-interface Artifact {
-  id: string
-  type: "analysis" | "file-creation" | "file-edit"
-  status: "pending" | "processing" | "completed" | "error"
-  title: string
-  url?: string
-  filePath?: string
-  progress?: number
 }
 
 // --- LOGIQUE D'ANALYSE (Fonctions pures) ---
@@ -171,7 +175,6 @@ const applyChanges = (originalContent: string, changes: any[]): string => {
 // --- COMPOSANT PRINCIPAL ---
 export default function SandboxPage() {
   const [logs, setLogs] = useState<string[]>([])
-  const [buildLogs, setBuildLogs] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [sandboxId, setSandboxId] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -185,8 +188,6 @@ export default function SandboxPage() {
   const [iframeRoute, setIframeRoute] = useState("/")
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
-  const [artifacts, setArtifacts] = useState<Artifact[]>([])
-  const [activeBottomTab, setActiveBottomTab] = useState<"build" | "logs" | "tests">("build")
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const chatScrollAreaRef = useRef<HTMLDivElement>(null)
@@ -209,17 +210,6 @@ export default function SandboxPage() {
   }, [messages])
 
   const addLog = (msg: string) => setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`])
-  const addBuildLog = (msg: string) => setBuildLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`])
-
-  const addArtifact = (artifact: Omit<Artifact, "id">) => {
-    const newArtifact = { ...artifact, id: crypto.randomUUID() }
-    setArtifacts((prev) => [...prev, newArtifact])
-    return newArtifact.id
-  }
-
-  const updateArtifact = (id: string, updates: Partial<Artifact>) => {
-    setArtifacts((prev) => prev.map((artifact) => (artifact.id === id ? { ...artifact, ...updates } : artifact)))
-  }
 
   const saveProjectsToLocalStorage = (updatedProjects: Project[]) => {
     try {
@@ -294,12 +284,7 @@ export default function SandboxPage() {
   const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
     setLoading(true)
     try {
-      if (action === "build" || action === "install") {
-        addBuildLog(`Running ${action}...`)
-      } else {
-        addLog(`Running action: ${action}...`)
-      }
-
+      addLog(`Running action: ${action}...`)
       const body: any = { action, sandboxId: sandboxId || undefined }
 
       if (action === "addFiles") {
@@ -319,58 +304,50 @@ export default function SandboxPage() {
       const data = await res.json()
 
       if (data.error) {
-        if (action === "build" || action === "install") {
-          addBuildLog(`API ERROR: ${data.error}`)
-          if (data.details) addBuildLog(`Details: ${data.details}`)
-        } else {
-          addLog(`API ERROR: ${data.error}`)
-          if (data.details) addLog(`Details: ${data.details}`)
-        }
+        addLog(`API ERROR: ${data.error}`)
+        if (data.details) addLog(`Details: ${data.details}`)
         setLoading(false)
         return
       }
 
+      if (data.logs) data.logs.split("\n").forEach((l: string) => addLog(l))
       if (data.sandboxId) setSandboxId(data.sandboxId)
       if (data.url) setPreviewUrl(data.url)
 
       if (data.action === "install" || data.action === "build") {
         const result: CommandResult = data.result
         if (result) {
-          addBuildLog(`Command '${data.action}' completed (Exit Code: ${result.exitCode})`)
+          addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
           if (result.stdout) {
-            addBuildLog("--- STDOUT ---")
-            result.stdout.split("\n").forEach((l) => addBuildLog(l))
-            addBuildLog("--------------")
+            addLog("--- STDOUT ---")
+            result.stdout.split("\n").forEach((l) => addLog(l))
+            addLog("--------------")
           }
           if (result.stderr) {
-            addBuildLog("--- STDERR ---")
-            result.stderr.split("\n").forEach((l) => addBuildLog(l))
-            addBuildLog("--------------")
+            addLog("--- STDERR ---")
+            result.stderr.split("\n").forEach((l) => addLog(l))
+            addLog("--------------")
           }
-          if (result.error) addBuildLog(`E2B Command Error: ${result.error}`)
-          if (result.exitCode !== 0) addBuildLog(`ERROR: Command '${data.action}' failed.`)
-          else addBuildLog(`SUCCESS: Command '${data.action}' completed successfully.`)
+          if (result.error) addLog(`E2B Command Error: ${result.error}`)
+          if (result.exitCode !== 0) addLog(`ERROR: Commande '${data.action}' échouée.`)
+          else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
         }
       } else if (data.success && action === "addFiles") {
         addLog(`${files.length} files written successfully.`)
         if (currentProject) saveProject()
       } else if (data.success && action === "create") {
-        addLog(`Sandbox created with ID: ${data.sandboxId}`)
+        addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
         if (currentProject && currentProject.files.length > 0) {
           addLog("Writing current project files to the new sandbox...")
           await runAction("addFiles")
         }
       } else if (data.success && action === "start") {
-        addLog(`Server started. Preview: ${data.url}`)
+        addLog(`Serveur démarré. Aperçu: ${data.url}`)
       } else if (!data.success) {
-        addLog(`ERROR: Action '${action}' failed.`)
+        addLog(`ERROR: Action '${action}' échouée.`)
       }
     } catch (err: any) {
-      if (action === "build" || action === "install") {
-        addBuildLog(`CLIENT-SIDE ERROR: ${err.message}`)
-      } else {
-        addLog(`CLIENT-SIDE ERROR: ${err.message}`)
-      }
+      addLog(`CLIENT-SIDE ERROR: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -413,22 +390,30 @@ export default function SandboxPage() {
   }
 
   const fillFilesFromGeminiResponse = (text: string) => {
-    console.log("[v0] Raw AI response:", text)
+    // --- Ligne de débogage ---
+    // Affiche la réponse exacte de l'IA dans la console de votre navigateur (accessible avec F12)
+    console.log("Texte brut reçu par fillFilesFromGeminiResponse:", text)
 
     let jsonString = ""
+    // On cherche les délimiteurs d'un objet JSON `{...}`
     const firstBrace = text.indexOf("{")
     const lastBrace = text.lastIndexOf("}")
+
+    // On cherche les délimiteurs d'un tableau JSON `[...]`
     const firstBracket = text.indexOf("[")
     const lastBracket = text.lastIndexOf("]")
 
+    // On décide quelle structure extraire en priorité
     if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
+      // Si on trouve un objet, et qu'il apparaît avant un éventuel tableau, on le choisit.
       jsonString = text.substring(firstBrace, lastBrace + 1)
     } else if (firstBracket !== -1 && lastBracket > firstBracket) {
+      // Sinon, on choisit le tableau.
       jsonString = text.substring(firstBracket, lastBracket + 1)
     }
 
     if (!jsonString) {
-      addLog(`❌ No JSON structure found in response.`)
+      addLog(`❌ N'a trouvé aucune structure JSON ({...} ou [...]) dans la réponse.`)
       return
     }
 
@@ -436,50 +421,26 @@ export default function SandboxPage() {
       const parsed = JSON.parse(jsonString)
 
       if (Array.isArray(parsed)) {
-        const artifactId = addArtifact({
-          type: "file-creation",
-          status: "processing",
-          title: `Creating ${parsed.length} files...`,
-        })
-
-        setTimeout(() => {
-          applyAndSetFiles(parsed)
-          updateArtifact(artifactId, { status: "completed", title: `Created ${parsed.length} files` })
-        }, 1000)
+        // Cas 1: C'est un tableau (pour la création de fichiers)
+        applyAndSetFiles(parsed)
       } else if (typeof parsed === "object" && parsed !== null && parsed.type === "fileChanges") {
-        const artifactId = addArtifact({
-          type: "file-edit",
-          status: "processing",
-          title: `Editing ${parsed.filePath}...`,
-          filePath: parsed.filePath,
-        })
-
-        setTimeout(() => {
-          applyAndSetFiles([parsed])
-          updateArtifact(artifactId, { status: "completed", title: `Edited ${parsed.filePath}` })
-        }, 800)
+        // Cas 2: C'est un objet unique pour la modification d'un fichier
+        applyAndSetFiles([parsed]) // On l'encapsule dans un tableau pour la fonction suivante
       } else {
-        addLog(`❌ JSON parsed but format not recognized.`)
+        addLog(`❌ Le JSON a été parsé mais son format n'est pas reconnu.`)
       }
     } catch (e: any) {
-      addLog(`❌ Failed to parse extracted JSON. Error: ${e.message}`)
+      addLog(`❌ Échec du parsage du JSON extrait. Erreur: ${e.message}`)
+      addLog(`--- Chaîne qui a échoué ---`)
+      addLog(jsonString)
+      addLog(`--------------------------`)
     }
   }
 
   const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string) => {
     try {
-      const artifactId = addArtifact({
-        type: "analysis",
-        status: "processing",
-        title: `Analyzing ${urlToAnalyze}...`,
-        url: urlToAnalyze,
-        progress: 0,
-      })
-
-      updateArtifact(artifactId, { progress: 25 })
-      setAnalysisStatus(`1/4: Analyzing ${urlToAnalyze}...`)
+      setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze}...`)
       addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
-
       const analysisRes = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -487,21 +448,18 @@ export default function SandboxPage() {
       })
       const analysisData = await analysisRes.json()
       if (!analysisRes.ok) throw new Error(`Analysis API failed: ${analysisData.error}`)
-
-      updateArtifact(artifactId, { progress: 50 })
       addLog("[AUTO-FLOW] ✅ Analysis API call successful.")
 
       const globalCssVariables = parseRootVariables(analysisData.fullCSS)
       const fontFaces = extractFontFaces(analysisData.fullCSS)
 
-      updateArtifact(artifactId, { progress: 75 })
-      setAnalysisStatus(`2/4: Finding relevant components...`)
+      setAnalysisStatus(`2/4: Recherche des composants pertinents...`)
       const componentsToFind = findPotentialComponents(analysisData.fullHTML)
       const isolatedComponents = []
       addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
 
       for (const comp of componentsToFind) {
-        setAnalysisStatus(`3/4: Isolating component: ${comp.tag}...`)
+        setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
         addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
 
         const hiddenIframe = document.createElement("iframe")
@@ -526,17 +484,14 @@ export default function SandboxPage() {
         }
       }
 
-      updateArtifact(artifactId, { progress: 100, status: "completed", title: `Analyzed ${urlToAnalyze}` })
-      setAnalysisStatus(`4/4: Building final prompt for Gemini...`)
+      setAnalysisStatus(`4/4: Construction du prompt final pour Gemini...`)
       addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
-
       const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map((v) => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces to use in globals.css:\n\`\`\`css\n${fontFaces}\n\`\`\`\nIsolated Components (HTML with inline styles). Use these as a direct reference for structure and styling:\n${isolatedComponents.map((c) => `// Component: ${c.name}\n\`\`\`html\n${c.html}\n\`\`\``).join("\n\n")}\nBased on all the above information, generate the complete Next.js project files. IMPORTANT: Start with app/page.tsx, then app/layout.tsx, and finally app/globals.css.`
-
       addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
       await sendChat(finalPrompt)
     } catch (err: any) {
       addLog(`ERROR during automated analysis: ${err.message}`)
-      setAnalysisStatus(`Error during analysis: ${err.message}`)
+      setAnalysisStatus(`Erreur durant l'analyse: ${err.message}`)
     }
   }
 
@@ -595,20 +550,17 @@ export default function SandboxPage() {
         const { done, value } = await reader.read()
         if (done) break
         text += decoder.decode(value, { stream: true })
-
-        const displayText = text.replace(/```json[\s\S]*?```/g, "").replace(/\{[\s\S]*?\}/g, "")
-
         setMessages((prev) => {
           const lastMsgIndex = prev.length - 1
           const updatedMessages = [...prev]
           if (updatedMessages[lastMsgIndex]?.role === "assistant") {
-            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: displayText }
+            updatedMessages[lastMsgIndex] = { ...updatedMessages[lastMsgIndex], content: text }
           }
           return updatedMessages
         })
       }
 
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      const jsonMatch = text.match(/{[\s\S]*}/)
       if (jsonMatch) {
         try {
           const parsedJson = JSON.parse(jsonMatch[0])
@@ -628,74 +580,6 @@ export default function SandboxPage() {
     } finally {
       setLoading(false)
       setAnalysisStatus(null)
-    }
-  }
-
-  const deployToGitHub = async () => {
-    const accessToken = prompt("Enter your GitHub access token:")
-    if (!accessToken) return
-
-    const repoName = prompt("Enter repository name:", currentProject?.name || "my-project")
-    if (!repoName) return
-
-    setLoading(true)
-    addLog("Starting GitHub deployment...")
-
-    try {
-      const res = await fetch("/api/github", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          files: files.reduce((acc, file) => ({ ...acc, [file.filePath]: file.content }), {}),
-          projectName: currentProject?.name || "my-project",
-          accessToken,
-          repoName,
-          sandboxId,
-        }),
-      })
-
-      const data = await res.json()
-      if (data.success) {
-        addLog(`✅ Successfully deployed to GitHub: ${data.repoUrl}`)
-      } else {
-        addLog(`❌ GitHub deployment failed: ${data.error}`)
-      }
-    } catch (err: any) {
-      addLog(`❌ GitHub deployment error: ${err.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const deployToVercel = async () => {
-    const token = prompt("Enter your Vercel access token:")
-    if (!token) return
-
-    setLoading(true)
-    addLog("Starting Vercel deployment...")
-
-    try {
-      const res = await fetch("/api/vercel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          files: files.reduce((acc, file) => ({ ...acc, [file.filePath]: file.content }), {}),
-          projectName: currentProject?.name || "my-project",
-          token,
-          sandboxId,
-        }),
-      })
-
-      const data = await res.json()
-      if (data.success) {
-        addLog(`✅ Successfully deployed to Vercel: ${data.url}`)
-      } else {
-        addLog(`❌ Vercel deployment failed: ${data.error}`)
-      }
-    } catch (err: any) {
-      addLog(`❌ Vercel deployment error: ${err.message}`)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -719,51 +603,20 @@ export default function SandboxPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] font-sans text-white">
-      {/* Left Sidebar - File Explorer & Change History */}
-      <div className="w-80 bg-[#0a0a0a] h-full flex flex-col border-r border-[#1f1f1f]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-[#1f1f1f]">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-[#ff5f57] rounded-full"></div>
-            <div className="w-3 h-3 bg-[#ffbd2e] rounded-full"></div>
-            <div className="w-3 h-3 bg-[#28ca42] rounded-full"></div>
+    <div className="flex h-screen bg-[#F7F5F3] font-sans text-[#37322F]">
+      <div className="w-[40%] bg-[#F7F5F3] h-full flex flex-col border-r border-[rgba(55,50,47,0.12)]">
+        <div className="flex items-center justify-between px-6 h-16 flex-shrink-0 border-b border-[rgba(55,50,47,0.12)]">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-xl text-[#37322F] font-sans">Brillance Studio</span>
           </div>
-          <span className="text-sm text-gray-400">Brillance Studio</span>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-white">
-              <Settings className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-white">
-              <Database className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-white">
-              <Rocket className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Project Selector */}
-        <div className="px-4 py-3 border-b border-[#1f1f1f]">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-white">{currentProject?.name || "No Project"}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={createNewProject}
-              className="h-6 w-6 text-gray-400 hover:text-white"
-            >
-              <Plus className="h-3 w-3" />
-            </Button>
-          </div>
-          {projects.length > 0 && (
+          <div className="flex items-center">
             <select
               onChange={(e) => loadProject(e.target.value)}
               value={currentProject?.id || ""}
-              className="w-full mt-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-1 text-xs text-gray-300"
+              className="text-sm bg-transparent border-none focus:ring-0 font-medium max-w-[150px] text-[#37322F]"
             >
               <option value="" disabled>
-                Select Project
+                Select a Project
               </option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -771,110 +624,67 @@ export default function SandboxPage() {
                 </option>
               ))}
             </select>
-          )}
-        </div>
-
-        {/* Change History Section */}
-        <div className="flex-1 flex flex-col">
-          <div className="px-4 py-2 border-b border-[#1f1f1f]">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Change History</span>
-              <ChevronDown className="h-3 w-3 text-gray-400" />
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={createNewProject}
+              className="h-8 w-8 text-[#37322F] hover:bg-[rgba(55,50,47,0.08)]"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
-
-          {/* Current Change */}
-          <div className="px-4 py-3 border-b border-[#1f1f1f]">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <span className="text-sm text-white">Ongoing change</span>
-            </div>
-            <p className="text-xs text-gray-400 mb-3">
-              {analysisStatus ||
-                "Create a real-time chat application that lets you send and receive messages using a streaming API. Use a retro 80s hacker theme."}
-            </p>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 mb-3">
-              <Button
-                onClick={() => runAction("create")}
-                disabled={loading}
-                size="sm"
-                className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs px-3 py-1 h-7"
-              >
-                Create new chat with streaming API
-              </Button>
-            </div>
-
-            {/* File List */}
-            <div className="space-y-1">
-              {files.map((file, index) => (
-                <div key={index} className="flex items-center gap-2 text-xs">
-                  <File className="h-3 w-3 text-gray-400" />
-                  <span className="text-gray-300">{file.filePath}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Files Section */}
-          <div className="flex-1">
-            <div className="px-4 py-2 border-b border-[#1f1f1f]">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Files</span>
-                <FolderOpen className="h-3 w-3 text-gray-400" />
-              </div>
-            </div>
-            <ScrollArea className="flex-1 px-4 py-2">
-              <div className="space-y-1">
-                {files.map((file, index) => (
-                  <button
-                    key={index}
-                    className={`w-full text-left text-xs p-2 rounded transition-colors flex items-center gap-2 ${
-                      activeFile === index ? "bg-[#1a1a1a] text-white" : "hover:bg-[#1a1a1a] text-gray-400"
-                    }`}
-                    onClick={() => setActiveFile(index)}
-                  >
-                    <File className="h-3 w-3" />
-                    {file.filePath}
-                  </button>
-                ))}
-              </div>
-            </ScrollArea>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={saveProject}
+              disabled={!currentProject || loading}
+              size="sm"
+              variant="ghost"
+              className="text-[#37322F] hover:bg-[rgba(55,50,47,0.08)]"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Project
+            </Button>
           </div>
         </div>
 
-        {/* Chat Input - Bottom */}
-        <div className="p-4 border-t border-[#1f1f1f] bg-[#0a0a0a]">
-          {analysisStatus && <p className="text-xs text-gray-400 mb-2 animate-pulse">{analysisStatus}</p>}
-
-          {artifacts.length > 0 && (
-            <div className="mb-3 space-y-2">
-              {artifacts.slice(-3).map((artifact) => (
-                <div key={artifact.id} className="flex items-center gap-2 text-xs bg-[#1a1a1a] rounded p-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      artifact.status === "processing"
-                        ? "bg-yellow-500 animate-pulse"
-                        : artifact.status === "completed"
-                          ? "bg-green-500"
-                          : "bg-red-500"
-                    }`}
-                  ></div>
-                  <span className="text-gray-300">{artifact.title}</span>
-                  {artifact.progress !== undefined && artifact.status === "processing" && (
-                    <div className="ml-auto text-gray-400">{artifact.progress}%</div>
+        <div className="flex-grow relative">
+          <ScrollArea className="absolute inset-0 p-6" viewportRef={chatScrollAreaRef}>
+            <div className="space-y-6 pb-4">
+              {messages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
+                >
+                  {msg.role === "assistant" && (
+                    <div className="flex items-center gap-3">
+                      <div className="h-6 w-6 bg-[#37322F] rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs font-medium">B</span>
+                      </div>
+                      <span className="text-sm font-medium text-[#37322F]">Brillance Studio</span>
+                    </div>
                   )}
+                  <div
+                    className={`p-4 rounded-xl max-w-xl shadow-sm border ${
+                      msg.role === "user"
+                        ? "bg-[#37322F] text-white self-end border-[#37322F]"
+                        : "bg-white text-[#37322F] self-start border-[rgba(55,50,47,0.12)]"
+                    }`}
+                  >
+                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>
+                  </div>
                 </div>
               ))}
             </div>
-          )}
+          </ScrollArea>
+        </div>
 
+        <div className="p-6 border-t border-[rgba(55,50,47,0.12)] bg-white flex-shrink-0">
+          {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
           <div className="relative">
             <textarea
-              placeholder={currentProject ? "What's next?" : "Create a project first..."}
-              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-3 pr-12 text-sm text-white placeholder:text-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-gray-600"
-              rows={2}
+              placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
+              className="w-full border border-[rgba(55,50,47,0.12)] p-4 pr-28 rounded-xl resize-none text-sm bg-[#F7F5F3] text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)] focus:outline-none focus:ring-2 focus:ring-[rgba(55,50,47,0.12)] focus:border-transparent"
+              rows={3}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
@@ -886,297 +696,226 @@ export default function SandboxPage() {
               disabled={!currentProject || loading}
             />
             <Button
-              className="absolute right-2 top-2 bg-transparent hover:bg-[#2a2a2a] text-white p-2 h-8 w-8"
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white rounded-lg px-6"
               onClick={() => sendChat()}
               disabled={loading || !chatInput || !currentProject}
             >
-              <Send className="h-4 w-4" />
+              <Zap className="h-4 w-4 mr-2" /> Send
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 h-full flex flex-col bg-[#0a0a0a]">
-        {/* Top Navigation */}
-        <div className="flex items-center justify-between px-6 h-12 flex-shrink-0 border-b border-[#1f1f1f]">
-          {/* Tab Navigation */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant={activeTab === "code" ? "secondary" : "ghost"}
-              size="sm"
-              className={`text-xs px-3 py-1 h-7 ${
-                activeTab === "code"
-                  ? "bg-[#1a1a1a] text-white border border-[#2a2a2a]"
-                  : "text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-              }`}
-              onClick={() => setActiveTab("code")}
-            >
-              Code
-            </Button>
+      <div className="w-[60%] h-full flex flex-col bg-white">
+        <div className="flex items-center justify-between p-4 flex-shrink-0 h-16 border-b border-[rgba(55,50,47,0.12)]">
+          <div className="bg-[#F7F5F3] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
               variant={activeTab === "preview" ? "secondary" : "ghost"}
-              size="sm"
-              className={`text-xs px-3 py-1 h-7 ${
-                activeTab === "preview"
-                  ? "bg-[#1a1a1a] text-white border border-[#2a2a2a]"
-                  : "text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-              }`}
+              size="icon"
+              className={`h-8 w-8 rounded-lg ${activeTab === "preview" ? "bg-white shadow-sm" : "text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"}`}
               onClick={() => setActiveTab("preview")}
             >
-              Preview
+              <Eye className="h-4 w-4" />
             </Button>
             <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1 h-7 text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
+              variant={activeTab === "code" ? "secondary" : "ghost"}
+              size="icon"
+              className={`h-8 w-8 rounded-lg ${activeTab === "code" ? "bg-white shadow-sm" : "text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"}`}
+              onClick={() => setActiveTab("code")}
             >
-              Architecture
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1 h-7 text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-            >
-              Infrastructure
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1 h-7 text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
-            >
-              Service Catalog
+              <Code className="h-4 w-4" />
             </Button>
           </div>
 
-          {/* Right Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2 border border-[rgba(55,50,47,0.12)] rounded-xl p-1 w-[280px] bg-[#F7F5F3]">
+            <input
+              type="text"
+              value={iframeRoute}
+              onChange={(e) => setIframeRoute(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleNavigate()
+              }}
+              className="flex-grow bg-transparent outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
+              placeholder="/route"
+            />
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-gray-400 hover:text-white"
-              onClick={deployToGitHub}
-              disabled={loading || !files.length}
+              className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+              onClick={handleNavigate}
             >
-              <Github className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1 h-7 text-gray-400 hover:text-white border border-[#2a2a2a]"
+              size="icon"
+              className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+              onClick={handleReload}
             >
-              Reset database
+              <RefreshCw className="h-4 w-4" />
             </Button>
             <Button
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 h-7"
-              onClick={deployToVercel}
-              disabled={loading || !files.length}
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+              disabled={!previewUrl}
+              onClick={() => window.open(previewUrl, "_blank")}
             >
-              Deploy
+              <ExternalLink className="h-4 w-4" />
             </Button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
+              <button
+                className="flex items-center justify-center rounded-xl border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-10 w-10"
+                aria-label="GitHub"
+              >
+                <Github className="h-5 w-5 text-[#37322F]" />
+              </button>
+              <button className="rounded-full text-white flex items-center justify-center transition hover:brightness-90 h-10 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]">
+                Deploy
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 flex">
-          {/* Code Editor */}
-          <div className="flex-1 flex flex-col">
-            {activeTab === "code" ? (
-              <div className="flex-1 flex">
-                {/* File Tree */}
-                <div className="w-64 border-r border-[#1f1f1f] bg-[#0a0a0a]">
-                  <div className="p-3 border-b border-[#1f1f1f]">
-                    <div className="flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-300">frontend</span>
-                      <ChevronDown className="h-3 w-3 text-gray-400 ml-auto" />
-                    </div>
+        <div className="w-full h-[calc(100%-64px)] bg-[#F7F5F3] flex flex-col">
+          {activeTab === "preview" ? (
+            <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
+              <div className="flex-grow bg-white border border-[rgba(55,50,47,0.12)] m-4 rounded-xl overflow-hidden">
+                {previewUrl ? (
+                  <iframe ref={iframeRef} src={previewUrl} className="w-full h-full border-0" title="Sandbox Preview" />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-[rgba(55,50,47,0.60)]">
+                    <p>Create a sandbox and start the server.</p>
                   </div>
-                  <ScrollArea className="flex-1">
-                    <div className="p-2 space-y-1">
-                      {files.map((file, index) => (
+                )}
+              </div>
+
+              <div
+                className="flex-shrink-0 border-t border-[rgba(55,50,47,0.12)] w-full bg-white"
+                style={{ height: `${logsHeight}%` }}
+              >
+                <div className="flex items-center justify-between p-4 h-12 bg-[#F7F5F3] border-b border-[rgba(55,50,47,0.12)]">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => runAction("create")}
+                      disabled={loading}
+                      variant="outline"
+                      size="sm"
+                      className="border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-white"
+                    >
+                      Create
+                    </Button>
+                    <Button
+                      onClick={() => runAction("install")}
+                      disabled={loading || !sandboxId}
+                      variant="outline"
+                      size="sm"
+                      className="border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-white"
+                    >
+                      Install
+                    </Button>
+                    <Button
+                      onClick={() => runAction("build")}
+                      disabled={loading || !sandboxId}
+                      variant="outline"
+                      size="sm"
+                      className="border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-white"
+                    >
+                      Build
+                    </Button>
+                    <Button
+                      onClick={() => runAction("start")}
+                      disabled={loading || !sandboxId}
+                      variant="outline"
+                      size="sm"
+                      className="border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-white"
+                    >
+                      Start
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-medium px-2 text-[#37322F]">Logs</h3>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+                      onClick={() => setLogsHeight((h) => (h === 25 ? 75 : 25))}
+                    >
+                      <ChevronsUpDown className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+                      onClick={copyLogs}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="w-full bg-[#1e1e1e] text-[#d4d4d4]" style={{ height: "calc(100% - 48px)" }}>
+                  <pre className="text-xs font-mono whitespace-pre-wrap p-4">{logs.join("\n")}</pre>
+                </ScrollArea>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-grow flex flex-row overflow-hidden w-full h-full">
+              <div className="w-1/3 h-full border-r border-[rgba(55,50,47,0.12)] bg-white">
+                <div className="p-4 border-b border-[rgba(55,50,47,0.12)] flex justify-between items-center h-14">
+                  <h3 className="text-sm font-medium px-2 text-[#37322F]">Files</h3>
+                  <Button
+                    onClick={() => runAction("addFiles")}
+                    disabled={loading || !sandboxId}
+                    size="sm"
+                    className="bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white rounded-lg"
+                  >
+                    <HardDrive className="h-4 w-4 mr-2" />
+                    Save to Sandbox
+                  </Button>
+                </div>
+                <ScrollArea className="h-[calc(100%-57px)] p-4">
+                  <ul className="space-y-1">
+                    {files.map((file, index) => (
+                      <li key={index}>
                         <button
-                          key={index}
-                          className={`w-full text-left text-xs p-2 rounded flex items-center gap-2 ${
+                          className={`w-full text-left text-sm p-3 rounded-lg transition-colors ${
                             activeFile === index
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "text-gray-400 hover:text-white hover:bg-[#1a1a1a]"
+                              ? "bg-[#F7F5F3] text-[#37322F] border border-[rgba(55,50,47,0.12)]"
+                              : "hover:bg-[#F7F5F3] text-[rgba(55,50,47,0.80)]"
                           }`}
                           onClick={() => setActiveFile(index)}
                         >
-                          <File className="h-3 w-3" />
-                          {file.filePath.split("/").pop()}
+                          {file.filePath}
                         </button>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 w-full border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-[#F7F5F3] bg-transparent"
+                    onClick={() => setFiles((prev) => [...prev, { filePath: "new/file.tsx", content: "" }])}
+                  >
+                    + New File
+                  </Button>
+                </ScrollArea>
+              </div>
 
-                {/* Code Editor */}
-                <div className="flex-1 bg-[#0a0a0a]">
-                  <div className="h-8 border-b border-[#1f1f1f] flex items-center px-4">
-                    <span className="text-xs text-gray-400">{files[activeFile]?.filePath || "No file selected"}</span>
-                  </div>
-                  <CodeMirror
-                    value={files[activeFile]?.content || ""}
-                    height="calc(100% - 32px)"
-                    theme="dark"
-                    extensions={[javascript({ jsx: true, typescript: true })]}
-                    onChange={updateFile}
-                    className="h-full"
-                  />
-                </div>
-              </div>
-            ) : (
-              /* Preview */
-              <div className="flex-1 bg-[#0a0a0a] p-4">
-                <div className="h-full bg-white rounded-lg border border-[#2a2a2a] overflow-hidden">
-                  {previewUrl ? (
-                    <iframe
-                      ref={iframeRef}
-                      src={previewUrl}
-                      className="w-full h-full border-0"
-                      title="Sandbox Preview"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">
-                      <p>Create a sandbox and start the server to see preview</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Bottom Panel - BUILD/LOGS/TESTS */}
-        <div className="h-64 border-t border-[#1f1f1f] bg-[#0a0a0a] flex flex-col">
-          {/* Tab Bar */}
-          <div className="flex items-center justify-between px-4 h-10 border-b border-[#1f1f1f]">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`text-xs px-3 py-1 h-6 ${
-                  activeBottomTab === "build"
-                    ? "text-white bg-[#1a1a1a] border border-[#2a2a2a]"
-                    : "text-gray-400 hover:text-white"
-                }`}
-                onClick={() => setActiveBottomTab("build")}
-              >
-                BUILD
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`text-xs px-3 py-1 h-6 ${
-                  activeBottomTab === "logs"
-                    ? "text-white bg-[#1a1a1a] border border-[#2a2a2a]"
-                    : "text-gray-400 hover:text-white"
-                }`}
-                onClick={() => setActiveBottomTab("logs")}
-              >
-                LOGS
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`text-xs px-3 py-1 h-6 ${
-                  activeBottomTab === "tests"
-                    ? "text-white bg-[#1a1a1a] border border-[#2a2a2a]"
-                    : "text-gray-400 hover:text-white"
-                }`}
-                onClick={() => setActiveBottomTab("tests")}
-              >
-                TESTS
-              </Button>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-xs text-gray-400">Backend</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-xs text-gray-400">Frontend</span>
+              <div className="w-2/3 h-full bg-white">
+                <CodeMirror
+                  value={files[activeFile]?.content || ""}
+                  height="100%"
+                  theme={xcodeLight}
+                  extensions={[javascript({ jsx: true, typescript: true })]}
+                  onChange={updateFile}
+                  style={{ height: "100%" }}
+                />
               </div>
             </div>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 p-4">
-            {activeBottomTab === "build" && (
-              <>
-                {buildLogs.length === 0 ? (
-                  <div className="text-center text-gray-400 text-sm">No build messages</div>
-                ) : (
-                  <ScrollArea className="h-32 bg-[#1a1a1a] rounded border border-[#2a2a2a] p-3">
-                    <pre className="text-xs font-mono text-gray-300 whitespace-pre-wrap">{buildLogs.join("\n")}</pre>
-                  </ScrollArea>
-                )}
-              </>
-            )}
-
-            {activeBottomTab === "logs" && (
-              <>
-                {logs.length === 0 ? (
-                  <div className="text-center text-gray-400 text-sm">No log messages</div>
-                ) : (
-                  <ScrollArea className="h-32 bg-[#1a1a1a] rounded border border-[#2a2a2a] p-3">
-                    <pre className="text-xs font-mono text-gray-300 whitespace-pre-wrap">{logs.join("\n")}</pre>
-                  </ScrollArea>
-                )}
-              </>
-            )}
-
-            {activeBottomTab === "tests" && <div className="text-center text-gray-400 text-sm">No test results</div>}
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 mt-4">
-              <Button
-                onClick={() => runAction("create")}
-                disabled={loading}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                Create
-              </Button>
-              <Button
-                onClick={() => runAction("install")}
-                disabled={loading || !sandboxId}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                Install
-              </Button>
-              <Button
-                onClick={() => runAction("build")}
-                disabled={loading || !sandboxId}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                Build
-              </Button>
-              <Button
-                onClick={() => runAction("start")}
-                disabled={loading || !sandboxId}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                Start
-              </Button>
-              <Button
-                onClick={() => runAction("addFiles")}
-                disabled={loading || !sandboxId}
-                size="sm"
-                className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white text-xs px-3 py-1 h-7 border border-[#2a2a2a]"
-              >
-                <HardDrive className="h-3 w-3 mr-1" />
-                Save to Sandbox
-              </Button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

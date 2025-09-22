@@ -39,6 +39,7 @@ export async function POST(req: Request) {
         }
 
         await sandbox.files.write("/home/user/package.json", JSON.stringify(defaultPackageJson, null, 2))
+
         await sandbox.files.write(
           "/home/user/tsconfig.json",
           JSON.stringify(
@@ -145,34 +146,6 @@ div {
         }
 
         return NextResponse.json({ success: true, message: `${body.files.length} files written` })
-      }
-
-      case "getFiles": {
-        if (!bodySandboxId) throw new Error("sandboxId manquant")
-
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 })
-
-        const files: Record<string, string> = {}
-
-        // Récupérer tous les fichiers du projet
-        const fileList = await sandbox.files.list("/home/user", { recursive: true })
-
-        for (const file of fileList) {
-          if (file.type === "file" && !file.name.includes("node_modules")) {
-            try {
-              const content = await sandbox.files.read(`/home/user/${file.name}`)
-              files[file.name] = content
-            } catch (error) {
-              console.warn(`Could not read file ${file.name}:`, error)
-            }
-          }
-        }
-
-        return NextResponse.json({
-          success: true,
-          files,
-          fileCount: Object.keys(files).length,
-        })
       }
 
       case "install":
