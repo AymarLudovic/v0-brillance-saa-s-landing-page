@@ -658,15 +658,72 @@ export default function SandboxPage() {
                   {msg.role === "assistant" && (
                     <div className="flex items-center gap-3">
                       <div className="h-6 w-6 bg-[#37322F] rounded-full flex items-center justify-center">
-                        <svg className="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"  viewBox="0 0 256 256" xml:space="preserve">
-<g style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
-	<linearGradient id="SVGID_1" gradientUnits="userSpaceOnUse" x1="60.0525" y1="33.3396" x2="34.8444" y2="52.867">
-<stop offset="0%" style="stop-color:rgb(145,104,192);stop-opacity: 1"/>
-<stop offset="34.300000000000004%" style="stop-color:rgb(86,132,209);stop-opacity: 1"/>
-<stop offset="67.2%" style="stop-color:rgb(27,161,227);stop-opacity: 1"/>
-</linearGradient>
-<path d="M 90 45.09 C 65.838 46.573 46.573 65.838 45.09 90 h -0.18 C 43.43 65.837 24.163 46.57 0 45.09 v -0.18 C 24.163 43.43 43.43 24.163 44.91 0 h 0.18 C 46.573 24.162 65.838 43.427 90 44.91 V 45.09 z" style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: url(#SVGID_1); fill-rule: nonzero; opacity: 1;" transform=" matrix(1 0 0 1 0 0) " stroke-linecap="round"/>
-</g>
+                        <svg
+  className="h-[18px] w-[18px]"
+  version="1.1"
+  viewBox="0 0 256 256"
+  xmlSpace="preserve"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlnsXlink="http://www.w3.org/1999/xlink">
+  <g
+    style={{
+      fill: "none",
+      fillRule: "nonzero",
+      opacity: "1",
+      stroke: "none",
+      strokeDasharray: "none",
+      strokeLinecap: "butt",
+      strokeLinejoin: "miter",
+      strokeMiterlimit: "10",
+      strokeWidth: "0",
+    }}
+    transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
+    <linearGradient
+      gradientUnits="userSpaceOnUse"
+      id="SVGID_1"
+      x1="60.0525"
+      x2="34.8444"
+      y1="33.3396"
+      y2="52.867">
+      <stop
+        offset="0%"
+        style={{
+          stopColor: "rgb(145,104,192)",
+          stopOpacity: "1",
+        }}
+      />
+      <stop
+        offset="34.300000000000004%"
+        style={{
+          stopColor: "rgb(86,132,209)",
+          stopOpacity: "1",
+        }}
+      />
+      <stop
+        offset="67.2%"
+        style={{
+          stopColor: "rgb(27,161,227)",
+          stopOpacity: "1",
+        }}
+      />
+    </linearGradient>
+    <path
+      d="M 90 45.09 C 65.838 46.573 46.573 65.838 45.09 90 h -0.18 C 43.43 65.837 24.163 46.57 0 45.09 v -0.18 C 24.163 43.43 43.43 24.163 44.91 0 h 0.18 C 46.573 24.162 65.838 43.427 90 44.91 V 45.09 z"
+      strokeLinecap="round"
+      style={{
+        fill: "url(#SVGID_1)",
+        fillRule: "nonzero",
+        opacity: "1",
+        stroke: "none",
+        strokeDasharray: "none",
+        strokeLinecap: "butt",
+        strokeLinejoin: "miter",
+        strokeMiterlimit: "10",
+        strokeWidth: "1",
+      }}
+      transform=" matrix(1 0 0 1 0 0) "
+    />
+  </g>
 </svg>
                       </div>
                       <span className="text-sm font-medium text-[#37322F]"> Studio</span>
