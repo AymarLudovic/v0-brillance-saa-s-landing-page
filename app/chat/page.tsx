@@ -750,7 +750,12 @@ export default function SandboxPage() {
           {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
           <div className="relative flex flex-col h-[300px]">
             <div className=" flex flex-col  rounded-t-[10px] bg-transparent border-b border-[rgba(55,50,47,0.12)] h-[60px] w-full">
-              <div className="w-full p-1 h-[50%] p-[2px] flex items-center gap-1">bonjour</div>
+              <div className="w-full p-1 rounded-t-[10px]  h-[50%] p-[2px] flex items-center border border-b-none border-[rgba(55,50,47,0.12)] gap-1">
+                <div className="w-auto p-1 h-[25px] border border-black rounded-[12px] flex items-center justify-center">
+                  <AtSign size={18} />
+                  <p>Mention</p>
+                </div>
+              </div>
               <div className="w-full p-1 h-[50%] border-t border-[rgba(55,50,47,0.12)] p-[2px] flex items-center gap-1">
                 <div className="w-[25px] p-1 h-[25px] border border-black rounded-[12px] flex items-center justify-center">
                   <Plus size={18} />
@@ -763,7 +768,7 @@ export default function SandboxPage() {
             </div>
             <textarea
               placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
-              className="w-full border border-[rgba(55,50,47,0.12)] p-4 pr-28 rounded-xl resize-none text-sm bg-[#F7F5F3] text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)] focus:outline-none focus:ring-2 focus:ring-[rgba(55,50,47,0.12)] focus:border-transparent"
+              className="w-full border border-[rgba(55,50,47,0.12)] p-4 pr-28  resize-none text-sm bg-[#F7F5F3] text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)] focus:outline-none focus:ring-2 focus:ring-[rgba(55,50,47,0.12)] focus:border-transparent"
               rows={3}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
