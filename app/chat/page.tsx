@@ -730,10 +730,10 @@ export default function SandboxPage() {
                     </div>
                   )}
                   <div
-                    className={`p-4 rounded-xl max-w-xl shadow-sm border ${
+                    className={`p-2 rounded-xl max-w-xl shadow-sm border ${
                       msg.role === "user"
                         ? "bg-[#37322F] text-white self-end border-[#37322F]"
-                        : "bg-white text-[#37322F] self-start border-[rgba(55,50,47,0.12)]"
+                        : "bg-none text-[#37322F] self-start border-[rgba(55,50,47,0.12)]"
                     }`}
                   >
                     <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>
