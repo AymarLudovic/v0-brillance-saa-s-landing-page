@@ -760,10 +760,10 @@ export default function SandboxPage() {
              </div>
               
             </div>
-            <textarea
+            <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-[8px]">
+              <textarea
               placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
-              className="w-full rounded-t-[8px] h-[60%] border border-t-none border-[rgba(55,50,47,0.12)] p-4 pr-28  resize-none text-sm bg-[#F7F5F3] text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)] focus:outline-none focus:ring-2 focus:ring-[rgba(55,50,47,0.12)] "
-              
+              className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
@@ -774,6 +774,8 @@ export default function SandboxPage() {
               }}
               disabled={!currentProject || loading}
             />
+            </div>
+            
             <Button
               className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white rounded-lg px-6"
               onClick={() => sendChat()}
@@ -781,7 +783,7 @@ export default function SandboxPage() {
             >
               <Zap className="h-4 w-4 mr-2" /> Send
             </Button>
-            <div className="w-full p-1 h-[20%] border border-b-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center gap-1">
+            <div className="w-full p-1 h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center gap-1">
                 <div className="w-[25px] p-1 h-[25px] border border-black rounded-[12px] flex items-center justify-center">
                   <Plus size={16} />
                 </div>
