@@ -746,7 +746,7 @@ export default function SandboxPage() {
           </ScrollArea>
         </div>
 
-        <div className="p-6  border-[rgba(55,50,47,0.12)]  flex-shrink-0">
+        <div className="p-6 h-[300px] border-[rgba(55,50,47,0.12)]  flex-shrink-0">
           {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
           <div className="relative">
             <div className="absolute flex flex-col -top-5 rounded-t-[10px] bg-transparent border-b border-[rgba(55,50,47,0.12)] h-[60px] w-full">
