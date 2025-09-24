@@ -726,14 +726,14 @@ export default function SandboxPage() {
   </g>
 </svg>
                       </div>
-                      <span className="text-sm font-medium text-[#37322F]"> Studio</span>
+                      <span className="text-sm font-medium text-[#37322F]"></span>
                     </div>
                   )}
                   <div
                     className={`p-2 rounded-xl max-w-xl shadow-sm border ${
                       msg.role === "user"
                         ? "bg-[#37322F] text-white self-end border-[#37322F]"
-                        : "bg-none text-[#37322F] self-start border-[rgba(55,50,47,0.12)]"
+                        : "bg-none text-[#37322F] self-start"
                     }`}
                   >
                     <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>
