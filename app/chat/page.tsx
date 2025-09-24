@@ -20,6 +20,8 @@ import {
   ExternalLink,
   Plus,
   Save,
+  AtSign,
+  ArrowUp
 } from "lucide-react"
 
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
@@ -744,9 +746,12 @@ export default function SandboxPage() {
           </ScrollArea>
         </div>
 
-        <div className="p-6 border-t border-[rgba(55,50,47,0.12)] bg-white flex-shrink-0">
+        <div className="p-6  border-[rgba(55,50,47,0.12)]  flex-shrink-0">
           {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
           <div className="relative">
+            <div className="absolute flex items-center justify-center -top-3 rounded-t-[10px] bg-white h-[30px] w-full">
+              bonjour
+            </div>
             <textarea
               placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
               className="w-full border border-[rgba(55,50,47,0.12)] p-4 pr-28 rounded-xl resize-none text-sm bg-[#F7F5F3] text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)] focus:outline-none focus:ring-2 focus:ring-[rgba(55,50,47,0.12)] focus:border-transparent"
