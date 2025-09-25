@@ -631,6 +631,61 @@ useEffect(() => {
     }
   }
 
+
+// --- NOUVELLE FONCTION D'ANALYSE DU CONTENU ---
+const parseMessageContent = (content: string) => {
+  // Regex pour trouver un bloc de code JSON entre ```json ... ```
+  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/)
+  
+  if (jsonMatch && jsonMatch[1]) {
+    try {
+      const jsonContent = JSON.parse(jsonMatch[1])
+      
+      // 1. Détection de la structure de Fichiers
+      if (
+        Array.isArray(jsonContent) &&
+        jsonContent.length > 0 &&
+        typeof jsonContent[0] === 'object' &&
+        'filePath' in jsonContent[0] &&
+        'content' in jsonContent[0]
+      ) {
+        return {
+          type: 'files',
+          data: jsonContent.map((f: any) => f.filePath as string), // Ne garder que les chemins de fichiers
+          raw: content, // Garde le contenu brut (le JSON complet)
+        }
+      } 
+      // 2. Détection de l'URL d'inspiration
+      else if (
+        typeof jsonContent === 'object' &&
+        jsonContent !== null &&
+        jsonContent.type === 'inspirationUrl' &&
+        jsonContent.url
+      ) {
+        return {
+          type: 'url',
+          data: jsonContent.url as string,
+          raw: content,
+        }
+      }
+
+    } catch (e) {
+      // Ignorer l'erreur et afficher le contenu comme texte
+    }
+  }
+
+  // 3. Cas par défaut: Contenu texte normal ou JSON mal formé/inconnu
+  return {
+    type: 'text',
+    data: content,
+  }
+}
+// --- FIN parseMessageContent ---
+            
+
+
+  
+
   // -------------------
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
@@ -735,35 +790,99 @@ useEffect(() => {
                   key={index}
                   className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
                 >
-                  {msg.role === "assistant" && (
-                    <div className="flex items-center gap-3">
-                      <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
-                        
-        <svg
-  className="h-[18px] w-[18px]"
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 24 24"
-  fill="currentColor"
->
-  <circle cx="12" cy="12" r="10" />
-</svg>
-        
-     
-                      </div>
-                      <span className="text-sm font-medium text-[#37322F]"></span>
-                    </div>
-                  )}
-                  <div
-                    className={`p-2 rounded-xl max-w-xl   ${
-                      msg.role === "user"
-                        ? "bg-[#37322F] text-white self-end border-[#37322F]"
-                        : "bg-none text-[#37322F] self-start"
-                    }`}
-                  >
-                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>
-                  </div>
+                  {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
+{messages.map((msg, index) => {
+  // Parsing du contenu pour déterminer le type d'affichage
+  const parsedContent = parseMessageContent(msg.content);
+  
+  return (
+    <div
+      key={index}
+      className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
+    >
+      {/* Affichage de l'icône de l'assistant */}
+      {msg.role === "assistant" && (
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
+            <svg
+              className="h-[18px] w-[18px]"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+          </div>
+          {/* Le nom d'utilisateur (peut être activé si nécessaire) */}
+          {/* <span className="text-sm font-medium text-[#37322F]"></span> */}
+        </div>
+      )}
+      
+      {/* Conteneur du message (bulle) */}
+      <div
+        className={`p-2 rounded-xl max-w-xl ${
+          msg.role === "user"
+            ? "bg-[#37322F] text-white self-end border-[#37322F]"
+            : "bg-none text-[#37322F] self-start"
+        }`}
+      >
+        {/* --- LOGIQUE D'AFFICHAGE DU CONTENU --- */}
+        {(() => {
+          switch (parsedContent.type) {
+            case 'files':
+              // AFFICHAGE DES ARTEFACTS DE FICHIERS
+              return (
+                <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
+                  <p className="text-sm font-semibold mb-2 flex items-center gap-1 text-[#37322F]">
+                    <Code className="h-4 w-4" /> **Fichiers créés/modifiés :**
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {parsedContent.data.map((filePath, i) => (
+                      <li key={i} className="text-xs text-[#37322F]/80">
+                        {filePath}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
+              );
+              
+            case 'url':
+              // AFFICHAGE DE L'URL D'INSPIRATION
+              return (
+                <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
+                  <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
+                    <ExternalLink className="h-4 w-4" /> **Source d'inspiration :**
+                  </p>
+                  <a 
+                    href={parsedContent.data} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-xs text-blue-600 truncate block hover:underline"
+                  >
+                    {parsedContent.data}
+                  </a>
+                </div>
+              );
+
+            case 'text':
+            default:
+              // AFFICHAGE TEXTE (messages normaux, logs, ou JSON incomplet)
+              // Nous devons vérifier s'il reste du JSON brut non parsé dans le contenu pour l'afficher aussi
+              const textContent = parsedContent.raw || parsedContent.data;
+              return (
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                  {textContent.replace(/```json\s*[\s\S]*?\s*```/g, '').trim() || textContent.trim()}
+                </pre>
+              );
+          }
+        })()}
+        {/* --- FIN LOGIQUE D'AFFICHAGE --- */}
+      </div>
+    </div>
+  );
+})}
+{/* --- FIN DU BLOC messages.map --- */}
+            
             </div>
           </ScrollArea>
         </div>
