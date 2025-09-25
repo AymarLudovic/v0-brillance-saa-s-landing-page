@@ -1057,25 +1057,29 @@ const handleProjectClick = (projectId: string) => {
     </div>
 
     <div className="p-3 overflow-auto h-[calc(100%-56px)]">
-      {projects.length === 0 ? (
-        <p className="text-sm text-[rgba(55,50,47,0.6)]">No projects yet.</p>
-      ) : (
-        <ul className="space-y-2">
-          {projects.map((p) => (
-            <li key={p.id}>
-              <button
-                onClick={() => handleProjectClick(p.id)}
-                className={`w-full text-left p-3 rounded-md flex flex-col ${
-                  currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : "hover:bg-[#F7F5F3]"
-                }`}
-              >
-                <div className="text-sm">{p.name}</div>
-                <div className="text-xs text-[rgba(55,50,47,0.6)]">{new Date(p.createdAt).toLocaleString()}</div>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="p-3 flex flex-col gap-2">
+  {projects.length === 0 && (
+    <span className="text-sm text-[rgba(55,50,47,0.6)]">No projects yet</span>
+  )}
+
+  {projects.map((p) => (
+    <button
+      key={p.id}
+      onClick={() => {
+        loadProject(p.id)       // 🔥 même logique que <select>
+        setShowSidebar(false)   // si tu veux fermer la sidebar après clic
+      }}
+      className={`w-full text-left px-3 py-2 rounded-md text-sm transition ${
+        currentProject?.id === p.id
+          ? "bg-[#37322F] text-white"
+          : "bg-transparent hover:bg-[rgba(55,50,47,0.08)] text-[#37322F]"
+      }`}
+    >
+      {p.name}
+    </button>
+  ))}
+</div>
+      
     </div>
   </aside>
 </div>
