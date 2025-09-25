@@ -194,6 +194,8 @@ export default function SandboxPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
 
+const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ CET ÉTAT
+         
   const [showSidebar, setShowSidebar] = useState(false)
 
 useEffect(() => {
@@ -638,17 +640,52 @@ useEffect(() => {
         <div className="flex items-center justify-between px-6 h-16 flex-shrink-0 border-b border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
-  <Button
-    variant="ghost"
-    size="icon"
-    onClick={() => setShowSidebar((s) => !s)}
-    className="h-8 w-8 text-[#37322F] hover:bg-[rgba(55,50,47,0.08)]"
-    aria-label="Toggle projects sidebar"
+// REMPLACER LE <select> PAR CE BLOC :
+<div className="relative">
+  {/* Bouton AFFICHEUR/Déclencheur (Imite le champ select) */}
+  <button
+    onClick={() => setShowProjectSelect(!showProjectSelect)}
+    className="flex items-center gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium max-w-[150px] text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
   >
-    {showSidebar ? <X className="h-4 w-4" /> : <Sidebar className="h-4 w-4" />}
-  </Button>
+    {/* Affiche le nom du projet actuel ou le texte par défaut */}
+    <span className="truncate">
+      {currentProject?.name || "Select a Project"}
+    </span>
+    <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)]" />
+  </button>
 
-  <span className="font-semibold text-xl text-[#37322F] font-sans">Brillance Studio</span>
+  {/* Conteneur du Menu Déroulant (Imite les <option>) */}
+  {showProjectSelect && (
+    <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[rgba(55,50,47,0.08)] shadow-lg rounded-md min-w-[200px] max-h-60 overflow-y-auto">
+      {projects.map((p) => (
+        <button
+          key={p.id}
+          // LOGIQUE CLÉ : Appelle loadProject directement, puis ferme le menu
+          onClick={() => {
+            if (currentProject) {
+              saveProject()
+            }
+            loadProject(p.id)
+            setShowProjectSelect(false) // Ferme le menu après la sélection
+          }}
+          className={`w-full text-left p-3 text-sm hover:bg-[#F7F5F3] ${
+            currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : ""
+          }`}
+        >
+          {p.name}
+        </button>
+      ))}
+      
+      {/* Option "Select a Project" désactivée/par défaut */}
+      {projects.length === 0 && (
+        <div className="p-3 text-sm text-[rgba(55,50,47,0.6)]">
+          No projects available.
+        </div>
+      )}
+    </div>
+  )}
+</div>
+        
 </div>
             
             <span className="font-semibold text-xl text-[#37322F] font-sans">Brillance Studio</span>
