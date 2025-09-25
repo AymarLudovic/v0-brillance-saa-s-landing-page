@@ -685,7 +685,7 @@ useEffect(() => {
   )}
 </div>
      </div>   
-</div>
+
             
             <span className="font-semibold text-xl text-[#37322F] font-sans">Brillance Studio</span>
           </div>
