@@ -38,17 +38,14 @@ interface CommandResult {
 
 interface Message {
   role: "user" | "assistant" | "system"
-  content: string
-  /**
-   * Champ pour stocker l'état progressif de l'artefact (fichier ou url)
-   * Mis à jour pendant le streaming de la réponse Gemini.
-   */
+  content: string // Le contenu brut qui continue de streamer
   artifactData?: { 
-    type: 'files' | 'url' | null // Le type est déterminé dès que possible
+    type: 'files' | 'url' | 'fileChanges' | null // AJOUT de 'fileChanges'
     rawJson: string // Le contenu JSON extrait (peut être incomplet)
-    parsedList: string[] // La liste des fichiers ou l'URL (mis à jour à chaque parse réussi)
+    parsedList: string[] // La liste des chemins de fichiers ou l'URL
   }
 }
+
 
 
 interface Project {
@@ -59,7 +56,6 @@ interface Project {
   messages: Message[]
 }
 
-
 /**
  * Extrait le contenu JSON brut (potentiellement incomplet) entre ```json et ```.
  * Si le bloc n'est pas fermé, il prend tout jusqu'à la fin de la chaîne.
@@ -68,7 +64,8 @@ const extractRawJson = (content: string): string | null => {
   const startMatch = content.match(/```json\s*/)
   if (!startMatch) return null
 
-  const startIndex = startMatch.index! + startMatch[0].length
+  // Trouve l'index de début après '```json' et les espaces
+  const startIndex = startMatch.index + startMatch[0].length
   const substringAfterStart = content.substring(startIndex)
   
   // Cherche le triple backtick de fermeture
@@ -82,6 +79,7 @@ const extractRawJson = (content: string): string | null => {
     return substringAfterStart
   }
 }
+  
 
 
 
@@ -327,7 +325,7 @@ const parseMessageContent = (content: string) => {
     try {
       const jsonContent = JSON.parse(jsonMatch[1])
       
-      // 1. Détection de la structure de Fichiers
+      // 1. Détection de la structure de Fichiers (Création/Modification complète)
       if (
         Array.isArray(jsonContent) &&
         jsonContent.length > 0 &&
@@ -337,11 +335,24 @@ const parseMessageContent = (content: string) => {
       ) {
         return {
           type: 'files',
-          data: jsonContent.map((f: any) => f.filePath as string), // Ne garder que les chemins de fichiers
-          raw: content, // Garde le contenu brut (le JSON complet)
+          data: jsonContent.map((f: any) => f.filePath as string), 
+          raw: content, 
         }
       } 
-      // 2. Détection de l'URL d'inspiration
+      // 2. Détection de la structure de Changements de Fichiers (Patch: fileChanges)
+      else if (
+        typeof jsonContent === 'object' &&
+        jsonContent !== null &&
+        jsonContent.type === 'fileChanges' &&
+        jsonContent.filePath
+      ) {
+        return {
+          type: 'fileChanges', // Nouveau type
+          data: [jsonContent.filePath as string], // Un seul fichier affecté
+          raw: content, 
+        }
+      }
+      // 3. Détection de l'URL d'inspiration
       else if (
         typeof jsonContent === 'object' &&
         jsonContent !== null &&
@@ -360,12 +371,13 @@ const parseMessageContent = (content: string) => {
     }
   }
 
-  // 3. Cas par défaut: Contenu texte normal ou JSON mal formé/inconnu
+  // 4. Cas par défaut: Contenu texte normal ou JSON mal formé/inconnu
   return {
     type: 'text',
     data: content,
   }
-    }
+}
+  
 
   
 
@@ -736,25 +748,142 @@ const parseMessageContent = (content: string) => {
         
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
+  
+const sendChat = async (promptOverride?: string) => {
+    const userPrompt = promptOverride || chatInput
+    if (!userPrompt) return
+    if (!currentProject && !promptOverride) {
+      addLog("Please create or load a project before starting a conversation.")
+      return
+    }
+
+    setLoading(true)
+    let currentMessages = messages
+    if (!promptOverride) {
+      const newUserMessage = { role: "user", content: userPrompt }
+      currentMessages = [...messages, newUserMessage]
+      setMessages(currentMessages)
+      setChatInput("")
+    }
+
+    let finalPrompt = ""
+    if (!promptOverride) {
+      const history = currentMessages.map((msg) => `${msg.role}: ${msg.content}`).join("\n")
+      const fileContext = files
+        .map((f) => {
+          const numberedContent = f.content
+            .split("\n")
+            .map((line, i) => `${i + 1}: ${line}`)
+            .join("\n")
+          return `// FilePath: ${f.filePath}\n\`\`\`\n${numberedContent}\n\`\`\``
+        })
+        .join("\n\n")
+
+      finalPrompt = `CONTEXT:\nCurrent Files:\n${fileContext}\n---\nConversation History:\n${history}\n---\nNEW USER REQUEST:\n${userPrompt}`
+    } else {
+      finalPrompt = userPrompt
+    }
+
+    addLog(`Sending prompt to Gemini...`)
+
+    try {
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: finalPrompt }),
+      })
+      if (!res.ok || !res.body) throw new Error(`Gemini API request failed`)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let text = "" // Contenu brut total
+      let isParsingJson = false // Indicateur pour savoir si le bloc JSON a commencé
+
+      // Initialise le message de l'assistant avec l'artefact vide
+      setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }])
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        const chunk = decoder.decode(value, { stream: true })
+        text += chunk
+        
+        let newArtifactData = undefined
+
+        // Tente d'extraire le JSON brut (incomplet ou complet)
+        const rawJsonContent = extractRawJson(text)
+        
+        if (rawJsonContent !== null) {
+            isParsingJson = true
+            let currentType: 'files' | 'url' | 'fileChanges' | null = null
+            let currentList: string[] = []
+            
+            // Tente de parser le JSON incrémental
+            try {
+                const parsedJson = JSON.parse(rawJsonContent)
+                
+                // 1. Détection de la structure de Fichiers (Création/Modification complète)
+                if (
+                    Array.isArray(parsedJson) &&
+                    parsedJson.length > 0 &&
+                    typeof parsedJson[0] === 'object' &&
+                    'filePath' in parsedJson[0] &&
+                    'content' in parsedJson[0]
+                ) {
+                    currentType = 'files'
+                    currentList = parsedJson.map((f: any) => f.filePath as string)
+                } 
+                // 2. Détection de la structure de Changements de Fichiers (Patch: fileChanges)
+                else if ( 
+                    typeof parsedJson === 'object' &&
+                    parsedJson !== null &&
+                    parsedJson.type === 'fileChanges' &&
+                    parsedJson.filePath 
+                ) {
+                    currentType = 'fileChanges'
+                    // On prend le chemin de fichier affecté
+                    currentList = [parsedJson.filePath as string]
+                } 
+                // 3. Détection de l'URL d'inspiration
+                else if (
+                    typeof parsedJson === 'object' &&
+                    parsedJson !== null &&
+                    parsedJson.type === 'inspirationUrl' &&
+                    parsedJson.url
+                ) {
+                    currentType = 'url'
+                    currentList = [parsedJson.url]
+                }
+                
+                // Si parsing réussi et structure reconnue, on prépare la mise à jour
+                newArtifactData = {
+                    type: currentType,
+                    rawJson: rawJsonContent,
+                    parsedList: currentList,
+                }
+                
+            } catch (e) {
+                // Le JSON est incomplet ou mal formé. On met à jour rawJson
+                newArtifactData = { rawJson: rawJsonContent } 
+            }
+        }
+        
+        // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
+
         setMessages((prev) => {
             const lastMsgIndex = prev.length - 1
             const updatedMessages = [...prev]
             const lastMsg = updatedMessages[lastMsgIndex]
             
             if (lastMsg?.role === "assistant") {
-                // Si l'artefact a été détecté, on met à jour les données
                 if (newArtifactData || isParsingJson) {
-                    // On fusionne l'état précédent avec le nouvel état (si l'état a pu être parsé)
+                    // On fusionne l'état précédent avec le nouvel état
                     lastMsg.artifactData = {
                         ...lastMsg.artifactData, 
                         ...newArtifactData, 
                         rawJson: rawJsonContent || "" // Assure que rawJson est toujours mis à jour
                     } as any 
-                    
-                    // Si on vient juste de commencer, on met le type à 'text' si rien n'est trouvé
-                    if (isParsingJson && lastMsg.artifactData?.type === null && newArtifactData?.type === null) {
-                        // Conserve le type 'null' jusqu'à ce que la structure soit reconnue
-                    }
                 }
                 
                 // Met toujours à jour le contenu brut pour le streaming
@@ -764,30 +893,26 @@ const parseMessageContent = (content: string) => {
         })
       } // Fin de la boucle while
       
-      // Après le stream, on utilise les données parsées pour les appels d'API
-
-      const finalMessage = currentMessages[currentMessages.length - 1] // Récupère le dernier état
+      // --- LOGIQUE POST-STREAM (Action finale) ---
       
-      if (finalMessage.artifactData?.type === 'url' && finalMessage.artifactData.parsedList.length > 0) {
-        const url = finalMessage.artifactData.parsedList[0]
+      // On utilise la fonction de parsing standard pour trouver l'artefact final complet
+      const finalParsedContent = parseMessageContent(text); 
+
+      if (finalParsedContent.type === 'url') {
+        const url = finalParsedContent.data as string
         addLog(`✅ Gemini suggests inspiration URL: ${url}`)
         await runAutomatedAnalysis(url, userPrompt)
         return
       }
 
-      // Si c'est un artefact de fichiers, on appelle la fonction pour créer les fichiers
-      // On utilise le 'text' complet car fillFilesFromGeminiResponse a besoin du contenu des fichiers
-      if (finalMessage.artifactData?.type === 'files') {
+      // Traitement des fichiers (pour files et fileChanges).
+      if (finalParsedContent.type === 'files' || finalParsedContent.type === 'fileChanges') {
         addLog("Response contains code, applying changes.")
+        // On appelle la fonction de modification avec le texte brut complet
         fillFilesFromGeminiResponse(text)
       } else {
-        // Fallback pour les anciens cas où le JSON n'était pas streamé
-        addLog("Response not an inspiration URL or file artifact, checking for old format code.")
-        // Ici on garde la logique de fallback de votre ancien code
-        // pour traiter une réponse qui n'aurait pas été streamée sous format JSON
-        fillFilesFromGeminiResponse(text)
+        addLog("Response treated as simple text or unrecognized format.")
       }
-
 
     } catch (err: any) {
       addLog(`CLIENT-SIDE ERROR: ${err.message}`)
@@ -796,10 +921,11 @@ const parseMessageContent = (content: string) => {
       setLoading(false)
       setAnalysisStatus(null)
     }
-          }
+        }
         
-  
 
+
+        
   const copyLogs = () => navigator.clipboard.writeText(logs.join("\n"))
 
   const handleNavigate = () => {
@@ -931,10 +1057,9 @@ const parseMessageContent = (content: string) => {
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
 
         {messages.map((msg, index) => {
-  // 1. Priorité à l'état progressif si disponible
   const artifact = msg.artifactData;
   
-  // 2. Fallback à l'ancienne logique de parsing si pas d'état progressif
+  // Fallback à l'ancienne logique de parsing si pas d'état progressif
   const parsedContent = artifact ? null : parseMessageContent(msg.content);
   
   return (
@@ -948,7 +1073,7 @@ const parseMessageContent = (content: string) => {
           <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
             <svg
               className="h-[18px] w-[18px]"
-              xmlns="http://www.w3.org/2000/svg"
+              xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)"
               viewBox="0 0 24 24"
               fill="currentColor"
             >
@@ -968,36 +1093,50 @@ const parseMessageContent = (content: string) => {
       >
         {/* --- LOGIQUE D'AFFICHAGE DU CONTENU STREAMÉ / ARTEFACT --- */}
         {(() => {
+          
           // --- Cas 1: ARTEFACT STREAMÉ (PRIORITAIRE) ---
-          if (artifact && artifact.type) {
+          if (artifact && (artifact.type === 'files' || artifact.type === 'fileChanges')) {
             
-            // Affichage des Fichiers
-            if (artifact.type === 'files') {
-              return (
-                <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
-                  <p className="text-sm font-semibold mb-2 flex items-center gap-1 text-[#37322F]">
-                    <Code className="h-4 w-4" /> **Fichiers créés/modifiés :**
-                  </p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {/* Rendu progressif des fichiers */}
-                    {artifact.parsedList.map((filePath, i) => ( 
-                      <li key={i} className="text-xs text-[#37322F]/80">
-                        {filePath}
-                      </li>
-                    ))}
-                    {/* Affiche l'indicateur tant que le bloc n'est pas fermé */}
-                    {!msg.content.includes('```') && (
-                       <li className="text-xs text-[#37322F]/60 italic">
-                         Parsing... ({artifact.parsedList.length} chemins trouvés)
-                       </li>
-                    )}
-                  </ul>
-                </div>
-              );
-            }
-            
-            // Affichage de l'URL
-            if (artifact.type === 'url' && artifact.parsedList.length > 0) {
+            // Calcul du nombre de chemins de fichiers à afficher en fonction de la progression du JSON
+            const totalFiles = artifact.parsedList.length;
+            // Une unité de progression pour chaque 100 caractères de JSON (ajustez 100 pour accélérer/ralentir)
+            const progressUnit = 100; 
+            const progressCount = Math.min(
+                totalFiles, 
+                Math.floor(artifact.rawJson.length / progressUnit) + 1 
+            );
+
+            const title = artifact.type === 'files' 
+              ? 'Fichiers créés/modifiés (complet) :' 
+              : 'Fichier(s) affecté(s) par les changements :';
+              
+            return (
+              <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
+                <p className="text-sm font-semibold mb-2 flex items-center gap-1 text-[#37322F]">
+                  <Code className="h-4 w-4" /> **{title}**
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  {/* Rendu progressif des chemins de fichiers */}
+                  {artifact.parsedList
+                    .slice(0, progressCount) // Limite l'affichage au progressCount
+                    .map((filePath, i) => ( 
+                    <li key={i} className="text-xs text-[#37322F]/80">
+                      {filePath}
+                    </li>
+                  ))}
+                  {/* Affiche l'indicateur tant que la liste n'est pas complète ou que le bloc n'est pas fermé */}
+                  {(progressCount < totalFiles || !msg.content.includes('```')) && (
+                     <li className="text-xs text-[#37322F]/60 italic">
+                       En cours... ({progressCount} / {totalFiles} chemins trouvés)
+                     </li>
+                  )}
+                </ul>
+              </div>
+            );
+          }
+          
+          // --- Cas 2: ARTEFACT URL STREAMÉ ---
+          if (artifact && artifact.type === 'url' && artifact.parsedList.length > 0) {
               const url = artifact.parsedList[0]
               return (
                 <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
@@ -1014,23 +1153,24 @@ const parseMessageContent = (content: string) => {
                   </a>
                 </div>
               );
-            }
           }
-          
-          // --- Cas 2: FALLBACK ANCIENNE LOGIQUE ou TEXTE SIMPLE ---
-          // Si artifact est null, on utilise l'ancienne logique (parsedContent)
-          // Si artifact est présent mais type=null, on affiche le texte simple
+
+          // --- Cas 3: FALLBACK ANCIENNE LOGIQUE ou TEXTE SIMPLE ---
           const displayContent = parsedContent || { type: 'text', data: msg.content };
 
           switch (displayContent.type) {
             case 'files':
+            case 'fileChanges':
             case 'url':
-              // Ces cas ne sont atteignables que si l'ancienne logique est utilisée (pas de streaming)
+              // Fallback pour les messages non streamés (messages passés, erreurs)
+              const isUrl = displayContent.type === 'url';
+              const isFiles = displayContent.type === 'files' || displayContent.type === 'fileChanges';
+
               return (
                 <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
                   <p className="text-sm font-semibold mb-2 flex items-center gap-1 text-[#37322F]">
-                    {displayContent.type === 'files' ? <Code className="h-4 w-4" /> : <ExternalLink className="h-4 w-4" />}
-                    **{displayContent.type === 'files' ? 'Fichiers créés/modifiés :' : 'Source d\'inspiration :'}**
+                    {isUrl ? <ExternalLink className="h-4 w-4" /> : <Code className="h-4 w-4" />}
+                    **{isUrl ? 'Source d\'inspiration :' : 'Fichiers créés/modifiés :'}**
                   </p>
                   <ul className="list-disc pl-5 space-y-1">
                     {Array.isArray(displayContent.data) ? displayContent.data.map((item, i) => (
@@ -1044,15 +1184,14 @@ const parseMessageContent = (content: string) => {
 
             case 'text':
             default:
-              // Nettoyage: Si un artefact est en cours de stream, on retire le JSON du texte
+              // Nettoyage: On retire le bloc JSON (même incomplet) si l'artefact a été détecté par le stream
               let textContent = msg.content;
               if (artifact && (artifact.type || artifact.rawJson)) {
                   // Retire le bloc JSON (même s'il est incomplet: ```json... jusqu'à ``` ou fin)
                   textContent = msg.content.replace(/```json[\s\S]*?(\s*```|$)/g, '').trim();
-              } else {
-                  // Utilise l'ancienne logique pour retirer un JSON fermé s'il n'y a pas de streaming
-                  textContent = displayContent.raw || displayContent.data;
-                  textContent = textContent.replace(/```json\s*[\s\S]*?\s*```/g, '').trim() || textContent.trim();
+              } else if (displayContent.raw) {
+                  // Fallback pour le contenu non streamé (utilise la propriété raw de l'ancienne fonction)
+                  textContent = displayContent.raw.replace(/```json\s*[\s\S]*?\s*```/g, '').trim() || displayContent.raw.trim();
               }
               
               return (
@@ -1066,10 +1205,8 @@ const parseMessageContent = (content: string) => {
     </div>
   );
 })}
-        
-
-{/* --- FIN DU BLOC messages.map --- */}
-            
+                                           
+                            
             </div>
           </ScrollArea>
         </div>
