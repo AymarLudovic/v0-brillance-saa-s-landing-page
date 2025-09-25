@@ -286,11 +286,15 @@ useEffect(() => {
   }
 
 
-    const handleProjectClick = (projectId: string) => {
+    
+  const handleProjectClick = (projectId: string) => {
+  if (currentProject) {
+    saveProject()
+  }
   loadProject(projectId)
   setShowSidebar(false)
     }
-  
+    
 
   const updateFile = (value: string, viewUpdate: any) => {
     if (viewUpdate.docChanged) {
