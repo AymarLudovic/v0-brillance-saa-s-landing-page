@@ -634,7 +634,7 @@ useEffect(() => {
 
 // --- NOUVELLE FONCTION D'ANALYSE DU CONTENU ---
 const parseMessageContent = (content: string) => {
-  // Regex pour trouver un bloc de code JSON entre ```json ... ```
+  
   const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/)
   
   if (jsonMatch && jsonMatch[1]) {
@@ -680,7 +680,7 @@ const parseMessageContent = (content: string) => {
     data: content,
   }
 }
-// --- FIN parseMessageContent ---
+
             
 
 
@@ -785,11 +785,7 @@ const parseMessageContent = (content: string) => {
         <div className="flex-grow overflow-y-auto relative">
           <ScrollArea className="absolute overflow-y-auto inset-0 p-6" viewportRef={chatScrollAreaRef}>
             <div className="space-y-6 pb-4">
-              {messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
-                >
+              
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
 {messages.map((msg, index) => {
   // Parsing du contenu pour déterminer le type d'affichage
@@ -883,7 +879,7 @@ const parseMessageContent = (content: string) => {
 })}
 {/* --- FIN DU BLOC messages.map --- */}
             
-            </div>
+            
           </ScrollArea>
         </div>
 
