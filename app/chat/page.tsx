@@ -700,7 +700,7 @@ export default function SandboxPage() {
   <div className="relative p-2 flex flex-col h-[210px]">
     <div className=" flex flex-col h-[20%] rounded-t-[10px] bg-transparent w-full">
      <div className="w-full h-full flex items-center justify-center">
-        <div className="w-[95%] p-1 rounded-t-[8px] h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
+        <div className="w-[95%] p-1 rounded-t-[8px] bg-[#E3DFDB] h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
         <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
           <AtSign size={16} />
           <p className="text-sm">Mention</p>
