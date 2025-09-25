@@ -775,7 +775,26 @@ export default function SandboxPage() {
             </Button>
           </div>
 
-          <div className="flex items-center justify-center gap-2 border border-[rgba(55,50,47,0.12)] rounded-xl p-1 w-[280px] bg-[#F7F5F3]">
+          
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
+              <button
+                className="flex items-center justify-center rounded-xl border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-10 w-10"
+                aria-label="GitHub"
+              >
+                <Github className="h-5 w-5 text-[#37322F]" />
+              </button>
+              <button className="rounded-full text-white flex items-center justify-center transition hover:brightness-90 h-10 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]">
+                Deploy
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full h-[calc(100%-64px)] bg-[#F7F5F3] flex flex-col">
+
+        <div className="flex items-center justify-center gap-2 border border-[rgba(55,50,47,0.12)]  p-1 w-full bg-[#F7F5F3]">
             <input
               type="text"
               value={iframeRoute}
@@ -813,25 +832,11 @@ export default function SandboxPage() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-4">
-              <button
-                className="flex items-center justify-center rounded-xl border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-10 w-10"
-                aria-label="GitHub"
-              >
-                <Github className="h-5 w-5 text-[#37322F]" />
-              </button>
-              <button className="rounded-full text-white flex items-center justify-center transition hover:brightness-90 h-10 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]">
-                Deploy
-              </button>
-            </div>
-          </div>
-        </div>
 
-        <div className="w-full h-[calc(100%-64px)] bg-[#F7F5F3] flex flex-col">
+          
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
-              <div className="flex-grow bg-white border border-[rgba(55,50,47,0.12)] m-4 rounded-xl overflow-hidden">
+              <div className="flex-grow bg-white w-full border border-[rgba(55,50,47,0.12)] m-4  overflow-hidden">
                 {previewUrl ? (
                   <iframe ref={iframeRef} src={previewUrl} className="w-full h-full border-0" title="Sandbox Preview" />
                 ) : (
