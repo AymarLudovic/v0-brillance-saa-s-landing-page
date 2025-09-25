@@ -653,8 +653,8 @@ export default function SandboxPage() {
           </div>
         </div>
 
-        <div className="flex-grow relative">
-          <ScrollArea className="absolute inset-0 p-6" viewportRef={chatScrollAreaRef}>
+        <div className="flex-grow overflow-y-auto relative">
+          <ScrollArea className="absolute overflow-y-auto inset-0 p-6" viewportRef={chatScrollAreaRef}>
             <div className="space-y-6 pb-4">
               {messages.map((msg, index) => (
                 <div
@@ -663,7 +663,7 @@ export default function SandboxPage() {
                 >
                   {msg.role === "assistant" && (
                     <div className="flex items-center gap-3">
-                      <div className="h-6 w-6 bg-[#37322F] rounded-full flex items-center justify-center">
+                      <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
                         
         <svg
   className="h-[18px] w-[18px]"
