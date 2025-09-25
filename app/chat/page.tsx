@@ -747,6 +747,7 @@ export default function SandboxPage() {
         </div>
 
         
+
 <div className="p-1 h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
   <div className="relative p-2 flex flex-col h-[210px]">
@@ -794,8 +795,7 @@ export default function SandboxPage() {
   </div>
 </div>
 </div>
-            
-
+        
           
       <div className="w-[60%] h-full flex flex-col bg-white">
         <div className="flex items-center justify-between p-4 flex-shrink-0 h-16 border-b border-[rgba(55,50,47,0.12)]">
