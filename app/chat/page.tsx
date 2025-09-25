@@ -703,8 +703,12 @@ export default function SandboxPage() {
      <div className="w-full h-full flex items-center justify-center">
         <div className="w-[95%] p-1 rounded-t-[8px] bg-[#E3DFDB] h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
         <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
-          <AtSign size={16} />
+          <svg className="h-[16px] w-[16px] xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#1f1f1f"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
           <p className="text-sm">Clone website</p>
+        </div>
+          <div className="w-auto p-1 h-[20px] border border-black rounded-[8px] flex items-center justify-center">
+          
+          <p className="text-sm">Connect database</p>
         </div>
       </div>
      </div>
@@ -760,7 +764,7 @@ export default function SandboxPage() {
             <Button
               variant={activeTab === "preview" ? "secondary" : "ghost"}
               size="icon"
-              className={`h-8 w-8 rounded-lg ${activeTab === "preview" ? "bg-white shadow-sm" : "text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"}`}
+              className={`h-[25px] w-[25px] rounded-lg ${activeTab === "preview" ? "bg-white shadow-sm" : "text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"}`}
               onClick={() => setActiveTab("preview")}
             >
               <Eye className="h-4 w-4" />
@@ -768,7 +772,7 @@ export default function SandboxPage() {
             <Button
               variant={activeTab === "code" ? "secondary" : "ghost"}
               size="icon"
-              className={`h-8 w-8 rounded-lg ${activeTab === "code" ? "bg-white shadow-sm" : "text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"}`}
+              className={`h-[25px] w-[25px] rounded-lg ${activeTab === "code" ? "bg-white shadow-sm" : "text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"}`}
               onClick={() => setActiveTab("code")}
             >
               <Code className="h-4 w-4" />
@@ -780,7 +784,7 @@ export default function SandboxPage() {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-4">
               <button
-                className="flex items-center justify-center rounded-xl border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-10 w-10"
+                className="flex items-center justify-center rounded-xl border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-[25px] w-[25px]"
                 aria-label="GitHub"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#37322F" className="h-[18px] w-[18px]" viewBox="0 0 16 16">
@@ -788,7 +792,7 @@ export default function SandboxPage() {
 </svg>
                 
               </button>
-              <button className="rounded-full text-white flex items-center justify-center transition hover:brightness-90 h-10 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]">
+              <button className="rounded-full text-white flex items-center justify-center transition hover:brightness-90 h-[25px] px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]">
                 Deploy
               </button>
             </div>
