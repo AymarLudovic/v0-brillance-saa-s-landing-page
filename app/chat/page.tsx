@@ -640,7 +640,6 @@ useEffect(() => {
         <div className="flex items-center justify-between px-6 h-16 flex-shrink-0 border-b border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
-// REMPLACER LE <select> PAR CE BLOC :
 <div className="relative">
   {/* Bouton AFFICHEUR/Déclencheur (Imite le champ select) */}
   <button
@@ -685,7 +684,7 @@ useEffect(() => {
     </div>
   )}
 </div>
-        
+     </div>   
 </div>
             
             <span className="font-semibold text-xl text-[#37322F] font-sans">Brillance Studio</span>
