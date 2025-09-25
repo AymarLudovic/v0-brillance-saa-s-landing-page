@@ -792,7 +792,7 @@ export default function SandboxPage() {
             >
               <ArrowUp size={16px} /> 
             </Button>
-              </div>
+              
           </div>
         </div>
       </div>
