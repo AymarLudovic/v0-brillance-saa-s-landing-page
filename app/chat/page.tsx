@@ -18,6 +18,7 @@ import {
   Code,
   Eye,
   ExternalLink,
+  Image,
   Plus,
   Save,
   AtSign,
@@ -723,21 +724,28 @@ export default function SandboxPage() {
       disabled={!currentProject || loading}
     />
     </div>
-    <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center gap-1">
-        <div className="w-[25px] p-1 h-[25px] border border-black rounded-[12px] flex items-center justify-center">
+    <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
+        <div className="flex items-center gap-1 mb-1">
+          <div className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center">
           <Plus size={16} />
         </div>
         <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
           <AtSign size={16} />
           <p>Mention</p>
         </div>
-      <Button
+        </div>
+      <div className="flex items-center gap-1 mb-1">
+        <div className="h-[22px] w-[22px]">
+          <Image size={16} />
+        </div>
+        <Button
       className=" bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-full flex items-center justify-center p-1"
       onClick={() => sendChat()}
       disabled={loading || !chatInput || !currentProject}
     >
       <ArrowUp size={16} /> 
     </Button>
+      </div>
       </div>
   </div>
 </div>
