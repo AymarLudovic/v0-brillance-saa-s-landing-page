@@ -748,7 +748,7 @@ export default function SandboxPage() {
 
         <div className="p-1 h-[300px] border-[rgba(55,50,47,0.12)]  flex-shrink-0">
           {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
-          <div className="relative p-2 flex flex-col h-[170px]">
+          <div className="relative p-2 flex flex-col h-[210px]">
             <div className=" flex flex-col h-[20%] rounded-t-[10px] bg-transparent  w-full">
              <div className="w-full h-full flex items-center justify-center">
                 <div className="w-[95%] p-1 rounded-t-[8px]  h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
@@ -760,7 +760,7 @@ export default function SandboxPage() {
              </div>
               
             </div>
-            <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-[8px]">
+            <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
               <textarea
               placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
               className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
@@ -776,14 +776,8 @@ export default function SandboxPage() {
             />
             </div>
             
-            <Button
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white rounded-lg px-6"
-              onClick={() => sendChat()}
-              disabled={loading || !chatInput || !currentProject}
-            >
-              <Zap className="h-4 w-4 mr-2" /> Send
-            </Button>
-            <div className="w-full p-1 h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center gap-1">
+            
+            <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center gap-1">
                 <div className="w-[25px] p-1 h-[25px] border border-black rounded-[12px] flex items-center justify-center">
                   <Plus size={16} />
                 </div>
@@ -791,6 +785,13 @@ export default function SandboxPage() {
                   <AtSign size={16} />
                   <p>Mention</p>
                 </div>
+              <Button
+              className=" bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-full flex items-center justify-center p-1"
+              onClick={() => sendChat()}
+              disabled={loading || !chatInput || !currentProject}
+            >
+              <ArrowUp size={16px} /> 
+            </Button>
               </div>
           </div>
         </div>
