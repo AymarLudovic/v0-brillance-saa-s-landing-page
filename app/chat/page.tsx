@@ -177,6 +177,12 @@ const applyChanges = (originalContent: string, changes: any[]): string => {
   return lines.join("\n")
 }
 
+
+
+
+
+
+
 // --- COMPOSANT PRINCIPAL ---
 export default function SandboxPage() {
   const [logs, setLogs] = useState<string[]>([])
@@ -271,6 +277,58 @@ useEffect(() => {
     saveProjectsToLocalStorage(updatedProjects)
     addLog(`Project "${currentProject.name}" saved.`)
   }
+
+
+
+const parseMessageContent = (content: string) => {
+  
+  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/)
+  
+  if (jsonMatch && jsonMatch[1]) {
+    try {
+      const jsonContent = JSON.parse(jsonMatch[1])
+      
+      // 1. Détection de la structure de Fichiers
+      if (
+        Array.isArray(jsonContent) &&
+        jsonContent.length > 0 &&
+        typeof jsonContent[0] === 'object' &&
+        'filePath' in jsonContent[0] &&
+        'content' in jsonContent[0]
+      ) {
+        return {
+          type: 'files',
+          data: jsonContent.map((f: any) => f.filePath as string), // Ne garder que les chemins de fichiers
+          raw: content, // Garde le contenu brut (le JSON complet)
+        }
+      } 
+      // 2. Détection de l'URL d'inspiration
+      else if (
+        typeof jsonContent === 'object' &&
+        jsonContent !== null &&
+        jsonContent.type === 'inspirationUrl' &&
+        jsonContent.url
+      ) {
+        return {
+          type: 'url',
+          data: jsonContent.url as string,
+          raw: content,
+        }
+      }
+
+    } catch (e) {
+      // Ignorer l'erreur et afficher le contenu comme texte
+    }
+  }
+
+  // 3. Cas par défaut: Contenu texte normal ou JSON mal formé/inconnu
+  return {
+    type: 'text',
+    data: content,
+  }
+    }
+
+  
 
   const loadProject = (projectId: string) => {
     const projectToLoad = projects.find((p) => p.id === projectId)
@@ -633,53 +691,7 @@ useEffect(() => {
 
 
 // --- NOUVELLE FONCTION D'ANALYSE DU CONTENU ---
-const parseMessageContent = (content: string) => {
-  
-  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/)
-  
-  if (jsonMatch && jsonMatch[1]) {
-    try {
-      const jsonContent = JSON.parse(jsonMatch[1])
-      
-      // 1. Détection de la structure de Fichiers
-      if (
-        Array.isArray(jsonContent) &&
-        jsonContent.length > 0 &&
-        typeof jsonContent[0] === 'object' &&
-        'filePath' in jsonContent[0] &&
-        'content' in jsonContent[0]
-      ) {
-        return {
-          type: 'files',
-          data: jsonContent.map((f: any) => f.filePath as string), // Ne garder que les chemins de fichiers
-          raw: content, // Garde le contenu brut (le JSON complet)
-        }
-      } 
-      // 2. Détection de l'URL d'inspiration
-      else if (
-        typeof jsonContent === 'object' &&
-        jsonContent !== null &&
-        jsonContent.type === 'inspirationUrl' &&
-        jsonContent.url
-      ) {
-        return {
-          type: 'url',
-          data: jsonContent.url as string,
-          raw: content,
-        }
-      }
 
-    } catch (e) {
-      // Ignorer l'erreur et afficher le contenu comme texte
-    }
-  }
-
-  // 3. Cas par défaut: Contenu texte normal ou JSON mal formé/inconnu
-  return {
-    type: 'text',
-    data: content,
-  }
-}
 
             
 
@@ -879,7 +891,7 @@ const parseMessageContent = (content: string) => {
 })}
 {/* --- FIN DU BLOC messages.map --- */}
             
-            
+            </div>
           </ScrollArea>
         </div>
 
