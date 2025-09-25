@@ -704,7 +704,7 @@ export default function SandboxPage() {
         <div className="w-[95%] p-1 rounded-t-[8px] bg-[#E3DFDB] h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
         <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
           <AtSign size={16} />
-          <p className="text-sm">Mention</p>
+          <p className="text-sm">Clone website</p>
         </div>
       </div>
      </div>
@@ -725,17 +725,17 @@ export default function SandboxPage() {
     />
     </div>
     <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
-        <div className="flex items-center gap-1 mb-1">
+        <div className="flex pl-1 items-center gap-1 mb-1">
           <div className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center">
           <Plus size={16} />
         </div>
         <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
           <AtSign size={16} />
-          <p>Mention</p>
+          <p className="text-sm">Mention</p>
         </div>
         </div>
-      <div className="flex items-center gap-1 mb-1">
-        <div className="h-[22px] w-[22px]">
+      <div className="flex pr-1 items-center gap-1 mb-1">
+        <div className="h-[22px] w-[22px] relative -bottom-[2px]">
           <Image size={16} />
         </div>
         <Button
