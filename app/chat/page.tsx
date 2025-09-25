@@ -22,7 +22,9 @@ import {
   Plus,
   Save,
   AtSign,
-  ArrowUp
+  ArrowUp,
+  X,
+  Sidebar
 } from "lucide-react"
 
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
@@ -192,6 +194,17 @@ export default function SandboxPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
 
+  const [showSidebar, setShowSidebar] = useState(false)
+
+useEffect(() => {
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") setShowSidebar(false)
+  }
+  window.addEventListener("keydown", onKey)
+  return () => window.removeEventListener("keydown", onKey)
+}, [])
+  
+
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const chatScrollAreaRef = useRef<HTMLDivElement>(null)
 
@@ -271,6 +284,13 @@ export default function SandboxPage() {
 
     addLog(`Project "${projectToLoad.name}" loaded.`)
   }
+
+
+    const handleProjectClick = (projectId: string) => {
+  loadProject(projectId)
+  setShowSidebar(false)
+    }
+  
 
   const updateFile = (value: string, viewUpdate: any) => {
     if (viewUpdate.docChanged) {
@@ -613,6 +633,20 @@ export default function SandboxPage() {
       <div className="w-[40%] bg-[#F7F5F3] h-full flex flex-col border-r border-[rgba(55,50,47,0.12)]">
         <div className="flex items-center justify-between px-6 h-16 flex-shrink-0 border-b border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
+  <Button
+    variant="ghost"
+    size="icon"
+    onClick={() => setShowSidebar((s) => !s)}
+    className="h-8 w-8 text-[#37322F] hover:bg-[rgba(55,50,47,0.08)]"
+    aria-label="Toggle projects sidebar"
+  >
+    {showSidebar ? <X className="h-4 w-4" /> : <Sidebar className="h-4 w-4" />}
+  </Button>
+
+  <span className="font-semibold text-xl text-[#37322F] font-sans">Brillance Studio</span>
+</div>
+            
             <span className="font-semibold text-xl text-[#37322F] font-sans">Brillance Studio</span>
           </div>
           <div className="flex items-center">
@@ -978,6 +1012,58 @@ export default function SandboxPage() {
           )}
         </div>
       </div>
+
+
+      {/* ---------- SIDEBAR OVERLAY ---------- */}
+<div className={`fixed inset-0 z-40 pointer-events-none`}>
+  {/* backdrop */}
+  <div
+    onClick={() => setShowSidebar(false)}
+    className={`absolute inset-0 bg-black/40 transition-opacity ${showSidebar ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+  />
+  {/* panel */}
+  <aside
+    className={`absolute left-0 top-0 h-full w-72 bg-white border-r border-[rgba(55,50,47,0.12)] transform transition-transform duration-200 shadow-lg
+      ${showSidebar ? "translate-x-0" : "-translate-x-full"}
+    `}
+    aria-hidden={!showSidebar}
+  >
+    <div className="p-4 flex items-center justify-between border-b border-[rgba(55,50,47,0.08)]">
+      <h3 className="text-sm font-medium">Projects</h3>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" onClick={createNewProject} className="h-8 w-8">
+          <Plus className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => setShowSidebar(false)} className="h-8 w-8">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+
+    <div className="p-3 overflow-auto h-[calc(100%-56px)]">
+      {projects.length === 0 ? (
+        <p className="text-sm text-[rgba(55,50,47,0.6)]">No projects yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {projects.map((p) => (
+            <li key={p.id}>
+              <button
+                onClick={() => handleProjectClick(p.id)}
+                className={`w-full text-left p-3 rounded-md flex flex-col ${
+                  currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : "hover:bg-[#F7F5F3]"
+                }`}
+              >
+                <div className="text-sm">{p.name}</div>
+                <div className="text-xs text-[rgba(55,50,47,0.6)]">{new Date(p.createdAt).toLocaleString()}</div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </aside>
+</div>
+        
     </div>
   )
 }
