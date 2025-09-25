@@ -287,14 +287,26 @@ useEffect(() => {
 
 
     
-  const handleProjectClick = (projectId: string) => {
-  if (currentProject) {
-    saveProject()
-  }
-  loadProject(projectId)
+const handleProjectClick = (projectId: string) => {
+  const projectToLoad = projects.find((p) => p.id === projectId)
+  if (!projectToLoad) return
+
+  setSandboxId(null)
+  setPreviewUrl(null)
+  addLog("Sandbox reset for new project.")
+  setCurrentProject(projectToLoad)
+  setFiles(projectToLoad.files)
+  setMessages(projectToLoad.messages)
+  setActiveFile(0)
+
+  addLog(`Project "${projectToLoad.name}" loaded.`)
   setShowSidebar(false)
-    }
-    
+}
+  
+
+
+  
+  
 
   const updateFile = (value: string, viewUpdate: any) => {
     if (viewUpdate.docChanged) {
