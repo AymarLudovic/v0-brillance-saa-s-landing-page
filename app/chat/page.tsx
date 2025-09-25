@@ -1056,7 +1056,8 @@ const sendChat = async (promptOverride?: string) => {
               
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
 
-        {messages.map((msg, index) => {
+        
+                    {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   
   // Fallback à l'ancienne logique de parsing si pas d'état progressif
@@ -1205,7 +1206,12 @@ const sendChat = async (promptOverride?: string) => {
     </div>
   );
 })}
-                                           
+          
+          
+
+          
+                
+                  {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}                
                             
             </div>
           </ScrollArea>
