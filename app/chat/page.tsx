@@ -746,57 +746,57 @@ export default function SandboxPage() {
           </ScrollArea>
         </div>
 
-        <div className="p-1 h-[300px] border-[rgba(55,50,47,0.12)]  flex-shrink-0">
-          {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
-          <div className="relative p-2 flex flex-col h-[210px]">
-            <div className=" flex flex-col h-[20%] rounded-t-[10px] bg-transparent  w-full">
-             <div className="w-full h-full flex items-center justify-center">
-                <div className="w-[95%] p-1 rounded-t-[8px]  h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
-                <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
-                  <AtSign size={16} />
-                  <p className="text-sm">Mention</p>
-                </div>
-              </div>
-             </div>
-              
-            </div>
-            <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
-              <textarea
-              placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
-              className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  sendChat()
-                }
-              }}
-              disabled={!currentProject || loading}
-            />
-            </div>
-            
-            
-            <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center gap-1">
-                <div className="w-[25px] p-1 h-[25px] border border-black rounded-[12px] flex items-center justify-center">
-                  <Plus size={16} />
-                </div>
-                <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
-                  <AtSign size={16} />
-                  <p>Mention</p>
-                </div>
-              <Button
-              className=" bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-full flex items-center justify-center p-1"
-              onClick={() => sendChat()}
-              disabled={loading || !chatInput || !currentProject}
-            >
-              <ArrowUp size={16px} /> 
-            </Button>
-              
-          </div>
+        
+<div className="p-1 h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+  {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
+  <div className="relative p-2 flex flex-col h-[210px]">
+    <div className=" flex flex-col h-[20%] rounded-t-[10px] bg-transparent w-full">
+     <div className="w-full h-full flex items-center justify-center">
+        <div className="w-[95%] p-1 rounded-t-[8px] h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
+        <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
+          <AtSign size={16} />
+          <p className="text-sm">Mention</p>
         </div>
       </div>
+     </div>
+    </div>
+    <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
+      <textarea
+      placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
+      className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
+      value={chatInput}
+      onChange={(e) => setChatInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault()
+          sendChat()
+        }
+      }}
+      disabled={!currentProject || loading}
+    />
+    </div>
+    <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center gap-1">
+        <div className="w-[25px] p-1 h-[25px] border border-black rounded-[12px] flex items-center justify-center">
+          <Plus size={16} />
+        </div>
+        <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
+          <AtSign size={16} />
+          <p>Mention</p>
+        </div>
+      <Button
+      className=" bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-full flex items-center justify-center p-1"
+      onClick={() => sendChat()}
+      disabled={loading || !chatInput || !currentProject}
+    >
+      <ArrowUp size={16px} /> 
+    </Button>
+      </div>
+  </div>
+</div>
+</div>
+            
 
+          
       <div className="w-[60%] h-full flex flex-col bg-white">
         <div className="flex items-center justify-between p-4 flex-shrink-0 h-16 border-b border-[rgba(55,50,47,0.12)]">
           <div className="bg-[#F7F5F3] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
