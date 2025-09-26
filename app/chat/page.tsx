@@ -60,6 +60,9 @@ interface Project {
 
 
 // --- NOUVELLES INTERFACES POUR L'ARBORESCENCE DE FICHIERS ---
+// --- UTILS ET INTERFACES POUR LE FILE TREE ---
+
+// Définition de l'interface pour un Nœud dans l'arborescence de fichiers
 interface FileTreeNode {
   name: string // Nom du dossier ou du fichier (ex: 'app' ou 'page.tsx')
   path: string // Chemin complet (pour l'action de clic)
@@ -70,6 +73,59 @@ interface FileTreeNode {
 
 // Le type FileTree sera un Map pour des recherches rapides
 type FileTree = Map<string, FileTreeNode>
+
+// --- OUTILS SVG PERSONNALISÉS ---
+
+// Composant pour injecter du SVG brut (gère l'application des classes CSS)
+const SvgIcon: React.FC<{ svgContent: string; className?: string }> = ({ svgContent, className }) => {
+  return (
+    <div 
+      className={className} 
+      // Cette méthode est utilisée pour injecter du HTML/SVG brut
+      dangerouslySetInnerHTML={{ __html: svgContent }} 
+      // Ajout de flex-shrink-0 pour empêcher les icônes d'être écrasées dans un flex container
+      style={{ flexShrink: 0 }}
+    />
+  );
+};
+
+// Type pour la carte d'icônes (fonction qui retourne l'élément JSX de l'icône)
+type IconFunction = (className: string) => React.ReactElement;
+
+
+// --- CARTE DE CORRESPONDANCE DES ICÔNES PAR EXTENSION (VOS SVG) ---
+
+const FileIconMap: Record<string, IconFunction> = {
+  // CONFIGURATION ET BASE
+  'package.json': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M10 8h4M10 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`} />,
+  'json': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M12 10l3 3M12 14l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`} />,
+  'tsconfig.json': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5-5 5 5M12 19V5" stroke="#3178C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`} />,
+  'next.config.js': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#000000"/><path d="M8 16h8" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/><path d="M8 8h8" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/></svg>`} />,
+  'env': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`} />,
+  
+  // FICHIERS DE CODE
+  'tsx': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L14 18M6 18l4-12" stroke="#4C8DF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`} />,
+  'ts': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="#3178C6" stroke-width="2" stroke-linecap="round"/></svg>`} />,
+  'js': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 8l4 8M14 8l-4 8" stroke="#F7DF1E" stroke-width="2" stroke-linecap="round"/></svg>`} />,
+  'css': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="#1572B6" stroke-width="2" stroke-linecap="round"/></svg>`} />,
+  
+  // VALEUR PAR DÉFAUT
+  'default': (className) => <SvgIcon className={className} svgContent={`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`} />, 
+};
+
+// Récupération de l'icône
+const getFileIcon = (filePath: string): IconFunction => {
+  const exactName = filePath.split('/').pop()?.toLowerCase() || '';
+  if (FileIconMap[exactName]) return FileIconMap[exactName];
+
+  const extensionMatch = exactName.match(/\.([0-9a-z]+)$/i);
+  const extension = extensionMatch ? extensionMatch[1] : null;
+
+  if (extension && FileIconMap[extension]) return FileIconMap[extension];
+
+  return FileIconMap['default'];
+};
+
 
 
 // --- FONCTION DE CONSTRUCTION DE L'ARBORESCENCE (LOGIQUE PURE) ---
@@ -905,6 +961,9 @@ const sendChat = async (promptOverride?: string) => {
 
 
             // --- INTERFACE ET COMPOSANT RÉCURSIF (À L'INTÉRIEUR DE SandboxPage) ---
+
+  
+// --- INTERFACE POUR LE COMPOSANT D'ITEM ---
 interface FileTreeItemProps {
   node: FileTreeNode
   activeFile: number | null
@@ -916,13 +975,14 @@ interface FileTreeItemProps {
  * Utilise la récursivité pour afficher les sous-dossiers.
  */
 const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActiveFile }) => {
-  // useState pour gérer l'ouverture/fermeture des dossiers
+  // L'état 'isOpen' doit être importé de 'react' si ce n'est pas déjà fait.
   const [isOpen, setIsOpen] = useState(true)
   
-  // Icônes nécessaires (assurez-vous d'avoir Code et ChevronRight importés depuis 'lucide-react')
-  // J'utilise Code pour tous les fichiers pour simplifier.
   const isDirectory = node.type === 'directory'
   const isCurrentlyActive = node.index !== undefined && activeFile === node.index
+
+  // Récupère la fonction d'icône spécifique.
+  const SpecificIconFunction = !isDirectory ? getFileIcon(node.path) : null;
 
   return (
     <li>
@@ -942,13 +1002,20 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
       >
         {/* Icône de flèche pour les dossiers */}
         {isDirectory && (
-          <ChevronRight 
+          <ChevronRight // Importé de lucide-react (ou utilisez votre propre SVG)
             className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} 
-            style={{ minWidth: '1rem' }} // Force la taille pour l'alignement
+            style={{ minWidth: '1rem' }} 
           />
         )}
-        {/* Icône de fichier pour les fichiers */}
-        {!isDirectory && <Code className="h-4 w-4 opacity-75" style={{ minWidth: '1rem', marginLeft: isDirectory ? '0' : '1.5rem' }} />} 
+        
+        {/* Affichage de l'icône SVG du fichier */}
+        {!isDirectory && SpecificIconFunction && (
+          // Appelle la fonction et lui passe les classes pour le style.
+          // Le `style={{ marginLeft: '1rem' }}` décale le fichier si ce n'est pas un dossier.
+          <span style={{ marginLeft: isDirectory ? '0' : '1.25rem' }}>
+            {SpecificIconFunction("h-4 w-4 opacity-75")}
+          </span>
+        )}
 
         <span className="truncate">{node.name}</span>
       </button>
@@ -958,7 +1025,6 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
         <ul className="pl-3 mt-1 space-y-1">
           {Array.from(node.children.entries())
             .sort(([nameA, nodeA], [nameB, nodeB]) => {
-              // Trie les dossiers en premier, puis par ordre alphabétique
               if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
               if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
               return nameA.localeCompare(nameB);
@@ -976,7 +1042,6 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
     </li>
   )
 }
-  
 
 
   
