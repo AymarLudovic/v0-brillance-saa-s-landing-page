@@ -55,6 +55,68 @@ interface Project {
   files: { filePath: string; content: string }[]
   messages: Message[]
 }
+// Définition de l'interface pour un Nœud dans l'arborescence de fichiers
+
+
+// --- NOUVELLES INTERFACES POUR L'ARBORESCENCE DE FICHIERS ---
+interface FileTreeNode {
+  name: string // Nom du dossier ou du fichier (ex: 'app' ou 'page.tsx')
+  path: string // Chemin complet (pour l'action de clic)
+  type: 'directory' | 'file'
+  children?: FileTree // Présent uniquement si 'type' est 'directory'
+  index?: number // Index dans le tableau 'files' original (pour savoir quel fichier éditer)
+}
+
+// Le type FileTree sera un Map pour des recherches rapides
+type FileTree = Map<string, FileTreeNode>
+
+
+// --- FONCTION DE CONSTRUCTION DE L'ARBORESCENCE (LOGIQUE PURE) ---
+
+/**
+ * Construit une structure d'arbre de fichiers (Map imbriquée) à partir d'une liste plate de fichiers.
+ * @param files Le tableau d'objets fichiers ({ filePath: string, content: string }[]).
+ * @returns La Map représentant le répertoire racine.
+ */
+const buildFileTree = (files: { filePath: string; content: string }[]): FileTree => {
+  const root: FileTree = new Map()
+
+  files.forEach((file, originalIndex) => {
+    const parts = file.filePath.split('/')
+    let currentNode = root
+    let currentPath = ''
+
+    parts.forEach((part, i) => {
+      // Met à jour le chemin d'accès complet pour ce niveau
+      currentPath = currentPath + (currentPath ? '/' : '') + part
+      
+      const isFile = i === parts.length - 1
+
+      if (!currentNode.has(part)) {
+        // Crée un nouveau nœud si non existant
+        const newNode: FileTreeNode = {
+          name: part,
+          path: currentPath,
+          type: isFile ? 'file' : 'directory',
+          // On crée une nouvelle Map d'enfants seulement si c'est un répertoire
+          children: isFile ? undefined : new Map(),
+          index: isFile ? originalIndex : undefined,
+        }
+        currentNode.set(part, newNode)
+      }
+
+      // Descend dans le nœud (si ce n'est pas le fichier final)
+      if (!isFile) {
+        currentNode = currentNode.get(part)!.children as FileTree
+      }
+    })
+  })
+
+  return root
+}
+
+
+
 
 /**
  * Extrait le contenu JSON brut (potentiellement incomplet) entre ```json et ```.
@@ -841,11 +903,84 @@ const sendChat = async (promptOverride?: string) => {
 // --- NOUVELLE FONCTION D'ANALYSE DU CONTENU ---
 
 
-            
+            // --- INTERFACE ET COMPOSANT RÉCURSIF (À L'INTÉRIEUR DE SandboxPage) ---
+interface FileTreeItemProps {
+  node: FileTreeNode
+  activeFile: number | null
+  setActiveFile: (index: number) => void
+}
+
+/**
+ * Composant pour afficher un seul fichier ou dossier dans l'arborescence.
+ * Utilise la récursivité pour afficher les sous-dossiers.
+ */
+const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActiveFile }) => {
+  // useState pour gérer l'ouverture/fermeture des dossiers
+  const [isOpen, setIsOpen] = useState(true)
+  
+  // Icônes nécessaires (assurez-vous d'avoir Code et ChevronRight importés depuis 'lucide-react')
+  // J'utilise Code pour tous les fichiers pour simplifier.
+  const isDirectory = node.type === 'directory'
+  const isCurrentlyActive = node.index !== undefined && activeFile === node.index
+
+  return (
+    <li>
+      <button
+        className={`w-full text-left text-sm py-1.5 px-2 rounded-lg flex items-center gap-2 transition-colors ${
+          isCurrentlyActive
+            ? "bg-[#37322F] text-white" 
+            : "hover:bg-[#F7F5F3] text-[#37322F]/80"
+        }`}
+        onClick={() => {
+          if (isDirectory) {
+            setIsOpen(!isOpen) // Ouvre/Ferme le dossier
+          } else if (node.index !== undefined) {
+            setActiveFile(node.index) // Ouvre le fichier
+          }
+        }}
+      >
+        {/* Icône de flèche pour les dossiers */}
+        {isDirectory && (
+          <ChevronRight 
+            className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} 
+            style={{ minWidth: '1rem' }} // Force la taille pour l'alignement
+          />
+        )}
+        {/* Icône de fichier pour les fichiers */}
+        {!isDirectory && <Code className="h-4 w-4 opacity-75" style={{ minWidth: '1rem', marginLeft: isDirectory ? '0' : '1.5rem' }} />} 
+
+        <span className="truncate">{node.name}</span>
+      </button>
+
+      {/* Rendu récursif des enfants */}
+      {isDirectory && isOpen && node.children && (
+        <ul className="pl-3 mt-1 space-y-1">
+          {Array.from(node.children.entries())
+            .sort(([nameA, nodeA], [nameB, nodeB]) => {
+              // Trie les dossiers en premier, puis par ordre alphabétique
+              if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
+              if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
+              return nameA.localeCompare(nameB);
+            })
+            .map(([key, childNode]) => (
+              <FileTreeItem
+                key={key}
+                node={childNode}
+                activeFile={activeFile}
+                setActiveFile={setActiveFile}
+              />
+            ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+  
 
 
   
-
+const fileTree = buildFileTree(files)
+        
   // -------------------
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
@@ -1352,32 +1487,36 @@ const sendChat = async (promptOverride?: string) => {
                     Save to Sandbox
                   </Button>
                 </div>
-                <ScrollArea className="h-[calc(100%-57px)] p-4">
-                  <ul className="space-y-1">
-                    {files.map((file, index) => (
-                      <li key={index}>
-                        <button
-                          className={`w-full text-left text-sm p-3 rounded-lg transition-colors ${
-                            activeFile === index
-                              ? "bg-[#F7F5F3] text-[#37322F] border border-[rgba(55,50,47,0.12)]"
-                              : "hover:bg-[#F7F5F3] text-[rgba(55,50,47,0.80)]"
-                          }`}
-                          onClick={() => setActiveFile(index)}
-                        >
-                          {file.filePath}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4 w-full border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-[#F7F5F3] bg-transparent"
-                    onClick={() => setFiles((prev) => [...prev, { filePath: "new/file.tsx", content: "" }])}
-                  >
-                    + New File
-                  </Button>
-                </ScrollArea>
+                // --- Remplacez l'ancien bloc ScrollArea par celui-ci ---
+<ScrollArea className="h-[calc(100%-57px)] p-4">
+    <ul className="space-y-1">
+        {/* Démarre le rendu récursif à partir de la racine de l'arbre */}
+        {Array.from(fileTree.entries()) 
+            .sort(([nameA, nodeA], [nameB, nodeB]) => {
+                // Trie les dossiers en premier à la racine
+                if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
+                if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
+                return nameA.localeCompare(nameB);
+            })
+            .map(([key, node]) => (
+                <FileTreeItem
+                    key={key}
+                    node={node}
+                    activeFile={activeFile}
+                    setActiveFile={setActiveFile}
+                />
+            ))}
+    </ul>
+    <Button
+        variant="outline"
+        size="sm"
+        className="mt-4 w-full border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-[#F7F5F3] bg-transparent"
+        onClick={() => setFiles((prev) => [...prev, { filePath: "new/file.tsx", content: "" }])}
+    >
+        + New File
+    </Button>
+</ScrollArea>
+              
               </div>
 
               <div className="w-2/3 h-full bg-white">
