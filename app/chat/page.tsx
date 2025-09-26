@@ -1036,14 +1036,7 @@ const sendChat = async (promptOverride?: string) => {
                     Designing process
                   </p>
                   <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
-                  <a 
-                    href={url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-xs text-blue-600 truncate block hover:underline"
-                  >
-                    {url}
-                  </a>
+                  
                 </div>
               );
           }
