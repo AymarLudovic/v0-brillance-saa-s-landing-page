@@ -886,20 +886,9 @@ const sendChat = async (promptOverride?: string) => {
             currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : ""
           }`}
         >
-          <svg width="12" height="10" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <rect x="1" y="3" width="4" height="6" stroke="#37322F" strokeWidth="1" fill="none" />
-                          <rect x="7" y="1" width="4" height="8" stroke="#37322F" strokeWidth="1" fill="none" />
-                          <rect x="2" y="4" width="1" height="1" fill="#37322F" />
-                          <rect x="3.5" y="4" width="1" height="1" fill="#37322F" />
-                          <rect x="2" y="5.5" width="1" height="1" fill="#37322F" />
-                          <rect x="3.5" y="5.5" width="1" height="1" fill="#37322F" />
-                          <rect x="8" y="2" width="1" height="1" fill="#37322F" />
-                          <rect x="9.5" y="2" width="1" height="1" fill="#37322F" />
-                          <rect x="8" y="3.5" width="1" height="1" fill="#37322F" />
-                          <rect x="9.5" y="3.5" width="1" height="1" fill="#37322F" />
-                          <rect x="8" y="5" width="1" height="1" fill="#37322F" />
-                          <rect x="9.5" y="5" width="1" height="1" fill="#37322F" />
-                        </svg>
+          <div className="w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-full">
+                            <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
+                          </div>
           {p.name}
         </button>
       ))}
