@@ -870,7 +870,7 @@ const sendChat = async (promptOverride?: string) => {
 
   {/* Conteneur du Menu Déroulant (Imite les <option>) */}
   {showProjectSelect && (
-    <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[rgba(55,50,47,0.08)] shadow-lg rounded-md min-w-[200px] max-h-60 overflow-y-auto">
+    <div className="absolute z-50 top-full mt-1 left-0 bg-[#E3DFDB] border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] min-w-[300px] max-h-70 overflow-y-auto">
       {projects.map((p) => (
         <button
           key={p.id}
@@ -1008,7 +1008,7 @@ const sendChat = async (promptOverride?: string) => {
                 <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
                   {title}
                   </p>
-                <ul className="list-disc pl-5 w-[90%] space-y-1">
+                <ul className="list-disc pl-5 w-[100%] space-y-1">
                   {/* Rendu progressif des chemins de fichiers */}
                   {artifact.parsedList
                     .slice(0, progressCount) // Limite l'affichage au progressCount
