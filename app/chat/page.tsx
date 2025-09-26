@@ -1000,12 +1000,14 @@ const sendChat = async (promptOverride?: string) => {
             );
 
             const title = artifact.type === 'files' 
-              ? 'Fichiers créés/modifiés (complet) :' 
-              : 'Fichier(s) affecté(s) par les changements :';
+              ? 'Building code' 
+              : 'Building code';
               
             return (
               <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
-                
+                <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
+                  {title}
+                  </p>
                 <ul className="list-disc pl-5 w-[90%] space-y-1">
                   {/* Rendu progressif des chemins de fichiers */}
                   {artifact.parsedList
