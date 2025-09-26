@@ -862,6 +862,9 @@ const sendChat = async (promptOverride?: string) => {
     className="flex items-center gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium max-w-[150px] text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
   >
     {/* Affiche le nom du projet actuel ou le texte par défaut */}
+    <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px]">
+                            <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
+                          </div>
     <span className="truncate">
       {currentProject?.name || "Select a Project"}
     </span>
@@ -886,7 +889,7 @@ const sendChat = async (promptOverride?: string) => {
             currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : ""
           }`}
         >
-          <div className="w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-full">
+          <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px]">
                             <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
                           </div>
           {p.name}
