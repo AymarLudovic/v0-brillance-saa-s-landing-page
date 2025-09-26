@@ -1489,7 +1489,7 @@ const fileTree = buildFileTree(files)
                   </Button>
                 </div>
                 // --- Remplacez l'ancien bloc ScrollArea par celui-ci ---
-<ScrollArea className="h-[calc(100%-57px)] p-4">
+<ScrollArea className="h-[calc(100%-57px)] bg-[#E3DFDB] p-4">
     <ul className="space-y-1">
         {/* Démarre le rendu récursif à partir de la racine de l'arbre */}
         {Array.from(fileTree.entries()) 
