@@ -1013,7 +1013,7 @@ const sendChat = async (promptOverride?: string) => {
                     .map((filePath, i) => ( 
                     <li key={i} className="text-xs  flex items-center gap-1 text-[#37322F]/80">
                       <span>
-                        
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
                       </span>
                       <p>created</p>
                       <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] px-[12px]">{filePath}</span>
@@ -1023,7 +1023,7 @@ const sendChat = async (promptOverride?: string) => {
                   {/* Affiche l'indicateur tant que la liste n'est pas complète ou que le bloc n'est pas fermé */}
                   {(progressCount < totalFiles || !msg.content.includes('```')) && (
                      <li className="text-xs text-[#37322F]/60 italic">
-                       En cours... ({progressCount} / {totalFiles} chemins trouvés)
+                       Building... ({progressCount} / {totalFiles} chemins trouvés)
                      </li>
                   )}
                 </ul>
@@ -1070,7 +1070,15 @@ const sendChat = async (promptOverride?: string) => {
                   </p>
                   <ul className="list-disc pl-5 space-y-1">
                     {Array.isArray(displayContent.data) ? displayContent.data.map((item, i) => (
-                      <li key={i} className="text-xs text-[#37322F]/80">{item}</li>
+                      <li key={i} className="text-xs text-[#37322F]/80">
+                        <span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
+                      </span>
+                      <p>Edited</p>
+                          <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] px-[12px]">{item}</span>
+                      
+                        
+                      </li>
                     )) : (
                       <a href={displayContent.data} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 truncate block hover:underline">{displayContent.data}</a>
                     )}
