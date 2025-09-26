@@ -24,7 +24,8 @@ import {
   AtSign,
   ArrowUp,
   X,
-  Sidebar
+  Sidebar,
+  ChevronRight
 } from "lucide-react"
 
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
