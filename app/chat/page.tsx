@@ -1012,6 +1012,9 @@ const sendChat = async (promptOverride?: string) => {
                     .slice(0, progressCount) // Limite l'affichage au progressCount
                     .map((filePath, i) => ( 
                     <li key={i} className="text-xs  flex items-center gap-1 text-[#37322F]/80">
+                      <span>
+                        
+                      </span>
                       <p>created</p>
                       <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] px-[12px]">{filePath}</span>
                       
