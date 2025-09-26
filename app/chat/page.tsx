@@ -1005,16 +1005,16 @@ const sendChat = async (promptOverride?: string) => {
               
             return (
               <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
-                <p className="text-sm font-semibold mb-2 flex items-center gap-1 text-[#37322F]">
-                  <Code className="h-4 w-4" /> **{title}**
-                </p>
+                
                 <ul className="list-disc pl-5 space-y-1">
                   {/* Rendu progressif des chemins de fichiers */}
                   {artifact.parsedList
                     .slice(0, progressCount) // Limite l'affichage au progressCount
                     .map((filePath, i) => ( 
-                    <li key={i} className="text-xs text-[#37322F]/80">
-                      {filePath}
+                    <li key={i} className="text-xs list-style-none flex items-center gap-1 text-[#37322F]/80">
+                      <p>created</p>
+                      <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] px-[12px]>{filePath}</span>
+                      
                     </li>
                   ))}
                   {/* Affiche l'indicateur tant que la liste n'est pas complète ou que le bloc n'est pas fermé */}
