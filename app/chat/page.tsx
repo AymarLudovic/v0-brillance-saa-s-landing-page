@@ -852,7 +852,7 @@ const sendChat = async (promptOverride?: string) => {
   return (
     <div className="flex h-screen bg-[#F7F5F3] font-sans text-[#37322F]">
       <div className="w-[40%] bg-[#F7F5F3] h-full flex flex-col border-r border-[rgba(55,50,47,0.12)]">
-        <div className="flex items-center justify-between px-6 h-16 flex-shrink-0 border-b border-[rgba(55,50,47,0.12)]">
+        <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
 <div className="relative">
@@ -908,28 +908,16 @@ const sendChat = async (promptOverride?: string) => {
      </div>   
 
             
-            <span className="font-semibold text-xl text-[#37322F] font-sans">Brillance Studio</span>
+            
           </div>
           <div className="flex items-center">
-            <select
-              onChange={(e) => loadProject(e.target.value)}
-              value={currentProject?.id || ""}
-              className="text-sm bg-transparent border-none focus:ring-0 font-medium max-w-[150px] text-[#37322F]"
-            >
-              <option value="" disabled>
-                Select a Project
-              </option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            
             <Button
               variant="ghost"
               size="icon"
               onClick={createNewProject}
-              className="h-8 w-8 text-[#37322F] hover:bg-[rgba(55,50,47,0.08)]"
+              className="bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-[12px] flex items-center justify-center p-1"
+              
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -942,7 +930,7 @@ const sendChat = async (promptOverride?: string) => {
               variant="ghost"
               className="text-[#37322F] hover:bg-[rgba(55,50,47,0.08)]"
             >
-              <Save className="h-4 w-4 mr-2" />
+              
               Save Project
             </Button>
           </div>
