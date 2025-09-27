@@ -21,20 +21,20 @@ const githubDiffTheme = EditorView.theme(
       caretColor: "#24292e",
     },
     ".cm-gutters": {
-      backgroundColor: "#fafafa", // 🔹 Fond des numéros de ligne
+      backgroundColor: "#fafafa", // Fond des numéros de ligne
       color: "#6e7781",
       border: "none",
-      padding: "0 12px", // 🔹 padding horizontal
-      minWidth: "60px",  // 🔹 largeur minimum de la zone
+      padding: "0 12px", // padding horizontal
+      minWidth: "60px",  // largeur minimum de la zone
     },
     ".cm-line": {
       padding: "0 10px",
     },
-    // ✅ Ajout (fond vert)
+    // Fond vert pour les ajouts
     ".cm-line.cm-diff-add": {
       backgroundColor: "#e6ffed",
     },
-    // ❌ Suppression (fond rouge)
+    // Fond rouge pour les suppressions
     ".cm-line.cm-diff-del": {
       backgroundColor: "#ffeef0",
     },
@@ -42,7 +42,7 @@ const githubDiffTheme = EditorView.theme(
   { dark: false }
 );
 
-// 🎨 Coloration syntaxique améliorée
+// 🎨 Coloration syntaxique façon GitHub
 const githubHighlightStyle = HighlightStyle.define([
   // Mots-clés (function, import, export, return…)
   { tag: t.keyword, color: "#d73a49", fontWeight: "bold" },
@@ -89,12 +89,12 @@ export function hello(name: string) {
         theme={githubDiffTheme}
         extensions={[
           javascript({ jsx: true, typescript: true }),
-          syntaxHighlighting(githubHighlightStyle),
+          syntaxHighlighting(githubHighlightStyle, { fallback: true }), // ✅ Priorité
         ]}
         onChange={(value) => setCode(value)}
-        style={{ height: "100%", fontFamily: "Mozilla Headline" }}
+        style={{ height: "100%", fontFamily: "Mozilla Headline, monospace" }}
       />
     </div>
   );
-   }
-    
+      }
+      
