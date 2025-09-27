@@ -76,7 +76,10 @@ interface Project {
   messages: Message[]
 }
 // Définition de l'interface pour un Nœud dans l'arborescence de fichiers
-
+// --- DÉFINITION DE TYPE DU FICHIER PLAT (selon votre structure Project.files) ---
+type ActiveFileObject = { filePath: string; content: string }
+// ---------------------------------------------------------------------------------
+  
 
 // --- NOUVELLES INTERFACES POUR L'ARBORESCENCE DE FICHIERS ---
 interface FileTreeNode {
@@ -380,8 +383,12 @@ export const customEditorExtension = [
 /**
  * Affiche le chemin du fichier sous forme de fil d'Ariane.
  */
+
+  /**
+ * Affiche le chemin du fichier sous forme de fil d'Ariane.
+ */
 const FileBreadcrumb = ({ filePath }: { filePath: string }) => {
-  // Sépare le chemin en segments et ignore les segments vides (ex: si le chemin commence par /)
+  // Sépare le chemin en segments et ignore les segments vides
   const segments = filePath.split('/').filter(s => s.length > 0);
 
   if (segments.length === 0) return null;
@@ -391,15 +398,13 @@ const FileBreadcrumb = ({ filePath }: { filePath: string }) => {
       className="flex items-center p-2.5 text-sm font-medium text-[rgba(55,50,47,0.7)] bg-[#F7F5F3] border-b border-[#EAE7E5]"
       style={{ 
         width: '100%',
-        minHeight: '40px', // Assurer une hauteur minimale
+        minHeight: '40px',
         boxSizing: 'border-box'
       }}
     >
       {segments.map((segment, index) => (
-        // Utilisation de React.Fragment est crucial pour la bonne structure
         <React.Fragment key={index}>
           <span 
-            // Met en gras le dernier segment (le nom du fichier)
             className={`cursor-default ${
               index === segments.length - 1 ? "text-gray-900 font-semibold" : ""
             }`}
@@ -415,7 +420,7 @@ const FileBreadcrumb = ({ filePath }: { filePath: string }) => {
     </div>
   );
 };
-            
+          
 
 
 
@@ -1738,40 +1743,53 @@ const fileTree = buildFileTree(files)
               <div className="w-2/3 h-full bg-white">
                 
 {/* 🎯 Nouveau Breadcrumb utilisant le chemin du fichier actif */}
-<FileBreadcrumb filePath={files[activeFile]?.path || activeFile} />
+// --- À PLACER DANS VOTRE FONCTION PRINCIPALE, AVANT LE RETURN JSX ---
+
+// 🎯 ACCÈS SÉCURISÉ AUX DONNÉES (CORRIGE L'ERREUR D'APPLICATION)
+// activeFile est l'index dans votre tableau files[].
+// On utilise le 'cast' pour s'assurer que TypeScript connaît la structure de l'objet.
+const activeFileObject = files[activeFile] as ActiveFileObject | undefined
+
+// --- DANS VOTRE JSX, REMPLACEZ L'ANCIEN BLOC D'ÉDITEUR ---
+
+<div className="flex flex-col h-[calc(100vh-100px)]"> 
+  
+  {/* 1. BREADCRUMB : Utilise filePath du fichier actif (sécurisé contre les valeurs nulles) */}
+  <FileBreadcrumb filePath={activeFileObject?.filePath || ''} />
+
+  {/* 2. CONTENEUR DE L'EDITEUR MONACO (flex-grow garantit qu'il prend l'espace restant) */}
+  <div className="flex-grow w-full relative">
+    <Editor
+      // key={activeFile} force Monaco à se rafraîchir complètement au changement de fichier
+      key={activeFile} 
+      
+      // Utilisation du contenu du fichier actif (sécurisé)
+      value={activeFileObject?.content || ""}
+      height="100%" 
+      
+      defaultLanguage="typescript" 
+      theme="customTheme" 
+      onMount={handleEditorDidMount} 
+      onChange={(value) => updateFile(value || "")} 
+      
+      options={{
+          minimap: { enabled: true },
+          lineNumbers: 'on',
+          scrollBeyondLastLine: false,
+          lineNumbersMinChars: 3, 
+          fontFamily: "Mozilla Headline", 
+          fontSize: 14, 
+      }}
+    />
+  </div>
+
+</div>
+        
 
 
     
                
-<Editor
-  // Utilisation de la même valeur de fichier
-  value={files[activeFile]?.content || ""}
-  height="100%" // Utilisation de height="100%" pour remplir le conteneur
-  
-  // Langage (Monaco reconnaît le TypeScript/JSX)
-  defaultLanguage="typescript" 
-  
-  // Thème personnalisé défini dans handleEditorDidMount
-  theme="customTheme" 
-  
-  // La fonction de montage qui applique toutes les configurations
-  onMount={handleEditorDidMount} 
-  
-  // La fonction de changement de contenu (Monaco utilise OnChange)
-  // NOTE : updateFile doit accepter un argument 'value' de type string (le contenu)
-  onChange={(value) => updateFile(value || "")} 
-  
-  // Options de configuration de l'éditeur
-  options={{
-      minimap: { enabled: true },
-      // Pour une expérience éditoriale propre
-      lineNumbers: 'on',
-      scrollBeyondLastLine: false,
-      lineNumbersMinChars: 3, 
-      fontFamily: "Mozilla Headline", // Votre style de police
-      fontSize: 14, // Optionnel : ajuster la taille
-  }}
-/>
+
   
   
                 
