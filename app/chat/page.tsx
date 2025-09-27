@@ -929,7 +929,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
       <button
         className={`w-full text-left text-sm py-1.5 px-2 rounded-lg flex items-center gap-2 transition-colors ${
           isCurrentlyActive
-            ? "bg-[#F7F5F3] text-white" 
+            ? "bg-[#F7F5F3] " 
             : "hover:bg-[#F7F5F3] text-[#37322F]/80"
         }`}
         onClick={() => {
@@ -955,7 +955,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
 
       {/* Rendu récursif des enfants */}
       {isDirectory && isOpen && node.children && (
-        <ul className="pl-3 mt-1 space-y-1">
+        <ul className="pl-5 text-sm mt-1 space-y-1">
           {Array.from(node.children.entries())
             .sort(([nameA, nodeA], [nameB, nodeB]) => {
               // Trie les dossiers en premier, puis par ordre alphabétique
@@ -1488,7 +1488,7 @@ const fileTree = buildFileTree(files)
                     Save to Sandbox
                   </Button>
                 </div>
-                // --- Remplacez l'ancien bloc ScrollArea par celui-ci ---
+                
 <ScrollArea className="h-[calc(100%-57px)] bg-[#fff] p-1">
     <ul className="space-y-1 font-semibold text-[20px]">
         {/* Démarre le rendu récursif à partir de la racine de l'arbre */}
