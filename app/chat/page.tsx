@@ -10,6 +10,12 @@ import { EditorView } from "@codemirror/view"
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { tags } from "@lezer/highlight" 
 
+// REMPLACER CodeMirror par Monaco Editor
+import Editor, { OnChange, OnMount } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor'; // Pour les types
+// NOTE : Vous n'avez plus besoin d'importer javascript, xcodeLight, EditorView, etc.
+// ... autres imports Lucide et autres
+
 
 
 
@@ -991,6 +997,67 @@ const sendChat = async (promptOverride?: string) => {
 // --- NOUVELLE FONCTION D'ANALYSE DU CONTENU ---
 
 
+// Constantes de couleur définies dans le composant ou en dehors
+const ROUGE = 'FF0000'; 
+const NOIR = '000000'; 
+const VERT = '008000'; 
+// Thème par défaut pour Monaco. Ici, nous partons du principe 'light' 
+const MONACO_BASE_THEME = 'vs'; 
+// NOTE : J'ai mis le thème en 'vs' (clair) car votre design a beaucoup de noir.
+
+const handleEditorDidMount: OnMount = (editorInstance, monaco) => {
+    
+    // Désactivation de la vérification TypeScript/JSX (Lignes Rouges)
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      noSemanticValidation: true, 
+      noSyntaxValidation: true,   
+      jsx: monaco.languages.typescript.JsxEmit.React,
+    });
+    
+    // Définition du Thème Ultra-Personnalisé
+    monaco.editor.defineTheme('customTheme', {
+        base: MONACO_BASE_THEME,
+        inherit: true,
+        rules: [
+            // ROUGE: Mots-clés (import, const, interface, from, etc.)
+            { token: 'keyword', foreground: ROUGE },
+            { token: 'keyword.flow', foreground: ROUGE }, 
+
+            // VERT: Chaînes de caractères (Chemin des imports ex: 'react', './utils')
+            { token: 'string', foreground: VERT },
+            
+            // NOIR: Identifiants (React, useState, noms de classes, variables, etc.)
+            { token: 'identifier', foreground: NOIR },
+            { token: 'type', foreground: NOIR }, // Types (string, number, UserProps)
+            
+            // NOIR: JSX/HTML (Balises et Attributs)
+            { token: 'tag', foreground: NOIR }, // Balises comme <div>
+            { token: 'tag.html', foreground: NOIR }, 
+            { token: 'attribute.name', foreground: NOIR }, // Attributs comme 'className'
+        ],
+        colors: {
+            // Sidebar (Numéros de Ligne Noirs avec Opacité)
+            'editorLineNumber.foreground': '#00000033', // Inactif
+            'editorLineNumber.activeForeground': '#000000FF', // Actif
+            // S'assurer que le texte par défaut est noir
+            'editor.foreground': NOIR, 
+            'editor.background': '#FFFFFF', // Fond blanc pour le thème 'vs'
+        },
+    });
+
+    // Appliquer le thème
+    monaco.editor.setTheme('customTheme');
+
+};
+    
+
+
+
+
+
+         
+
+
             // --- INTERFACE ET COMPOSANT RÉCURSIF (À L'INTÉRIEUR DE SandboxPage) ---
 interface FileTreeItemProps {
   node: FileTreeNode
@@ -1611,21 +1678,36 @@ const fileTree = buildFileTree(files)
                 
 
                
-<CodeMirror
+<Editor
+  // Utilisation de la même valeur de fichier
   value={files[activeFile]?.content || ""}
-  height="100%"
-  // ⬅️ THÈME D'ORIGINE : xcodeLight pour la coloration et le style
-  theme={xcodeLight} 
+  height="100%" // Utilisation de height="100%" pour remplir le conteneur
   
-  // ⬅️ EXTENSION DE LANGAGE : Essentielle pour le parsing (JS/TS/JSX)
-  extensions={[
-    javascript({ jsx: true, typescript: true })
-  ]}
+  // Langage (Monaco reconnaît le TypeScript/JSX)
+  defaultLanguage="typescript" 
   
-  onChange={updateFile}
-  style={{ height: "100%", fontFamily: "Mozilla Headline"}}
+  // Thème personnalisé défini dans handleEditorDidMount
+  theme="customTheme" 
+  
+  // La fonction de montage qui applique toutes les configurations
+  onMount={handleEditorDidMount} 
+  
+  // La fonction de changement de contenu (Monaco utilise OnChange)
+  // NOTE : updateFile doit accepter un argument 'value' de type string (le contenu)
+  onChange={(value) => updateFile(value || "")} 
+  
+  // Options de configuration de l'éditeur
+  options={{
+      minimap: { enabled: true },
+      // Pour une expérience éditoriale propre
+      lineNumbers: 'on',
+      scrollBeyondLastLine: false,
+      lineNumbersMinChars: 3, 
+      fontFamily: "Mozilla Headline", // Votre style de police
+      fontSize: 14, // Optionnel : ajuster la taille
+  }}
 />
-
+  
   
                 
 
