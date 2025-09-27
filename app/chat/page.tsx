@@ -288,17 +288,24 @@ const applyChanges = (originalContent: string, changes: any[]): string => {
 // --- COULEURS ET STYLE DE BASE ---
 
 // --- COULEURS ET STYLE DE BASE (Mise à jour) ---
+// --- COULEURS ET STYLE DE BASE (MISES À JOUR) ---
 const customThemeColors = {
   editorBackground: "#FFFFFF",
-  lineNumberBackground: "#FFFFFF", // 🆕 Fond de la gouttière Blanc
-  lineNumberColor: "#888888", // 🆕 Numéros de ligne inactifs
+  lineNumberBackground: "#FFFFFF",
+  lineNumberColor: "#888888", 
   cursorColor: "#333333",
   selectionBackground: "rgba(180, 215, 255, 0.4)",
-  activeLineBackground: "#FAFAFA", // Ligne active (fond du code)
-  fontFamily: 'SF Mono, Monaco, Menlo, Consolas, "Courier New", monospace',
-  fontSize: '14px', 
-  lineNumberFontSize: '15px', // 🆕 Nouvelle propriété pour la taille des numéros
+  activeLineBackground: "#FAFAFA",
+  
+  // LIGNE 1 : POLICE DU CODE (Mozilla Text pour les lignes de code)
+  fontFamily: '"Mozilla Text", sans-serif, monospace', 
+  fontSize: '19px', 
+  
+  lineNumberFontSize: '19px',
+  // LIGNE 2 : POLICE DES NUMÉROS DE LIGNE (Mozilla Headline pour la gouttière)
+  lineNumberFontFamily: '"Mozilla Headline", sans-serif', 
 };
+
 
 
 // --- 1. LE THÈME GLOBAL (Aspect général et numérotation des lignes) ---
