@@ -1650,7 +1650,7 @@ const fileTree = buildFileTree(files)
           </ScrollArea>
         </div>
 
-        
+       </div> 
 
 <div className="p-1 h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
