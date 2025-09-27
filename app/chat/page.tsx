@@ -289,32 +289,33 @@ const applyChanges = (originalContent: string, changes: any[]): string => {
 
 // --- COULEURS ET STYLE DE BASE (Mise à jour) ---
 // --- COULEURS ET STYLE DE BASE (MISES À JOUR) ---
+// --- CONFIGURATION DU THÈME MOZILLA (STYLE VISUEL SEUL) ---
 const customThemeColors = {
   editorBackground: "#FFFFFF",
   lineNumberBackground: "#FFFFFF",
-  lineNumberColor: "#888888", 
+  lineNumberColor: "#888888", // Numéros de ligne inactifs
   cursorColor: "#333333",
   selectionBackground: "rgba(180, 215, 255, 0.4)",
   activeLineBackground: "#FAFAFA",
   
-  // LIGNE 1 : POLICE DU CODE (Mozilla Text pour les lignes de code)
-  fontFamily: '"Mozilla Text", sans-serif, monospace', 
-  fontSize: '19px', 
+  // POLICE DU CODE (Mozilla Text)
+  fontFamily: '"Mozilla Headline", sans-serif', 
+  fontSize: '14px', 
   
-  lineNumberFontSize: '19px',
-  // LIGNE 2 : POLICE DES NUMÉROS DE LIGNE (Mozilla Headline pour la gouttière)
+  // POLICE DES NUMÉROS DE LIGNE (Mozilla Headline)
+  lineNumberFontSize: '15px',
   lineNumberFontFamily: '"Mozilla Headline", sans-serif', 
 };
 
 
-
-// --- 1. LE THÈME GLOBAL (Aspect général et numérotation des lignes) ---
+// --- THÈME GLOBAL (EditorView.theme) ---
 
 const customEditorTheme = EditorView.theme({
   "&": {
-    color: "#333333",
+    // Le texte du code sera noir (la couleur par défaut)
+    color: "#333333", 
     backgroundColor: customThemeColors.editorBackground,
-    fontFamily: customThemeColors.fontFamily,
+    fontFamily: customThemeColors.fontFamily, 
     fontSize: customThemeColors.fontSize,
     height: "100%",
   },
@@ -323,30 +324,28 @@ const customEditorTheme = EditorView.theme({
     padding: "16px 0",
   },
   
-  // Style de la Gouttière (Numéros de ligne)
+  // Gouttière (Numéros de ligne)
   ".cm-gutters": {
-    backgroundColor: customThemeColors.lineNumberBackground, // 🆕 #FFFFFF
-    color: customThemeColors.lineNumberColor, // 🆕 #888888 (inactif)
+    backgroundColor: customThemeColors.lineNumberBackground, // Blanc
+    color: customThemeColors.lineNumberColor, // Gris #888
     border: "none",
     paddingRight: "10px", 
-    width: "48px", // 🆕 Augmente la largeur de la gouttière
-    // 🆕 Augmente la taille de la police des numéros
+    width: "48px", 
     fontSize: customThemeColors.lineNumberFontSize, 
+    fontFamily: customThemeColors.lineNumberFontFamily, 
   },
   
-  // Ligne active
   ".cm-line": {
     padding: "0 16px 0 0",
   },
   
+  // Ligne et numéro actif
   ".cm-activeLine": {
     backgroundColor: customThemeColors.activeLineBackground,
   },
-  
-  // Numéro de ligne actif
   ".cm-activeLineGutter": {
-    backgroundColor: customThemeColors.lineNumberBackground, // Maintient le fond blanc
-    color: "#000000", // 🆕 Numéro de ligne actif Noir
+    backgroundColor: customThemeColors.lineNumberBackground, 
+    color: "#000000", // Noir
     fontWeight: "600",
   },
   
@@ -355,58 +354,14 @@ const customEditorTheme = EditorView.theme({
     backgroundColor: customThemeColors.selectionBackground,
   },
 }, { dark: false });
-    
 
-// --- 2. LA COLORATION SYNTAXIQUE (Couleurs du code) ---
-// Ceci définit les couleurs du JSX, des imports, des types, etc.
 
-const customSyntaxHighlighting = HighlightStyle.define([
-  // Mots-clés (import, const, function, return, export)
-  { tag: [tags.keyword, tags.operatorKeyword, tags.controlKeyword, tags.moduleKeyword], 
-    color: "#AA0099" // Magenta/Purple vif
-  },
-  
-  // Chaînes de caractères (Strings)
-  { tag: [tags.string, tags.url, tags.special(tags.string)], 
-    color: "#338800" // Vert de code
-  }, 
-
-  // Types, Classes, et Noms d'Interface (ex: React.FC, interface)
-  { tag: [tags.typeName, tags.className], 
-    color: "#007AA3" // Cyan/Bleu clair
-  },
-
-  // Balises JSX/XML (ex: <div>, <Button>)
-  { tag: tags.tagName, 
-    color: "#B30000" // Rouge/Marron pour les balises
-  },
-  
-  // Noms de fonctions et de variables
-  { tag: [tags.function(tags.variableName), tags.variableName], 
-    color: "#000000" // Noir
-  },
-  
-  // Propriétés et Attributs (ex: className, value)
-  { tag: tags.propertyName, 
-    color: "#9E649E" // Violet doux
-  },
-
-  // Commentaires
-  { tag: tags.comment, 
-    color: "#AAAAAA" // Gris clair
-  },
-
-  // Nombres et Booléens
-  { tag: [tags.number, tags.bool], 
-    color: "#4895C9" // Bleu
-  },
-]);
-
-// --- EXTENSION FINALE À APPLIQUER ---
-const customEditorExtension = [
+// --- EXTENSION FINALE (SANS COLORATION SYNTAXIQUE) ---
+export const customEditorExtension = [
   customEditorTheme,
-  syntaxHighlighting(customSyntaxHighlighting)
 ];
+
+
     
 
 
@@ -1655,20 +1610,21 @@ const fileTree = buildFileTree(files)
               <div className="w-2/3 h-full bg-white">
                 
 
-               // --- Bloc CodeMirror mis à jour ---
+               
 <CodeMirror
   value={files[activeFile]?.content || ""}
   height="100%"
-  // RETIRER: theme={xcodeLight}
-
   extensions={[
-    javascript({ jsx: true, typescript: true }),
-    // AJOUTER VOTRE THÈME PERSONNALISÉ
-    ...customEditorExtension
+    // Le langage est gardé pour le parsing de base du JS/TS
+    javascript({ jsx: true, typescript: true }), 
+    
+    // Le thème visuel personnalisé
+    ...customEditorExtension 
   ]}
   onChange={updateFile}
   style={{ height: "100%" }}
 />
+  
                 
 
   
