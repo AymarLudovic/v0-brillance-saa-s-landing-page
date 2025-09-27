@@ -3,11 +3,11 @@
 import React from "react";
 
 type Props = {
-  code: string;
+  code?: string;
   lang?: string;
 };
 
-export default function ChatGPTCanvasSimple({ code, lang = "text" }: Props) {
+export default function ChatGPTCanvasSimple({ code = "", lang = "text" }: Props) {
   const lines = code.split("\n");
 
   const handleCopy = async () => {
@@ -46,11 +46,11 @@ export default function ChatGPTCanvasSimple({ code, lang = "text" }: Props) {
         <pre className="p-4 leading-6">
           <code>
             {lines.map((line, i) => (
-              <div key={i}>{line || "\u00A0"}</div> // espace insécable si vide
+              <div key={i}>{line || "\u00A0"}</div>
             ))}
           </code>
         </pre>
       </div>
     </div>
   );
-        }
+                        }
