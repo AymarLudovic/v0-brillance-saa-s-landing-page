@@ -1,80 +1,104 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-// 💡 C'est la seule extension essentielle pour la coloration TypeScript/JSX
-import { javascript } from '@codemirror/lang-javascript'; 
-// Importation du thème spécifique non nécessaire pour cette version de base
+import Editor, { OnChange, OnMount } from '@monaco-editor/react';
 
 /**
- * Page Next.js Client Component intégrant CodeMirror de base.
- * Utilise le thème clair par défaut de CodeMirror.
+ * Page Next.js Client Component intégrant Monaco Editor.
+ * Utilise le thème clair par défaut ('light') ou le thème sombre ('vs-dark').
  */
-export default function BasicCodeMirrorPage() {
+export default function MonacoEditorPage() {
   
-  const initialCode = `// CodeMirror de base - Next.js (TypeScript)
-// La coloration syntaxique des imports, types et JSX devrait fonctionner.
+  // Code TypeScript / JSX de démonstration
+  const initialCode = `// ✅ Monaco Editor : Colore parfaitement le TypeScript et le JSX par défaut.
 
 import React, { useState } from 'react';
 
-// Le type 'interface' devrait être coloré
-interface MyData {
-  value: number; 
+// Le type 'interface' et les types TypeScript sont nativement reconnus.
+interface UserProps {
+  id: number;
+  name: string; 
 }
 
-const MyBaseComponent = ({ value }: MyData) => {
-  const [count, setCount] = useState(value);
+const ProfileComponent = ({ name, id }: UserProps) => {
+  const [count, setCount] = useState(0); // L'importation useState est colorée
 
   return (
-    // Les balises JSX (div) devraient être colorées
-    <div className="wrapper"> 
-      <p>Current count: {count}</p>
+    // Les balises JSX (div, button) sont correctement highlightées
+    <div className="profile-card"> 
+      <h1>Profil ID: {id}</h1>
+      <button 
+        onClick={() => setCount(count + 1)}
+      >
+        Count: {count}
+      </button>
     </div>
   );
 };
 
-export default MyBaseComponent;
+export default ProfileComponent;
 `;
 
   const [code, setCode] = useState<string>(initialCode);
+  const [theme, setTheme] = useState<'light' | 'vs-dark'>('light'); // Thème clair par défaut
 
-  const onChange = useCallback((value: string) => {
-    setCode(value);
+  // Fonction appelée à chaque modification de l'éditeur
+  const handleEditorChange: OnChange = useCallback((value, event) => {
+    if (value !== undefined) {
+      setCode(value);
+    }
   }, []);
 
-  // Définition de l'extension JavaScript/TypeScript/JSX
-  const jsTsxExtension = javascript({ 
-    jsx: true,        
-    typescript: true  
-  });
+  // Fonction pour basculer le thème (optionnel)
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'vs-dark' : 'light');
+  };
 
   return (
-    <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: '#f0f0f0' }}>
+    <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: theme === 'light' ? '#f0f0f0' : '#1e1e1e', color: theme === 'light' ? '#000' : '#fff' }}>
       
       <header style={{ marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
-        <h1>CodeMirror de Base (Thème Clair par Défaut)</h1>
-        <p>Coloration syntaxique garantie via `lang-javascript`.</p>
+        <h1>Monaco Editor Next.js (TypeScript)</h1>
+        <p>Thème actuel : <strong>{theme === 'light' ? 'Clair (Light)' : 'Sombre (VS-Dark)'}</strong></p>
+        <button 
+          onClick={toggleTheme} 
+          style={{ padding: '8px 15px', cursor: 'pointer', backgroundColor: '#007ACC', color: '#fff', border: 'none', borderRadius: '4px' }}
+        >
+          Basculer Thème
+        </button>
       </header>
       
-      <CodeMirror
-        value={code}
-        height="600px"
-        // 🎯 En retirant la prop 'theme', on utilise le thème de base, 
-        // qui fonctionne de manière très fiable pour la coloration.
-        
-        // 🚀 Seule l'extension de langage est nécessaire pour la coloration
-        extensions={[jsTsxExtension]} 
-        onChange={onChange}
-        // Le basicSetup fournit numérotation des lignes, folding, etc.
-        basicSetup={true} 
-        style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}
-      />
+      {/* --- Composant Monaco Editor --- */}
+      <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', height: '600px' }}>
+        <Editor
+          height="100%"
+          defaultLanguage="typescript" // Langage par défaut
+          value={code}
+          theme={theme} // Thème dynamique
+          onChange={handleEditorChange}
+          options={{
+            minimap: { enabled: true },
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            // ... autres options Monaco Editor
+          }}
+        />
+      </div>
       
       <div style={{ marginTop: '30px' }}>
         <h2>Code Actuel</h2>
-        <pre>{code}</pre>
+        <pre style={{ 
+          backgroundColor: theme === 'light' ? '#fff' : '#333', 
+          color: theme === 'light' ? '#000' : '#ddd',
+          padding: '15px', 
+          borderRadius: '4px', 
+          whiteSpace: 'pre-wrap',
+          fontFamily: 'monospace'
+        }}>
+          {code}
+        </pre>
       </div>
     </div>
   );
-                      }
-        
+}
+  
