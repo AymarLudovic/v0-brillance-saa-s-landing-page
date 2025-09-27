@@ -2,29 +2,28 @@
 
 import React, { useState, useCallback } from 'react';
 import Editor, { OnChange, OnMount } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor'; // Importation du type Monaco pour une meilleure typage
 
 /**
  * Page Next.js Client Component intégrant Monaco Editor.
- * Utilise le thème clair par défaut ('light') ou le thème sombre ('vs-dark').
+ * Désactive la vérification TypeScript/JSX et personnalise la sidebar.
  */
 export default function MonacoEditorPage() {
   
-  // Code TypeScript / JSX de démonstration
-  const initialCode = `// ✅ Monaco Editor : Colore parfaitement le TypeScript et le JSX par défaut.
+  const initialCode = `// ✅ La vérification de type (les lignes rouges sous import) est désactivée.
+// ✅ La sidebar des numéros de ligne est stylisée.
 
 import React, { useState } from 'react';
 
-// Le type 'interface' et les types TypeScript sont nativement reconnus.
 interface UserProps {
   id: number;
   name: string; 
 }
 
 const ProfileComponent = ({ name, id }: UserProps) => {
-  const [count, setCount] = useState(0); // L'importation useState est colorée
+  const [count, setCount] = useState(0);
 
   return (
-    // Les balises JSX (div, button) sont correctement highlightées
     <div className="profile-card"> 
       <h1>Profil ID: {id}</h1>
       <button 
@@ -40,16 +39,51 @@ export default ProfileComponent;
 `;
 
   const [code, setCode] = useState<string>(initialCode);
-  const [theme, setTheme] = useState<'light' | 'vs-dark'>('light'); // Thème clair par défaut
+  const [theme, setTheme] = useState<'light' | 'vs-dark'>('light');
 
-  // Fonction appelée à chaque modification de l'éditeur
-  const handleEditorChange: OnChange = useCallback((value, event) => {
+  const handleEditorChange: OnChange = useCallback((value) => {
     if (value !== undefined) {
       setCode(value);
     }
   }, []);
 
-  // Fonction pour basculer le thème (optionnel)
+  // 💡 Fonction appelée lorsque l'éditeur est monté
+  const handleEditorDidMount: OnMount = useCallback((editorInstance, monaco) => {
+    
+    // --- 1. Désactivation de la vérification TypeScript/JSX (Lignes Rouges) ---
+    // Cette configuration dit à Monaco de ne pas vérifier les erreurs pour JS/TSX.
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      // Désactive l'émission de la vérification des types
+      noSemanticValidation: true, 
+      // Désactive l'émission de la vérification de la syntaxe (par exemple, balises JSX mal formées)
+      noSyntaxValidation: true,   
+      // Permet l'utilisation du JSX
+      jsx: monaco.languages.typescript.JsxEmit.React,
+    });
+    
+    // --- 2. Personnalisation des Numéros de Ligne et de la Sidebar ---
+    // Nous utilisons un style CSS personnalisé (via le thème) pour atteindre la couleur noire (#000000)
+    // et gérer l'opacité.
+    monaco.editor.defineTheme('customTheme', {
+        base: theme === 'light' ? 'vs' : 'vs-dark', // Hérite du thème de base actuel
+        inherit: true,
+        rules: [],
+        colors: {
+            // Couleur des numéros de ligne inactifs (faible opacité)
+            'editorLineNumber.foreground': '#00000033', // #000000 avec opacité 20%
+            // Couleur des numéros de ligne actifs (pleine opacité)
+            'editorLineNumber.activeForeground': '#000000FF', 
+            
+            // Couleur de la ligne de code active (pour le contraste)
+            'editor.lineHighlightBackground': theme === 'light' ? '#00000010' : '#ffffff10', // Faible opacité pour la ligne active
+        },
+    });
+
+    // Appliquer le thème personnalisé
+    monaco.editor.setTheme('customTheme');
+
+  }, [theme]); // Le thème est une dépendance, on remonte l'instance quand le thème change.
+
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'vs-dark' : 'light');
   };
@@ -72,15 +106,17 @@ export default ProfileComponent;
       <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', height: '600px' }}>
         <Editor
           height="100%"
-          defaultLanguage="typescript" // Langage par défaut
+          defaultLanguage="typescript"
           value={code}
-          theme={theme} // Thème dynamique
+          theme='customTheme' // Utiliser le thème personnalisé défini ci-dessus
           onChange={handleEditorChange}
+          onMount={handleEditorDidMount} // Appeler la fonction lors du montage pour les configurations
           options={{
             minimap: { enabled: true },
             lineNumbers: 'on',
             scrollBeyondLastLine: false,
-            // ... autres options Monaco Editor
+            // Permet de s'assurer qu'il y a assez d'espace pour la numérotation des lignes
+            lineNumbersMinChars: 3, 
           }}
         />
       </div>
@@ -100,5 +136,5 @@ export default ProfileComponent;
       </div>
     </div>
   );
-}
-  
+      }
+          
