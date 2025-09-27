@@ -888,75 +888,37 @@ const parseMessageContent = (content: string) => {
  * crée les fichiers Next.js correspondants dans le sandbox (app/page.tsx et app/globals.css),
  * puis notifie le LLM.
  */
-const processAnalysisResult = async (analysisId: string, url: string) => {
-    addLog(`Fetching large analysis results for ID: ${analysisId}...`)
-    
-    // 1. Récupérer les données volumineuses depuis l'API /api/analyse avec l'ID temporaire
-    const res = await fetch(`/api/analyse?action=get_data&id=${analysisId}`, {
-        method: 'POST', // Le corps est ignoré, mais POST est souvent utilisé pour les opérations d'API
-    })
-    
-    if (!res.ok) {
-        throw new Error("Failed to retrieve large analysis data from cache.")
-    }
-    
-    const analysisData = await res.json()
-    
-    if (!analysisData.success) {
-        throw new Error(analysisData.error || "Failed to retrieve analysis data.")
-    }
-    
-    const { fullHTML, fullCSS, fullJS } = analysisData
 
-    // 2. Transformer les données pour app/page.tsx
-    // Utilisation de backticks (\`) et échappement des backticks dans le contenu (\\`)
-    const pageContent = `
-"use client" // Nécessaire pour les événements JS et le composant React
 
-import React from 'react'
 
-const ClonedPage = () => {
-  return (
-    <>
-        {/* HTML cloné (dans un div) */}
-        <div 
-          dangerouslySetInnerHTML={{ __html: \`${fullHTML.replace(/`/g, '\\`')}\` }} 
-        />
-        
-        {/* JS extrait dans un script auto-exécuté */}
-        {fullJS && (
-            <script 
-              dangerouslySetInnerHTML={{ __html: \`${fullJS.replace(/`/g, '\\`')}\` }} 
-            />
-        )}
-    </>
-  )
-}
+  const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+    // ⚠️ Assurez-vous que runAction, currentProject, et sendChat sont disponibles dans le scope
+    addLog(`[CLONE-FLOW] Phase 2: Writing files for ${urlToAnalyze}...`)
+    setAnalysisStatus(`2/2: Écriture des fichiers du projet...`)
 
-export default ClonedPage
-`
-    // 3. Créer la liste des fichiers à écrire
+    // Le contenu doit être échappé si vous utilisez des backticks dans la string template
+    const escapedHTML = fullHTML.replace(/`/g, '\\`')
+    const escapedJS = fullJS.replace(/`/g, '\\`')
+
+    // 1. Définition des fichiers à écrire
     const filesToWrite = [
-        {
-            filePath: "app/globals.css",
-            content: fullCSS,
-        },
-        {
-            filePath: "app/page.tsx",
-            content: pageContent,
+        // app/globals.css : CSS complet
+        { filePath: "app/globals.css", content: fullCSS },
+        // app/page.tsx : HTML et JS via dangerouslySetInnerHTML
+        { 
+            filePath: "app/page.tsx", 
+            content: `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      {/* HTML cloné */}\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {/* JS extrait dans un script auto-exécuté */}\n      {${!!fullJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage` 
         },
     ]
 
-    addLog(`Writing ${filesToWrite.length} files to the sandbox...`)
-
-    // 4. Écrire les fichiers dans le sandbox via l'API /api/sandbox
+    // 2. Écrire les fichiers dans le sandbox via l'API /api/sandbox
     try {
         const fileWriteRes = await fetch("/api/sandbox", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 action: "addFiles",
-                sandboxId: currentProject?.sandboxId, 
+                sandboxId: currentProject?.sandboxId, // Utiliser currentProject?.sandboxId ou sandboxId selon votre implémentation
                 files: filesToWrite 
             }),
         })
@@ -966,24 +928,16 @@ export default ClonedPage
         }
     } catch (e: any) {
         addLog(`❌ File write error: ${e.message}`)
-        return
+        throw new Error(`Échec de l'écriture des fichiers: ${e.message}`)
     }
 
-    addLog(`✅ Files created successfully: app/page.tsx and app/globals.css.`)
-
-    // 5. Notifier le LLM
-    const followUpPrompt = `[AUTOMATED ACTION]
-I have successfully analyzed the URL: ${url}. 
-The following files have been created/updated in the sandbox with the extracted HTML/CSS/JS:
-- app/page.tsx (contains HTML via dangerouslySetInnerHTML and JS in <script>)
-- app/globals.css (contains all extracted CSS)
-
-**DO NOT RE-GENERATE THESE FILES**. Use 'fileChanges' to modify them if necessary (they are potentially very large). 
-Now, proceed with the original user request (if any) or acknowledge the file creation.
-`
-    // Utiliser sendChat pour notifier le LLM et continuer la conversation
-    await sendChat(followUpPrompt)
-}
+    // 3. Envoyer une instruction simple à Gemini
+    addLog("[CLONE-FLOW] ✅ Files written successfully. Notifying Gemini...")
+    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the files app/page.tsx and app/globals.css. The original user request was: "${originalUserPrompt}". Please proceed.`
+    
+    await sendChat(simplePrompt)
+                                         }
+              
 
 
 /**
@@ -992,10 +946,62 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
  */
 
 
+// ⚠️ Assurez-vous que parseRootVariables, extractFontFaces, findPotentialComponents, 
+// cloneWithComputedStyles et sendChat sont disponibles dans le scope.
+const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, baseURL: string, urlToAnalyze: string, originalUserPrompt: string) => {
+    setAnalysisStatus(`2/4: Analyse CSS et recherche des composants...`)
+    
+    const globalCssVariables = parseRootVariables(fullCSS) 
+    const fontFaces = extractFontFaces(fullCSS)
 
-                              
-                                                       
-  const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string) => {
+    const componentsToFind = findPotentialComponents(fullHTML) 
+    const isolatedComponents = []
+    addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
+
+    // --- ISOLATION DES COMPOSANTS PAR IFRAME ---
+    for (const comp of componentsToFind) {
+        setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
+        addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
+
+        const hiddenIframe = document.createElement("iframe")
+        hiddenIframe.style.display = "none"
+        document.body.appendChild(hiddenIframe)
+
+        const isolatedHtml = await new Promise<string>((resolve, reject) => {
+            hiddenIframe.onload = () => {
+                const iframeDoc = hiddenIframe.contentDocument
+                if (!iframeDoc) return reject(new Error("Could not access hidden iframe document."))
+                const element = iframeDoc.querySelector(comp.selector)
+                
+                if (element) resolve(cloneWithComputedStyles(element).outerHTML)
+                else resolve("")
+                
+                document.body.removeChild(hiddenIframe)
+            }
+            hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${baseURL}"><style>${fullCSS}</style></head><body>${fullHTML}</body></html>`
+        })
+
+        if (isolatedHtml) {
+            isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
+            addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
+        }
+    }
+
+    // --- CONSTRUCTION DU PROMPT RICHE ET ENVOI ---
+    setAnalysisStatus(`4/4: Construction du prompt final pour Gemini...`)
+    addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
+    
+    const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces:\n${fontFaces}\n\nIsolated Components:\n${isolatedComponents.map(c => `// Component: ${c.name}\n${c.html}`).join("\n\n")}\n---\nPlease generate the code as asked above.`
+    
+    addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
+    await sendChat(finalPrompt)
+                                         }
+  
+
+
+  
+
+           const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string, isCloning: boolean = false) => {
     // 1. VÉRIFICATION DE LA SANDBOX
     if (!sandboxId) { 
         addLog("Please create a sandbox first.")
@@ -1008,6 +1014,7 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
 
     let fullCSS = '';
     let fullHTML = '';
+    let fullJS = '';
     let baseURL = '';
 
     try {
@@ -1023,11 +1030,9 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
       const initialAnalysisData = await initialAnalysisRes.json()
       
       if (!initialAnalysisRes.ok) throw new Error(`Analysis API failed: ${initialAnalysisData.error}`)
-      addLog("[AUTO-FLOW] ✅ Initial Analysis API call successful (ID reçu).")
-
       const analysisId = initialAnalysisData.analysisId
       if (!analysisId) {
-          throw new Error("Analysis ID not returned by API. Check if the backend is returning full data instead of an ID.")
+          throw new Error("Analysis ID not returned by API.")
       }
 
 
@@ -1036,7 +1041,7 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
       addLog(`[AUTO-FLOW] Fetching cached data with ID: ${analysisId}`)
       
       const dataRes = await fetch(`/api/analyse?action=get_data&id=${analysisId}`, {
-        method: 'POST', // Utilise POST pour la récupération des données en cache
+        method: 'POST',
       })
       const finalAnalysisData = await dataRes.json()
 
@@ -1044,75 +1049,38 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
         throw new Error(`Failed to retrieve large analysis data: ${finalAnalysisData.error || dataRes.statusText}`)
       }
 
-      // 3. Déconstruction des données récupérées
+      // 3. Extraction des données (Avec fallbacks de sécurité)
       fullCSS = finalAnalysisData.fullCSS || ''
       fullHTML = finalAnalysisData.fullHTML || ''
-      // L'API ne retourne pas baseURL, on la déduit de l'URL initiale
+      fullJS = finalAnalysisData.fullJS || ''
       baseURL = new URL(urlToAnalyze).origin 
 
       if (!fullHTML) {
-          // Cette erreur est maintenant plus pertinente
-          throw new Error("Analysis failed: API returned success but 'fullHTML' content is empty. Check your scraping script.")
+          throw new Error("Analysis failed: API returned success but 'fullHTML' content is empty.")
+      }
+      
+      // --- ÉTAPE 3: DISPATCHING DE LA LOGIQUE ---
+      if (isCloning) {
+          // MODE CLONAGE (Bouton Clone Website)
+          await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze, originalUserPrompt);
+      } else {
+          // MODE ISOLATION (Artefact 'url' du LLM)
+          await runIsolationAndGeneration(fullHTML, fullCSS, baseURL, urlToAnalyze, originalUserPrompt);
       }
 
-      // --- LOGIQUE D'ANALYSE CSS ET COMPOSANT ---
-      
-      setAnalysisStatus(`2/4: Analyse CSS...`)
-      const globalCssVariables = parseRootVariables(fullCSS)
-      const fontFaces = extractFontFaces(fullCSS)
-
-      setAnalysisStatus(`2/4: Recherche des composants pertinents...`)
-      const componentsToFind = findPotentialComponents(fullHTML) 
-      const isolatedComponents = []
-      addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
-
-      // --- ISOLATION DES COMPOSANTS PAR IFRAME ---
-      for (const comp of componentsToFind) {
-        setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
-        addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
-
-        const hiddenIframe = document.createElement("iframe")
-        hiddenIframe.style.display = "none"
-        document.body.appendChild(hiddenIframe)
-
-        const isolatedHtml = await new Promise<string>((resolve, reject) => {
-          hiddenIframe.onload = () => {
-            const iframeDoc = hiddenIframe.contentDocument
-            if (!iframeDoc) return reject(new Error("Could not access hidden iframe document."))
-            const element = iframeDoc.querySelector(comp.selector)
-            
-            if (element) resolve(cloneWithComputedStyles(element).outerHTML)
-            else resolve("")
-            
-            document.body.removeChild(hiddenIframe)
-          }
-          hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${baseURL}"><style>${fullCSS}</style></head><body>${fullHTML}</body></html>`
-        })
-
-        if (isolatedHtml) {
-          isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
-          addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
-        }
-      }
-
-      // --- CONSTRUCTION DU PROMPT RICHE ET ENVOI ---
-      setAnalysisStatus(`4/4: Construction du prompt final pour Gemini...`)
-      addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
-      
-      const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces:\n${fontFaces}\n\nIsolated Components:\n${isolatedComponents.map(c => `// Component: ${c.name}\n${c.html}`).join("\n\n")}\n---\nPlease generate the code as asked above.`
-      
-      addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
-      await sendChat(finalPrompt)
-      
     } catch (err: any) {
-      addLog(`ERROR during automated analysis: ${err.message}`)
-      setAnalysisStatus(`Erreur durant l'analyse: ${err.message}`)
+      const errorMessage = err.message || "Une erreur inconnue est survenue."
+      addLog(`ERROR during automated analysis: ${errorMessage}`)
+      setAnalysisStatus(`Erreur durant l'analyse: ${errorMessage}`)
       
     } finally {
       setLoading(false)
       setAnalysisStatus(null)
     }
-    }
+  }
+             
+                                                       
+
       
 
 
@@ -1757,26 +1725,49 @@ const fileTree = buildFileTree(files)
             <div className="flex items-center h-full w-full">
                 {/* Icône SVG (conservée) */}
                 <svg className="h-[16px] w-[16px] flex-shrink-0 mx-1" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#1f1f1f"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
-                <input
-                    type="url"
-                    placeholder="Enter website URL to clone (e.g., example.com) and press Enter"
-                    className="h-full w-full border-none outline-none bg-transparent text-sm"
-                    value={cloneUrl}
-                    onChange={(e) => setCloneUrl(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" && cloneUrl) {
-                            e.preventDefault()
-                            // Lancement de l'analyse avec l'URL saisie
-                            runAutomatedAnalysis(cloneUrl, `User wants to clone/analyze ${cloneUrl}`)
-                        } else if (e.key === "Escape") {
-                            // Annulation
-                            setIsCloning(false) 
-                            setCloneUrl("")
-                        }
-                    }}
-                    disabled={loading}
-                    autoFocus
-                />
+                
+
+                
+
+<input
+    type="url"
+    placeholder="Enter website URL to clone (e.g., example.com) and press Enter"
+    
+    className="h-full w-full border-none outline-none bg-transparent text-sm"
+    
+    
+    value={cloneUrl}
+    onChange={(e) => setCloneUrl(e.target.value)}
+    
+    
+    onKeyDown={(e) => {
+        
+        if (e.key === "Enter" && cloneUrl) {
+            e.preventDefault() 
+            
+            
+            runAutomatedAnalysis(
+                cloneUrl, 
+                `User wants to clone website: ${cloneUrl}`, 
+                true 
+            ) 
+        } else if (e.key === "Escape") {
+            
+            setIsCloning(false) 
+            setCloneUrl("")
+        }
+    }}
+    
+    
+    disabled={loading} 
+    autoFocus
+/>
+                  
+
+
+              
+
+  
             </div>
         )}
         
