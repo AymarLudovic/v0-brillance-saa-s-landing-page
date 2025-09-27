@@ -286,16 +286,18 @@ const applyChanges = (originalContent: string, changes: any[]): string => {
 
 
 // --- COULEURS ET STYLE DE BASE ---
+
+// --- COULEURS ET STYLE DE BASE (Mise à jour) ---
 const customThemeColors = {
-  // Couleurs de la palette claire et moderne, inspirées de votre image
   editorBackground: "#FFFFFF",
-  lineNumberBackground: "#F9F9F9", // Fond très clair pour les numéros
-  lineNumberColor: "#AAAAAA", // Gris discret pour les numéros
+  lineNumberBackground: "#FFFFFF", // 🆕 Fond de la gouttière Blanc
+  lineNumberColor: "#888888", // 🆕 Numéros de ligne inactifs
   cursorColor: "#333333",
-  selectionBackground: "rgba(180, 215, 255, 0.4)", // Sélection bleu très doux
-  activeLineBackground: "#F9F9F9", // Ligne active très subtile
+  selectionBackground: "rgba(180, 215, 255, 0.4)",
+  activeLineBackground: "#FAFAFA", // Ligne active (fond du code)
   fontFamily: 'SF Mono, Monaco, Menlo, Consolas, "Courier New", monospace',
   fontSize: '14px', 
+  lineNumberFontSize: '15px', // 🆕 Nouvelle propriété pour la taille des numéros
 };
 
 
@@ -311,30 +313,33 @@ const customEditorTheme = EditorView.theme({
   },
   ".cm-content": {
     caretColor: customThemeColors.cursorColor,
-    padding: "16px 0", // Espace vertical pour le code
-  },
-  ".cm-scroller": {
-    overflow: "auto",
+    padding: "16px 0",
   },
   
-  // Style de la Gouttière (où se trouvent les numéros de ligne)
+  // Style de la Gouttière (Numéros de ligne)
   ".cm-gutters": {
-    backgroundColor: customThemeColors.lineNumberBackground,
-    color: customThemeColors.lineNumberColor,
-    border: "none", // Supprime la bordure par défaut
-    paddingRight: "10px", // Espace après les numéros de ligne
-  },
-  ".cm-line": {
-    padding: "0 16px 0 0", // Espace à droite du code
+    backgroundColor: customThemeColors.lineNumberBackground, // 🆕 #FFFFFF
+    color: customThemeColors.lineNumberColor, // 🆕 #888888 (inactif)
+    border: "none",
+    paddingRight: "10px", 
+    width: "48px", // 🆕 Augmente la largeur de la gouttière
+    // 🆕 Augmente la taille de la police des numéros
+    fontSize: customThemeColors.lineNumberFontSize, 
   },
   
   // Ligne active
+  ".cm-line": {
+    padding: "0 16px 0 0",
+  },
+  
   ".cm-activeLine": {
     backgroundColor: customThemeColors.activeLineBackground,
   },
+  
+  // Numéro de ligne actif
   ".cm-activeLineGutter": {
-    backgroundColor: customThemeColors.lineNumberBackground,
-    color: "#333333", // Numéro de ligne devient plus foncé sur la ligne active
+    backgroundColor: customThemeColors.lineNumberBackground, // Maintient le fond blanc
+    color: "#000000", // 🆕 Numéro de ligne actif Noir
     fontWeight: "600",
   },
   
@@ -343,7 +348,7 @@ const customEditorTheme = EditorView.theme({
     backgroundColor: customThemeColors.selectionBackground,
   },
 }, { dark: false });
-
+    
 
 // --- 2. LA COLORATION SYNTAXIQUE (Couleurs du code) ---
 // Ceci définit les couleurs du JSX, des imports, des types, etc.
