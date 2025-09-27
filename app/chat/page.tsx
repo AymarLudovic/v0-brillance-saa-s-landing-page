@@ -59,6 +59,13 @@ interface Message {
   }
 }
 
+interface File {
+  id: string;
+  name: string;
+  path: string; // <-- ESSENTIEL pour le Fil d'Ariane
+  content: string;
+  // ... autres propriétés
+  }
 
 
 interface Project {
@@ -368,7 +375,47 @@ export const customEditorExtension = [
 ];
 
 
-    
+    // --- COMPOSANT FILE BREADCRUMB ---
+
+/**
+ * Affiche le chemin du fichier sous forme de fil d'Ariane.
+ */
+const FileBreadcrumb = ({ filePath }: { filePath: string }) => {
+  // Sépare le chemin en segments et ignore les segments vides (ex: si le chemin commence par /)
+  const segments = filePath.split('/').filter(s => s.length > 0);
+
+  if (segments.length === 0) return null;
+
+  return (
+    <div 
+      className="flex items-center p-2.5 text-sm font-medium text-[rgba(55,50,47,0.7)] bg-[#F7F5F3] border-b border-[#EAE7E5]"
+      style={{ 
+        width: '100%',
+        minHeight: '40px', // Assurer une hauteur minimale
+        boxSizing: 'border-box'
+      }}
+    >
+      {segments.map((segment, index) => (
+        // Utilisation de React.Fragment est crucial pour la bonne structure
+        <React.Fragment key={index}>
+          <span 
+            // Met en gras le dernier segment (le nom du fichier)
+            className={`cursor-default ${
+              index === segments.length - 1 ? "text-gray-900 font-semibold" : ""
+            }`}
+          >
+            {segment}
+          </span>
+          {/* Ajoute l'icône ChevronRight entre les segments */}
+          {index < segments.length - 1 && (
+            <ChevronRight className="h-4 w-4 mx-1.5 text-[rgba(55,50,47,0.4)]" />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+            
 
 
 
@@ -1015,40 +1062,7 @@ const MONACO_BASE_THEME = 'vs';
  * Affiche le chemin du fichier sous forme de fil d'Ariane.
  * Utilise la propriété 'path' de l'objet File pour diviser le chemin.
  */
-const FileBreadcrumb = ({ filePath }: { filePath: string }) => {
-  // Sépare le chemin en segments (ex: ["app", "components", "header.tsx"])
-  const segments = filePath.split('/').filter(s => s.length > 0);
 
-  if (segments.length === 0) return null;
-
-  return (
-    <div 
-      className="flex items-center p-2.5 text-sm font-medium text-[rgba(55,50,47,0.7)] bg-[#F7F5F3] border-b border-[#EAE7E5]"
-      style={{ 
-        // Force la cohérence de la largeur si votre éditeur Monaco a une largeur fixe.
-        // Puisque Monaco est en height="100%", ce div s'ajustera.
-        width: '100%' 
-      }}
-    >
-      {segments.map((segment, index) => (
-        <React.Fragment key={index}>
-          <span 
-            // Le dernier segment (nom du fichier) est mis en gras
-            className={`cursor-default ${
-              index === segments.length - 1 ? "text-gray-900 font-semibold" : ""
-            }`}
-          >
-            {segment}
-          </span>
-          {/* Ajoute l'icône ChevronRight entre les segments */}
-          {index < segments.length - 1 && (
-            <ChevronRight className="h-4 w-4 mx-1.5 text-[rgba(55,50,47,0.4)]" />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-};
     
       
 
