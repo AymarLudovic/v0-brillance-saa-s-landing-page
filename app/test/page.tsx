@@ -2,81 +2,78 @@
 
 import React, { useState, useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
+// 1. L'extension qui active le support Typescript et JSX
 import { javascript } from '@codemirror/lang-javascript';
-// Importation de l'objet de thème pour une intégration stable
+// 2. L'objet du thème Eclipse (qui contient le style de coloration)
 import { eclipse } from '@uiw/codemirror-theme-eclipse'; 
-// Importations de '@codemirror/language' non utilisées dans cette version simple,
-// mais conservées en commentaire pour référence future
-// import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
+import { Extension } from '@codemirror/state';
 
 /**
  * Page Next.js Client Component intégrant CodeMirror avec le thème Eclipse.
- * Cette fonction exportée par défaut sert de page dans l'App Router de Next.js.
  */
 export default function CodeMirrorEditorPage() {
   
-  // Code TypeScript / JSX de démonstration
-  const initialCode = `// Code TypeScript / JSX coloré par CodeMirror avec le thème Eclipse
-// Si la coloration des imports/types est insuffisante, la limitation vient du thème 'eclipse' lui-même.
+  const initialCode = `// ✅ Le "compilateur" TypeScript/JSX est activé via l'extension 'javascript'.
+// Le style de coloration est chargé via le thème 'eclipse' dans les extensions.
 
 import React, { useState } from 'react';
-import { calculateSum } from './utils'; 
 
-// Définition d'une interface TypeScript
-interface MyProps {
-  name: string;
+// Le mot-clé 'interface' devrait être coloré
+interface UserProps {
+  name: string; // Le type 'string' devrait être coloré
 }
 
-const MyComponent = ({ name }: MyProps) => {
+const ProfileComponent = ({ name }: UserProps) => {
   const [count, setCount] = useState(0);
 
   return (
-    // Les balises JSX doivent être colorées (par exemple, 'div', 'button')
-    <div className="container"> 
+    // Les balises JSX (div, button) devraient être colorées
+    <div className="profile-card"> 
       <h1>Hello, {name}</h1>
       <button 
-        onClick={() => setCount(count + 1)} // Attributs JSX
-        aria-label="Increment counter"
+        onClick={() => setCount(count + 1)}
       >
-        Count: {count} {/* Contenu du composant */}
+        Count: {count}
       </button>
     </div>
   );
 };
 
-export default MyComponent;
+export default ProfileComponent;
 `;
 
   const [code, setCode] = useState<string>(initialCode);
-
-  // Fonction de rappel pour mettre à jour l'état du code
   const onChange = useCallback((value: string) => {
     setCode(value);
   }, []);
 
-  // 1. Définition de l'extension JavaScript/TypeScript/JSX
-  const jsTsxExtension = javascript({ 
-    jsx: true,        // Activer le support JSX
-    typescript: true  // Activer le support TypeScript
+  // Configuration de l'extension pour TypeScript et JSX
+  const jsTsxExtension: Extension = javascript({ 
+    jsx: true,        // Active le support JSX
+    typescript: true  // Active le support TypeScript
   });
+
+  // 🚀 Combinaison des extensions de langage et de thème
+  const extensions: Extension[] = [
+    jsTsxExtension,
+    eclipse // Inclusion du thème comme extension
+  ];
 
   return (
     <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: '#f0f0f0' }}>
       
-      {/* --- Section Tête de Page --- */}
       <header style={{ marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
         <h1>CodeMirror Next.js (TypeScript) avec Thème Eclipse</h1>
-        <p>Éditeur de code intégré en tant que **Client Component**.</p>
       </header>
       
-      {/* --- Composant CodeMirror --- */}
       <CodeMirror
         value={code}
-        height="500px"
-        // 🎯 Utilisation de l'objet de thème importé
-        theme={eclipse} 
-        // 🚀 Ajout de l'extension complète pour JS/TS/JSX
-        extensions={[jsTsxExtension]}
+        height="600px"
+        // ❌ NE PAS UTILISER la prop 'theme' ici pour éviter les conflits
+        // theme={eclipse} 
+        
+        // 🎯 Passer TOUTES les configurations (langue, thème, highlighting) via 'extensions'
+        extensions={extensions}
         onChange={onChange}
         basicSetup={{
             lineNumbers: true,
@@ -84,25 +81,13 @@ export default MyComponent;
             autocompletion: true,
             highlightActiveLineGutter: true,
         }}
-        style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}
+        style={{ borderRadius: '6px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' }}
       />
       
-      {/* --- Section Affichage du Code --- */}
       <div style={{ marginTop: '30px' }}>
-        <h2>Code Actuel (Affiché depuis l'État React)</h2>
-        <pre style={{ 
-          backgroundColor: '#fff', 
-          padding: '15px', 
-          borderRadius: '4px', 
-          border: '1px solid #ddd',
-          whiteSpace: 'pre-wrap',
-          fontFamily: 'monospace',
-          fontSize: '0.9em'
-        }}>
-          {code}
-        </pre>
+        <h2>Code Actuel</h2>
+        <pre>{code}</pre>
       </div>
     </div>
   );
-    }
-    
+}
