@@ -2,86 +2,72 @@
 
 import React, { useState, useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
-// 1. L'extension qui active le support Typescript et JSX
-import { javascript } from '@codemirror/lang-javascript';
-// 2. L'objet du thème Eclipse (qui contient le style de coloration)
-import { eclipse } from '@uiw/codemirror-theme-eclipse'; 
-import { Extension } from '@codemirror/state';
+// 💡 C'est la seule extension essentielle pour la coloration TypeScript/JSX
+import { javascript } from '@codemirror/lang-javascript'; 
+// Importation du thème spécifique non nécessaire pour cette version de base
 
 /**
- * Page Next.js Client Component intégrant CodeMirror avec le thème Eclipse.
+ * Page Next.js Client Component intégrant CodeMirror de base.
+ * Utilise le thème clair par défaut de CodeMirror.
  */
-export default function CodeMirrorEditorPage() {
+export default function BasicCodeMirrorPage() {
   
-  const initialCode = `// ✅ Le "compilateur" TypeScript/JSX est activé via l'extension 'javascript'.
-// Le style de coloration est chargé via le thème 'eclipse' dans les extensions.
+  const initialCode = `// CodeMirror de base - Next.js (TypeScript)
+// La coloration syntaxique des imports, types et JSX devrait fonctionner.
 
 import React, { useState } from 'react';
 
-// Le mot-clé 'interface' devrait être coloré
-interface UserProps {
-  name: string; // Le type 'string' devrait être coloré
+// Le type 'interface' devrait être coloré
+interface MyData {
+  value: number; 
 }
 
-const ProfileComponent = ({ name }: UserProps) => {
-  const [count, setCount] = useState(0);
+const MyBaseComponent = ({ value }: MyData) => {
+  const [count, setCount] = useState(value);
 
   return (
-    // Les balises JSX (div, button) devraient être colorées
-    <div className="profile-card"> 
-      <h1>Hello, {name}</h1>
-      <button 
-        onClick={() => setCount(count + 1)}
-      >
-        Count: {count}
-      </button>
+    // Les balises JSX (div) devraient être colorées
+    <div className="wrapper"> 
+      <p>Current count: {count}</p>
     </div>
   );
 };
 
-export default ProfileComponent;
+export default MyBaseComponent;
 `;
 
   const [code, setCode] = useState<string>(initialCode);
+
   const onChange = useCallback((value: string) => {
     setCode(value);
   }, []);
 
-  // Configuration de l'extension pour TypeScript et JSX
-  const jsTsxExtension: Extension = javascript({ 
-    jsx: true,        // Active le support JSX
-    typescript: true  // Active le support TypeScript
+  // Définition de l'extension JavaScript/TypeScript/JSX
+  const jsTsxExtension = javascript({ 
+    jsx: true,        
+    typescript: true  
   });
-
-  // 🚀 Combinaison des extensions de langage et de thème
-  const extensions: Extension[] = [
-    jsTsxExtension,
-    eclipse // Inclusion du thème comme extension
-  ];
 
   return (
     <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: '#f0f0f0' }}>
       
       <header style={{ marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
-        <h1>CodeMirror Next.js (TypeScript) avec Thème Eclipse</h1>
+        <h1>CodeMirror de Base (Thème Clair par Défaut)</h1>
+        <p>Coloration syntaxique garantie via `lang-javascript`.</p>
       </header>
       
       <CodeMirror
         value={code}
         height="600px"
-        // ❌ NE PAS UTILISER la prop 'theme' ici pour éviter les conflits
-        // theme={eclipse} 
+        // 🎯 En retirant la prop 'theme', on utilise le thème de base, 
+        // qui fonctionne de manière très fiable pour la coloration.
         
-        // 🎯 Passer TOUTES les configurations (langue, thème, highlighting) via 'extensions'
-        extensions={extensions}
+        // 🚀 Seule l'extension de langage est nécessaire pour la coloration
+        extensions={[jsTsxExtension]} 
         onChange={onChange}
-        basicSetup={{
-            lineNumbers: true,
-            foldGutter: true,
-            autocompletion: true,
-            highlightActiveLineGutter: true,
-        }}
-        style={{ borderRadius: '6px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' }}
+        // Le basicSetup fournit numérotation des lignes, folding, etc.
+        basicSetup={true} 
+        style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}
       />
       
       <div style={{ marginTop: '30px' }}>
@@ -90,4 +76,5 @@ export default ProfileComponent;
       </div>
     </div>
   );
-}
+                      }
+        
