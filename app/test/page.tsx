@@ -73,7 +73,7 @@ export default function ChatGPTCanvasExplorer() {
 
   const lines = selectedFile.code.split("\n");
 
-  // Simple highlight CSS
+  // Simple highlight
   const highlight = (line: string) => {
     return line
       .replace(
@@ -114,15 +114,15 @@ export default function ChatGPTCanvasExplorer() {
           </button>
         </div>
 
-        {/* Zone code et numéros */}
+        {/* Zone code + numéros */}
         <div className="flex text-sm font-mono">
           {/* Numéros de ligne */}
           <div
             ref={lineRef}
-            className="bg-[#eee] text-gray-500 select-none text-right pr-2 leading-6 overflow-hidden"
+            className="bg-[#eee] text-gray-500 select-none text-right pr-2 overflow-hidden"
           >
             {lines.map((_, i) => (
-              <div key={i} className="px-2">
+              <div key={i} className="px-2 h-[1.5rem] leading-[1.5rem]">
                 {i + 1}
               </div>
             ))}
@@ -131,12 +131,13 @@ export default function ChatGPTCanvasExplorer() {
           {/* Code */}
           <div
             ref={codeRef}
-            className="overflow-auto p-4 leading-6"
+            className="overflow-auto p-4"
             style={{ whiteSpace: "pre" }}
           >
             {lines.map((line, i) => (
               <div
                 key={i}
+                className="h-[1.5rem] leading-[1.5rem]"
                 dangerouslySetInnerHTML={{ __html: highlight(line) || "\u00A0" }}
               />
             ))}
@@ -145,5 +146,5 @@ export default function ChatGPTCanvasExplorer() {
       </div>
     </div>
   );
-               }
-            
+}
+  
