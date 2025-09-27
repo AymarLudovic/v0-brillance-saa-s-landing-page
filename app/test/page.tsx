@@ -42,27 +42,37 @@ export default function ChatGPTCanvasSimple({ code = defaultCode, lang = "typesc
 
       {/* Zone de code */}
       <div className="flex font-mono text-sm overflow-x-auto">
-        {/* Numéros de ligne */}
-        <div className="bg-[#eee] text-gray-500 text-right pr-3 select-none leading-6">
-          {lines.map((_, i) => (
-            <div key={i} className="px-2">
-              {i + 1}
+        <div style={{ display: "table", width: "100%" }}>
+          {lines.map((line, i) => (
+            <div key={i} style={{ display: "table-row" }}>
+              {/* Numéro de ligne */}
+              <span
+                style={{
+                  display: "table-cell",
+                  width: "2em",
+                  paddingRight: "0.5em",
+                  textAlign: "right",
+                  backgroundColor: "#eee",
+                  userSelect: "none",
+                }}
+              >
+                {i + 1}
+              </span>
+              {/* Contenu du code */}
+              <span
+                style={{
+                  display: "table-cell",
+                  whiteSpace: "pre",
+                  backgroundColor: "#fafafa",
+                  paddingLeft: "0.5em",
+                }}
+              >
+                {line || "\u00A0"}
+              </span>
             </div>
           ))}
         </div>
-
-        {/* Contenu du code */}
-        <pre className="p-4 leading-6 bg-[#fafafa]">
-          <code>
-            {lines.map((line, i) => (
-              <div key={i} style={{ whiteSpace: "pre" }}>
-                {line || "\u00A0"}
-              </div>
-            ))}
-          </code>
-        </pre>
       </div>
     </div>
   );
-        }
-      
+                }
