@@ -993,8 +993,10 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
 
 
 
+                              
+                                                       
   const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string) => {
-    // 1. VÉRIFICATION DE LA SANDBOX (La correction précédente)
+    // 1. VÉRIFICATION DE LA SANDBOX
     if (!sandboxId) { 
         addLog("Please create a sandbox first.")
         return
@@ -1004,35 +1006,59 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
     setIsCloning(false) 
     setCloneUrl("")
 
+    let fullCSS = '';
+    let fullHTML = '';
+    let baseURL = '';
+
     try {
-      setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze}...`)
+      setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze} (Déclenchement)...`)
       addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
       
-      const analysisRes = await fetch("/api/analyse", {
+      // --- ÉTAPE 1: DÉCLENCHER L'ANALYSE ET OBTENIR L'ID DE CACHE ---
+      const initialAnalysisRes = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: urlToAnalyze }),
       })
-      const analysisData = await analysisRes.json()
+      const initialAnalysisData = await initialAnalysisRes.json()
       
-      if (!analysisRes.ok) throw new Error(`Analysis API failed: ${analysisData.error}`)
-      addLog("[AUTO-FLOW] ✅ Analysis API call successful.")
+      if (!initialAnalysisRes.ok) throw new Error(`Analysis API failed: ${initialAnalysisData.error}`)
+      addLog("[AUTO-FLOW] ✅ Initial Analysis API call successful (ID reçu).")
 
-      // 🛑 CORRECTION ICI : Assurez-vous que les variables sont des chaînes (fallbacks)
-      const fullCSS = analysisData.fullCSS || ''
-      const fullHTML = analysisData.fullHTML || ''
-      const baseURL = analysisData.baseURL || '' 
+      const analysisId = initialAnalysisData.analysisId
+      if (!analysisId) {
+          throw new Error("Analysis ID not returned by API. Check if the backend is returning full data instead of an ID.")
+      }
+
+
+      // --- ÉTAPE 2: RÉCUPÉRER LES DONNÉES VOLUMINEUSES VIA L'ID DE CACHE ---
+      setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze} (Récupération des données)...`)
+      addLog(`[AUTO-FLOW] Fetching cached data with ID: ${analysisId}`)
+      
+      const dataRes = await fetch(`/api/analyse?action=get_data&id=${analysisId}`, {
+        method: 'POST', // Utilise POST pour la récupération des données en cache
+      })
+      const finalAnalysisData = await dataRes.json()
+
+      if (!dataRes.ok || !finalAnalysisData.success) {
+        throw new Error(`Failed to retrieve large analysis data: ${finalAnalysisData.error || dataRes.statusText}`)
+      }
+
+      // 3. Déconstruction des données récupérées
+      fullCSS = finalAnalysisData.fullCSS || ''
+      fullHTML = finalAnalysisData.fullHTML || ''
+      // L'API ne retourne pas baseURL, on la déduit de l'URL initiale
+      baseURL = new URL(urlToAnalyze).origin 
 
       if (!fullHTML) {
-          // Ajout d'une vérification explicite si le HTML est absent
-          throw new Error("Analysis failed: API did not return the required 'fullHTML' content. Check your scraping script.")
+          // Cette erreur est maintenant plus pertinente
+          throw new Error("Analysis failed: API returned success but 'fullHTML' content is empty. Check your scraping script.")
       }
 
       // --- LOGIQUE D'ANALYSE CSS ET COMPOSANT ---
       
-      // Ces fonctions reçoivent maintenant une chaîne vide ('') si le CSS était manquant, 
-      // empêchant l'erreur "reading 'match'".
-      const globalCssVariables = parseRootVariables(fullCSS) 
+      setAnalysisStatus(`2/4: Analyse CSS...`)
+      const globalCssVariables = parseRootVariables(fullCSS)
       const fontFaces = extractFontFaces(fullCSS)
 
       setAnalysisStatus(`2/4: Recherche des composants pertinents...`)
@@ -1086,9 +1112,8 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
       setLoading(false)
       setAnalysisStatus(null)
     }
-                                                       }
-                                                       
-  
+    }
+      
 
 
 
