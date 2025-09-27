@@ -8,6 +8,9 @@ type Props = {
 };
 
 const defaultCode = `function hello(name: string) {
+  if (!name) {
+    return "Hello World";
+  }
   return "Hello " + name;
 }
 
@@ -52,12 +55,14 @@ export default function ChatGPTCanvasSimple({ code = defaultCode, lang = "typesc
         <pre className="p-4 leading-6 bg-[#fafafa]">
           <code>
             {lines.map((line, i) => (
-              <div key={i}>{line || "\u00A0"}</div>
+              <div key={i} style={{ whiteSpace: "pre" }}>
+                {line || "\u00A0"}
+              </div>
             ))}
           </code>
         </pre>
       </div>
     </div>
   );
-      }
-            
+        }
+      
