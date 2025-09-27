@@ -1711,20 +1711,63 @@ const fileTree = buildFileTree(files)
 <div className="p-1 h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
   <div className="relative p-2 flex flex-col h-[210px]">
-    <div className=" flex flex-col h-[20%] rounded-t-[10px] bg-transparent w-full">
+    
+    {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
+    <div className="flex flex-col h-[20%] rounded-t-[10px] bg-transparent w-full">
      <div className="w-full h-full flex items-center justify-center">
         <div className="w-[95%] p-1 rounded-t-[8px] bg-[#E3DFDB] h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
-        <div className="w-auto p-1 h-[25px] border border-black rounded-[12px] flex items-center gap-1 justify-center">
-          <svg className="h-[16px] w-[16px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#1f1f1f"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
-          <p className="text-sm">Clone website</p>
-        </div>
-          <div className="w-auto p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center">
-          
-          <p className="text-sm">Connect database</p>
-        </div>
+        
+        {/* BOUTON/INPUT CLONE WEBSITE */}
+        {!isCloning ? (
+            // 1. Affichage du bouton "Clone website" (état initial)
+            <button 
+                onClick={() => setIsCloning(true)}
+                className="w-auto p-1 h-[25px] border border-black rounded-[12px] flex items-center gap-1 justify-center hover:bg-white transition-colors duration-150"
+                disabled={loading}
+            >
+              <svg className="h-[16px] w-[16px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#1f1f1f"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
+              <p className="text-sm">Clone website</p>
+            </button>
+        ) : (
+            // 2. Affichage de l'input full-width pour l'URL (état de clonage actif)
+            <div className="flex items-center h-full w-full">
+                {/* Icône SVG (conservée) */}
+                <svg className="h-[16px] w-[16px] flex-shrink-0 mx-1" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#1f1f1f"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
+                <input
+                    type="url"
+                    placeholder="Enter website URL to clone (e.g., example.com) and press Enter"
+                    className="h-full w-full border-none outline-none bg-transparent text-sm"
+                    value={cloneUrl}
+                    onChange={(e) => setCloneUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" && cloneUrl) {
+                            e.preventDefault()
+                            // Lancement de l'analyse avec l'URL saisie
+                            runAutomatedAnalysis(cloneUrl, `User wants to clone/analyze ${cloneUrl}`)
+                        } else if (e.key === "Escape") {
+                            // Annulation
+                            setIsCloning(false) 
+                            setCloneUrl("")
+                        }
+                    }}
+                    disabled={loading}
+                    autoFocus
+                />
+            </div>
+        )}
+        
+        {/* BOUTON CONNECT DATABASE (Masqué si isCloning est vrai) */}
+        {!isCloning && (
+            <div className="w-auto p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center">
+              <p className="text-sm">Connect database</p>
+            </div>
+        )}
+        
       </div>
      </div>
     </div>
+    
+    {/* ZONE DE SAISIE DE CHAT */}
     <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
       <textarea
       placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
@@ -1740,6 +1783,8 @@ const fileTree = buildFileTree(files)
       disabled={!currentProject || loading}
     />
     </div>
+    
+    {/* PIED DE PAGE DE CHAT */}
     <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
         <div className="flex pl-1 items-center gap-1 mb-1">
           <div className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center">
@@ -1762,11 +1807,10 @@ const fileTree = buildFileTree(files)
       <ArrowUp size={16} /> 
     </Button>
       </div>
-      </div>
+    </div>
   </div>
 </div>
-</div>
-      
+          
 
         
           
