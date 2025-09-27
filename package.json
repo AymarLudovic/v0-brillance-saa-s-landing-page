@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@lezer/highlight": "1.2.1",
+    "@monaco-editor/react": "4.7.0",
     "@babel/runtime": "latest",
     "@uiw/codemirror-theme-eclipse": "4.25.2",
     "@codemirror/lang-javascript": "latest",
