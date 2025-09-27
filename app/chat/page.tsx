@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import React from "react"
+import  { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import CodeMirror from "@uiw/react-codemirror"
@@ -85,6 +86,41 @@ type FileTree = Map<string, FileTreeNode>
 
 
 // --- FONCTION DE CONSTRUCTION DE L'ARBORESCENCE (LOGIQUE PURE) ---
+
+ // Assurez-vous d'avoir cet import si vous utilisez <React.Fragment>
+
+// --- NOUVEAU COMPOSANT FILE BREADCRUMB ---
+
+interface FileBreadcrumbProps {
+  filePath: string;
+}
+
+const FileBreadcrumb: React.FC<FileBreadcrumbProps> = ({ filePath }) => {
+  if (!filePath) return null;
+
+  // Sépare le chemin en répertoires/parties (ex: app/page.tsx -> ["app", "page.tsx"])
+  const parts = filePath.split('/').filter(part => part.length > 0);
+
+  return (
+    <div className="flex items-center space-x-1 text-sm text-[#37322F] truncate">
+      {parts.map((part, index) => (
+        <React.Fragment key={index}>
+          {/* Le nom du répertoire ou du fichier */}
+          <span className="font-medium text-[rgba(55,50,47,0.8)]">
+            {part}
+          </span>
+          
+          {/* Ajout de la flèche de séparation si ce n'est pas le dernier élément */}
+          {index < parts.length - 1 && (
+            <ChevronRight className="h-4 w-4 text-[rgba(55,50,47,0.4)] flex-shrink-0" />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
+
 
 /**
  * Construit une structure d'arbre de fichiers (Map imbriquée) à partir d'une liste plate de fichiers.
@@ -1674,45 +1710,53 @@ const fileTree = buildFileTree(files)
               
               </div>
 
-              <div className="w-2/3 h-full bg-white">
+// ... (à l'intérieur de votre condition de rendu) ...
+              
+              <div className="w-2/3 h-full bg-white flex flex-col">
                 
+                {/* 🆕 1. LE BREADCRUMB HEADER (Header de l'éditeur) */}
+                <div className="h-10 flex items-center px-4 border-b border-[rgba(55,50,47,0.12)] bg-[#F7F5F3] flex-shrink-0">
+                  {/* Affiche le chemin complet du fichier actif */}
+                  {currentProject && files.length > 0 && activeFile !== null && (
+                    <FileBreadcrumb 
+                      filePath={files[activeFile]?.filePath || ""} 
+                    />
+                  )}
+                </div>
 
-               
-<Editor
-  // Utilisation de la même valeur de fichier
-  value={files[activeFile]?.content || ""}
-  height="100%" // Utilisation de height="100%" pour remplir le conteneur
-  
-  // Langage (Monaco reconnaît le TypeScript/JSX)
-  defaultLanguage="typescript" 
-  
-  // Thème personnalisé défini dans handleEditorDidMount
-  theme="customTheme" 
-  
-  // La fonction de montage qui applique toutes les configurations
-  onMount={handleEditorDidMount} 
-  
-  // La fonction de changement de contenu (Monaco utilise OnChange)
-  // NOTE : updateFile doit accepter un argument 'value' de type string (le contenu)
-  onChange={(value) => updateFile(value || "")} 
-  
-  // Options de configuration de l'éditeur
-  options={{
-      minimap: { enabled: true },
-      // Pour une expérience éditoriale propre
-      lineNumbers: 'on',
-      scrollBeyondLastLine: false,
-      lineNumbersMinChars: 3, 
-      fontFamily: "Mozilla Headline", // Votre style de police
-      fontSize: 14, // Optionnel : ajuster la taille
-  }}
-/>
-  
-  
-                
-
-  
+                {/* 2. L'ÉDITEUR MONACO */}
+                <div className="flex-grow"> 
+                  <Editor
+                    // Utilisation de la même valeur de fichier
+                    value={files[activeFile]?.content || ""}
+                    height="100%" 
+                    
+                    // Langage (Monaco reconnaît le TypeScript/JSX)
+                    defaultLanguage="typescript" 
+                    
+                    // Thème personnalisé défini dans handleEditorDidMount
+                    theme="customTheme" 
+                    
+                    // La fonction de montage qui applique toutes les configurations
+                    onMount={handleEditorDidMount} 
+                    
+                    // La fonction de changement de contenu (Monaco utilise OnChange)
+                    onChange={(value) => updateFile(value || "")} 
+                    
+                    // Options de configuration de l'éditeur
+                    options={{
+                        minimap: { enabled: true },
+                        lineNumbers: 'on',
+                        scrollBeyondLastLine: false,
+                        lineNumbersMinChars: 3, 
+                        fontFamily: "Mozilla Headline", 
+                        fontSize: 14, 
+                    }}
+                  />
+                </div>
               </div>
+              
+              
             </div>
           )}
         </div>
