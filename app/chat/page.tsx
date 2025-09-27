@@ -1686,11 +1686,10 @@ const fileTree = buildFileTree(files)
             </Button>
           </div>
 
-
-                    {activeTab === "preview" ? (
+          {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
-              {/* 1. SECTION PRÉVISUALISATION (IFRAME) */}
-              <div className="flex-grow bg-white w-full border border-[rgba(55,50,47,0.12)] m-1 overflow-hidden" 
+              {/* SECTION PRÉVISUALISATION (IFRAME) */}
+              <div className="flex-grow bg-white w-full border border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
                    style={{ height: `calc(100% - ${logsHeight}%)` }}>
                 {previewUrl ? (
                   <iframe ref={iframeRef} src={previewUrl} className="w-full h-full border-0" title="Sandbox Preview" />
@@ -1701,12 +1700,12 @@ const fileTree = buildFileTree(files)
                 )}
               </div>
 
-              {/* 2. SECTION CONSOLE DU SERVEUR (CONSOLEPANEL) */}
+              {/* SECTION LOGS BRUTS (Ancienne version avec logs.join("\n")) */}
               <div
                 className="flex-shrink-0 border-t border-[rgba(55,50,47,0.12)] w-full bg-white"
                 style={{ height: `${logsHeight}%` }}
               >
-                {/* BARRE DE CONTRÔLE */}
+                {/* Barre de contrôle */}
                 <div className="flex items-center justify-between p-4 h-12 bg-[#F7F5F3] border-b border-[rgba(55,50,47,0.12)]">
                   {/* Boutons d'action */}
                   <div className="flex items-center gap-2">
@@ -1748,9 +1747,9 @@ const fileTree = buildFileTree(files)
                     </Button>
                   </div>
                   
-                  {/* Contrôles de Log */}
+                  {/* Contrôles de Log (Titre Logs) */}
                   <div className="flex items-center gap-3">
-                    <h3 className="text-sm font-medium px-2 text-[#37322F]">Server Console</h3>
+                    <h3 className="text-sm font-medium px-2 text-[#37322F]">Logs</h3>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1770,10 +1769,10 @@ const fileTree = buildFileTree(files)
                   </div>
                 </div>
                 
-                {/* LE CONTENU DE LA CONSOLE */}
+                {/* Contenu des logs bruts */}
                 <ScrollArea className="w-full" style={{ height: "calc(100% - 48px)" }}>
-                    {/* Le composant qui interroge l'API */}
-                    <ConsolePanel sandboxId={currentProject?.sandboxId} /> 
+                  {/* Ici, on réutilise l'ancien affichage simple de logs */}
+                  <p className="text-xs  whitespace-pre-wrap p-4">{logs.join("\n")}</p>
                 </ScrollArea>
               </div>
             </div>
