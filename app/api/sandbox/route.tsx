@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server"
 import * as e2b from "@e2b/code-interpreter"
 
+// 🆕 Stockage en mémoire des IDs de processus pour pouvoir récupérer les logs
+// Key: sandboxId, Value: processId de la commande 'npm run start'
+const runningProcesses = new Map<string, string>() 
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => {
       throw new Error("Invalid JSON in request body")
     })
 
-    const { action, sandboxId: bodySandboxId, plan } = body || {}
+    // 🆕 bodyProcessId est inclus dans la déstructuration bien qu'il ne soit pas utilisé ici.
+    const { action, sandboxId: bodySandboxId, processId: bodyProcessId, plan } = body || {} 
 
     const apiKey = process.env.E2B_API_KEY
     if (!apiKey) {
@@ -200,8 +205,12 @@ div {
         const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 })
         await sandbox.setTimeout(900_000)
 
+        // Lance la commande de démarrage du serveur Next.js
         const process = await sandbox.commands.start("npm run start", { cwd: "/home/user" })
         const url = `https://${sandbox.getHost(3000)}`
+        
+        // 🆕 Stocker l'ID du processus pour que l'action 'getLogs' puisse y faire référence
+        runningProcesses.set(bodySandboxId, process.processID)
 
         console.log(
           `Commande 'start' lancée dans le sandbox ${bodySandboxId}. URL: ${url}, Process ID: ${process.processID}`,
@@ -210,11 +219,45 @@ div {
         return NextResponse.json({ success: true, action, url, processId: process.processID })
       }
 
+      // 🆕 NOUVELLE ACTION POUR RÉCUPÉRER LES LOGS DU SERVEUR
+      case "getLogs": {
+        if (!bodySandboxId) throw new Error("sandboxId manquant")
+        
+        const processId = runningProcesses.get(bodySandboxId)
+        if (!processId) {
+          // Si le processId n'est pas trouvé, le serveur n'a pas été démarré ou le sandbox est éteint.
+          return NextResponse.json({ success: true, logs: [{ type: "INFO", content: "Serveur non démarré ou ID de processus perdu.", timestamp: Date.now() }] })
+        }
+        
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 })
+        
+        // Lire tout le stdout et le stderr depuis le début (offset 0)
+        // C'est ce contenu qui change au fur et à mesure que le serveur logue.
+        const output = await sandbox.process.read(processId, { offset: 0, limit: 100000 }) // Limite augmentée
+        
+        // Les logs bruts des deux flux
+        const logs = []
+        if (output.stdout) {
+             logs.push({ type: "STDOUT", content: output.stdout, timestamp: Date.now() })
+        }
+        if (output.stderr) {
+             logs.push({ type: "STDERR", content: output.stderr, timestamp: Date.now() })
+        }
+
+        return NextResponse.json({ success: true, logs })
+      }
+
+
       default:
         return NextResponse.json({ error: "Action inconnue" }, { status: 400 })
     }
   } catch (e: any) {
     console.error("Erreur dans l'API route /api/sandbox:", e)
+    // Gérer les erreurs de connexion E2B
+    if (e.message && e.message.includes("Could not connect to sandbox")) {
+       return NextResponse.json({ error: "Sandbox non trouvé ou expiré.", details: e.message }, { status: 404 })
+    }
     return NextResponse.json({ error: e.message || "Erreur inconnue", details: e.toString() }, { status: 500 })
   }
-}
+              }
+              
