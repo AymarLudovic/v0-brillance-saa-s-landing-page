@@ -929,7 +929,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
       <button
         className={`w-full text-left text-sm py-1.5 px-2 rounded-lg flex items-center gap-2 transition-colors ${
           isCurrentlyActive
-            ? "bg-[#37322F] text-white" 
+            ? "bg-[#F7F5F3] text-white" 
             : "hover:bg-[#F7F5F3] text-[#37322F]/80"
         }`}
         onClick={() => {
@@ -948,7 +948,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
           />
         )}
         {/* Icône de fichier pour les fichiers */}
-        {!isDirectory && <Code className="h-4 w-4 opacity-75" style={{ minWidth: '1rem', marginLeft: isDirectory ? '0' : '1.5rem' }} />} 
+      
 
         <span className="truncate">{node.name}</span>
       </button>
