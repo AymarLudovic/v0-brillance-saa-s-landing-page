@@ -95,6 +95,111 @@ interface FileBreadcrumbProps {
   filePath: string;
 }
 
+// 🆕 NOUVELLES INTERFACES
+interface ConsoleLog {
+  type: 'STDOUT' | 'STDERR' | 'INFO' | 'ERROR';
+  content: string;
+  timestamp: number;
+}
+
+interface ConsolePanelProps {
+  sandboxId: string | undefined;
+}
+
+// 🆕 NOUVEAU COMPOSANT : CONSOLEPANEL
+const ConsolePanel: React.FC<ConsolePanelProps> = ({ sandboxId }) => {
+  const [logs, setLogs] = useState<ConsoleLog[]>([
+    { type: 'INFO', content: 'Console active. En attente du démarrage du serveur...', timestamp: Date.now() }
+  ]);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const [stdoutLength, setStdoutLength] = useState(0); 
+  const [stderrLength, setStderrLength] = useState(0); 
+
+  const fetchLogs = async () => {
+    if (!sandboxId) return;
+
+    try {
+      const res = await fetch('/api/sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getLogs', sandboxId }),
+      });
+      const data = await res.json();
+
+      if (data.success && data.logs) {
+        let newLogs: ConsoleLog[] = [];
+        let newStdoutLength = stdoutLength;
+        let newStderrLength = stderrLength;
+
+        data.logs.forEach((log: ConsoleLog) => {
+          if (log.type === 'STDOUT' && log.content.length > stdoutLength) {
+            newLogs.push({
+                type: 'STDOUT',
+                content: log.content.substring(stdoutLength), 
+                timestamp: Date.now(),
+            });
+            newStdoutLength = log.content.length;
+          } else if (log.type === 'STDERR' && log.content.length > stderrLength) {
+            newLogs.push({
+                type: 'STDERR',
+                content: log.content.substring(stderrLength),
+                timestamp: Date.now(),
+            });
+            newStderrLength = log.content.length;
+          }
+        });
+        
+        if (newLogs.length > 0) {
+            setLogs(prev => [...prev, ...newLogs]);
+            setStdoutLength(newStdoutLength);
+            setStderrLength(newStderrLength);
+        }
+      }
+    } catch (e) {
+      // Gérer l'erreur de connexion ou de sandbox
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(fetchLogs, 2000);
+    return () => clearInterval(interval);
+  }, [sandboxId]);
+  
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  const getLogColor = (type: ConsoleLog['type']) => {
+    switch (type) {
+      case 'STDERR': 
+      case 'ERROR': 
+        return 'text-red-400';
+      case 'STDOUT': 
+        return 'text-green-400';
+      case 'INFO':
+      default: 
+        return 'text-gray-300';
+    }
+  }
+
+  return (
+    <div className="h-full w-full flex flex-col overflow-hidden bg-gray-900 text-white font-mono text-xs p-4">
+      {logs.map((log, index) => (
+          <div key={index} className={`whitespace-pre-wrap ${getLogColor(log.type)}`}>
+            <span className="text-gray-600 mr-2">
+                {new Date(log.timestamp).toLocaleTimeString()}
+            </span>
+            {log.content}
+          </div>
+        ))}
+        <div ref={logsEndRef} />
+    </div>
+  )
+              }
+              
+
+
+
 const FileBreadcrumb: React.FC<FileBreadcrumbProps> = ({ filePath }) => {
   if (!filePath) return null;
 
@@ -1582,10 +1687,11 @@ const fileTree = buildFileTree(files)
           </div>
 
 
-          
-          {activeTab === "preview" ? (
+                    {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
-              <div className="flex-grow bg-white w-full border border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden">
+              {/* 1. SECTION PRÉVISUALISATION (IFRAME) */}
+              <div className="flex-grow bg-white w-full border border-[rgba(55,50,47,0.12)] m-1 overflow-hidden" 
+                   style={{ height: `calc(100% - ${logsHeight}%)` }}>
                 {previewUrl ? (
                   <iframe ref={iframeRef} src={previewUrl} className="w-full h-full border-0" title="Sandbox Preview" />
                 ) : (
@@ -1595,11 +1701,14 @@ const fileTree = buildFileTree(files)
                 )}
               </div>
 
+              {/* 2. SECTION CONSOLE DU SERVEUR (CONSOLEPANEL) */}
               <div
                 className="flex-shrink-0 border-t border-[rgba(55,50,47,0.12)] w-full bg-white"
                 style={{ height: `${logsHeight}%` }}
               >
+                {/* BARRE DE CONTRÔLE */}
                 <div className="flex items-center justify-between p-4 h-12 bg-[#F7F5F3] border-b border-[rgba(55,50,47,0.12)]">
+                  {/* Boutons d'action */}
                   <div className="flex items-center gap-2">
                     <Button
                       onClick={() => runAction("create")}
@@ -1638,8 +1747,10 @@ const fileTree = buildFileTree(files)
                       Start
                     </Button>
                   </div>
+                  
+                  {/* Contrôles de Log */}
                   <div className="flex items-center gap-3">
-                    <h3 className="text-sm font-medium px-2 text-[#37322F]">Logs</h3>
+                    <h3 className="text-sm font-medium px-2 text-[#37322F]">Server Console</h3>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1658,8 +1769,11 @@ const fileTree = buildFileTree(files)
                     </Button>
                   </div>
                 </div>
-                <ScrollArea className="w-full  " style={{ height: "calc(100% - 48px)" }}>
-                  <p className="text-xs  whitespace-pre-wrap p-4">{logs.join("\n")}</p>
+                
+                {/* LE CONTENU DE LA CONSOLE */}
+                <ScrollArea className="w-full" style={{ height: "calc(100% - 48px)" }}>
+                    {/* Le composant qui interroge l'API */}
+                    <ConsolePanel sandboxId={currentProject?.sandboxId} /> 
                 </ScrollArea>
               </div>
             </div>
