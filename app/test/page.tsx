@@ -3,20 +3,25 @@
 import React, { useState, useCallback } from 'react';
 import Editor, { OnChange, OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
+import { Extension } from '@codemirror/state';
 
 /**
  * Page Next.js Client Component intégrant Monaco Editor.
- * Personnalise la couleur des mots-clés (rouge-rose) et des imports (vert foncé).
+ * Personnalisation très spécifique de la coloration syntaxique (Mots-clés, Identifiants, JSX).
  */
 export default function MonacoEditorPage() {
   
-  const initialCode = `// ✅ Les mots-clés 'import', 'const', 'interface' sont maintenant rouge-rose.
-// ✅ Les identifiants (comme 'useState', 'React') sont vert foncé.
+  const initialCode = `// ✅ Coloration personnalisée activée !
 
+// Les mots-clés 'import', 'from' sont en ROUGE.
+// 'React', 'useState' sont en NOIR.
+// La chaîne de package 'react' est en VERT.
 import React, { useState } from 'react';
+import { calculateSum } from './utils'; // 'calculateSum', './utils' en NOIR et VERT
 
+// 'interface', 'const' sont en ROUGE.
 interface UserProps {
-  id: number;
+  id: number; // Le type 'number' est noir par défaut (identifiant)
   name: string; 
 }
 
@@ -24,6 +29,7 @@ const ProfileComponent = ({ name, id }: UserProps) => {
   const [count, setCount] = useState(0);
 
   return (
+    // TOUT le JSX/HTML (balises et attributs) est en NOIR.
     <div className="profile-card"> 
       <h1>Profil ID: {id}</h1>
       <button 
@@ -39,55 +45,79 @@ export default ProfileComponent;
 `;
 
   const [code, setCode] = useState<string>(initialCode);
-  const [theme, setTheme] = useState<'light' | 'vs-dark'>('light');
-
-  const handleEditorChange: OnChange = useCallback((value) => {
-    if (value !== undefined) {
-      setCode(value);
-    }
-  }, []);
+  // Maintenons le thème clair car le noir sur noir pour le JSX serait illisible.
+  const [theme, setTheme] = useState<'light' | 'vs-dark'>('light'); 
 
   const handleEditorDidMount: OnMount = useCallback((editorInstance, monaco) => {
     
-    // --- 1. Désactivation de la vérification TypeScript/JSX (Lignes Rouges) ---
+    // --- 1. Désactivation de la vérification TypeScript/JSX ---
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
       noSemanticValidation: true, 
       noSyntaxValidation: true,   
       jsx: monaco.languages.typescript.JsxEmit.React,
     });
     
-    // --- 2. Définition des Couleurs Personnalisées (Thème) ---
+    // --- 2. Définition des Couleurs Spécifiques (Thème) ---
+    // Rouge vif (pour les mots-clés)
+    const ROUGE = 'FF0000'; 
+    // Noir (pour les identifiants et le JSX)
+    const NOIR = '000000'; 
+    // Vert (pour les chaînes de caractères de packages)
+    const VERT = '008000'; 
+
     monaco.editor.defineTheme('customTheme', {
         base: theme === 'light' ? 'vs' : 'vs-dark',
         inherit: true,
         rules: [
-            // 🎯 RÈGLE 1: Mots-clés (import, const, interface, return, etc.)
+            // 🎯 RÈGLE 1: Mots-clés (import, const, from, interface, return, export) -> ROUGE
             { 
                 token: 'keyword', 
-                foreground: 'C0392B' // Rouge légèrement Rose (similaire à #C0392B)
+                foreground: ROUGE 
             },
-            // 🎯 RÈGLE 2: Identifiants (Noms des packages importés, fonctions, variables)
+            // Le jeton 'keyword.flow' couvre parfois 'from'.
+            { 
+                token: 'keyword.flow', 
+                foreground: ROUGE 
+            },
+
+            // 🎯 RÈGLE 2: Chaînes de caractères (Chemin des imports ex: 'react', './utils') -> VERT
+            { 
+                token: 'string', 
+                foreground: VERT 
+            },
+            
+            // 🎯 RÈGLE 3: Identifiants (React, useState, calculateSum, UserProps, MyComponent) -> NOIR
+            // 'identifier' est le jeton le plus générique. Nous le définissons en NOIR.
+            // Il sera écrasé par les jetons plus spécifiques (comme 'keyword').
             { 
                 token: 'identifier', 
-                foreground: '006400' // Vert un peu foncé (similaire à #006400 - DarkGreen)
+                foreground: NOIR 
             },
-            // Optionnel : Pour garantir que 'const' et 'interface' sont bien pris en compte,
-            // bien que 'keyword' devrait suffire.
+
+            // 🎯 RÈGLE 4: JSX/HTML (Balises et Attributs) -> NOIR
+            // Nous ciblons les jetons de balises et leurs attributs pour les rendre noirs.
             { 
-                token: 'keyword.tsx', // Pour TypeScript/JSX
-                foreground: 'C0392B'
+                token: 'tag', 
+                foreground: NOIR // Balises comme <div>, <button>
             },
-            // Optionnel : Coloration des balises HTML (JSX) en vert aussi
-            {
-                token: 'tag',
-                foreground: '006400' // Balises comme <div>, <button>
-            }
+            { 
+                token: 'tag.html', 
+                foreground: NOIR 
+            },
+            { 
+                token: 'attribute.name', 
+                foreground: NOIR // Attributs comme 'className', 'onClick'
+            },
+            
+            // 🎯 RÈGLE 5: Les crochets/parenthèses/virgules peuvent être ajustés, mais le NOIR par défaut est souvent suffisant.
         ],
         colors: {
-            // Personnalisation de la Sidebar (comme précédemment)
+            // Sidebar (Lignes Noires avec Opacité, comme demandé)
             'editorLineNumber.foreground': '#00000033', // Inactif
             'editorLineNumber.activeForeground': '#000000FF', // Actif
-            'editor.lineHighlightBackground': theme === 'light' ? '#00000010' : '#ffffff10',
+            // Ajustement du fond pour que le texte NOIR soit visible si l'utilisateur change de thème.
+            'editor.background': theme === 'light' ? '#FFFFFF' : '#1E1E1E',
+            'editor.foreground': NOIR, // S'assurer que le texte par défaut est noir
         },
     });
 
@@ -97,15 +127,22 @@ export default ProfileComponent;
   }, [theme]);
 
   const toggleTheme = () => {
+    // Si l'utilisateur bascule, le thème sera redéfini dans handleEditorDidMount
     setTheme(prev => prev === 'light' ? 'vs-dark' : 'light');
   };
+  
+  const handleEditorChange: OnChange = useCallback((value) => {
+    if (value !== undefined) {
+      setCode(value);
+    }
+  }, []);
 
   return (
     <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: theme === 'light' ? '#f0f0f0' : '#1e1e1e', color: theme === 'light' ? '#000' : '#fff' }}>
       
       <header style={{ marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
-        <h1>Monaco Editor Next.js - Thèmes Personnalisés</h1>
-        <p>Les mots-clés sont maintenant en **rouge-rose** et les imports/identifiants en **vert foncé**.</p>
+        <h1>Monaco Editor Next.js - Thèmes Ultra-Personnalisés</h1>
+        <p>Les règles de coloration spécifiques sont appliquées (mots-clés en **Rouge**, identifiants/JSX en **Noir**, chaînes en **Vert**).</p>
         <button 
           onClick={toggleTheme} 
           style={{ padding: '8px 15px', cursor: 'pointer', backgroundColor: '#007ACC', color: '#fff', border: 'none', borderRadius: '4px' }}
@@ -119,7 +156,7 @@ export default ProfileComponent;
           height="100%"
           defaultLanguage="typescript"
           value={code}
-          theme='customTheme' // Utiliser le thème personnalisé
+          theme='customTheme'
           onChange={handleEditorChange}
           onMount={handleEditorDidMount}
           options={{
@@ -133,18 +170,9 @@ export default ProfileComponent;
       
       <div style={{ marginTop: '30px' }}>
         <h2>Code Actuel</h2>
-        <pre style={{ 
-          backgroundColor: theme === 'light' ? '#fff' : '#333', 
-          color: theme === 'light' ? '#000' : '#ddd',
-          padding: '15px', 
-          borderRadius: '4px', 
-          whiteSpace: 'pre-wrap',
-          fontFamily: 'monospace'
-        }}>
-          {code}
-        </pre>
+        <pre>{code}</pre>
       </div>
     </div>
   );
-                                                    }
-          
+        }
+        
