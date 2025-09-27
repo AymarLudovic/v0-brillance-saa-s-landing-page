@@ -990,49 +990,104 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
  * Gère le flux d'analyse complet, de l'envoi de l'URL à la création des fichiers.
  * Cette fonction est appelée soit par l'input (Clone website), soit par sendChat (artefact 'url').
  */
-const runAutomatedAnalysis = async (url: string, userPrompt: string) => {
-    if (!currentProject?.sandboxId) {
+
+
+
+  const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string) => {
+    // 1. VÉRIFICATION DE LA SANDBOX (Correction de l'erreur précédente)
+    // ⚠️ Assurez-vous que 'sandboxId' est la variable d'état qui stocke l'ID de la sandbox E2B.
+    if (!sandboxId) { 
         addLog("Please create a sandbox first.")
         return
     }
-    
+
     setLoading(true)
-    setAnalysisStatus(`Analyzing ${url}...`)
-    
+    // Réinitialise les états du mode "Clonage" après le lancement
+    setIsCloning(false) 
+    setCloneUrl("")
+
     try {
-        // 1. Envoyer l'URL à l'API d'analyse (pour obtenir l'ID temporaire)
-        const res = await fetch("/api/analyse", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: url }),
+      setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze}...`)
+      addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
+      
+      // Appel à l'API. Cette logique suppose que l'API /api/analyse retourne 
+      // fullHTML, fullCSS, et baseURL directement sans utiliser l'ID de cache temporaire.
+      const analysisRes = await fetch("/api/analyse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: urlToAnalyze }),
+      })
+      const analysisData = await analysisRes.json()
+      
+      if (!analysisRes.ok) throw new Error(`Analysis API failed: ${analysisData.error}`)
+      addLog("[AUTO-FLOW] ✅ Analysis API call successful.")
+
+      // Déconstruction des données nécessaires pour l'isolation
+      const { fullCSS, fullHTML, baseURL } = analysisData 
+      
+      // --- LOGIQUE D'ANALYSE CSS ET COMPOSANT ---
+      
+      // ⚠️ Assurez-vous que parseRootVariables, extractFontFaces, findPotentialComponents,
+      // et cloneWithComputedStyles sont définis dans votre composant.
+      const globalCssVariables = parseRootVariables(fullCSS)
+      const fontFaces = extractFontFaces(fullCSS)
+
+      setAnalysisStatus(`2/4: Recherche des composants pertinents...`)
+      const componentsToFind = findPotentialComponents(fullHTML) 
+      const isolatedComponents = []
+      addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
+
+      // --- ISOLATION DES COMPOSANTS PAR IFRAME ---
+      for (const comp of componentsToFind) {
+        setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
+        addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
+
+        const hiddenIframe = document.createElement("iframe")
+        hiddenIframe.style.display = "none"
+        document.body.appendChild(hiddenIframe)
+
+        const isolatedHtml = await new Promise<string>((resolve, reject) => {
+          hiddenIframe.onload = () => {
+            const iframeDoc = hiddenIframe.contentDocument
+            if (!iframeDoc) return reject(new Error("Could not access hidden iframe document."))
+            const element = iframeDoc.querySelector(comp.selector)
+            
+            if (element) resolve(cloneWithComputedStyles(element).outerHTML)
+            else resolve("")
+            
+            document.body.removeChild(hiddenIframe)
+          }
+          // Construction du srcdoc avec le contenu complet pour l'isolation CSS
+          hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${baseURL}"><style>${fullCSS}</style></head><body>${fullHTML}</body></html>`
         })
 
-        if (!res.ok) {
-            const errorData = await res.json()
-            throw new Error(errorData.error || `Analysis failed with status ${res.status}`)
+        if (isolatedHtml) {
+          isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
+          addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
         }
+      }
 
-        const data = await res.json()
-        
-        if (data.success && data.analysisId) {
-            addLog(`Analysis complete. Temporary ID: ${data.analysisId}`)
-            // 2. Traiter le résultat et écrire les fichiers dans le sandbox
-            await processAnalysisResult(data.analysisId, url)
-        } else {
-            throw new Error("Analysis failed: no analysisId returned.")
-        }
-
-    } catch (e: any) {
-        addLog(`❌ Automated Analysis Error: ${e.message}`)
-        setMessages((prev) => [...prev, { role: "system", content: `Analysis Error: ${e.message}` }])
+      // --- CONSTRUCTION DU PROMPT RICHE ET ENVOI ---
+      setAnalysisStatus(`4/4: Construction du prompt final pour Gemini...`)
+      addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
+      
+      const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces:\n${fontFaces}\n\nIsolated Components:\n${isolatedComponents.map(c => `// Component: ${c.name}\n${c.html}`).join("\n\n")}\n---\nPlease generate the code as asked above.`
+      
+      addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
+      // 5. Envoi du prompt riche au LLM pour la génération
+      await sendChat(finalPrompt)
+      
+    } catch (err: any) {
+      addLog(`ERROR during automated analysis: ${err.message}`)
+      setAnalysisStatus(`Erreur durant l'analyse: ${err.message}`)
+      
     } finally {
-        setLoading(false)
-        setAnalysisStatus(null)
-        // Réinitialiser l'état de l'interface (si l'analyse a été lancée par l'input)
-        setIsCloning(false) 
-        setCloneUrl("")
+      // Réinitialisation des états
+      setLoading(false)
+      setAnalysisStatus(null)
     }
-}
+      }
+        
   
 
 
