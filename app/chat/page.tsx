@@ -533,6 +533,10 @@ export default function SandboxPage() {
   const [iframeRoute, setIframeRoute] = useState("/")
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
+  // ⚠️ À placer au début de votre composant SandboxPage
+const [isCloning, setIsCloning] = useState(false)
+const [cloneUrl, setCloneUrl] = useState("")
+  
 
 const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ CET ÉTAT
          
@@ -933,12 +937,169 @@ const parseMessageContent = (content: string) => {
 
 
 
+// ⚠️ À placer APRÈS la déclaration de vos states (e.g., `logsHeight`, `currentProject`, `messages`, `loading`, etc.)
+
+/**
+ * Lit les données d'analyse volumineuses stockées temporairement,
+ * crée les fichiers Next.js correspondants dans le sandbox (app/page.tsx et app/globals.css),
+ * puis notifie le LLM.
+ */
+const processAnalysisResult = async (analysisId: string, url: string) => {
+    addLog(`Fetching large analysis results for ID: ${analysisId}...`)
+    
+    // 1. Récupérer les données volumineuses depuis l'API /api/analyse avec l'ID temporaire
+    const res = await fetch(`/api/analyse?action=get_data&id=${analysisId}`, {
+        method: 'POST', // Le corps est ignoré, mais POST est souvent utilisé pour les opérations d'API
+    })
+    
+    if (!res.ok) {
+        throw new Error("Failed to retrieve large analysis data from cache.")
+    }
+    
+    const analysisData = await res.json()
+    
+    if (!analysisData.success) {
+        throw new Error(analysisData.error || "Failed to retrieve analysis data.")
+    }
+    
+    const { fullHTML, fullCSS, fullJS } = analysisData
+
+    // 2. Transformer les données pour app/page.tsx
+    // Utilisation de backticks (\`) et échappement des backticks dans le contenu (\\`)
+    const pageContent = `
+"use client" // Nécessaire pour les événements JS et le composant React
+
+import React from 'react'
+
+const ClonedPage = () => {
+  return (
+    <>
+        {/* HTML cloné (dans un div) */}
+        <div 
+          dangerouslySetInnerHTML={{ __html: \`${fullHTML.replace(/`/g, '\\`')}\` }} 
+        />
+        
+        {/* JS extrait dans un script auto-exécuté */}
+        {fullJS && (
+            <script 
+              dangerouslySetInnerHTML={{ __html: \`${fullJS.replace(/`/g, '\\`')}\` }} 
+            />
+        )}
+    </>
+  )
+}
+
+export default ClonedPage
+`
+    // 3. Créer la liste des fichiers à écrire
+    const filesToWrite = [
+        {
+            filePath: "app/globals.css",
+            content: fullCSS,
+        },
+        {
+            filePath: "app/page.tsx",
+            content: pageContent,
+        },
+    ]
+
+    addLog(`Writing ${filesToWrite.length} files to the sandbox...`)
+
+    // 4. Écrire les fichiers dans le sandbox via l'API /api/sandbox
+    try {
+        const fileWriteRes = await fetch("/api/sandbox", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                action: "addFiles",
+                sandboxId: currentProject?.sandboxId, 
+                files: filesToWrite 
+            }),
+        })
+        
+        if (!fileWriteRes.ok) {
+            throw new Error("Failed to write files to sandbox.")
+        }
+    } catch (e: any) {
+        addLog(`❌ File write error: ${e.message}`)
+        return
+    }
+
+    addLog(`✅ Files created successfully: app/page.tsx and app/globals.css.`)
+
+    // 5. Notifier le LLM
+    const followUpPrompt = `[AUTOMATED ACTION]
+I have successfully analyzed the URL: ${url}. 
+The following files have been created/updated in the sandbox with the extracted HTML/CSS/JS:
+- app/page.tsx (contains HTML via dangerouslySetInnerHTML and JS in <script>)
+- app/globals.css (contains all extracted CSS)
+
+**DO NOT RE-GENERATE THESE FILES**. Use 'fileChanges' to modify them if necessary (they are potentially very large). 
+Now, proceed with the original user request (if any) or acknowledge the file creation.
+`
+    // Utiliser sendChat pour notifier le LLM et continuer la conversation
+    await sendChat(followUpPrompt)
+}
+
+
+/**
+ * Gère le flux d'analyse complet, de l'envoi de l'URL à la création des fichiers.
+ * Cette fonction est appelée soit par l'input (Clone website), soit par sendChat (artefact 'url').
+ */
+const runAutomatedAnalysis = async (url: string, userPrompt: string) => {
+    if (!currentProject?.sandboxId) {
+        addLog("Please create a sandbox first.")
+        return
+    }
+    
+    setLoading(true)
+    setAnalysisStatus(`Analyzing ${url}...`)
+    
+    try {
+        // 1. Envoyer l'URL à l'API d'analyse (pour obtenir l'ID temporaire)
+        const res = await fetch("/api/analyse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: url }),
+        })
+
+        if (!res.ok) {
+            const errorData = await res.json()
+            throw new Error(errorData.error || `Analysis failed with status ${res.status}`)
+        }
+
+        const data = await res.json()
+        
+        if (data.success && data.analysisId) {
+            addLog(`Analysis complete. Temporary ID: ${data.analysisId}`)
+            // 2. Traiter le résultat et écrire les fichiers dans le sandbox
+            await processAnalysisResult(data.analysisId, url)
+        } else {
+            throw new Error("Analysis failed: no analysisId returned.")
+        }
+
+    } catch (e: any) {
+        addLog(`❌ Automated Analysis Error: ${e.message}`)
+        setMessages((prev) => [...prev, { role: "system", content: `Analysis Error: ${e.message}` }])
+    } finally {
+        setLoading(false)
+        setAnalysisStatus(null)
+        // Réinitialiser l'état de l'interface (si l'analyse a été lancée par l'input)
+        setIsCloning(false) 
+        setCloneUrl("")
+    }
+}
   
+
+
+
+    
       
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
   
-const sendChat = async (promptOverride?: string) => {
+
+        const sendChat = async (promptOverride?: string) => {
     const userPrompt = promptOverride || chatInput
     if (!userPrompt) return
     if (!currentProject && !promptOverride) {
@@ -1087,11 +1248,13 @@ const sendChat = async (promptOverride?: string) => {
       // On utilise la fonction de parsing standard pour trouver l'artefact final complet
       const finalParsedContent = parseMessageContent(text); 
 
+      // 🆕 NOUVEAU: Si l'artefact 'url' est détecté, on lance l'analyse automatique.
       if (finalParsedContent.type === 'url') {
         const url = finalParsedContent.data as string
         addLog(`✅ Gemini suggests inspiration URL: ${url}`)
+        // Appel de la nouvelle fonction pour l'analyse
         await runAutomatedAnalysis(url, userPrompt)
-        return
+        return // Sortie pour éviter la logique de fichier standard
       }
 
       // Traitement des fichiers (pour files et fileChanges).
@@ -1107,11 +1270,13 @@ const sendChat = async (promptOverride?: string) => {
       addLog(`CLIENT-SIDE ERROR: ${err.message}`)
       setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }])
     } finally {
+      // Les états sont gérés par runAutomatedAnalysis en cas d'analyse, 
+      // ou ici dans les autres cas.
       setLoading(false)
-      setAnalysisStatus(null)
+      setAnalysisStatus(null) 
     }
-        }
-        
+                                          }
+      
 
 
         
