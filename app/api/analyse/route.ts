@@ -1,5 +1,22 @@
 import { NextResponse } from "next/server"
 import { JSDOM } from "jsdom"
+// REMOVED: import crypto from "crypto"
+
+// 🆕 Cache en mémoire pour les résultats d'analyse volumineux
+// Key: unique ID, Value: { fullHTML: string, fullCSS: string, fullJS: string }
+const analysisCache = new Map<string, { fullHTML: string; fullCSS: string; fullJS: string }>()
+
+/**
+ * Génère un ID unique en utilisant le timestamp et un nombre aléatoire,
+ * assurant qu'il n'y a pas besoin de packages externes comme 'crypto'.
+ */
+function generateUniqueId(): string {
+  const timestamp = Date.now().toString(36) // Base 36 pour compacité
+  const randomPart = Math.random().toString(36).substring(2, 9) // 7 caractères aléatoires
+  return timestamp + randomPart
+}
+
+// --- Fonctions d'Analyse (Fournies par l'utilisateur) ---
 
 async function fetchUrlContent(url: string): Promise<{ success: boolean; content: string }> {
   try {
@@ -14,7 +31,6 @@ async function fetchUrlContent(url: string): Promise<{ success: boolean; content
         Connection: "keep-alive",
         "Upgrade-Insecure-Requests": "1",
       },
-      timeout: 10000,
     })
 
     if (!response.ok) {
@@ -50,16 +66,11 @@ function detectAnimationLibrary(content: string): { isAnimation: boolean; librar
   return { isAnimation: false, confidence: 0 }
 }
 
-function processCSS(css: string, usedClasses: Set<string>): string {
-  return css || ""
-}
-
 function processHTML(html: string): { cleanHTML: string; usedClasses: Set<string> } {
   const usedClasses = new Set<string>()
   const dom = new JSDOM(html)
   const document = dom.window.document
 
-  // Extract all classes
   document.querySelectorAll("[class]").forEach((el) => {
     const classList = (el as HTMLElement).className
     if (typeof classList === "string") {
@@ -72,162 +83,132 @@ function processHTML(html: string): { cleanHTML: string; usedClasses: Set<string
   return { cleanHTML: html, usedClasses }
 }
 
+// --- Route principale ---
+
 export async function POST(request: Request) {
-  try {
-    const body = await request.json()
-    let urlToAnalyze = body.url as string
+    const url = new URL(request.url)
+    const action = url.searchParams.get('action')
 
-    if (!urlToAnalyze) {
-      return NextResponse.json({ error: "URL is required" }, { status: 400 })
-    }
-
-    // Normalize URL
-    if (!/^https?:\/\//i.test(urlToAnalyze)) {
-      urlToAnalyze = "https://" + urlToAnalyze
-    }
-
-    console.log(`[v0] Starting analysis of: ${urlToAnalyze}`)
-
-    // Fetch main HTML
-    const mainResponse = await fetchUrlContent(urlToAnalyze)
-    if (!mainResponse.success) {
-      throw new Error("Could not fetch the main HTML content")
-    }
-
-    const dom = new JSDOM(mainResponse.content)
-    const document = dom.window.document
-    const baseURL = new URL(urlToAnalyze).origin
-
-    console.log(`[v0] Base URL: ${baseURL}`)
-
-    // Extract metadata
-    const title = document.title || "Untitled"
-    const description = document.querySelector('meta[name="description"]')?.getAttribute("content") || ""
-
-    // Process HTML and extract classes
-    const { cleanHTML, usedClasses } = processHTML(document.body.innerHTML)
-    console.log(`[v0] Extracted ${usedClasses.size} CSS classes`)
-
-    // Extract CSS sources
-    const cssSources = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-      .map((el) => {
-        try {
-          return new URL((el as HTMLLinkElement).href, baseURL).href
-        } catch {
-          return null
+    // 1. Action de récupération des données volumineuses
+    if (action === 'get_data') {
+        const id = url.searchParams.get('id')
+        if (!id) {
+            return NextResponse.json({ error: "Analysis ID is required" }, { status: 400 })
         }
-      })
-      .filter(Boolean) as string[]
-
-    console.log(`[v0] Found ${cssSources.length} CSS files`)
-
-    // Fetch external CSS
-    const cssFetches = await Promise.all(
-      cssSources.map(async (href) => {
-        const result = await fetchUrlContent(href)
-        return { href, ...result }
-      }),
-    )
-
-    // Extract inline CSS
-    const inlineCss = Array.from(document.querySelectorAll("style"))
-      .map((s) => s.textContent || "")
-      .filter(Boolean)
-
-    // Combine and process CSS
-    const rawCSS = [
-      ...cssFetches.filter((c) => c.success).map((c) => `/* From: ${c.href} */\n${c.content}`),
-      ...inlineCss.map((css, i) => `/* Inline style ${i + 1} */\n${css}`),
-    ].join("\n\n")
-
-    const fullCSS = rawCSS
-    console.log(`[v0] Full CSS: ${fullCSS.length} characters`)
-
-    // Extract JavaScript sources
-    const scriptSources = Array.from(document.querySelectorAll("script[src]"))
-      .map((el) => {
-        try {
-          return new URL((el as HTMLScriptElement).src, baseURL).href
-        } catch {
-          return null
+        
+        const data = analysisCache.get(id)
+        if (!data) {
+            // Logique pour s'assurer que si l'ID est trop ancien, la date n'est pas un problème
+            return NextResponse.json({ error: "Analysis data not found or expired. Cache is only valid for 5 minutes." }, { status: 404 })
         }
-      })
-      .filter(Boolean) as string[]
 
-    console.log(`[v0] Found ${scriptSources.length} JS files`)
+        analysisCache.delete(id) 
 
-    // Fetch external JS and detect animations
-    const scriptFetches = await Promise.all(
-      scriptSources.map(async (src) => {
-        const result = await fetchUrlContent(src)
-        const animationInfo = result.success
-          ? detectAnimationLibrary(result.content)
-          : { isAnimation: false, confidence: 0 }
-        return { src, ...result, ...animationInfo }
-      }),
-    )
+        return NextResponse.json({ success: true, ...data })
+    }
+    
+    // 2. Action d'analyse
+    try {
+        const body = await request.json()
+        let urlToAnalyze = body.url as string
 
-    // Extract inline JS
-    const inlineJs = Array.from(document.querySelectorAll("script:not([src])"))
-      .map((s) => s.textContent || "")
-      .filter(Boolean)
+        if (!urlToAnalyze) {
+            return NextResponse.json({ error: "URL is required" }, { status: 400 })
+        }
 
-    // Combine JS
-    const fullJS = [
-      ...scriptFetches.filter((s) => s.success).map((s) => `/* From: ${s.src} */\n${s.content}`),
-      ...inlineJs.map((js, i) => `/* Inline script ${i + 1} */\n${js}`),
-    ].join("\n\n")
+        if (!/^https?:\/\//i.test(urlToAnalyze)) {
+            urlToAnalyze = "https://" + urlToAnalyze
+        }
 
-    // Detect animation files
-    const animationFiles = scriptFetches
-      .filter((s) => s.isAnimation)
-      .map((s) => ({
-        url: s.src,
-        content: s.content,
-        type: "js" as const,
-        isAnimation: true,
-        library: s.library,
-        confidence: s.confidence || 0,
-      }))
+        const mainResponse = await fetchUrlContent(urlToAnalyze)
+        if (!mainResponse.success) {
+          throw new Error("Could not fetch the main HTML content")
+        }
 
-    // Extract required CDN URLs
-    const requiredCdnUrls = [
-      ...cssSources.filter((url) => url.includes("cdn") || url.includes("googleapis")),
-      ...scriptSources.filter((url) => url.includes("cdn") || url.includes("googleapis")),
-    ]
+        const dom = new JSDOM(mainResponse.content)
+        const document = dom.window.document
+        const baseURL = new URL(urlToAnalyze).origin
 
-    console.log(`[v0] Analysis complete. Animation files: ${animationFiles.length}`)
+        const { cleanHTML, usedClasses } = processHTML(document.body.innerHTML)
+        
+        // Extraction CSS
+        const cssSources = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+          .map((el) => {
+            try { return new URL((el as HTMLLinkElement).href, baseURL).href } catch { return null }
+          })
+          .filter(Boolean) as string[]
 
-    return NextResponse.json({
-      title,
-      description,
-      fullHTML: cleanHTML,
-      fullCSS: fullCSS,
-      fullJS: fullJS,
-      baseURL,
-      animationFiles,
-      requiredCdnUrls,
-      usedClasses: Array.from(usedClasses),
-      techGuesses: [
-        ...animationFiles.map((f) => f.library).filter(Boolean),
-        fullCSS.includes("tailwind") ? "Tailwind CSS" : null,
-        fullJS.includes("react") ? "React" : null,
-        fullJS.includes("vue") ? "Vue.js" : null,
-      ].filter(Boolean),
-      stylesheets: cssSources.length,
-      internalLinks: document.querySelectorAll('a[href^="/"], a[href^="./"], a[href^="../"]').length,
-      externalLinks: document.querySelectorAll('a[href^="http"]').length,
-      images: Array.from(document.querySelectorAll("img")).map((img) => (img as HTMLImageElement).src),
-      openGraphTags: document.querySelectorAll('meta[property^="og:"]').length,
-    })
-  } catch (err: any) {
-    console.error("[v0] Analysis error:", err)
-    return NextResponse.json(
-      {
-        error: `Analysis failed: ${err.message}`,
-        details: err.stack,
-      },
-      { status: 500 },
-    )
-  }
+        const cssFetches = await Promise.all(
+          cssSources.map(async (href) => {
+            const result = await fetchUrlContent(href)
+            return { href, ...result }
+          }),
+        )
+
+        const inlineCss = Array.from(document.querySelectorAll("style"))
+          .map((s) => s.textContent || "")
+          .filter(Boolean)
+
+        const rawCSS = [
+          ...cssFetches.filter((c) => c.success).map((c) => `/* From: ${c.href} */\n${c.content}`),
+          ...inlineCss.map((css, i) => `/* Inline style ${i + 1} */\n${css}`),
+        ].join("\n\n")
+
+        const fullCSS = rawCSS
+
+        // Extraction JS
+        const scriptSources = Array.from(document.querySelectorAll("script[src]"))
+          .map((el) => {
+            try { return new URL((el as HTMLScriptElement).src, baseURL).href } catch { return null }
+          })
+          .filter(Boolean) as string[]
+
+        const scriptFetches = await Promise.all(
+          scriptSources.map(async (src) => {
+            const result = await fetchUrlContent(src)
+            const animationInfo = result.success
+              ? detectAnimationLibrary(result.content)
+              : { isAnimation: false, confidence: 0 }
+            return { src, ...result, ...animationInfo }
+          }),
+        )
+
+        const inlineJs = Array.from(document.querySelectorAll("script:not([src])"))
+          .map((s) => s.textContent || "")
+          .filter(Boolean)
+
+        const fullJS = [
+          ...scriptFetches.filter((s) => s.success).map((s) => `/* From: ${s.src} */\n${s.content}`),
+          ...inlineJs.map((js, i) => `/* Inline script ${i + 1} */\n${js}`),
+        ].join("\n\n")
+
+
+        // STOCKAGE TEMPORAIRE ET ID UNIQUE
+        const uniqueId = generateUniqueId()
+        
+        analysisCache.set(uniqueId, {
+            fullHTML: cleanHTML, 
+            fullCSS: fullCSS,
+            fullJS: fullJS,
+        })
+        
+        // Nettoyage après 5 minutes (300 000 ms)
+        setTimeout(() => analysisCache.delete(uniqueId), 300000) 
+
+        return NextResponse.json({
+          success: true,
+          analysisId: uniqueId, // L'ID pour la récupération par le frontend
+        })
+
+    } catch (err: any) {
+        console.error("[v0] Analysis error:", err)
+        return NextResponse.json(
+          {
+            error: `Analysis failed: ${err.message}`,
+            details: err.stack,
+          },
+          { status: 500 },
+        )
+    }
 }
+  
