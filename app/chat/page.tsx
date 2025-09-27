@@ -876,63 +876,7 @@ const parseMessageContent = (content: string) => {
     }
   }
 
-  const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string) => {
-    try {
-      setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze}...`)
-      addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
-      const analysisRes = await fetch("/api/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToAnalyze }),
-      })
-      const analysisData = await analysisRes.json()
-      if (!analysisRes.ok) throw new Error(`Analysis API failed: ${analysisData.error}`)
-      addLog("[AUTO-FLOW] ✅ Analysis API call successful.")
-
-      const globalCssVariables = parseRootVariables(analysisData.fullCSS)
-      const fontFaces = extractFontFaces(analysisData.fullCSS)
-
-      setAnalysisStatus(`2/4: Recherche des composants pertinents...`)
-      const componentsToFind = findPotentialComponents(analysisData.fullHTML)
-      const isolatedComponents = []
-      addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
-
-      for (const comp of componentsToFind) {
-        setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
-        addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
-
-        const hiddenIframe = document.createElement("iframe")
-        hiddenIframe.style.display = "none"
-        document.body.appendChild(hiddenIframe)
-
-        const isolatedHtml = await new Promise<string>((resolve, reject) => {
-          hiddenIframe.onload = () => {
-            const iframeDoc = hiddenIframe.contentDocument
-            if (!iframeDoc) return reject(new Error("Could not access hidden iframe document."))
-            const element = iframeDoc.querySelector(comp.selector)
-            if (element) resolve(cloneWithComputedStyles(element).outerHTML)
-            else resolve("")
-            document.body.removeChild(hiddenIframe)
-          }
-          hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${analysisData.baseURL}"><style>${analysisData.fullCSS}</style></head><body>${analysisData.fullHTML}</body></html>`
-        })
-
-        if (isolatedHtml) {
-          isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
-          addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
-        }
-      }
-
-      setAnalysisStatus(`4/4: Construction du prompt final pour Gemini...`)
-      addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
-      const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces:\n${fontFaces}\n\nIsolated Components:\n${isolatedComponents.map(c => `// Component: ${c.name}\n${c.html}`).join("\n\n")}\n---\nPlease generate the code as asked above.`
-      addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
-      await sendChat(finalPrompt)
-    } catch (err: any) {
-      addLog(`ERROR during automated analysis: ${err.message}`)
-      setAnalysisStatus(`Erreur durant l'analyse: ${err.message}`)
-    }
-  }
+  
 
 
 
