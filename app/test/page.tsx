@@ -1,6 +1,5 @@
 'use client';
 
-
 import React, { useEffect, useState } from "react";
 import { getHighlighter } from "shiki";
 
@@ -64,5 +63,5 @@ export default function ChatGPTCanvasCodeWithLines({
       </div>
     </div>
   );
-
+}
 
