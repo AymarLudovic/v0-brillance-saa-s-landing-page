@@ -994,15 +994,13 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
 
 
   const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string) => {
-    // 1. VÉRIFICATION DE LA SANDBOX (Correction de l'erreur précédente)
-    // ⚠️ Assurez-vous que 'sandboxId' est la variable d'état qui stocke l'ID de la sandbox E2B.
+    // 1. VÉRIFICATION DE LA SANDBOX (La correction précédente)
     if (!sandboxId) { 
         addLog("Please create a sandbox first.")
         return
     }
 
     setLoading(true)
-    // Réinitialise les états du mode "Clonage" après le lancement
     setIsCloning(false) 
     setCloneUrl("")
 
@@ -1010,8 +1008,6 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
       setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze}...`)
       addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
       
-      // Appel à l'API. Cette logique suppose que l'API /api/analyse retourne 
-      // fullHTML, fullCSS, et baseURL directement sans utiliser l'ID de cache temporaire.
       const analysisRes = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1022,14 +1018,21 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
       if (!analysisRes.ok) throw new Error(`Analysis API failed: ${analysisData.error}`)
       addLog("[AUTO-FLOW] ✅ Analysis API call successful.")
 
-      // Déconstruction des données nécessaires pour l'isolation
-      const { fullCSS, fullHTML, baseURL } = analysisData 
-      
+      // 🛑 CORRECTION ICI : Assurez-vous que les variables sont des chaînes (fallbacks)
+      const fullCSS = analysisData.fullCSS || ''
+      const fullHTML = analysisData.fullHTML || ''
+      const baseURL = analysisData.baseURL || '' 
+
+      if (!fullHTML) {
+          // Ajout d'une vérification explicite si le HTML est absent
+          throw new Error("Analysis failed: API did not return the required 'fullHTML' content. Check your scraping script.")
+      }
+
       // --- LOGIQUE D'ANALYSE CSS ET COMPOSANT ---
       
-      // ⚠️ Assurez-vous que parseRootVariables, extractFontFaces, findPotentialComponents,
-      // et cloneWithComputedStyles sont définis dans votre composant.
-      const globalCssVariables = parseRootVariables(fullCSS)
+      // Ces fonctions reçoivent maintenant une chaîne vide ('') si le CSS était manquant, 
+      // empêchant l'erreur "reading 'match'".
+      const globalCssVariables = parseRootVariables(fullCSS) 
       const fontFaces = extractFontFaces(fullCSS)
 
       setAnalysisStatus(`2/4: Recherche des composants pertinents...`)
@@ -1057,7 +1060,6 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
             
             document.body.removeChild(hiddenIframe)
           }
-          // Construction du srcdoc avec le contenu complet pour l'isolation CSS
           hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${baseURL}"><style>${fullCSS}</style></head><body>${fullHTML}</body></html>`
         })
 
@@ -1074,7 +1076,6 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
       const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces:\n${fontFaces}\n\nIsolated Components:\n${isolatedComponents.map(c => `// Component: ${c.name}\n${c.html}`).join("\n\n")}\n---\nPlease generate the code as asked above.`
       
       addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
-      // 5. Envoi du prompt riche au LLM pour la génération
       await sendChat(finalPrompt)
       
     } catch (err: any) {
@@ -1082,12 +1083,11 @@ Now, proceed with the original user request (if any) or acknowledge the file cre
       setAnalysisStatus(`Erreur durant l'analyse: ${err.message}`)
       
     } finally {
-      // Réinitialisation des états
       setLoading(false)
       setAnalysisStatus(null)
     }
-      }
-        
+                                                       }
+                                                       
   
 
 
