@@ -4,7 +4,7 @@ import { useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
 import { EditorView } from "@codemirror/view";
-import { HighlightStyle } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 
 // 🎨 Thème personnalisé façon GitHub/Xcode
@@ -67,10 +67,13 @@ function hello(name: string) {
         value={code}
         height="100%"
         theme={githubDiffTheme}
-        extensions={[javascript({ jsx: true, typescript: true }), githubHighlightStyle]}
+        extensions={[
+          javascript({ jsx: true, typescript: true }),
+          syntaxHighlighting(githubHighlightStyle),
+        ]}
         onChange={(value) => setCode(value)}
         style={{ height: "100%", fontFamily: "Mozilla Headline" }}
       />
     </div>
   );
-}
+    }
