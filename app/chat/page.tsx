@@ -1614,16 +1614,18 @@ const fileTree = buildFileTree(files)
 <CodeMirror
   value={files[activeFile]?.content || ""}
   height="100%"
+  // ⬅️ THÈME D'ORIGINE : xcodeLight pour la coloration et le style
+  theme={xcodeLight} 
+  
+  // ⬅️ EXTENSION DE LANGAGE : Essentielle pour le parsing (JS/TS/JSX)
   extensions={[
-    // Le langage est gardé pour le parsing de base du JS/TS
-    javascript({ jsx: true, typescript: true }), 
-    
-    // Le thème visuel personnalisé
-    ...customEditorExtension 
+    javascript({ jsx: true, typescript: true })
   ]}
+  
   onChange={updateFile}
-  style={{ height: "100%" }}
+  style={{ height: "100%", fontFamily: "Mozilla Headline"}}
 />
+
   
                 
 
