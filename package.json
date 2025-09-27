@@ -9,8 +9,10 @@
     "start": "next start"
   },
   "dependencies": {
+    "@lezer/highlight": "1.2.1",
     "@babel/runtime": "latest",
     "@codemirror/lang-javascript": "latest",
+    "@codemirror/language": "6.11.2",
     "@codemirror/state": "latest",
     "@codemirror/theme-one-dark": "latest",
     "@codemirror/view": "latest",
