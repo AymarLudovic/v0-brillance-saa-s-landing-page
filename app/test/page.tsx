@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 type File = {
   name: string;
@@ -47,6 +47,8 @@ console.log("4 * 5 =", multiply(4,5));`,
 
 export default function ChatGPTCanvasExplorer() {
   const [selectedFile, setSelectedFile] = useState<File>(files[0]);
+  const codeRef = useRef<HTMLDivElement>(null);
+  const lineRef = useRef<HTMLDivElement>(null);
 
   const handleCopy = async () => {
     try {
@@ -56,7 +58,31 @@ export default function ChatGPTCanvasExplorer() {
     }
   };
 
+  // Synchronisation scroll vertical
+  useEffect(() => {
+    const codeEl = codeRef.current;
+    const lineEl = lineRef.current;
+    if (!codeEl || !lineEl) return;
+
+    const syncScroll = () => {
+      lineEl.scrollTop = codeEl.scrollTop;
+    };
+    codeEl.addEventListener("scroll", syncScroll);
+    return () => codeEl.removeEventListener("scroll", syncScroll);
+  }, [selectedFile]);
+
   const lines = selectedFile.code.split("\n");
+
+  // Simple highlight CSS
+  const highlight = (line: string) => {
+    return line
+      .replace(
+        /\b(function|return|if|else|export|import|console|log)\b/g,
+        '<span class="text-blue-600 font-semibold">$1</span>'
+      )
+      .replace(/(".*?")/g, '<span class="text-green-600">$1</span>')
+      .replace(/(\d+)/g, '<span class="text-purple-600">$1</span>');
+  };
 
   return (
     <div className="flex gap-4 p-6">
@@ -88,41 +114,36 @@ export default function ChatGPTCanvasExplorer() {
           </button>
         </div>
 
-        {/* Zone de code */}
-        <div className="flex font-mono text-sm overflow-x-auto">
-          <div style={{ display: "table", width: "100%" }}>
-            {lines.map((line, i) => (
-              <div key={i} style={{ display: "table-row" }}>
-                {/* Numéro de ligne */}
-                <span
-                  style={{
-                    display: "table-cell",
-                    width: "2em",
-                    paddingRight: "0.5em",
-                    textAlign: "right",
-                    backgroundColor: "#eee",
-                    userSelect: "none",
-                  }}
-                >
-                  {i + 1}
-                </span>
-                {/* Contenu du code */}
-                <span
-                  style={{
-                    display: "table-cell",
-                    whiteSpace: "pre",
-                    backgroundColor: "#fafafa",
-                    paddingLeft: "0.5em",
-                  }}
-                >
-                  {line || "\u00A0"}
-                </span>
+        {/* Zone code et numéros */}
+        <div className="flex text-sm font-mono">
+          {/* Numéros de ligne */}
+          <div
+            ref={lineRef}
+            className="bg-[#eee] text-gray-500 select-none text-right pr-2 leading-6 overflow-hidden"
+          >
+            {lines.map((_, i) => (
+              <div key={i} className="px-2">
+                {i + 1}
               </div>
+            ))}
+          </div>
+
+          {/* Code */}
+          <div
+            ref={codeRef}
+            className="overflow-auto p-4 leading-6"
+            style={{ whiteSpace: "pre" }}
+          >
+            {lines.map((line, i) => (
+              <div
+                key={i}
+                dangerouslySetInnerHTML={{ __html: highlight(line) || "\u00A0" }}
+              />
             ))}
           </div>
         </div>
       </div>
     </div>
   );
-        }
-                    
+               }
+            
