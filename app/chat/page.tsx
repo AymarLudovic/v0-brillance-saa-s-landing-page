@@ -1710,7 +1710,7 @@ const fileTree = buildFileTree(files)
               
               </div>
 
-// ... (à l'intérieur de votre condition de rendu) ...
+
               
               <div className="w-2/3 h-full bg-white flex flex-col">
                 
