@@ -6,6 +6,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import CodeMirror from "@uiw/react-codemirror"
 import { javascript } from "@codemirror/lang-javascript"
 import { xcodeLight } from "@uiw/codemirror-theme-xcode"
+import { EditorView } from "@codemirror/view"
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
+import { tags } from "@lezer/highlight" 
+
+
+
 
 import {
   Copy,
@@ -279,7 +285,121 @@ const applyChanges = (originalContent: string, changes: any[]): string => {
 
 
 
+// --- COULEURS ET STYLE DE BASE ---
+const customThemeColors = {
+  // Couleurs de la palette claire et moderne, inspirées de votre image
+  editorBackground: "#FFFFFF",
+  lineNumberBackground: "#F9F9F9", // Fond très clair pour les numéros
+  lineNumberColor: "#AAAAAA", // Gris discret pour les numéros
+  cursorColor: "#333333",
+  selectionBackground: "rgba(180, 215, 255, 0.4)", // Sélection bleu très doux
+  activeLineBackground: "#F9F9F9", // Ligne active très subtile
+  fontFamily: 'SF Mono, Monaco, Menlo, Consolas, "Courier New", monospace',
+  fontSize: '14px', 
+};
 
+
+// --- 1. LE THÈME GLOBAL (Aspect général et numérotation des lignes) ---
+
+const customEditorTheme = EditorView.theme({
+  "&": {
+    color: "#333333",
+    backgroundColor: customThemeColors.editorBackground,
+    fontFamily: customThemeColors.fontFamily,
+    fontSize: customThemeColors.fontSize,
+    height: "100%",
+  },
+  ".cm-content": {
+    caretColor: customThemeColors.cursorColor,
+    padding: "16px 0", // Espace vertical pour le code
+  },
+  ".cm-scroller": {
+    overflow: "auto",
+  },
+  
+  // Style de la Gouttière (où se trouvent les numéros de ligne)
+  ".cm-gutters": {
+    backgroundColor: customThemeColors.lineNumberBackground,
+    color: customThemeColors.lineNumberColor,
+    border: "none", // Supprime la bordure par défaut
+    paddingRight: "10px", // Espace après les numéros de ligne
+  },
+  ".cm-line": {
+    padding: "0 16px 0 0", // Espace à droite du code
+  },
+  
+  // Ligne active
+  ".cm-activeLine": {
+    backgroundColor: customThemeColors.activeLineBackground,
+  },
+  ".cm-activeLineGutter": {
+    backgroundColor: customThemeColors.lineNumberBackground,
+    color: "#333333", // Numéro de ligne devient plus foncé sur la ligne active
+    fontWeight: "600",
+  },
+  
+  // Sélection
+  "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
+    backgroundColor: customThemeColors.selectionBackground,
+  },
+}, { dark: false });
+
+
+// --- 2. LA COLORATION SYNTAXIQUE (Couleurs du code) ---
+// Ceci définit les couleurs du JSX, des imports, des types, etc.
+
+const customSyntaxHighlighting = HighlightStyle.define([
+  // Mots-clés (import, const, function, return, export)
+  { tag: [tags.keyword, tags.operatorKeyword, tags.controlKeyword, tags.moduleKeyword], 
+    color: "#AA0099" // Magenta/Purple vif
+  },
+  
+  // Chaînes de caractères (Strings)
+  { tag: [tags.string, tags.url, tags.special(tags.string)], 
+    color: "#338800" // Vert de code
+  }, 
+
+  // Types, Classes, et Noms d'Interface (ex: React.FC, interface)
+  { tag: [tags.typeName, tags.className], 
+    color: "#007AA3" // Cyan/Bleu clair
+  },
+
+  // Balises JSX/XML (ex: <div>, <Button>)
+  { tag: tags.tagName, 
+    color: "#B30000" // Rouge/Marron pour les balises
+  },
+  
+  // Noms de fonctions et de variables
+  { tag: [tags.function(tags.variableName), tags.variableName], 
+    color: "#000000" // Noir
+  },
+  
+  // Propriétés et Attributs (ex: className, value)
+  { tag: tags.propertyName, 
+    color: "#9E649E" // Violet doux
+  },
+
+  // Commentaires
+  { tag: tags.comment, 
+    color: "#AAAAAA" // Gris clair
+  },
+
+  // Nombres et Booléens
+  { tag: [tags.number, tags.bool], 
+    color: "#4895C9" // Bleu
+  },
+]);
+
+// --- EXTENSION FINALE À APPLIQUER ---
+const customEditorExtension = [
+  customEditorTheme,
+  syntaxHighlighting(customSyntaxHighlighting)
+];
+    
+
+
+
+                                      
 
 
 
@@ -1521,14 +1641,25 @@ const fileTree = buildFileTree(files)
               </div>
 
               <div className="w-2/3 h-full bg-white">
-                <CodeMirror
-                  value={files[activeFile]?.content || ""}
-                  height="100%"
-                  theme={xcodeLight}
-                  extensions={[javascript({ jsx: true, typescript: true })]}
-                  onChange={updateFile}
-                  style={{ height: "100%" }}
-                />
+                
+
+               // --- Bloc CodeMirror mis à jour ---
+<CodeMirror
+  value={files[activeFile]?.content || ""}
+  height="100%"
+  // RETIRER: theme={xcodeLight}
+
+  extensions={[
+    javascript({ jsx: true, typescript: true }),
+    // AJOUTER VOTRE THÈME PERSONNALISÉ
+    ...customEditorExtension
+  ]}
+  onChange={updateFile}
+  style={{ height: "100%" }}
+/>
+                
+
+  
               </div>
             </div>
           )}
