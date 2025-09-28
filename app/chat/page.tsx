@@ -892,51 +892,53 @@ const parseMessageContent = (content: string) => {
 
 
   const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
-    // ⚠️ Assurez-vous que runAction, currentProject, et sendChat sont disponibles dans le scope
-    addLog(`[CLONE-FLOW] Phase 2: Writing files for ${urlToAnalyze}...`)
-    setAnalysisStatus(`2/2: Écriture des fichiers du projet...`)
+    if (!currentProject || !setCurrentProject) {
+        addLog("ERROR: Project state is missing or cannot be updated.")
+        throw new Error("Project state is missing or cannot be updated.")
+    }
 
-    // Le contenu doit être échappé si vous utilisez des backticks dans la string template
+    addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
+    setAnalysisStatus(`2/2: Mise à jour du projet local...`)
+
+    // Échapper les backticks pour les templates strings
     const escapedHTML = fullHTML.replace(/`/g, '\\`')
     const escapedJS = fullJS.replace(/`/g, '\\`')
 
-    // 1. Définition des fichiers à écrire
-    const filesToWrite = [
-        // app/globals.css : CSS complet
+    // 1. Définition du contenu des fichiers
+    const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      {/* HTML cloné */}\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {/* JS extrait dans un script auto-exécuté */}\n      {${!!fullJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
+    
+    const filesToUpdate = [
         { filePath: "app/globals.css", content: fullCSS },
-        // app/page.tsx : HTML et JS via dangerouslySetInnerHTML
-        { 
-            filePath: "app/page.tsx", 
-            content: `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      {/* HTML cloné */}\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {/* JS extrait dans un script auto-exécuté */}\n      {${!!fullJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage` 
-        },
+        { filePath: "app/page.tsx", content: newPageContent },
     ]
 
-    // 2. Écrire les fichiers dans le sandbox via l'API /api/sandbox
-    try {
-        const fileWriteRes = await fetch("/api/sandbox", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                action: "addFiles",
-                sandboxId: currentProject?.sandboxId, // Utiliser currentProject?.sandboxId ou sandboxId selon votre implémentation
-                files: filesToWrite 
-            }),
-        })
-        
-        if (!fileWriteRes.ok) {
-            throw new Error("Failed to write files to sandbox.")
-        }
-    } catch (e: any) {
-        addLog(`❌ File write error: ${e.message}`)
-        throw new Error(`Échec de l'écriture des fichiers: ${e.message}`)
+    // 2. Mettre à jour l'état local du projet (Filetree)
+    // Créer une map pour une mise à jour facile (remplace ou ajoute)
+    const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
+
+    for (const { filePath, content } of filesToUpdate) {
+        newFilesMap.set(filePath, { filePath, content })
     }
 
+    const updatedFiles = Array.from(newFilesMap.values())
+
+    // Mise à jour de l'état du projet local (Ceci met à jour l'éditeur et le FileTree)
+    setCurrentProject(prevProject => {
+        if (!prevProject) return null
+        return {
+            ...prevProject,
+            files: updatedFiles,
+        }
+    })
+    
     // 3. Envoyer une instruction simple à Gemini
-    addLog("[CLONE-FLOW] ✅ Files written successfully. Notifying Gemini...")
-    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the files app/page.tsx and app/globals.css. The original user request was: "${originalUserPrompt}". Please proceed.`
+    addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini...")
+    // Le prompt informe l'IA que l'action est terminée, sans lui demander d'écrire elle-même.
+    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Please proceed.`
     
     await sendChat(simplePrompt)
-                                         }
+      }
+    
               
 
 
@@ -1785,18 +1787,20 @@ const fileTree = buildFileTree(files)
     {/* ZONE DE SAISIE DE CHAT */}
     <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
       <textarea
-      placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
-      className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
-      value={chatInput}
-      onChange={(e) => setChatInput(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault()
-          sendChat()
+    className="flex-1 resize-none bg-transparent h-10 overflow-hidden text-sm outline-none"
+    placeholder={loading ? "Waiting for response..." : "Ask Gemini to modify the code or describe your desired website..."}
+    value={userPrompt}
+    onChange={(e) => setUserPrompt(e.target.value)}
+    onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey && userPrompt && !loading && !isCloning) {
+            e.preventDefault()
+            sendMessage()
         }
-      }}
-      disabled={!currentProject || loading}
-    />
+    }}
+    disabled={loading || isCloning}
+    rows={1}
+/>
+
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
