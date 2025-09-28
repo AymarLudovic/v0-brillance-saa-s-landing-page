@@ -106,6 +106,73 @@ interface ConsolePanelProps {
   sandboxId: string | undefined;
 }
 
+
+
+
+
+
+// Ces codes sont temporaires. Vous les remplacerez par vos propres SVGs.
+// Types nécessaires pour la base de données
+type DatabaseProvider = 'appwrite' | 'firebase' | 'supabase' | null;
+
+interface DatabaseConfig {
+  provider: DatabaseProvider;
+  credentials: {
+    [key: string]: string;
+  };
+}
+
+// Icônes SVG (temporaires)
+const IconAppwrite = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM17.4375 14.5625L12 18.25L6.5625 14.5625L12 10.875L17.4375 14.5625Z" fill="currentColor"/>
+    </svg>
+);
+const IconFirebase = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 19H17L12 9L7 19Z" fill="currentColor"/>
+        <path d="M12 4L19 18H5L12 4Z" fill="currentColor" fillOpacity="0.5"/>
+    </svg>
+);
+const IconSupabase = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM10.5 17.5C10.5 16.6716 11.1716 16 12 16C12.8284 16 13.5 16.6716 13.5 17.5C13.5 18.3284 12.8284 19 12 19C11.1716 19 10.5 18.3284 10.5 17.5ZM12 5C10.8954 5 10 5.89543 10 7V13C10 14.1046 10.8954 15 12 15C13.1046 15 14 14.1046 14 13V7C14 5.89543 13.1046 5 12 5Z" fill="currentColor"/>
+    </svg>
+);
+
+// Données des fournisseurs
+const providersData = [
+    { 
+        id: 'appwrite', 
+        name: 'Appwrite', 
+        icon: IconAppwrite, 
+        credentials: ['NEXT_PUBLIC_APPWRITE_ENDPOINT', 'NEXT_PUBLIC_APPWRITE_PROJECT_ID'] 
+    },
+    { 
+        id: 'firebase', 
+        name: 'Firebase', 
+        icon: IconFirebase, 
+        credentials: ['FIREBASE_API_KEY', 'FIREBASE_AUTH_DOMAIN', 'FIREBASE_PROJECT_ID'] 
+    },
+    { 
+        id: 'supabase', 
+        name: 'Supabase', 
+        icon: IconSupabase, 
+        credentials: ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'] 
+    },
+];
+          
+
+
+
+
+
+
+
+
+
+
+
 // 🆕 NOUVEAU COMPOSANT : CONSOLEPANEL
 const ConsolePanel: React.FC<ConsolePanelProps> = ({ sandboxId }) => {
   const [logs, setLogs] = useState<ConsoleLog[]>([
@@ -526,6 +593,159 @@ export const customEditorExtension = [
     
 
 
+// --- DÉBUT DU COMPOSANT DatabaseConnector ---
+
+interface DatabaseConnectorProps {
+    dbConfig: DatabaseConfig | null;
+    setDbConfig: (config: DatabaseConfig | null) => void;
+    sendChat: (message: string) => Promise<void>;
+}
+
+const DatabaseConnector: React.FC<DatabaseConnectorProps> = ({ dbConfig, setDbConfig, sendChat }) => {
+    const [isSelectingProvider, setIsSelectingProvider] = useState(false);
+    const [selectedProviderId, setSelectedProviderId] = useState<DatabaseProvider>(null);
+    const [tempCredentials, setTempCredentials] = useState<{ [key: string]: string }>({});
+
+    // Récupère l'icône du fournisseur actif
+    const ActiveIcon = useMemo(() => {
+        if (!dbConfig) return null;
+        const provider = providersData.find(p => p.id === dbConfig.provider);
+        return provider ? provider.icon : null;
+    }, [dbConfig]);
+    
+    // Logique de connexion et notification de l'IA
+    const handleConnect = async () => {
+        if (!selectedProviderId) return;
+
+        const providerInfo = providersData.find(p => p.id === selectedProviderId);
+        if (!providerInfo) return;
+        
+        // 1. Mise à jour de la configuration
+        const newConfig: DatabaseConfig = {
+            provider: selectedProviderId,
+            credentials: tempCredentials,
+        };
+        
+        setDbConfig(newConfig); // Met à jour l'état et le localStorage
+        setIsSelectingProvider(false);
+        setSelectedProviderId(null);
+        setTempCredentials({});
+
+        // 2. Préparation et envoi du message à l'IA pour créer le .env
+        const envContent = Object.entries(tempCredentials)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n');
+            
+        const aiMessage = `[AUTOMATED ACTION] L'utilisateur a connecté la base de données ${providerInfo.name}. Veuillez créer un fichier d'environnement nommé .env à la racine du projet avec le contenu suivant pour configurer l'accès au backend :\n\n\`\`\`\n${envContent}\n\`\`\nAssurez-vous que les clés sont bien les variables d'environnement nécessaires pour ${providerInfo.name}.`;
+
+        await sendChat(aiMessage);
+    };
+
+    // La modale/le panneau de configuration
+    const ConfigurationPanel = () => {
+        const currentProvider = providersData.find(p => p.id === selectedProviderId);
+
+        if (!currentProvider) {
+            // Vue de sélection du fournisseur (Dropdown)
+            return (
+                <div className="p-4 border rounded shadow-lg bg-white min-w-48">
+                    <h3 className="font-semibold mb-3 text-sm">Sélectionner DB</h3>
+                    {providersData.map(p => (
+                        <button 
+                            key={p.id}
+                            className="w-full text-left py-2 px-3 hover:bg-gray-100 flex items-center gap-3 rounded"
+                            onClick={() => {
+                                const initialCreds = dbConfig?.provider === p.id ? dbConfig.credentials : {};
+                                setTempCredentials(initialCreds);
+                                setSelectedProviderId(p.id as DatabaseProvider);
+                            }}
+                        >
+                            {p.icon()} <span className="text-sm">{p.name}</span>
+                        </button>
+                    ))}
+                    {dbConfig && (
+                        <button 
+                            onClick={() => { setDbConfig(null); setIsSelectingProvider(false); }} 
+                            className="mt-3 w-full text-red-500 text-sm border-t pt-2"
+                        >
+                            Déconnecter
+                        </button>
+                    )}
+                </div>
+            );
+        }
+
+        // Vue de saisie des identifiants (si un provider est sélectionné)
+        return (
+            <div className="p-4 border rounded shadow-lg bg-white w-80">
+                <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">{currentProvider.icon()} {currentProvider.name} Credentials</h3>
+                {currentProvider.credentials.map(key => (
+                    <div key={key} className="mb-3">
+                        <label className="block text-xs font-medium mb-1">{key}</label>
+                        <input
+                            type="text"
+                            className="w-full p-2 border rounded text-sm"
+                            value={tempCredentials[key] || ''}
+                            onChange={(e) => setTempCredentials({ ...tempCredentials, [key]: e.target.value })}
+                            placeholder={key}
+                        />
+                    </div>
+                ))}
+                <button 
+                    onClick={handleConnect} 
+                    className="w-full bg-blue-600 text-white py-2 rounded mt-2 hover:bg-blue-700 transition"
+                    disabled={currentProvider.credentials.some(key => !tempCredentials[key] || tempCredentials[key] === '')}
+                >
+                    Connecter {currentProvider.name}
+                </button>
+                <button 
+                    onClick={() => setSelectedProviderId(null)} 
+                    className="w-full text-gray-600 py-1 text-sm mt-2 border-t pt-2"
+                >
+                    ← Retour à la sélection
+                </button>
+            </div>
+        );
+    };
+
+    return (
+        <div className="relative">
+            <button
+                className={`w-auto px-2 py-1 h-[25px] border rounded-[8px] flex items-center justify-center gap-2 text-sm transition-colors ${dbConfig ? 'bg-green-100 border-green-500 text-green-700 font-medium' : 'border-black hover:bg-gray-50'}`}
+                onClick={() => {
+                    setIsSelectingProvider(!isSelectingProvider);
+                    if (isSelectingProvider) { 
+                        setSelectedProviderId(null);
+                        setTempCredentials({});
+                    }
+                }}
+            >
+                {ActiveIcon ? (
+                    <>
+                        {ActiveIcon()} 
+                        <p className="text-xs">{dbConfig.provider}</p>
+                    </>
+                ) : (
+                    <p className="text-sm">Connect database</p>
+                )}
+            </button>
+            
+            {/* Rendu du panneau (positionné absolument) */}
+            {isSelectingProvider && (
+                <div className="absolute top-full mt-2 right-0 z-50">
+                    <ConfigurationPanel />
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+
+
+
+
+
 
                                       
 
@@ -556,6 +776,59 @@ const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ
          
   const [showSidebar, setShowSidebar] = useState(false)
 
+
+
+// --- DANS SandboxPage(), après vos autres const [state, setState] = useState(...) ---
+
+// NOUVEAUX ÉTATS ET FONCTIONS POUR LA BASE DE DONNÉES
+const [dbConfig, setDbConfigState] = useState<DatabaseConfig | null>(null);
+
+// Fonction enveloppe pour gérer l'état de la DB et le localStorage
+const setDbConfig = (config: DatabaseConfig | null) => {
+    setDbConfigState(config);
+    
+    if (config) {
+        localStorage.setItem('dbConfig', JSON.stringify(config));
+    } else {
+        localStorage.removeItem('dbConfig');
+    }
+    
+    // Notification à l'IA en cas de DÉCONNEXION
+    if (!config && dbConfigState?.provider) {
+         sendChat(`[AUTOMATED ACTION] L'utilisateur a déconnecté la base de données ${dbConfigState.provider}. Veuillez supprimer le fichier .env et notifier que le projet est maintenant sans backend configuré.`);
+    }
+};
+
+// USE EFFECT 1: Chargement initial depuis le localStorage
+useEffect(() => {
+    const savedConfig = localStorage.getItem('dbConfig');
+    if (savedConfig) {
+        try {
+            setDbConfigState(JSON.parse(savedConfig));
+        } catch (e) {
+            console.error("Failed to parse dbConfig from localStorage", e);
+            localStorage.removeItem('dbConfig');
+        }
+    }
+}, []);
+
+// USE EFFECT 2: Synchronisation de l'état 'files' (Celui que nous avons corrigé précédemment)
+useEffect(() => {
+    if (currentProject) {
+        if (currentProject.files !== files) {
+             setFiles(currentProject.files);
+        }
+    } else if (files.length > 0) {
+        setFiles([]);
+    }
+}, [currentProject, files, setFiles]);
+
+// ... (Vos autres fonctions et logiques)
+  
+
+
+
+  
 useEffect(() => {
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") setShowSidebar(false)
@@ -1837,11 +2110,19 @@ useEffect(() => {
         )}
         
         {/* BOUTON CONNECT DATABASE (Masqué si isCloning est vrai) */}
-        {!isCloning && (
-            <div className="w-auto p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center">
-              <p className="text-sm">Connect database</p>
-            </div>
-        )}
+        
+
+
+        // Remplacez le bloc existant de bouton dans votre JSX return(...)
+{/* BOUTON CONNECT DATABASE (Masqué si isCloning est vrai) */}
+{!isCloning && (
+    <DatabaseConnector
+        dbConfig={dbConfig}
+        setDbConfig={setDbConfig}
+        sendChat={sendChat}
+    />
+)}
+          
         
       </div>
      </div>
