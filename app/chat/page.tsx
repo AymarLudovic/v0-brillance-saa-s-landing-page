@@ -206,7 +206,7 @@ const ConsolePanel: React.FC<ConsolePanelProps> = ({ sandboxId }) => {
 // 🛑 NOUVEAU BLOC : Synchronisation de l'état local 'files' avec la source de vérité 'currentProject.files'
 
 // Dépend de currentProject (pour le changement de projet) et de la variable files elle-même
-}, [currentProject, files, setFiles]);
+
 
 // ... (le reste de votre composant)
       
