@@ -196,6 +196,20 @@ const ConsolePanel: React.FC<ConsolePanelProps> = ({ sandboxId }) => {
     </div>
   )
               }
+
+
+
+  // Assurez-vous d'importer useEffect : import { useState, useRef, useEffect, useMemo } from "react" 
+
+// ... (déclarations de useState, useMemo, etc.)
+
+// 🛑 NOUVEAU BLOC : Synchronisation de l'état local 'files' avec la source de vérité 'currentProject.files'
+
+// Dépend de currentProject (pour le changement de projet) et de la variable files elle-même
+}, [currentProject, files, setFiles]);
+
+// ... (le reste de votre composant)
+      
               
 
 
@@ -898,7 +912,7 @@ const parseMessageContent = (content: string) => {
  */
 
 
-     const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
     if (!currentProject || !setCurrentProject) {
         addLog("ERROR: Project state is missing or cannot be updated.")
         throw new Error("Project state is missing or cannot be updated.")
@@ -907,10 +921,14 @@ const parseMessageContent = (content: string) => {
     addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
     setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-    const escapedHTML = fullHTML.replace(/`/g, '\\`')
-    const escapedJS = fullJS.replace(/`/g, '\\`')
+    // 🛑 CORRECTION : Utiliser trim() pour supprimer les espaces/sauts de ligne qui cassent le JSX
+    const trimmedHTML = fullHTML.trim();
+    const trimmedJS = fullJS.trim();
 
-    const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!fullJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
+    const escapedHTML = trimmedHTML.replace(/`/g, '\\`')
+    const escapedJS = trimmedJS.replace(/`/g, '\\`')
+
+    const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
     
     const filesToUpdate = [
         { filePath: "app/globals.css", content: fullCSS },
@@ -939,7 +957,7 @@ const parseMessageContent = (content: string) => {
     
     await sendChat(simplePrompt)
 }
-
+  
 
   
     
@@ -1450,6 +1468,21 @@ const fileTree = useMemo(() => {
 }, [currentProject?.files]); 
   
 
+
+
+  // Assurez-vous d'importer useEffect : import { useState, useRef, useEffect, useMemo } from "react" 
+
+// ... (déclarations de useState, useMemo, etc.)
+useEffect(() => {
+    if (currentProject) {
+        if (currentProject.files !== files) {
+             setFiles(currentProject.files);
+        }
+    } else if (files.length > 0) {
+        setFiles([]);
+    }
+}, [currentProject, files, setFiles]);
+  
   
         
   // -------------------
