@@ -912,7 +912,10 @@ const parseMessageContent = (content: string) => {
  */
 
 
-const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+  
+
+  
+  const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
     if (!currentProject || !setCurrentProject) {
         addLog("ERROR: Project state is missing or cannot be updated.")
         throw new Error("Project state is missing or cannot be updated.")
@@ -921,15 +924,29 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
     addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
     setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-    // 🛑 CORRECTION : Utiliser trim() pour supprimer les espaces/sauts de ligne qui cassent le JSX
+    // 1. Nettoyage initial (trim)
     const trimmedHTML = fullHTML.trim();
     const trimmedJS = fullJS.trim();
 
-    const escapedHTML = trimmedHTML.replace(/`/g, '\\`')
-    const escapedJS = trimmedJS.replace(/`/g, '\\`')
+    // 2. Échappement agressif pour template literals
+    // Ceci empêche les caractères spéciaux (backslashes, backticks, dollars) de briser la syntaxe JSX/JS.
+    const escapeContent = (content: string) => {
+        return content
+            // 1. Échapper les backslashes: '\\' -> '\\\\' (Doit être fait en premier)
+            .replace(/\\/g, '\\\\') 
+            // 2. Échapper les backticks: '`' -> '\`'
+            .replace(/`/g, '\\`')
+            // 3. Échapper le signe dollar: '$' -> '\$'
+            .replace(/\$/g, '\\$');
+    };
+    
+    const escapedHTML = escapeContent(trimmedHTML);
+    const escapedJS = escapeContent(trimmedJS);
 
+    // 3. Construction du fichier app/page.tsx
     const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
     
+    // 4. Préparation de la mise à jour de l'état
     const filesToUpdate = [
         { filePath: "app/globals.css", content: fullCSS },
         { filePath: "app/page.tsx", content: newPageContent },
@@ -943,7 +960,7 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
 
     const updatedFiles = Array.from(newFilesMap.values())
 
-    // Mise à jour de l'état (Création d'une nouvelle référence d'array)
+    // 5. Mise à jour de l'état (Création d'une nouvelle référence d'array)
     setCurrentProject(prevProject => {
         if (!prevProject) return null
         return {
@@ -956,10 +973,7 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
     const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Please proceed.`
     
     await sendChat(simplePrompt)
-}
-  
-
-  
+      }
     
               
 
