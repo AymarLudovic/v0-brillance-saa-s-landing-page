@@ -727,12 +727,17 @@ const parseMessageContent = (content: string) => {
       const body: any = { action, sandboxId: sandboxId || undefined }
 
       if (action === "addFiles") {
-        if (!files.length || files.some((f) => !f.filePath)) {
+        // 🛑 CORRECTION: Utiliser currentProject.files comme source, car il contient les fichiers clonés
+        const filesToSend = currentProject?.files || [];
+        
+        if (!filesToSend.length || filesToSend.some((f) => !f.filePath)) {
+          // L'erreur est maintenant plus précise car elle vérifie la bonne liste
           addLog("ERROR: Missing file path for one or more files.")
           setLoading(false)
           return
         }
-        body.files = files
+        // Envoie les fichiers du projet actif
+        body.files = filesToSend
       }
 
       const res = await fetch("/api/sandbox", {
@@ -772,7 +777,8 @@ const parseMessageContent = (content: string) => {
           else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
         }
       } else if (data.success && action === "addFiles") {
-        addLog(`${files.length} files written successfully.`)
+        // Utilise la longueur de la liste envoyée pour le log
+        addLog(`${currentProject?.files.length || 0} files written successfully.`)
         if (currentProject) saveProject()
       } else if (data.success && action === "create") {
         addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
@@ -790,7 +796,9 @@ const parseMessageContent = (content: string) => {
     } finally {
       setLoading(false)
     }
-  }
+        }
+            
+  
 
   const applyAndSetFiles = (responses: any[]) => {
     const newFiles = [...files]
