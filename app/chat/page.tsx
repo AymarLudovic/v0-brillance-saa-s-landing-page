@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import  { useState, useRef, useEffect } from "react"
+import  { useState, useRef, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import CodeMirror from "@uiw/react-codemirror"
@@ -890,8 +890,7 @@ const parseMessageContent = (content: string) => {
  */
 
 
-
-  const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+     const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
     if (!currentProject || !setCurrentProject) {
         addLog("ERROR: Project state is missing or cannot be updated.")
         throw new Error("Project state is missing or cannot be updated.")
@@ -900,20 +899,16 @@ const parseMessageContent = (content: string) => {
     addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
     setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-    // Échapper les backticks pour les templates strings
     const escapedHTML = fullHTML.replace(/`/g, '\\`')
     const escapedJS = fullJS.replace(/`/g, '\\`')
 
-    // 1. Définition du contenu des fichiers
-    const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      {/* HTML cloné */}\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {/* JS extrait dans un script auto-exécuté */}\n      {${!!fullJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
+    const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!fullJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
     
     const filesToUpdate = [
         { filePath: "app/globals.css", content: fullCSS },
         { filePath: "app/page.tsx", content: newPageContent },
     ]
 
-    // 2. Mettre à jour l'état local du projet (Filetree)
-    // Créer une map pour une mise à jour facile (remplace ou ajoute)
     const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
 
     for (const { filePath, content } of filesToUpdate) {
@@ -922,22 +917,23 @@ const parseMessageContent = (content: string) => {
 
     const updatedFiles = Array.from(newFilesMap.values())
 
-    // Mise à jour de l'état du projet local (Ceci met à jour l'éditeur et le FileTree)
+    // Mise à jour de l'état (Création d'une nouvelle référence d'array)
     setCurrentProject(prevProject => {
         if (!prevProject) return null
         return {
             ...prevProject,
-            files: updatedFiles,
+            files: updatedFiles, 
         }
     })
     
-    // 3. Envoyer une instruction simple à Gemini
     addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini...")
-    // Le prompt informe l'IA que l'action est terminée, sans lui demander d'écrire elle-même.
     const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Please proceed.`
     
     await sendChat(simplePrompt)
-      }
+}
+
+
+  
     
               
 
@@ -1419,7 +1415,28 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
 
 
   
-const fileTree = buildFileTree(files)
+
+
+
+// Assurez-vous que useMemo est importé depuis 'react'
+// REMPLACEZ VOTRE DÉFINITION STATIQUE PAR CE BLOC RÉACTIF
+
+const fileTree = useMemo(() => {
+    // Utilise currentProject.files comme source de données (votre 'files' doit pointer vers ceci)
+    const files = currentProject?.files || [];
+
+    if (files.length === 0) {
+        return new Map();
+    }
+    
+    // Appel à votre fonction buildFileTree
+    return buildFileTree(files); 
+    
+// 🛑 Dépendance essentielle : assure que le calcul se fait après la mise à jour de l'état.
+}, [currentProject?.files]); 
+  
+
+  
         
   // -------------------
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
