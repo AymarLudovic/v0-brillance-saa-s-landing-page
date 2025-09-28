@@ -1020,53 +1020,37 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
     let baseURL = '';
 
     try {
-      setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze} (Déclenchement)...`)
+      setAnalysisStatus(`1/2: Analyse de ${urlToAnalyze} (Récupération des données)...`)
       addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
       
-      // --- ÉTAPE 1: DÉCLENCHER L'ANALYSE ET OBTENIR L'ID DE CACHE ---
-      const initialAnalysisRes = await fetch("/api/analyse", {
+      // --- LOGIQUE EN UNE SEULE ÉTAPE : ON S'ATTEND À RECEVOIR TOUT LE CONTENU ---
+      const analysisRes = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: urlToAnalyze }),
       })
-      const initialAnalysisData = await initialAnalysisRes.json()
+      const analysisData = await analysisRes.json()
       
-      if (!initialAnalysisRes.ok) throw new Error(`Analysis API failed: ${initialAnalysisData.error}`)
-      const analysisId = initialAnalysisData.analysisId
-      if (!analysisId) {
-          throw new Error("Analysis ID not returned by API.")
+      if (!analysisRes.ok || !analysisData.success) {
+          throw new Error(`Analysis API failed: ${analysisData.error || analysisRes.statusText}`)
       }
 
-
-      // --- ÉTAPE 2: RÉCUPÉRER LES DONNÉES VOLUMINEUSES VIA L'ID DE CACHE ---
-      setAnalysisStatus(`1/4: Analyse de ${urlToAnalyze} (Récupération des données)...`)
-      addLog(`[AUTO-FLOW] Fetching cached data with ID: ${analysisId}`)
-      
-      const dataRes = await fetch(`/api/analyse?action=get_data&id=${analysisId}`, {
-        method: 'POST',
-      })
-      const finalAnalysisData = await dataRes.json()
-
-      if (!dataRes.ok || !finalAnalysisData.success) {
-        throw new Error(`Failed to retrieve large analysis data: ${finalAnalysisData.error || dataRes.statusText}`)
-      }
-
-      // 3. Extraction des données (Avec fallbacks de sécurité)
-      fullCSS = finalAnalysisData.fullCSS || ''
-      fullHTML = finalAnalysisData.fullHTML || ''
-      fullJS = finalAnalysisData.fullJS || ''
+      // 2. Extraction des données
+      fullCSS = analysisData.fullCSS || ''
+      fullHTML = analysisData.fullHTML || ''
+      fullJS = analysisData.fullJS || ''
       baseURL = new URL(urlToAnalyze).origin 
 
       if (!fullHTML) {
-          throw new Error("Analysis failed: API returned success but 'fullHTML' content is empty.")
+          throw new Error("Analysis failed: API did not return 'fullHTML' content.")
       }
       
       // --- ÉTAPE 3: DISPATCHING DE LA LOGIQUE ---
       if (isCloning) {
-          // MODE CLONAGE (Bouton Clone Website)
+          // Mode CLONAGE (écriture locale)
           await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze, originalUserPrompt);
       } else {
-          // MODE ISOLATION (Artefact 'url' du LLM)
+          // Mode ISOLATION (prompt riche)
           await runIsolationAndGeneration(fullHTML, fullCSS, baseURL, urlToAnalyze, originalUserPrompt);
       }
 
@@ -1079,7 +1063,8 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
       setLoading(false)
       setAnalysisStatus(null)
     }
-  }
+        }
+             
              
                                                        
 
@@ -1787,18 +1772,20 @@ const fileTree = buildFileTree(files)
     {/* ZONE DE SAISIE DE CHAT */}
     <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
       <textarea
-      placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
-      className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
-      value={chatInput}
-      onChange={(e) => setChatInput(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault()
-          sendChat()
-        }
-      }}
-      disabled={!currentProject || loading}
-    />
+  placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
+  className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
+  value={chatInput}
+  onChange={(e) => setChatInput(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendChat()
+    }
+  }}
+  
+  disabled={!currentProject || loading || isCloning}
+/>
+  
 
     </div>
     
