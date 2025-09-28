@@ -1,22 +1,8 @@
 import { NextResponse } from "next/server"
 import { JSDOM } from "jsdom"
-// REMOVED: import crypto from "crypto"
+// NOTE: Le cache analysisCache, generateUniqueId et le nettoyage sont supprimés.
 
-// 🆕 Cache en mémoire pour les résultats d'analyse volumineux
-// Key: unique ID, Value: { fullHTML: string, fullCSS: string, fullJS: string }
-const analysisCache = new Map<string, { fullHTML: string; fullCSS: string; fullJS: string }>()
-
-/**
- * Génère un ID unique en utilisant le timestamp et un nombre aléatoire,
- * assurant qu'il n'y a pas besoin de packages externes comme 'crypto'.
- */
-function generateUniqueId(): string {
-  const timestamp = Date.now().toString(36) // Base 36 pour compacité
-  const randomPart = Math.random().toString(36).substring(2, 9) // 7 caractères aléatoires
-  return timestamp + randomPart
-}
-
-// --- Fonctions d'Analyse (Fournies par l'utilisateur) ---
+// --- Fonctions d'Analyse ---
 
 async function fetchUrlContent(url: string): Promise<{ success: boolean; content: string }> {
   try {
@@ -83,31 +69,11 @@ function processHTML(html: string): { cleanHTML: string; usedClasses: Set<string
   return { cleanHTML: html, usedClasses }
 }
 
-// --- Route principale ---
+// --- Route principale (MODIFIÉE) ---
 
 export async function POST(request: Request) {
-    const url = new URL(request.url)
-    const action = url.searchParams.get('action')
-
-    // 1. Action de récupération des données volumineuses
-    if (action === 'get_data') {
-        const id = url.searchParams.get('id')
-        if (!id) {
-            return NextResponse.json({ error: "Analysis ID is required" }, { status: 400 })
-        }
-        
-        const data = analysisCache.get(id)
-        if (!data) {
-            // Logique pour s'assurer que si l'ID est trop ancien, la date n'est pas un problème
-            return NextResponse.json({ error: "Analysis data not found or expired. Cache is only valid for 5 minutes." }, { status: 404 })
-        }
-
-        analysisCache.delete(id) 
-
-        return NextResponse.json({ success: true, ...data })
-    }
+    // 1. Suppression de la logique 'get_data' qui n'est plus nécessaire.
     
-    // 2. Action d'analyse
     try {
         const body = await request.json()
         let urlToAnalyze = body.url as string
@@ -183,21 +149,12 @@ export async function POST(request: Request) {
         ].join("\n\n")
 
 
-        // STOCKAGE TEMPORAIRE ET ID UNIQUE
-        const uniqueId = generateUniqueId()
-        
-        analysisCache.set(uniqueId, {
-            fullHTML: cleanHTML, 
-            fullCSS: fullCSS,
-            fullJS: fullJS,
-        })
-        
-        // Nettoyage après 5 minutes (300 000 ms)
-        setTimeout(() => analysisCache.delete(uniqueId), 300000) 
-
+        // 🛑 RETOUR IMMÉDIAT DU CONTENU COMPLET (plus de cache)
         return NextResponse.json({
           success: true,
-          analysisId: uniqueId, // L'ID pour la récupération par le frontend
+          fullHTML: cleanHTML, // AJOUTÉ
+          fullCSS: fullCSS,    // AJOUTÉ
+          fullJS: fullJS,      // AJOUTÉ
         })
 
     } catch (err: any) {
@@ -210,5 +167,5 @@ export async function POST(request: Request) {
           { status: 500 },
         )
     }
-}
+      }
   
