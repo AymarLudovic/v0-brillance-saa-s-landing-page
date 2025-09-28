@@ -999,7 +999,11 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
 
   
 
-           const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string, isCloning: boolean = false) => {
+           
+             
+             
+                                                       
+const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string, isCloning: boolean = false) => {
     // 1. VÉRIFICATION DE LA SANDBOX
     if (!sandboxId) { 
         addLog("Please create a sandbox first.")
@@ -1019,7 +1023,6 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
       setAnalysisStatus(`1/2: Analyse de ${urlToAnalyze} (Récupération des données)...`)
       addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
       
-      // --- LOGIQUE EN UNE SEULE ÉTAPE : ON S'ATTEND À RECEVOIR TOUT LE CONTENU ---
       const analysisRes = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1028,13 +1031,18 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
       const analysisData = await analysisRes.json()
       
       if (!analysisRes.ok || !analysisData.success) {
+          // Affichage de l'erreur dans les logs si l'API a échoué
+          addLog(`❌ Analysis API responded with error: ${analysisData.error || analysisRes.statusText}`);
           throw new Error(`Analysis API failed: ${analysisData.error || analysisRes.statusText}`)
       }
 
-      // 2. Extraction des données
+      // 2. Extraction des données et VÉRIFICATION DES TAILLES DANS LES LOGS
       fullCSS = analysisData.fullCSS || ''
       fullHTML = analysisData.fullHTML || ''
       fullJS = analysisData.fullJS || ''
+      
+      addLog(`[DEBUG - API Content Check] HTML size: ${fullHTML.length}, CSS size: ${fullCSS.length}, JS size: ${fullJS.length}`);
+
       baseURL = new URL(urlToAnalyze).origin 
 
       if (!fullHTML) {
@@ -1052,6 +1060,7 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
 
     } catch (err: any) {
       const errorMessage = err.message || "Une erreur inconnue est survenue."
+      // Le log d'erreur final est toujours important
       addLog(`ERROR during automated analysis: ${errorMessage}`)
       setAnalysisStatus(`Erreur durant l'analyse: ${errorMessage}`)
       
@@ -1060,10 +1069,7 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
       setAnalysisStatus(null)
     }
         }
-             
-             
-                                                       
-
+                                                  
       
 
 
@@ -2071,32 +2077,34 @@ const fileTree = useMemo(() => {
                 {/* 2. L'ÉDITEUR MONACO */}
                 <div className="flex-grow"> 
                   <Editor
-                    // Utilisation de la même valeur de fichier
-                    value={files[activeFile]?.content || ""}
-                    height="100%" 
-                    
-                    // Langage (Monaco reconnaît le TypeScript/JSX)
-                    defaultLanguage="typescript" 
-                    
-                    // Thème personnalisé défini dans handleEditorDidMount
-                    theme="customTheme" 
-                    
-                    // La fonction de montage qui applique toutes les configurations
-                    onMount={handleEditorDidMount} 
-                    
-                    // La fonction de changement de contenu (Monaco utilise OnChange)
-                    onChange={(value) => updateFile(value || "")} 
-                    
-                    // Options de configuration de l'éditeur
-                    options={{
-                        minimap: { enabled: true },
-                        lineNumbers: 'on',
-                        scrollBeyondLastLine: false,
-                        lineNumbersMinChars: 3, 
-                        fontFamily: "Mozilla Headline", 
-                        fontSize: 14, 
-                    }}
-                  />
+    // 🛑 CORRECTION : Lire directement à partir du projet actif (la source unique de vérité)
+    value={currentProject?.files[activeFile]?.content || ""}
+    
+    height="100%" 
+    
+    // Langage
+    defaultLanguage="typescript" 
+    
+    // Thème
+    theme="customTheme" 
+    
+    // La fonction de montage
+    onMount={handleEditorDidMount} 
+    
+    // La fonction de changement de contenu
+    onChange={(value) => updateFile(value || "")} 
+    
+    // Options
+    options={{
+        minimap: { enabled: true },
+        lineNumbers: 'on',
+        scrollBeyondLastLine: false,
+        lineNumbersMinChars: 3, 
+        fontFamily: "Mozilla Headline", 
+        fontSize: 14, 
+    }}
+/>
+
                 </div>
               </div>
               
