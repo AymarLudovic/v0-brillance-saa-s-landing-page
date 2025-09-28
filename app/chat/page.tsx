@@ -124,7 +124,7 @@ interface DatabaseConfig {
 
 // Icônes SVG (temporaires)
 const IconAppwrite = () => (
-    <svg class="max-w-full" xmlns="http://www.w3.org/2000/svg" width="70" height="50" viewBox="0 0 112 98"
+    <svg class="max-w-full" xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 112 98"
   fill="none">
   <path
     d="M111.1 73.4729V97.9638H48.8706C30.7406 97.9638 14.9105 88.114 6.44112 73.4729C5.2099 71.3444 4.13229 69.1113 3.22835 66.7935C1.45387 62.2516 0.338421 57.3779 0 52.2926V45.6712C0.0734729 44.5379 0.189248 43.4135 0.340647 42.3025C0.650124 40.0227 1.11768 37.7918 1.73218 35.6232C7.54544 15.0641 26.448 0 48.8706 0C71.2932 0 90.1935 15.0641 96.0068 35.6232H69.3985C65.0302 28.9216 57.4692 24.491 48.8706 24.491C40.272 24.491 32.711 28.9216 28.3427 35.6232C27.0113 37.6604 25.9782 39.9069 25.3014 42.3025C24.7002 44.4266 24.3796 46.6664 24.3796 48.9819C24.3796 56.0019 27.3319 62.3295 32.0653 66.7935C36.4515 70.9369 42.3649 73.4729 48.8706 73.4729H111.1Z"
@@ -135,7 +135,7 @@ const IconAppwrite = () => (
 </svg>
 );
 const IconFirebase = () => (
-    <svg width="40" height="40" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="20" height="20" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M213.918 560.499C237.166 569.856 262.387 575.408 288.87 576.333C324.71 577.585 358.792 570.175 389.261 556.099C352.724 541.744 319.634 520.751 291.392 494.651C273.086 523.961 246.01 547.113 213.918 560.499Z" fill="#FF9100"/>
 <path d="M291.389 494.66C226.923 435.038 187.815 348.743 191.12 254.092C191.228 251.019 191.39 247.947 191.58 244.876C180.034 241.89 167.98 240.068 155.576 239.635C137.821 239.015 120.626 241.217 104.393 245.788C87.1838 275.933 76.7989 310.521 75.5051 347.569C72.1663 443.18 130.027 526.723 213.914 560.508C246.007 547.121 273.082 523.998 291.389 494.66Z" fill="#FFC400"/>
 <path d="M291.39 494.657C306.378 470.671 315.465 442.551 316.523 412.254C319.306 332.559 265.731 264.003 191.581 244.873C191.391 247.944 191.229 251.016 191.121 254.089C187.816 348.74 226.924 435.035 291.39 494.657Z" fill="#FF9100"/>
@@ -656,12 +656,12 @@ const DatabaseConnector: React.FC<DatabaseConnectorProps> = ({ dbConfig, setDbCo
         if (!currentProvider) {
             // Vue de sélection du fournisseur (Dropdown)
             return (
-                <div className="p-2 border rounded-[12px] shadow-lg bg-[#F7F5F3] min-w-58">
+                <div className="p-2 border flex flex-col gap-2 rounded-[12px] shadow-lg bg-[#F7F5F3] w-[280px] h-[300px]">
                     <h3 className="font-semibold mb-3 text-sm">Choose provider</h3>
                     {providersData.map(p => (
                         <button 
                             key={p.id}
-                            className="w-full border  bg-transparent border-[rgba(55,50,47,0.90)] text-white h-[30px] rounded-[8px] flex items-center justify-center p-1"
+                            className="w-full border  bg-transparent border-[rgba(55,50,47,0.90)] text-black h-[35px] rounded-[8px] flex items-center justify-center p-1"
                             onClick={() => {
                                 const initialCreds = dbConfig?.provider === p.id ? dbConfig.credentials : {};
                                 setTempCredentials(initialCreds);
@@ -708,7 +708,7 @@ const DatabaseConnector: React.FC<DatabaseConnectorProps> = ({ dbConfig, setDbCo
                 </button>
                 <button 
                     onClick={() => setSelectedProviderId(null)} 
-                    className="w-full text-gray-600 py-1 text-sm mt-2 border-t pt-2"
+                    className="w-full text-gray-600 py-1 text-sm mt-2  pt-2"
                 >
                      Back to selection
                 </button>
