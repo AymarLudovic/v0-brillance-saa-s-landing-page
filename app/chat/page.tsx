@@ -970,7 +970,7 @@ const parseMessageContent = (content: string) => {
     })
     
     addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini...")
-    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Please proceed.`
+    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make an clone action of the website, just respond to tell to the user that you have understand the action and not generated codes.`
     
     await sendChat(simplePrompt)
       }
