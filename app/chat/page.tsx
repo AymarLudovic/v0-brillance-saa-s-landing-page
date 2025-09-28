@@ -1787,19 +1787,18 @@ const fileTree = buildFileTree(files)
     {/* ZONE DE SAISIE DE CHAT */}
     <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
       <textarea
-    className="flex-1 resize-none bg-transparent h-10 overflow-hidden text-sm outline-none"
-    placeholder={loading ? "Waiting for response..." : "Ask Gemini to modify the code or describe your desired website..."}
-    value={userPrompt}
-    onChange={(e) => setUserPrompt(e.target.value)}
-    onKeyDown={(e) => {
-        if (e.key === 'Enter' && !e.shiftKey && userPrompt && !loading && !isCloning) {
-            e.preventDefault()
-            sendMessage()
+      placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
+      className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
+      value={chatInput}
+      onChange={(e) => setChatInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault()
+          sendChat()
         }
-    }}
-    disabled={loading || isCloning}
-    rows={1}
-/>
+      }}
+      disabled={!currentProject || loading}
+    />
 
     </div>
     
