@@ -790,6 +790,8 @@ export default function SandboxPage() {
   // ⚠️ À placer au début de votre composant SandboxPage
 const [isCloning, setIsCloning] = useState(false)
 const [cloneUrl, setCloneUrl] = useState("")
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]); // Stocke les URLs Base64 des images
+const MAX_IMAGES = 5; // Limite le nombre d'images à uploader
   
 
 const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ CET ÉTAT
@@ -1406,16 +1408,53 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
       
 
 
+const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
 
+    // Fonction de lecture d'un fichier en Base64
+    const readAndProcessFile = (file: File) => {
+        if (!file.type.startsWith('image/')) {
+            addLog(`ERROR: Fichier non supporté: ${file.name}`);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64Url = e.target?.result as string;
+
+            setUploadedImages((prev) => {
+                if (prev.length >= MAX_IMAGES) return prev;
+                return [...prev, base64Url];
+            });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Traitement de tous les fichiers sélectionnés
+    Array.from(files).slice(0, MAX_IMAGES - uploadedImages.length).forEach(readAndProcessFile);
     
+    // Réinitialise l'input pour pouvoir uploader le même fichier à nouveau
+    event.target.value = '';
+};
+                            
+
+
+
+  
       
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
   
 
         const sendChat = async (promptOverride?: string) => {
+    // NOTE: Assurez-vous que toutes les dépendances (currentProject, chatInput, messages, 
+    // files, setLoading, setMessages, setChatInput, addLog, runAutomatedAnalysis, 
+    // fillFilesFromGeminiResponse, setAnalysisStatus, uploadedImages, setUploadedImages, 
+    // extractRawJson, parseMessageContent) sont définies dans la portée de SandboxPage.
+    
     const userPrompt = promptOverride || chatInput
-    if (!userPrompt) return
+    if (!userPrompt && uploadedImages.length === 0) return 
     if (!currentProject && !promptOverride) {
       addLog("Please create or load a project before starting a conversation.")
       return
@@ -1433,7 +1472,11 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
     let finalPrompt = ""
     if (!promptOverride) {
       const history = currentMessages.map((msg) => `${msg.role}: ${msg.content}`).join("\n")
-      const fileContext = files
+      
+      // 🛑 CORRECTION : Utilisation de currentProject.files pour le contexte
+      const filesToContext = currentProject?.files || []; 
+      
+      const fileContext = filesToContext
         .map((f) => {
           const numberedContent = f.content
             .split("\n")
@@ -1454,14 +1497,17 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: finalPrompt }),
+        body: JSON.stringify({ 
+            message: finalPrompt, 
+            uploadedImages: uploadedImages 
+        }), 
       })
       if (!res.ok || !res.body) throw new Error(`Gemini API request failed`)
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
-      let text = "" // Contenu brut total
-      let isParsingJson = false // Indicateur pour savoir si le bloc JSON a commencé
+      let text = "" 
+      let isParsingJson = false 
 
       // Initialise le message de l'assistant avec l'artefact vide
       setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }])
@@ -1506,7 +1552,6 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
                     parsedJson.filePath 
                 ) {
                     currentType = 'fileChanges'
-                    // On prend le chemin de fichier affecté
                     currentList = [parsedJson.filePath as string]
                 } 
                 // 3. Détection de l'URL d'inspiration
@@ -1546,7 +1591,7 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
                     lastMsg.artifactData = {
                         ...lastMsg.artifactData, 
                         ...newArtifactData, 
-                        rawJson: rawJsonContent || "" // Assure que rawJson est toujours mis à jour
+                        rawJson: rawJsonContent || "" 
                     } as any 
                 }
                 
@@ -1559,23 +1604,20 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
       
       // --- LOGIQUE POST-STREAM (Action finale) ---
       
-      // On utilise la fonction de parsing standard pour trouver l'artefact final complet
       const finalParsedContent = parseMessageContent(text); 
 
-      // 🆕 NOUVEAU: Si l'artefact 'url' est détecté, on lance l'analyse automatique.
+      // Si l'artefact 'url' est détecté, on lance l'analyse automatique.
       if (finalParsedContent.type === 'url') {
         const url = finalParsedContent.data as string
         addLog(`✅ Gemini suggests inspiration URL: ${url}`)
-        // Appel de la nouvelle fonction pour l'analyse
-        await runAutomatedAnalysis(url, userPrompt)
-        return // Sortie pour éviter la logique de fichier standard
+        await runAutomatedAnalysis(url, userPrompt) 
+        return 
       }
 
       // Traitement des fichiers (pour files et fileChanges).
       if (finalParsedContent.type === 'files' || finalParsedContent.type === 'fileChanges') {
         addLog("Response contains code, applying changes.")
-        // On appelle la fonction de modification avec le texte brut complet
-        fillFilesFromGeminiResponse(text)
+        fillFilesFromGeminiResponse(text) 
       } else {
         addLog("Response treated as simple text or unrecognized format.")
       }
@@ -1584,12 +1626,13 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
       addLog(`CLIENT-SIDE ERROR: ${err.message}`)
       setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }])
     } finally {
-      // Les états sont gérés par runAutomatedAnalysis en cas d'analyse, 
-      // ou ici dans les autres cas.
       setLoading(false)
       setAnalysisStatus(null) 
+      // Réinitialiser les images uploadées après l'envoi réussi
+      setUploadedImages([]) 
     }
-                                          }
+        }
+        
       
 
 
@@ -2178,10 +2221,50 @@ useEffect(() => {
           <p className="text-sm">Mention</p>
         </div>
         </div>
+
+
+
+
+      
+      
+    
       <div className="flex pr-1 items-center gap-1 mb-1">
-        <div className="h-[22px] w-[22px] relative -bottom-[2px]">
-          <Image size={16} />
-        </div>
+              
+<label className="flex pr-1 items-center gap-1  cursor-pointer">
+    <div className="h-[22px] w-[22px] relative -bottom-[2px]">
+        {/* L'icône du bouton d'upload (utiliser un simple SVG ou une icône) */}
+        <Image size={16} />
+    </div>
+    <input 
+        type="file" 
+        accept="image/*" 
+        multiple 
+        onChange={handleImageUpload} 
+        className="hidden" // Cache l'input par défaut
+    />
+</label>
+
+{/* ZONE D'AFFICHAGE DES IMAGES UPLOADEES */}
+{uploadedImages.length > 0 && (
+    <div className="flex flex-wrap gap-2 p-1 border-t border-gray-200 mt-1">
+        {uploadedImages.map((src, index) => (
+            <div key={index} className="relative w-[40px] h-[40px] rounded-[10px] overflow-hidden group">
+                <img 
+                    src={src} 
+                    alt={`Uploaded image ${index + 1}`} 
+                    className="w-full h-full object-cover"
+                />
+                <button
+                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
+                    title="Remove"
+                >
+                    X
+                </button>
+            </div>
+        ))}
+    </div>
+)}
         <Button
       className=" bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-full flex items-center justify-center p-1"
       onClick={() => sendChat()}
