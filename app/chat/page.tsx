@@ -1444,6 +1444,18 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
 
+    // Assurez-vous que MAX_FILES, uploadedImages et uploadedFiles sont définis (depuis l'état global)
+    // Exemple: const MAX_FILES = 5;
+
+    // 🛑 Calcul du nombre maximum de fichiers que l'on peut encore ajouter
+    const remainingSlots = MAX_FILES - (uploadedImages.length + uploadedFiles.length);
+
+    if (remainingSlots <= 0) {
+        addLog("ERROR: Limite maximale d'uploads (images + fichiers) atteinte.");
+        event.target.value = '';
+        return;
+    }
+
     // Fonction de lecture d'un fichier en Base64
     const readAndProcessFile = (file: File) => {
         if (!file.type.startsWith('image/')) {
@@ -1456,20 +1468,21 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             const base64Url = e.target?.result as string;
 
             setUploadedImages((prev) => {
-                if (prev.length >= MAX_IMAGES) return prev;
+                // Vérification finale au cas où l'état aurait changé pendant la lecture
+                if (prev.length + uploadedFiles.length >= MAX_FILES) return prev;
                 return [...prev, base64Url];
             });
         };
         reader.readAsDataURL(file);
     };
 
-    // Traitement de tous les fichiers sélectionnés
-    Array.from(files).slice(0, MAX_IMAGES - uploadedImages.length).forEach(readAndProcessFile);
+    // Traitement des fichiers, en limitant à la place restante
+    Array.from(files).slice(0, remainingSlots).forEach(readAndProcessFile);
     
-    // Réinitialise l'input pour pouvoir uploader le même fichier à nouveau
+    // Réinitialise l'input
     event.target.value = '';
 };
-                            
+  
 
 
 
