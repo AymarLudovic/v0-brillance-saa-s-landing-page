@@ -50,15 +50,21 @@ interface CommandResult {
 }
 
 
+
+
+
 interface Message {
   role: "user" | "assistant" | "system"
   content: string // Le contenu brut qui continue de streamer
+  images?: string[] // 🛑 NOUVEAU : Tableau des URL Base64 des images
   artifactData?: { 
-    type: 'files' | 'url' | 'fileChanges' | null // AJOUT de 'fileChanges'
-    rawJson: string // Le contenu JSON extrait (peut être incomplet)
-    parsedList: string[] // La liste des chemins de fichiers ou l'URL
+    type: 'files' | 'url' | 'fileChanges' | null
+    rawJson: string
+    parsedList: string[]
   }
 }
+// ... (Les autres interfaces Project, etc., restent inchangées)
+
 
 
 
@@ -1447,7 +1453,7 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
   
 
-        const sendChat = async (promptOverride?: string) => {
+const sendChat = async (promptOverride?: string) => {
     // NOTE: Assurez-vous que toutes les dépendances (currentProject, chatInput, messages, 
     // files, setLoading, setMessages, setChatInput, addLog, runAutomatedAnalysis, 
     // fillFilesFromGeminiResponse, setAnalysisStatus, uploadedImages, setUploadedImages, 
@@ -1463,7 +1469,12 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     setLoading(true)
     let currentMessages = messages
     if (!promptOverride) {
-      const newUserMessage = { role: "user", content: userPrompt }
+      // 🛑 MODIFICATION: Ajout du champ images au message utilisateur
+      const newUserMessage: Message = { 
+          role: "user", 
+          content: userPrompt, 
+          images: uploadedImages.length > 0 ? uploadedImages : undefined, 
+      } 
       currentMessages = [...messages, newUserMessage]
       setMessages(currentMessages)
       setChatInput("")
@@ -1473,7 +1484,7 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!promptOverride) {
       const history = currentMessages.map((msg) => `${msg.role}: ${msg.content}`).join("\n")
       
-      // 🛑 CORRECTION : Utilisation de currentProject.files pour le contexte
+      // 🛑 CORRECTION: Utilisation de currentProject.files pour la source de vérité
       const filesToContext = currentProject?.files || []; 
       
       const fileContext = filesToContext
@@ -1497,6 +1508,7 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // 🛑 Inclusion des images Base64 pour l'API
         body: JSON.stringify({ 
             message: finalPrompt, 
             uploadedImages: uploadedImages 
@@ -1587,7 +1599,6 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             
             if (lastMsg?.role === "assistant") {
                 if (newArtifactData || isParsingJson) {
-                    // On fusionne l'état précédent avec le nouvel état
                     lastMsg.artifactData = {
                         ...lastMsg.artifactData, 
                         ...newArtifactData, 
@@ -1595,7 +1606,6 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                     } as any 
                 }
                 
-                // Met toujours à jour le contenu brut pour le streaming
                 lastMsg.content = text
             }
             return updatedMessages
@@ -1628,12 +1638,12 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     } finally {
       setLoading(false)
       setAnalysisStatus(null) 
-      // Réinitialiser les images uploadées après l'envoi réussi
+      // 🛑 Réinitialiser les images uploadées après l'envoi réussi
       setUploadedImages([]) 
     }
-        }
-        
-      
+}
+
+
 
 
         
@@ -1949,7 +1959,7 @@ useEffect(() => {
           <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
             <svg
               className="h-[18px] w-[18px]"
-              xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)"
+              xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
             >
@@ -2039,7 +2049,6 @@ useEffect(() => {
             case 'url':
               // Fallback pour les messages non streamés (messages passés, erreurs)
               const isUrl = displayContent.type === 'url';
-              const isFiles = displayContent.type === 'files' || displayContent.type === 'fileChanges';
 
               return (
                 <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
@@ -2051,7 +2060,7 @@ useEffect(() => {
                     {Array.isArray(displayContent.data) ? displayContent.data.map((item, i) => (
                       <li key={i} className="text-xs w-full list-style-none  flex items-center gap-1 text-[#37322F]/80">
                         <span>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
+                        <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
                       </span>
                       <p>Edited</p>
                           <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] px-[12px] font-semibold">{item}</span>
@@ -2085,9 +2094,31 @@ useEffect(() => {
           }
         })()}
       </div>
+
+      {/* 🛑 NOUVEAU BLOC: Affichage des images persistantes de l'utilisateur */}
+      {msg.role === "user" && msg.images && msg.images.length > 0 && (
+          <div className="flex gap-1 mt-1">
+              {msg.images.map((base64Src, imgIndex) => (
+                  <div 
+                      key={imgIndex} 
+                      className="w-[25px] h-[25px] rounded-[8px] overflow-hidden" 
+                      title="Image fournie par l'utilisateur"
+                  >
+                      <img 
+                          src={base64Src} 
+                          alt={`User input image ${imgIndex + 1}`} 
+                          className="w-full h-full object-cover" 
+                      />
+                  </div>
+              ))}
+          </div>
+      )}
+      
     </div>
   );
 })}
+      
+
           
           
 
