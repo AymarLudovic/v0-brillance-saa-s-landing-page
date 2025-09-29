@@ -2424,11 +2424,22 @@ useEffect(() => {
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
 <div className="relative">
     <div 
-        className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center cursor-pointer hover:bg-gray-100"
+        className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] hidden items-center justify-center cursor-pointer hover:bg-gray-100"
         onClick={() => setIsPlusDropdownOpen(!isPlusDropdownOpen)}
     >
         <Plus size={16} />
     </div>
+
+  <label className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center cursor-pointer hover:bg-gray-100">
+                <Plus size={16} />
+                <input 
+                    type="file" 
+                    accept="*/*" // Tout type sauf ceux filtrés dans handleFileUpload
+                    multiple 
+                    onChange={handleFileUpload} 
+                    className="hidden" 
+                />
+            </label>
 
     {isPlusDropdownOpen && (
         <div className="absolute bottom-full mb-2 left-0 z-50 p-2 border rounded shadow-lg bg-white w-48">
