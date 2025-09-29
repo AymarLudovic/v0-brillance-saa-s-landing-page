@@ -438,7 +438,7 @@ const findPotentialComponents = (html: string): { tag: string; selector: string 
   const parser = new DOMParser()
   const doc = parser.parseFromString(html, "text/html")
   const components: { tag: string; selector: string }[] = []
-  const tagsToFind = ["header", "nav", "footer", "section", "button"]
+  const tagsToFind = ["header", "div", "img", "aside", "svg", "ul", "li", "h1", "h2", "h3", "h4", "p", "span", "a", "nav", "footer", "section", "button"]
   tagsToFind.forEach((tag) => {
     if (doc.querySelector(tag)) components.push({ tag, selector: tag })
   })
