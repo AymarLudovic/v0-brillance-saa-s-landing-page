@@ -50,19 +50,28 @@ interface CommandResult {
 }
 
 
-
-
-
 interface Message {
   role: "user" | "assistant" | "system"
-  content: string // Le contenu brut qui continue de streamer
-  images?: string[] // 🛑 NOUVEAU : Tableau des URL Base64 des images
+  content: string 
+  images?: string[] // URLs Base64 pour les images
+  // 🛑 NOUVEAU: Fichiers externes (uploadés)
+  externalFiles?: { fileName: string; base64Content: string }[] 
+  // 🛑 NOUVEAU: Fichiers internes (mentionnés par chemin)
+  mentionedFiles?: string[] 
   artifactData?: { 
     type: 'files' | 'url' | 'fileChanges' | null
     rawJson: string
     parsedList: string[]
   }
-}
+  }
+  
+
+
+
+
+  
+
+
 // ... (Les autres interfaces Project, etc., restent inchangées)
 
 
@@ -796,8 +805,25 @@ export default function SandboxPage() {
   // ⚠️ À placer au début de votre composant SandboxPage
 const [isCloning, setIsCloning] = useState(false)
 const [cloneUrl, setCloneUrl] = useState("")
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]); // Stocke les URLs Base64 des images
-const MAX_IMAGES = 5; // Limite le nombre d'images à uploader
+
+
+
+
+
+// ... (Vos autres états)
+const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+// 🛑 NOUVEAUX ÉTATS
+const [uploadedFiles, setUploadedFiles] = useState<{ fileName: string; base64Content: string }[]>([]);
+const [mentionedFiles, setMentionedFiles] = useState<string[]>([]);
+const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
+const MAX_FILES = 5; // Limite générale pour les fichiers et images
+  
+
+
+
+  
+  
   
 
 const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ CET ÉTAT
@@ -1447,20 +1473,94 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
 
 
+
+const handleScreenshot = async () => {
+    if (uploadedImages.length + uploadedFiles.length >= MAX_FILES) {
+        addLog("Limite d'uploads atteinte.");
+        setIsPlusDropdownOpen(false);
+        return;
+    }
+    
+    setIsPlusDropdownOpen(false);
+
+    try {
+        // Demande l'accès pour capturer le contenu de l'écran (onglet/fenêtre/écran)
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { mediaSource: 'screen' as any }, // 'screen' est plus strict
+            audio: false,
+        });
+
+        const videoTrack = stream.getVideoTracks()[0];
+        if (!videoTrack) throw new Error("Aucune piste vidéo trouvée.");
+
+        // Crée un objet ImageCapture pour prendre une photo
+        const imageCapture = new (window as any).ImageCapture(videoTrack);
+        const bitmap = await imageCapture.grabFrame();
+
+        // Crée un canvas pour convertir le bitmap en Base64
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error("Impossible de créer le contexte du canvas.");
+        ctx.drawImage(bitmap, 0, 0);
+
+        // Convertit le canvas en URL Base64
+        const base64Url = canvas.toDataURL('image/png');
+        
+        // Nettoyage
+        videoTrack.stop();
+        stream.getTracks().forEach(track => track.stop());
+        
+        setUploadedImages(prev => [...prev, base64Url]);
+        addLog("Capture d'écran ajoutée.");
+
+    } catch (err: any) {
+        if (err.name !== "NotAllowedError" && err.name !== "NotFoundError") {
+             addLog(`ERROR: Échec de la capture d'écran: ${err.message}`);
+        }
+    }
+};
+
+
+
+
+
+
+  const handleMentionFile = (filePath: string) => {
+    setMentionedFiles((prev) => {
+        // Basculement : si déjà présent, on le retire, sinon on l'ajoute
+        if (prev.includes(filePath)) {
+            return prev.filter(p => p !== filePath);
+        }
+        return [...prev, filePath];
+    });
+};
+
+const handleRemoveMention = (filePath: string) => {
+    setMentionedFiles((prev) => prev.filter(p => p !== filePath));
+};
+                
+
+  
+
   
       
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
   
-
 const sendChat = async (promptOverride?: string) => {
     // NOTE: Assurez-vous que toutes les dépendances (currentProject, chatInput, messages, 
     // files, setLoading, setMessages, setChatInput, addLog, runAutomatedAnalysis, 
     // fillFilesFromGeminiResponse, setAnalysisStatus, uploadedImages, setUploadedImages, 
+    // uploadedFiles, setUploadedFiles, mentionedFiles, setMentionedFiles,
     // extractRawJson, parseMessageContent) sont définies dans la portée de SandboxPage.
     
     const userPrompt = promptOverride || chatInput
-    if (!userPrompt && uploadedImages.length === 0) return 
+    
+    // Condition d'envoi élargie pour inclure tout type de contenu
+    if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return 
+    
     if (!currentProject && !promptOverride) {
       addLog("Please create or load a project before starting a conversation.")
       return
@@ -1469,11 +1569,13 @@ const sendChat = async (promptOverride?: string) => {
     setLoading(true)
     let currentMessages = messages
     if (!promptOverride) {
-      // 🛑 MODIFICATION: Ajout du champ images au message utilisateur
+      // 🛑 NOUVEAU: Ajout de TOUS les champs de fichiers/images au message utilisateur
       const newUserMessage: Message = { 
           role: "user", 
           content: userPrompt, 
           images: uploadedImages.length > 0 ? uploadedImages : undefined, 
+          externalFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined, 
+          mentionedFiles: mentionedFiles.length > 0 ? mentionedFiles : undefined, 
       } 
       currentMessages = [...messages, newUserMessage]
       setMessages(currentMessages)
@@ -1484,7 +1586,7 @@ const sendChat = async (promptOverride?: string) => {
     if (!promptOverride) {
       const history = currentMessages.map((msg) => `${msg.role}: ${msg.content}`).join("\n")
       
-      // 🛑 CORRECTION: Utilisation de currentProject.files pour la source de vérité
+      // 🛑 CONTEXTE: Utilisation de currentProject.files pour le contexte
       const filesToContext = currentProject?.files || []; 
       
       const fileContext = filesToContext
@@ -1508,10 +1610,12 @@ const sendChat = async (promptOverride?: string) => {
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // 🛑 Inclusion des images Base64 pour l'API
+        // 🛑 PAYLOAD: Inclusion de tous les contenus à envoyer à l'API
         body: JSON.stringify({ 
             message: finalPrompt, 
-            uploadedImages: uploadedImages 
+            uploadedImages: uploadedImages,
+            uploadedFiles: uploadedFiles, // Fichiers externes (Base64)
+            mentionedFiles: mentionedFiles, // Mentions (Juste les chemins pour info)
         }), 
       })
       if (!res.ok || !res.body) throw new Error(`Gemini API request failed`)
@@ -1638,10 +1742,16 @@ const sendChat = async (promptOverride?: string) => {
     } finally {
       setLoading(false)
       setAnalysisStatus(null) 
-      // 🛑 Réinitialiser les images uploadées après l'envoi réussi
+      
+      // 🛑 Réinitialisation de TOUS les états de fichiers/images après l'envoi
       setUploadedImages([]) 
+      setUploadedFiles([]) 
+      setMentionedFiles([]) 
     }
-}
+        }
+        
+            
+ 
 
 
 
@@ -2076,13 +2186,11 @@ useEffect(() => {
 
             case 'text':
             default:
-              // Nettoyage: On retire le bloc JSON (même incomplet) si l'artefact a été détecté par le stream
+              // Nettoyage: On retire le bloc JSON si l'artefact a été détecté
               let textContent = msg.content;
               if (artifact && (artifact.type || artifact.rawJson)) {
-                  // Retire le bloc JSON (même s'il est incomplet: ```json... jusqu'à ``` ou fin)
                   textContent = msg.content.replace(/```json[\s\S]*?(\s*```|$)/g, '').trim();
               } else if (displayContent.raw) {
-                  // Fallback pour le contenu non streamé (utilise la propriété raw de l'ancienne fonction)
                   textContent = displayContent.raw.replace(/```json\s*[\s\S]*?\s*```/g, '').trim() || displayContent.raw.trim();
               }
               
@@ -2095,7 +2203,7 @@ useEffect(() => {
         })()}
       </div>
 
-      {/* 🛑 NOUVEAU BLOC: Affichage des images persistantes de l'utilisateur */}
+      {/* 🛑 Affichage des images persistantes (25x25px) */}
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
           <div className="flex gap-1 mt-1">
               {msg.images.map((base64Src, imgIndex) => (
@@ -2114,9 +2222,33 @@ useEffect(() => {
           </div>
       )}
       
+      {/* 🛑 Affichage des fichiers externes persistants (Upload File) */}
+      {msg.role === "user" && msg.externalFiles && msg.externalFiles.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+              {msg.externalFiles.map((file, fileIndex) => (
+                   <div key={fileIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#F7F5F3] px-2 text-sm max-w-xs truncate">
+                      {file.fileName}
+                  </div>
+              ))}
+          </div>
+      )}
+
+      {/* 🛑 Affichage des mentions de fichiers persistantes (@Mention) */}
+      {msg.role === "user" && msg.mentionedFiles && msg.mentionedFiles.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+              {msg.mentionedFiles.map((filePath, mentionIndex) => (
+                  <div key={mentionIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
+                      @{filePath}
+                  </div>
+              ))}
+          </div>
+      )}
+      
     </div>
   );
 })}
+        
+          
       
 
           
@@ -2243,14 +2375,120 @@ useEffect(() => {
     
     {/* PIED DE PAGE DE CHAT */}
     <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
-        <div className="flex pl-1 items-center gap-1 mb-1">
-          <div className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center">
-          <Plus size={16} />
+        // --- BLOC DE BOUTONS DANS LE JSX PRINCIPAL ---
+
+{/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
+<div className="relative">
+    <div 
+        className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center cursor-pointer hover:bg-gray-100"
+        onClick={() => setIsPlusDropdownOpen(!isPlusDropdownOpen)}
+    >
+        <Plus size={16} />
+    </div>
+
+    {isPlusDropdownOpen && (
+        <div className="absolute bottom-full mb-2 left-0 z-50 p-2 border rounded shadow-lg bg-white w-48">
+            {/* Bouton Upload File */}
+            <label className="w-full text-left py-1.5 px-2 hover:bg-gray-100 flex items-center gap-2 rounded cursor-pointer text-sm">
+                Upload File
+                <input 
+                    type="file" 
+                    accept="*/*" // Tout type sauf ceux filtrés dans handleFileUpload
+                    multiple 
+                    onChange={handleFileUpload} 
+                    className="hidden" 
+                />
+            </label>
+            {/* Bouton Screenshot */}
+            <button 
+                className="w-full text-left py-1.5 px-2 hover:bg-gray-100 flex items-center gap-2 rounded text-sm mt-1"
+                onClick={handleScreenshot}
+            >
+                Screenshot Tab
+            </button>
         </div>
-        <div className="w-auto p-1 h-[20px] border border-black rounded-[12px] flex items-center justify-center">
-          <AtSign size={16} />
-          <p className="text-sm">Mention</p>
+    )}
+</div>
+
+{/* 2. BOUTON MENTION */}
+<div className="relative">
+    <div 
+        className="w-auto p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center gap-1 cursor-pointer hover:bg-gray-100"
+        onClick={() => setIsMentionDropdownOpen(!isMentionDropdownOpen)}
+    >
+        <AtSign size={16} />
+        <p className="text-sm pr-1">Mention</p>
+    </div>
+
+    {isMentionDropdownOpen && (
+        <div className="absolute bottom-full mb-2 left-0 z-50 p-2 border rounded shadow-lg bg-white w-60 max-h-60 overflow-y-auto">
+            <p className="text-xs font-semibold mb-1 border-b pb-1">Fichiers du Projet ({currentProject?.files.length || 0})</p>
+            {(currentProject?.files || []).map((file) => (
+                <button
+                    key={file.filePath}
+                    className={`w-full text-left py-1 px-2 flex items-center gap-2 rounded text-xs transition-all ${
+                        mentionedFiles.includes(file.filePath) ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-gray-100'
+                    }`}
+                    onClick={() => handleMentionFile(file.filePath)}
+                >
+                    {mentionedFiles.includes(file.filePath) ? '✅' : '☐'} {file.filePath}
+                </button>
+            ))}
+            {(currentProject?.files.length === 0 || !currentProject) && (
+                <p className="text-xs text-gray-500 italic">Aucun fichier dans le projet.</p>
+            )}
         </div>
+    )}
+</div>
+
+
+{/* 🛑 NOUVEAU BLOC : Affichage des Fichiers Uploadés et Mentionnés */}
+{(uploadedImages.length > 0 || uploadedFiles.length > 0 || mentionedFiles.length > 0) && (
+    <div className="flex flex-wrap gap-1.5 p-1 border-t border-gray-200 mt-1">
+        {/* Images (existant) */}
+        {uploadedImages.map((src, index) => (
+            <div key={`img-${index}`} className="relative w-[40px] h-[40px] rounded-[10px] overflow-hidden group">
+                <img 
+                    src={src} 
+                    alt="Image uploadée" 
+                    className="w-full h-full object-cover"
+                />
+                <button
+                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
+                    title="Retirer l'image"
+                >
+                    X
+                </button>
+            </div>
+        ))}
+        {/* Fichiers Externes (Nouveau) */}
+        {uploadedFiles.map((file, index) => (
+            <div key={`file-${index}`} className="flex items-center gap-1.5 h-[24px] border border-black rounded-[8px] bg-[#F7F5FF] px-2 text-sm max-w-xs truncate">
+                {file.fileName}
+                <button 
+                    onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
+                    className="text-xs text-red-600 font-bold"
+                >
+                    ×
+                </button>
+            </div>
+        ))}
+        {/* Fichiers Mentionnés (Nouveau) */}
+        {mentionedFiles.map((filePath, index) => (
+            <div key={`mention-${index}`} className="flex items-center gap-1.5 h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
+                @{filePath}
+                <button 
+                    onClick={() => handleRemoveMention(filePath)}
+                    className="text-xs text-red-600 font-bold"
+                >
+                    ×
+                </button>
+            </div>
+        ))}
+    </div>
+)}
+
         </div>
 
 
