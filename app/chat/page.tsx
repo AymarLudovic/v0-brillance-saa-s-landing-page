@@ -124,7 +124,7 @@ interface DatabaseConfig {
 
 // Icônes SVG (temporaires)
 const IconAppwrite = () => (
-    <svg class="max-w-full" xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 112 98"
+    <svg class="max-w-full" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 112 98"
   fill="none">
   <path
     d="M111.1 73.4729V97.9638H48.8706C30.7406 97.9638 14.9105 88.114 6.44112 73.4729C5.2099 71.3444 4.13229 69.1113 3.22835 66.7935C1.45387 62.2516 0.338421 57.3779 0 52.2926V45.6712C0.0734729 44.5379 0.189248 43.4135 0.340647 42.3025C0.650124 40.0227 1.11768 37.7918 1.73218 35.6232C7.54544 15.0641 26.448 0 48.8706 0C71.2932 0 90.1935 15.0641 96.0068 35.6232H69.3985C65.0302 28.9216 57.4692 24.491 48.8706 24.491C40.272 24.491 32.711 28.9216 28.3427 35.6232C27.0113 37.6604 25.9782 39.9069 25.3014 42.3025C24.7002 44.4266 24.3796 46.6664 24.3796 48.9819C24.3796 56.0019 27.3319 62.3295 32.0653 66.7935C36.4515 70.9369 42.3649 73.4729 48.8706 73.4729H111.1Z"
@@ -143,9 +143,21 @@ const IconFirebase = () => (
 </svg>
 );
 const IconSupabase = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM10.5 17.5C10.5 16.6716 11.1716 16 12 16C12.8284 16 13.5 16.6716 13.5 17.5C13.5 18.3284 12.8284 19 12 19C11.1716 19 10.5 18.3284 10.5 17.5ZM12 5C10.8954 5 10 5.89543 10 7V13C10 14.1046 10.8954 15 12 15C13.1046 15 14 14.1046 14 13V7C14 5.89543 13.1046 5 12 5Z" fill="currentColor"/>
-    </svg>
+    <svg width="21" height="21" viewBox="0 0 109 113" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint0_linear)"/>
+<path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint1_linear)" fill-opacity="0.2"/>
+<path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/>
+<defs>
+<linearGradient id="paint0_linear" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse">
+<stop stop-color="#249361"/>
+<stop offset="1" stop-color="#3ECF8E"/>
+</linearGradient>
+<linearGradient id="paint1_linear" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse">
+<stop/>
+<stop offset="1" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>
 );
 
 // Données des fournisseurs
@@ -656,12 +668,12 @@ const DatabaseConnector: React.FC<DatabaseConnectorProps> = ({ dbConfig, setDbCo
         if (!currentProvider) {
             // Vue de sélection du fournisseur (Dropdown)
             return (
-                <div className="p-2 border flex flex-col gap-2 rounded-[12px] shadow-lg bg-[#F7F5F3] w-[280px] h-[300px]">
+                <div className="p-4 border flex flex-col gap-2 rounded-[12px] shadow-lg bg-[#F7F5F3] w-[350px] h-auto">
                     <h3 className="font-semibold mb-3 text-sm">Choose provider</h3>
                     {providersData.map(p => (
                         <button 
                             key={p.id}
-                            className="w-full border  bg-transparent border-[rgba(55,50,47,0.90)] text-black h-[35px] rounded-[8px] flex items-center justify-center p-1"
+                            className="w-full border  bg-transparent border-[rgba(55,50,47,0.90)] text-black h-[35px] rounded-[8px] flex items-center gap-2 justify-center p-1"
                             onClick={() => {
                                 const initialCreds = dbConfig?.provider === p.id ? dbConfig.credentials : {};
                                 setTempCredentials(initialCreds);
