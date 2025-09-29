@@ -1141,42 +1141,61 @@ const parseMessageContent = (content: string) => {
             
   
 
-  const applyAndSetFiles = (responses: any[]) => {
-    const newFiles = [...files]
-    let filesUpdated = false
+  
+const applyAndSetFiles = (responses: any[]) => {
+    // Vérifie si un projet est chargé
+    if (!currentProject) {
+        addLog(`❌ Cannot apply file changes: No project is currently loaded.`);
+        return;
+    }
+
+    // 🛑 Utilise les fichiers du projet actuel (currentProject.files)
+    const newFiles = [...currentProject.files];
+    let filesUpdated = false;
 
     responses.forEach((res) => {
       if (res.type === "fileChanges" && res.filePath && res.changes) {
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath)
+        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
         if (fileIndex !== -1) {
-          const originalContent = newFiles[fileIndex].content
-          newFiles[fileIndex].content = applyChanges(originalContent, res.changes)
-          filesUpdated = true
-          addLog(`Applied ${res.changes.length} changes to ${res.filePath}`)
+          const originalContent = newFiles[fileIndex].content;
+          // Assurez-vous que applyChanges est disponible dans votre portée
+          newFiles[fileIndex].content = applyChanges(originalContent, res.changes);
+          filesUpdated = true;
+          addLog(`Applied ${res.changes.length} changes to ${res.filePath}`);
         } else {
-          addLog(`Warning: AI tried to change a non-existent file: ${res.filePath}`)
+          addLog(`Warning: AI tried to change a non-existent file: ${res.filePath}`);
         }
       } else if (res.filePath && typeof res.content === "string") {
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath)
+        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
         if (fileIndex !== -1) {
-          newFiles[fileIndex].content = res.content
+          // Mise à jour de contenu complet
+          newFiles[fileIndex].content = res.content;
         } else {
-          newFiles.push({ filePath: res.filePath, content: res.content })
+          // Création d'un nouveau fichier
+          newFiles.push({ filePath: res.filePath, content: res.content });
         }
-        filesUpdated = true
+        filesUpdated = true;
       }
-    })
+    });
 
     if (filesUpdated) {
-      setFiles(newFiles)
-      addLog(`✅ Project files updated based on AI proposal.`)
-      setActiveTab("code")
-      if (currentProject) saveProject()
+      // 🛑 Met à jour le currentProject en utilisant setCurrentProject
+      setCurrentProject({ 
+        ...currentProject, 
+        files: newFiles 
+      });
+      addLog(`✅ Project files updated based on AI proposal.`);
+      setActiveTab("code");
+      // Assurez-vous que saveProject utilise le currentProject mis à jour
+      if (currentProject) saveProject(); 
     } else {
-      addLog(`❌ AI response did not contain valid file creations or changes.`)
+      addLog(`❌ AI response did not contain valid file creations or changes.`);
     }
-  }
+        }
+        
 
+
+  
   const fillFilesFromGeminiResponse = (text: string) => {
     // --- Ligne de débogage ---
     // Affiche la réponse exacte de l'IA dans la console de votre navigateur (accessible avec F12)
