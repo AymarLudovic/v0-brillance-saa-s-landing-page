@@ -1439,15 +1439,10 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
                                                   
       
 
-
 const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
 
-    // Assurez-vous que MAX_FILES, uploadedImages et uploadedFiles sont définis (depuis l'état global)
-    // Exemple: const MAX_FILES = 5;
-
-    // 🛑 Calcul du nombre maximum de fichiers que l'on peut encore ajouter
     const remainingSlots = MAX_FILES - (uploadedImages.length + uploadedFiles.length);
 
     if (remainingSlots <= 0) {
@@ -1456,7 +1451,8 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         return;
     }
 
-    // Fonction de lecture d'un fichier en Base64
+    const filesToProcess = Array.from(files).slice(0, remainingSlots);
+
     const readAndProcessFile = (file: File) => {
         if (!file.type.startsWith('image/')) {
             addLog(`ERROR: Fichier non supporté: ${file.name}`);
@@ -1468,20 +1464,24 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             const base64Url = e.target?.result as string;
 
             setUploadedImages((prev) => {
-                // Vérification finale au cas où l'état aurait changé pendant la lecture
-                if (prev.length + uploadedFiles.length >= MAX_FILES) return prev;
+                // 🛑 CORRECTION: Vérification de l'existence par le Base64 
+                // ou par un identifiant unique (ici, nous utilisons le Base64).
+                // Cette vérification garantit l'idempotence contre le Strict Mode.
+                if (prev.includes(base64Url)) {
+                    return prev;
+                }
                 return [...prev, base64Url];
             });
         };
         reader.readAsDataURL(file);
     };
 
-    // Traitement des fichiers, en limitant à la place restante
-    Array.from(files).slice(0, remainingSlots).forEach(readAndProcessFile);
+    filesToProcess.forEach(readAndProcessFile);
     
     // Réinitialise l'input
     event.target.value = '';
 };
+                                        
   
 
 
