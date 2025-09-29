@@ -1,11 +1,23 @@
 // app/api/gemini/route.ts
 import { NextResponse } from "next/server"
-import { GoogleGenAI } from "@google/genai"
+import { GoogleGenAI, Part } from "@google/genai"
 import { basePrompt } from "@/lib/prompt" // instructions globales
+
+// Fonction utilitaire pour extraire le mime type de l'URL Base64
+function getMimeTypeFromBase64(dataUrl: string): string {
+    const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
+    return match ? match[1] : 'image/jpeg';
+}
+
+// Fonction utilitaire pour nettoyer l'URL Base64
+function cleanBase64Data(dataUrl: string): string {
+    return dataUrl.split(',')[1];
+}
 
 export async function POST(req: Request) {
   try {
-    const { message } = await req.json()
+    // 🛑 MISE À JOUR : Récupération des images uploadées
+    const { message, uploadedImages } = await req.json() as { message: string, uploadedImages: string[] }
 
     if (!message) {
       return NextResponse.json({ error: "Message manquant" }, { status: 400 })
@@ -15,20 +27,33 @@ export async function POST(req: Request) {
       apiKey: process.env.GEMINI_API_KEY!,
     })
 
-    const model = "gemini-2.5-flash" // ou "gemini-pro" si tu préfères un modèle plus grand
+    const model = "gemini-2.5-flash"
 
-    // Le `basePrompt` contient déjà les instructions pour les deux phases.
-    // L'IA recevra TOUJOURS le même prompt global et décidera de sa réponse.
-    // Le client sera responsable de PARSER cette réponse.
-    const contents = [
-      {
+    // 🛑 MISE À JOUR : Construction du tableau 'contents'
+    // 1. Initialiser le tableau des parties (pour le user)
+    const userParts: Part[] = []
+
+    // 2. Ajouter les images (s'il y en a)
+    if (uploadedImages && uploadedImages.length > 0) {
+        uploadedImages.forEach((dataUrl) => {
+            userParts.push({
+                inlineData: {
+                    data: cleanBase64Data(dataUrl),
+                    mimeType: getMimeTypeFromBase64(dataUrl),
+                },
+            });
+        });
+    }
+
+    // 3. Ajouter le prompt texte (instructions globales + message utilisateur)
+    const fullPrompt = basePrompt + "\n\n" + message
+    userParts.push({ text: fullPrompt });
+
+    // 4. Construire la requête contents
+    const contents = [{
         role: "user",
-        // Nous fusionnons le basePrompt et le message de l'utilisateur.
-        // C'est au modèle de décider de son comportement basé sur le basePrompt.
-        // Le client saura détecter si c'est une URL ou un tableau de fichiers.
-        parts: [{ text: basePrompt + "\n\n" + message }],
-      },
-    ]
+        parts: userParts,
+    }];
 
     const response = await ai.models.generateContentStream({
       model,
@@ -63,4 +88,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-}
+                                                               }
+                               
