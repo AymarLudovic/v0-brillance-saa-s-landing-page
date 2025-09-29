@@ -1473,7 +1473,6 @@ const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
 
 
-
 const handleScreenshot = async () => {
     if (uploadedImages.length + uploadedFiles.length >= MAX_FILES) {
         addLog("Limite d'uploads atteinte.");
@@ -1483,21 +1482,30 @@ const handleScreenshot = async () => {
     
     setIsPlusDropdownOpen(false);
 
+    // 🛑 VÉRIFICATION ROBUSTE de l'existence de l'API
+    if (typeof navigator.mediaDevices?.getDisplayMedia !== 'function') {
+        addLog("ERROR: Votre navigateur ou l'environnement actuel ne supporte pas la fonction de capture d'écran d'onglet (getDisplayMedia).");
+        return;
+    }
+
     try {
-        // Demande l'accès pour capturer le contenu de l'écran (onglet/fenêtre/écran)
+        addLog("Démarrage de la capture d'écran. Veuillez sélectionner l'onglet à partager...");
+        
+        // 1. Demande de capture
+        // Utilisation du type correct pour garantir la compatibilité
         const stream = await navigator.mediaDevices.getDisplayMedia({
-            video: { mediaSource: 'screen' as any }, // 'screen' est plus strict
+            video: { mediaSource: 'tab' as any }, // 'tab' est une bonne suggestion pour cibler un onglet
             audio: false,
         });
 
         const videoTrack = stream.getVideoTracks()[0];
-        if (!videoTrack) throw new Error("Aucune piste vidéo trouvée.");
+        if (!videoTrack) throw new Error("Capture annulée ou aucune piste vidéo n'a pu être obtenue.");
 
-        // Crée un objet ImageCapture pour prendre une photo
+        // 2. Capture de l'image
         const imageCapture = new (window as any).ImageCapture(videoTrack);
         const bitmap = await imageCapture.grabFrame();
 
-        // Crée un canvas pour convertir le bitmap en Base64
+        // 3. Conversion en Base64
         const canvas = document.createElement('canvas');
         canvas.width = bitmap.width;
         canvas.height = bitmap.height;
@@ -1505,22 +1513,26 @@ const handleScreenshot = async () => {
         if (!ctx) throw new Error("Impossible de créer le contexte du canvas.");
         ctx.drawImage(bitmap, 0, 0);
 
-        // Convertit le canvas en URL Base64
         const base64Url = canvas.toDataURL('image/png');
         
-        // Nettoyage
+        // 4. Nettoyage
         videoTrack.stop();
         stream.getTracks().forEach(track => track.stop());
         
+        // 5. Mise à jour de l'état
         setUploadedImages(prev => [...prev, base64Url]);
-        addLog("Capture d'écran ajoutée.");
+        addLog("Capture d'écran ajoutée avec succès.");
 
     } catch (err: any) {
-        if (err.name !== "NotAllowedError" && err.name !== "NotFoundError") {
+        // Gère l'erreur d'annulation par l'utilisateur (nom souvent différent)
+        if (err.name === "NotAllowedError" || err.message.includes("cancelled")) {
+            addLog("Capture d'écran annulée par l'utilisateur.");
+        } else {
              addLog(`ERROR: Échec de la capture d'écran: ${err.message}`);
         }
     }
 };
+          
 
 
 
