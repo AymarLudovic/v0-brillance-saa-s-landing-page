@@ -1524,6 +1524,38 @@ const handleScreenshot = async () => {
 
 
 
+const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    const readAndProcessFile = (file: File) => {
+        // Exclut les types non supportés (Audio, Vidéo, Images, etc.)
+        if (file.type.startsWith('audio/') || file.type.startsWith('video/') || file.type.startsWith('image/')) {
+            addLog(`ERROR: Le type de fichier ${file.type} n'est pas supporté par ce bouton.`);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64Url = e.target?.result as string;
+            // Extrait la partie Base64 pure pour l'envoi à l'IA
+            const base64Content = base64Url.split(',')[1] || ""; 
+            
+            setUploadedFiles((prev) => {
+                if (prev.length >= MAX_FILES) return prev;
+                return [...prev, { fileName: file.name, base64Content }];
+            });
+        };
+        reader.readAsDataURL(file); // Utiliser DataURL pour obtenir le Base64
+    };
+
+    Array.from(files).slice(0, MAX_FILES - (uploadedImages.length + uploadedFiles.length)).forEach(readAndProcessFile);
+    event.target.value = '';
+    setIsPlusDropdownOpen(false);
+};
+      
+
+  
 
 
 
@@ -2375,7 +2407,7 @@ useEffect(() => {
     
     {/* PIED DE PAGE DE CHAT */}
     <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
-        // --- BLOC DE BOUTONS DANS LE JSX PRINCIPAL ---
+        
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
 <div className="relative">
