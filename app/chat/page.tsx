@@ -939,23 +939,32 @@ useEffect(() => {
     addLog(`Project "${projectName}" created.`)
   }
 
+  
+
+
+
   const saveProject = () => {
+    // Vérifie si un projet est actif
     if (!currentProject) {
       addLog("Cannot save: No active project.")
       return
     }
-    const updatedProject: Project = {
-      ...currentProject,
-      files: files,
-      messages: messages,
-    }
+
+    // 🛑 Le projet actuel (currentProject) est déjà à jour (fichiers et messages).
+    const updatedProject = currentProject 
+
+    // Met à jour le tableau global 'projects'
     const updatedProjects = projects.map((p) => (p.id === currentProject.id ? updatedProject : p))
 
+    // Met à jour les états globaux et le stockage local
     setProjects(updatedProjects)
-    setCurrentProject(updatedProject)
+    // Ici, nous n'avons pas besoin de setCurrentProject(updatedProject) car updatedProject === currentProject 
+    // et l'état a déjà été mis à jour par les fonctions d'application/d'envoi précédentes.
     saveProjectsToLocalStorage(updatedProjects)
-    addLog(`Project "${currentProject.name}" saved.`)
-  }
+    
+    addLog(`Projet "${currentProject.name}" sauvegardé.`)
+      }
+  
 
 
 
@@ -1145,25 +1154,31 @@ const parseMessageContent = (content: string) => {
 const applyAndSetFiles = (responses: any[]) => {
     // Vérifie si un projet est chargé
     if (!currentProject) {
-        addLog(`❌ Cannot apply file changes: No project is currently loaded.`);
+        addLog(`❌ Impossible d'appliquer les changements de fichiers : Aucun projet n'est chargé.`);
         return;
     }
 
-    // 🛑 Utilise les fichiers du projet actuel (currentProject.files)
+    // 🛑 Étape Clé: Utilise les fichiers du projet actuel
     const newFiles = [...currentProject.files];
     let filesUpdated = false;
 
     responses.forEach((res) => {
+      // Ignorer l'objet 'inspirationUrl' s'il est malencontreusement passé ici
+      if (res.type === "inspirationUrl") {
+          addLog(`Ignoré : URL d'inspiration détectée.`);
+          return; 
+      }
+        
       if (res.type === "fileChanges" && res.filePath && res.changes) {
+        // Logique de modification (patch)
         const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
         if (fileIndex !== -1) {
           const originalContent = newFiles[fileIndex].content;
-          // Assurez-vous que applyChanges est disponible dans votre portée
           newFiles[fileIndex].content = applyChanges(originalContent, res.changes);
           filesUpdated = true;
           addLog(`Applied ${res.changes.length} changes to ${res.filePath}`);
         } else {
-          addLog(`Warning: AI tried to change a non-existent file: ${res.filePath}`);
+          addLog(`Warning: L'IA a tenté de modifier un fichier inexistant : ${res.filePath}`);
         }
       } else if (res.filePath && typeof res.content === "string") {
         const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
@@ -1171,7 +1186,7 @@ const applyAndSetFiles = (responses: any[]) => {
           // Mise à jour de contenu complet
           newFiles[fileIndex].content = res.content;
         } else {
-          // Création d'un nouveau fichier
+          // 🚀 CRÉATION D'UN NOUVEAU FICHIER PAR L'IA
           newFiles.push({ filePath: res.filePath, content: res.content });
         }
         filesUpdated = true;
@@ -1179,19 +1194,20 @@ const applyAndSetFiles = (responses: any[]) => {
     });
 
     if (filesUpdated) {
-      // 🛑 Met à jour le currentProject en utilisant setCurrentProject
+      // 🛑 Mise à jour de l'état global du projet, ce qui met à jour l'arborescence
       setCurrentProject({ 
         ...currentProject, 
-        files: newFiles 
+        files: newFiles // Les fichiers mis à jour ou créés sont inclus ici
       });
-      addLog(`✅ Project files updated based on AI proposal.`);
+      addLog(`✅ Fichiers du projet mis à jour selon la proposition de l'IA.`);
       setActiveTab("code");
-      // Assurez-vous que saveProject utilise le currentProject mis à jour
+      // Sauvegarde immédiate du projet mis à jour
       if (currentProject) saveProject(); 
     } else {
-      addLog(`❌ AI response did not contain valid file creations or changes.`);
+      addLog(`❌ La réponse de l'IA ne contenait pas de créations/modifications de fichiers valides.`);
     }
-        }
+                      }
+          
         
 
 
