@@ -2489,10 +2489,6 @@ useEffect(() => {
     </div>
 )}
 
-        </div>
-
-
-</div>
 
       
       
