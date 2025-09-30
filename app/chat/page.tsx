@@ -1710,11 +1710,11 @@ const handleRemoveMention = (filePath: string) => {
       
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
-  const sendChat = async (promptOverride?: string) => {
-    // La fonction suppose que les variables d'état (currentProject, chatInput, messages, 
-    // uploadedFiles, etc.) et les fonctions de mise à jour (setLoading, setMessages, 
-    // addFilesIfNew, extractFileArtifacts, applyArtifactsToProject, etc.) sont 
-    // accessibles dans la portée de cette fonction (e.g., dans un composant ou un hook).
+  
+
+    const sendChat = async (promptOverride?: string) => {
+    // La fonction suppose que toutes les dépendances (états et setters) sont
+    // accessibles dans la portée.
     
     const userPrompt = promptOverride || chatInput;
 
@@ -1747,7 +1747,6 @@ const handleRemoveMention = (filePath: string) => {
         mentionedFiles.forEach(filePath => {
             const file = currentProject.files.find(f => f.filePath === filePath);
             if (file) {
-                // Utilisation du format numéroté pour la clarté des modifications
                 const numberedContent = file.content.split('\n').map((line, index) => `${index + 1}: ${line}`).join('\n');
                 fileContents += `// Fichier: ${filePath}\n${numberedContent}\n\n`;
             }
@@ -1813,7 +1812,7 @@ const handleRemoveMention = (filePath: string) => {
                 };
             }
             
-            // 🛑 DÉTECTION DE L'URL (Format JSON spécifique maintenu)
+            // 🛑 DÉTECTION DE L'URL (Format JSON spécifique)
             const urlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
 
             if (urlMatch) {
@@ -1827,11 +1826,12 @@ const handleRemoveMention = (filePath: string) => {
               } catch (e) { /* Ignorer le JSON mal formé en cours de stream */ }
             }
 
-            // 🛑 NETTOYAGE DU TEXTE EXPLICATIF: Suppression des balises et du JSON
+            // 🛑 NETTOYAGE DU TEXTE EXPLICATIF: Suppression de tout le balisage (XML/JSON)
             let textWithoutArtifacts = text
-                .replace(/```json[\s\S]*?```/g, '')
-                .replace(/<create_file[\s\S]*?<\/create_file>/g, '')
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/g, '')
+                .replace(/```json[\s\S]*?```/g, '') // Supprime le JSON de l'URL
+                .replace(/<create_file[\s\S]*?<\/create_file>/g, '') // Supprime les balises de création complètes
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/g, '') // Supprime les balises de modification complètes
+                .replace(/<[^>]*>/g, '') // 🛑 CORRECTION: Supprime toutes les balises et fragments restants
                 .trim();
 
             // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
@@ -1853,7 +1853,7 @@ const handleRemoveMention = (filePath: string) => {
         
         // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
         
-        // 1. Gérer l'URL finale (si présente)
+        // 1. Gérer l'URL finale
         const finalUrlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
         if (finalUrlMatch) {
           try {
@@ -1866,12 +1866,12 @@ const handleRemoveMention = (filePath: string) => {
           }
         }
 
-        // 2. Gérer les fichiers finaux (Application des modifications)
+        // 2. Gérer les fichiers finaux (Application des modifications et du contenu)
         const finalArtifacts = extractFileArtifacts(text);
 
         if (finalArtifacts.length > 0) {
           addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
-          // Applique les modifications/créations contenues dans les balises au projet
+          // 🛑 Correction: Appelle la fonction qui met à jour le contenu de l'éditeur
           applyArtifactsToProject(finalArtifacts); 
         } else {
           addLog("Response treated as simple text or unrecognized format.");
@@ -1890,6 +1890,7 @@ const handleRemoveMention = (filePath: string) => {
         setMentionedFiles([]); 
     }
 };
+      
     
 
                     
