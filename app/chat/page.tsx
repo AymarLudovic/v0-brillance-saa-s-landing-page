@@ -50,40 +50,110 @@ interface CommandResult {
 }
 
 
+
+
+
+
+// Interfaces fournies par l'utilisateur (utilisées ici pour le contexte)
 interface Message {
   role: "user" | "assistant" | "system"
   content: string 
-  images?: string[] // URLs Base64 pour les images
-  // 🛑 NOUVEAU: Fichiers externes (uploadés)
+  images?: string[]
   externalFiles?: { fileName: string; base64Content: string }[] 
-  // 🛑 NOUVEAU: Fichiers internes (mentionnés par chemin)
   mentionedFiles?: string[] 
   artifactData?: { 
     type: 'files' | 'url' | 'fileChanges' | null
     rawJson: string
-    parsedList: string[]
+    parsedList: any[] // Changement pour refléter le type { path, type }
   }
-  }
-  
+}
 
-
-
-
-  
-
-
-// ... (Les autres interfaces Project, etc., restent inchangées)
-
-
-
-
+interface ProjectFile { filePath: string; content: string }
 interface Project {
   id: string
   name: string
   createdAt: string
-  files: { filePath: string; content: string }[]
+  files: ProjectFile[]
   messages: Message[]
 }
+
+// --- NOUVELLE STRUCTURE POUR LE STREAMING ---
+
+interface FileArtifact {
+  filePath: string;
+  type: 'create' | 'changes'; // 'create' pour <create_file>, 'changes' pour <file_changes>
+  content: string; // Contient soit le code complet, soit le JSON des changements
+}
+
+/**
+ * Extrait les balises de création/modification de fichiers (<create_file> et <file_changes>)
+ * d'une chaîne de texte streamée.
+ */
+const extractFileArtifacts = (content: string): FileArtifact[] => {
+  const artifacts: FileArtifact[] = [];
+
+  // 1. Extraction des balises <create_file>
+  const createRegex = /<create_file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/create_file>/g;
+  let createMatch;
+  while ((createMatch = createRegex.exec(content)) !== null) {
+    artifacts.push({
+      filePath: createMatch[1].trim(),
+      type: 'create',
+      content: createMatch[2].trim(), // Contient le code du fichier
+    });
+  }
+
+  // 2. Extraction des balises <file_changes>
+  const changesRegex = /<file_changes\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file_changes>/g;
+  let changesMatch;
+  while ((changesMatch = changesRegex.exec(content)) !== null) {
+    artifacts.push({
+      filePath: changesMatch[1].trim(),
+      type: 'changes',
+      content: changesMatch[2].trim(), // Contient le JSON des modifications
+    });
+  }
+
+  return artifacts;
+};
+
+/**
+ * Met à jour l'arbre des fichiers du projet si de nouveaux chemins de fichiers sont détectés
+ * pendant le streaming.
+ */
+const addFilesIfNew = (
+  artifactPaths: { path: string, type: 'create' | 'changes' }[],
+  currentFiles: ProjectFile[],
+  currentActiveFile: string,
+  setActiveFile: (path: string) => void,
+  setCurrentProject: (update: (prev: Project | null) => Project | null) => void,
+) => {
+  let filesChanged = false;
+  const updatedFiles = [...currentFiles];
+  let newActiveFile = "";
+
+  artifactPaths.forEach(artifact => {
+    // Ajoute le fichier seulement s'il n'existe pas déjà
+    if (!currentFiles.some(f => f.filePath === artifact.path)) {
+      // Ajout du fichier avec contenu vide initial
+      updatedFiles.push({ filePath: artifact.path, content: "" });
+      filesChanged = true;
+      // Met le premier nouveau fichier en actif si aucun n'est actif
+      if (!newActiveFile && !currentActiveFile) newActiveFile = artifact.path;
+    }
+  });
+
+  if (filesChanged) {
+    setCurrentProject(prevProject => {
+      if (!prevProject) return prevProject;
+      return { ...prevProject, files: updatedFiles };
+    });
+    if (newActiveFile) {
+      setActiveFile(newActiveFile);
+    }
+  }
+};
+  
 // Définition de l'interface pour un Nœud dans l'arborescence de fichiers
 
 
@@ -1640,207 +1710,189 @@ const handleRemoveMention = (filePath: string) => {
       
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
-  
-const sendChat = async (promptOverride?: string) => {
-    // NOTE: Assurez-vous que toutes les dépendances (currentProject, chatInput, messages, 
-    // files, setLoading, setMessages, setChatInput, addLog, runAutomatedAnalysis, 
-    // fillFilesFromGeminiResponse, setAnalysisStatus, uploadedImages, setUploadedImages, 
-    // uploadedFiles, setUploadedFiles, mentionedFiles, setMentionedFiles,
-    // extractRawJson, parseMessageContent) sont définies dans la portée de SandboxPage.
+  const sendChat = async (promptOverride?: string) => {
+    // La fonction suppose que les variables d'état (currentProject, chatInput, messages, 
+    // uploadedFiles, etc.) et les fonctions de mise à jour (setLoading, setMessages, 
+    // addFilesIfNew, extractFileArtifacts, applyArtifactsToProject, etc.) sont 
+    // accessibles dans la portée de cette fonction (e.g., dans un composant ou un hook).
     
-    const userPrompt = promptOverride || chatInput
-    
-    // Condition d'envoi élargie pour inclure tout type de contenu
-    if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return 
-    
+    const userPrompt = promptOverride || chatInput;
+
+    if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
+
     if (!currentProject && !promptOverride) {
-      addLog("Please create or load a project before starting a conversation.")
-      return
+      addLog("Please create or load a project before starting a conversation.");
+      return;
+    }
+    
+    // --- PRÉPARATION DU MESSAGE UTILISATEUR ET DU PROMPT ---
+    
+    // 1. Ajouter le message utilisateur à l'historique
+    const userMsg: Message = {
+        role: "user",
+        content: userPrompt,
+        artifactData: { type: null, rawJson: "", parsedList: [] },
+        images: uploadedImages, 
+        externalFiles: uploadedFiles, 
+        mentionedFiles: mentionedFiles
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setChatInput(""); 
+    
+    let finalPrompt = userPrompt;
+    
+    // 2. Inclure le contenu des fichiers mentionnés dans le prompt API
+    if (mentionedFiles.length > 0 && currentProject) {
+        let fileContents = "--- FICHIERS ACTUELLEMENT DANS LE PROJET ---\n";
+        mentionedFiles.forEach(filePath => {
+            const file = currentProject.files.find(f => f.filePath === filePath);
+            if (file) {
+                // Utilisation du format numéroté pour la clarté des modifications
+                const numberedContent = file.content.split('\n').map((line, index) => `${index + 1}: ${line}`).join('\n');
+                fileContents += `// Fichier: ${filePath}\n${numberedContent}\n\n`;
+            }
+        });
+        fileContents += "--- FIN DES FICHIERS ---\n";
+        finalPrompt = `${fileContents}\n\n${userPrompt}`;
     }
 
-    setLoading(true)
-    let currentMessages = messages
-    if (!promptOverride) {
-      // 🛑 NOUVEAU: Ajout de TOUS les champs de fichiers/images au message utilisateur
-      const newUserMessage: Message = { 
-          role: "user", 
-          content: userPrompt, 
-          images: uploadedImages.length > 0 ? uploadedImages : undefined, 
-          externalFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined, 
-          mentionedFiles: mentionedFiles.length > 0 ? mentionedFiles : undefined, 
-      } 
-      currentMessages = [...messages, newUserMessage]
-      setMessages(currentMessages)
-      setChatInput("")
-    }
-
-    let finalPrompt = ""
-    if (!promptOverride) {
-      const history = currentMessages.map((msg) => `${msg.role}: ${msg.content}`).join("\n")
-      
-      // 🛑 CONTEXTE: Utilisation de currentProject.files pour le contexte
-      const filesToContext = currentProject?.files || []; 
-      
-      const fileContext = filesToContext
-        .map((f) => {
-          const numberedContent = f.content
-            .split("\n")
-            .map((line, i) => `${i + 1}: ${line}`)
-            .join("\n")
-          return `// FilePath: ${f.filePath}\n\`\`\`\n${numberedContent}\n\`\`\``
-        })
-        .join("\n\n")
-
-      finalPrompt = `CONTEXT:\nCurrent Files:\n${fileContext}\n---\nConversation History:\n${history}\n---\nNEW USER REQUEST:\n${userPrompt}`
-    } else {
-      finalPrompt = userPrompt
-    }
-
-    addLog(`Sending prompt to Gemini...`)
+    setLoading(true);
+    addLog(`Sending prompt to Gemini...`);
 
     try {
-      const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // 🛑 PAYLOAD: Inclusion de tous les contenus à envoyer à l'API
-        body: JSON.stringify({ 
-            message: finalPrompt, 
-            uploadedImages: uploadedImages,
-            uploadedFiles: uploadedFiles, // Fichiers externes (Base64)
-            mentionedFiles: mentionedFiles, // Mentions (Juste les chemins pour info)
-        }), 
-      })
-      if (!res.ok || !res.body) throw new Error(`Gemini API request failed`)
+        // --- FETCH VERS L'API GEMINI EN MODE STREAMING ---
+        const res = await fetch("/api/gemini", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                message: finalPrompt, 
+                uploadedImages: uploadedImages,
+                uploadedFiles: uploadedFiles, 
+                mentionedFiles: mentionedFiles, 
+            }), 
+        });
+        if (!res.ok || !res.body) throw new Error(`Gemini API request failed: ${res.statusText}`);
 
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let text = "" 
-      let isParsingJson = false 
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let text = ""; 
 
-      // Initialise le message de l'assistant avec l'artefact vide
-      setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }])
+        // Initialiser le message de l'assistant vide dans le state pour le streaming
+        setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        
-        const chunk = decoder.decode(value, { stream: true })
-        text += chunk
-        
-        let newArtifactData = undefined
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        // Tente d'extraire le JSON brut (incomplet ou complet)
-        const rawJsonContent = extractRawJson(text)
-        
-        if (rawJsonContent !== null) {
-            isParsingJson = true
-            let currentType: 'files' | 'url' | 'fileChanges' | null = null
-            let currentList: string[] = []
-            
-            // Tente de parser le JSON incrémental
-            try {
-                const parsedJson = JSON.parse(rawJsonContent)
-                
-                // 1. Détection de la structure de Fichiers (Création/Modification complète)
-                if (
-                    Array.isArray(parsedJson) &&
-                    parsedJson.length > 0 &&
-                    typeof parsedJson[0] === 'object' &&
-                    'filePath' in parsedJson[0] &&
-                    'content' in parsedJson[0]
-                ) {
-                    currentType = 'files'
-                    currentList = parsedJson.map((f: any) => f.filePath as string)
-                } 
-                // 2. Détection de la structure de Changements de Fichiers (Patch: fileChanges)
-                else if ( 
-                    typeof parsedJson === 'object' &&
-                    parsedJson !== null &&
-                    parsedJson.type === 'fileChanges' &&
-                    parsedJson.filePath 
-                ) {
-                    currentType = 'fileChanges'
-                    currentList = [parsedJson.filePath as string]
-                } 
-                // 3. Détection de l'URL d'inspiration
-                else if (
-                    typeof parsedJson === 'object' &&
-                    parsedJson !== null &&
-                    parsedJson.type === 'inspirationUrl' &&
-                    parsedJson.url
-                ) {
-                    currentType = 'url'
-                    currentList = [parsedJson.url]
-                }
-                
-                // Si parsing réussi et structure reconnue, on prépare la mise à jour
+            const chunk = decoder.decode(value, { stream: true });
+            text += chunk;
+
+            let newArtifactData = undefined;
+            const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+
+            // 🛑 EXTRACTION EN TEMPS RÉEL DES ARTEFACTS (BALISES)
+            const fileArtifacts = extractFileArtifacts(text);
+            const isGeneratingCode = fileArtifacts.length > 0;
+
+            if (isGeneratingCode) {
+                fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
+
+                // Mise à jour du File Tree en temps réel (pour les nouveaux fichiers)
+                addFilesIfNew(
+                    artifactList, 
+                    currentProject?.files || [], 
+                    activeFile, 
+                    setActiveFile, 
+                    setCurrentProject 
+                );
+
                 newArtifactData = {
-                    type: currentType,
-                    rawJson: rawJsonContent,
-                    parsedList: currentList,
-                }
-                
-            } catch (e) {
-                // Le JSON est incomplet ou mal formé. On met à jour rawJson
-                newArtifactData = { rawJson: rawJsonContent } 
+                    type: 'files', 
+                    parsedList: artifactList, 
+                    rawJson: text, 
+                };
             }
-        }
-        
-        // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
-
-        setMessages((prev) => {
-            const lastMsgIndex = prev.length - 1
-            const updatedMessages = [...prev]
-            const lastMsg = updatedMessages[lastMsgIndex]
             
-            if (lastMsg?.role === "assistant") {
-                if (newArtifactData || isParsingJson) {
-                    lastMsg.artifactData = {
-                        ...lastMsg.artifactData, 
-                        ...newArtifactData, 
-                        rawJson: rawJsonContent || "" 
-                    } as any 
-                }
-                
-                lastMsg.content = text
+            // 🛑 DÉTECTION DE L'URL (Format JSON spécifique maintenu)
+            const urlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
+
+            if (urlMatch) {
+              try {
+                  const parsedUrl = JSON.parse(urlMatch[0].replace(/```json|```/g, '').trim());
+                  newArtifactData = {
+                      type: 'url',
+                      parsedList: [parsedUrl.url],
+                      rawJson: text,
+                  };
+              } catch (e) { /* Ignorer le JSON mal formé en cours de stream */ }
             }
-            return updatedMessages
-        })
-      } // Fin de la boucle while
-      
-      // --- LOGIQUE POST-STREAM (Action finale) ---
-      
-      const finalParsedContent = parseMessageContent(text); 
 
-      // Si l'artefact 'url' est détecté, on lance l'analyse automatique.
-      if (finalParsedContent.type === 'url') {
-        const url = finalParsedContent.data as string
-        addLog(`✅ Gemini suggests inspiration URL: ${url}`)
-        await runAutomatedAnalysis(url, userPrompt) 
-        return 
-      }
+            // 🛑 NETTOYAGE DU TEXTE EXPLICATIF: Suppression des balises et du JSON
+            let textWithoutArtifacts = text
+                .replace(/```json[\s\S]*?```/g, '')
+                .replace(/<create_file[\s\S]*?<\/create_file>/g, '')
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/g, '')
+                .trim();
 
-      // Traitement des fichiers (pour files et fileChanges).
-      if (finalParsedContent.type === 'files' || finalParsedContent.type === 'fileChanges') {
-        addLog("Response contains code, applying changes.")
-        fillFilesFromGeminiResponse(text) 
-      } else {
-        addLog("Response treated as simple text or unrecognized format.")
-      }
+            // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
+            setMessages((prev) => {
+                const lastMsgIndex = prev.length - 1;
+                const updatedMessages = [...prev];
+                const lastMsg = updatedMessages[lastMsgIndex];
+                
+                if (lastMsg?.role === "assistant") {
+                    if (newArtifactData) {
+                        lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
+                    }
+                    // Met à jour le contenu avec le texte nettoyé (explication pure)
+                    lastMsg.content = textWithoutArtifacts;
+                }
+                return updatedMessages;
+            });
+        } // Fin du streaming
+        
+        // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
+        
+        // 1. Gérer l'URL finale (si présente)
+        const finalUrlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
+        if (finalUrlMatch) {
+          try {
+              const url = JSON.parse(finalUrlMatch[0].replace(/```json|```/g, '').trim()).url;
+              addLog(`✅ Gemini suggests inspiration URL: ${url}`);
+              await runAutomatedAnalysis(url, userPrompt); 
+              return; 
+          } catch (e) {
+              addLog(`❌ Échec du parsage final de l'URL.`);
+          }
+        }
+
+        // 2. Gérer les fichiers finaux (Application des modifications)
+        const finalArtifacts = extractFileArtifacts(text);
+
+        if (finalArtifacts.length > 0) {
+          addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+          // Applique les modifications/créations contenues dans les balises au projet
+          applyArtifactsToProject(finalArtifacts); 
+        } else {
+          addLog("Response treated as simple text or unrecognized format.");
+        }
 
     } catch (err: any) {
-      addLog(`CLIENT-SIDE ERROR: ${err.message}`)
-      setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }])
+        addLog(`CLIENT-SIDE ERROR: ${err.message}`);
+        setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
     } finally {
-      setLoading(false)
-      setAnalysisStatus(null) 
-      
-      // 🛑 Réinitialisation de TOUS les états de fichiers/images après l'envoi
-      setUploadedImages([]) 
-      setUploadedFiles([]) 
-      setMentionedFiles([]) 
+        setLoading(false);
+        setAnalysisStatus(null); 
+        
+        // Réinitialisation des états des inputs utilisateurs
+        setUploadedImages([]); 
+        setUploadedFiles([]); 
+        setMentionedFiles([]); 
     }
-        }
+};
+    
+
+                    
         
             
  
@@ -2144,18 +2196,16 @@ useEffect(() => {
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
 
         
-                    {messages.map((msg, index) => {
+          
+           {messages.map((msg, index) => {
   const artifact = msg.artifactData;
-  
-  // Fallback à l'ancienne logique de parsing si pas d'état progressif
-  const parsedContent = artifact ? null : parseMessageContent(msg.content);
   
   return (
     <div
       key={index}
       className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
     >
-      {/* Affichage de l'icône de l'assistant */}
+      {/* Affichage de l'icône de l'assistant (inchangé) */}
       {msg.role === "assistant" && (
         <div className="flex items-center gap-3">
           <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
@@ -2179,123 +2229,91 @@ useEffect(() => {
             : "bg-none text-[#37322F] self-start"
         }`}
       >
-        {/* --- LOGIQUE D'AFFICHAGE DU CONTENU STREAMÉ / ARTEFACT --- */}
+        {/* --- LOGIQUE D'AFFICHAGE CONSOLIDÉE --- */}
         {(() => {
           
-          // --- Cas 1: ARTEFACT STREAMÉ (PRIORITAIRE) ---
-          if (artifact && (artifact.type === 'files' || artifact.type === 'fileChanges')) {
-            
-            // Calcul du nombre de chemins de fichiers à afficher en fonction de la progression du JSON
-            const totalFiles = artifact.parsedList.length;
-            // Une unité de progression pour chaque 100 caractères de JSON (ajustez 100 pour accélérer/ralentir)
-            const progressUnit = 100; 
-            const progressCount = Math.min(
-                totalFiles, 
-                Math.floor(artifact.rawJson.length / progressUnit) + 1 
-            );
+          const textContent = msg.content;
+          const hasTextContent = textContent && textContent.length > 0;
+          const isFileArtifact = artifact && (artifact.type === 'files');
+          const isUrlArtifact = artifact && (artifact.type === 'url');
+          
+          const displayElements = [];
+          
+          // 1. AFFICHAGE DU TEXTE EXPLICATIF
+          if (hasTextContent) {
+              displayElements.push(
+                  <pre key="text" className="whitespace-pre-wrap font-sans text-sm leading-relaxed mb-1">
+                      {textContent}
+                  </pre>
+              );
+          }
 
-            const title = artifact.type === 'files' 
-              ? 'Building code' 
-              : 'Building code';
+          // 2. AFFICHAGE DE L'ARTEFACT DE CODE (en temps réel)
+          if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
               
-            return (
-              <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
-                <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
-                  {title}
-                  </p>
-                <ul className="list-disc pl-5 w-[100%] space-y-1">
-                  {/* Rendu progressif des chemins de fichiers */}
-                  {artifact.parsedList
-                    .slice(0, progressCount) // Limite l'affichage au progressCount
-                    .map((filePath, i) => ( 
-                    <li key={i} className="text-xs w-full list-style-none  flex items-center gap-1 text-[#37322F]/80">
-                      <span>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
-                      </span>
-                      <p>created</p>
-                      <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] font-semibold px-[12px]">{filePath}</span>
-                      
-                    </li>
-                  ))}
-                  {/* Affiche l'indicateur tant que la liste n'est pas complète ou que le bloc n'est pas fermé */}
-                  {(progressCount < totalFiles || !msg.content.includes('```')) && (
-                     <li className="text-xs text-[#37322F]/60 italic">
-                       Building... ({progressCount} / {totalFiles} chemins trouvés)
-                     </li>
-                  )}
-                </ul>
-              </div>
-            );
+              const totalPaths = artifact.parsedList.length;
+
+              // Progression basée sur la longueur du texte total streamé (heuristique)
+              const progressUnit = 100; 
+              const progressCount = Math.min(
+                  totalPaths, 
+                  Math.floor(msg.content.length / progressUnit) + 1 
+              );
+              
+              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+
+              displayElements.push(
+                  <div key="code-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
+                      <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
+                          Building code
+                      </p>
+                      <ul className="list-disc pl-5 w-[100%] space-y-1">
+                          {/* Rendu progressif des chemins de fichiers */}
+                          {/* Utilise 'item.path' et 'item.type' basés sur la nouvelle structure parsedList */}
+                          {artifact.parsedList
+                              .slice(0, progressCount) 
+                              .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
+                              <li key={i} className="text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80">
+                                <span>
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
+                                </span>
+                                <p>{item.type === 'create' ? 'created' : 'edited'}</p>
+                                <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
+                                
+                              </li>
+                          ))}
+                          {/* Indication qu'il reste du contenu à streamer */}
+                          {msg.content.includes('<') && !msg.content.endsWith('</create_file>') && !msg.content.endsWith('</file_changes>') && (
+                               <li className="text-xs text-[#37322F]/60 italic">
+                                 Building... ({progressCount} chemins trouvés)
+                               </li>
+                          )}
+                      </ul>
+                  </div>
+              );
+          }
+
+          // 3. AFFICHAGE DE L'ARTEFACT URL
+          if (isUrlArtifact) {
+              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+              displayElements.push(
+                  <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
+                      <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
+                          Designing process
+                      </p>
+                      <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
+                  </div>
+              );
           }
           
-          // --- Cas 2: ARTEFACT URL STREAMÉ ---
-          if (artifact && artifact.type === 'url' && artifact.parsedList.length > 0) {
-              const url = artifact.parsedList[0]
-              return (
-                <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
-                  <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
-                    Designing process
-                  </p>
-                  <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
-                  
-                </div>
-              );
-          }
+          return displayElements.length > 0 
+                 ? displayElements 
+                 : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>;
 
-          // --- Cas 3: FALLBACK ANCIENNE LOGIQUE ou TEXTE SIMPLE ---
-          const displayContent = parsedContent || { type: 'text', data: msg.content };
-
-          switch (displayContent.type) {
-            case 'files':
-            case 'fileChanges':
-            case 'url':
-              // Fallback pour les messages non streamés (messages passés, erreurs)
-              const isUrl = displayContent.type === 'url';
-
-              return (
-                <div className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
-                  <p className="text-sm font-semibold mb-2 flex items-center gap-1 text-[#37322F]">
-                    
-                    {isUrl ? 'Designing process ' : 'Building code '}
-                  </p>
-                  <ul className="list-disc pl-1 space-y-1 w-[90%]">
-                    {Array.isArray(displayContent.data) ? displayContent.data.map((item, i) => (
-                      <li key={i} className="text-xs w-full list-style-none  flex items-center gap-1 text-[#37322F]/80">
-                        <span>
-                        <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
-                      </span>
-                      <p>Edited</p>
-                          <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] px-[12px] font-semibold">{item}</span>
-                      
-                        
-                      </li>
-                    )) : (
-                      <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
-                    )}
-                  </ul>
-                </div>
-              );
-
-            case 'text':
-            default:
-              // Nettoyage: On retire le bloc JSON si l'artefact a été détecté
-              let textContent = msg.content;
-              if (artifact && (artifact.type || artifact.rawJson)) {
-                  textContent = msg.content.replace(/```json[\s\S]*?(\s*```|$)/g, '').trim();
-              } else if (displayContent.raw) {
-                  textContent = displayContent.raw.replace(/```json\s*[\s\S]*?\s*```/g, '').trim() || displayContent.raw.trim();
-              }
-              
-              return (
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                  {textContent}
-                </pre>
-              );
-          }
         })()}
       </div>
 
-      {/* 🛑 Affichage des images persistantes (25x25px) */}
+      {/* 🛑 Affichage des images persistantes (LOGIQUE INCHANGÉE) */}
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
           <div className="flex gap-1 mt-1">
               {msg.images.map((base64Src, imgIndex) => (
@@ -2339,9 +2357,7 @@ useEffect(() => {
     </div>
   );
 })}
-        
-          
-      
+                
 
           
           
