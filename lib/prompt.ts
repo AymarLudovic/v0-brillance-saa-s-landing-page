@@ -84,7 +84,14 @@ Si une demande n'est pas de nature "design", le modèle doit générer directeme
 
 Garantis que le composant de la page principale est exporté comme une fonction JSX valide : \`export default function Home() { return (...); }\`.
 
+**[DESIGN_RULES]**
 
+**1. Règle d'Utilisation des Icônes :**
+    * L'unique bibliothèque d'icônes autorisée est **iconsax-reactjs**.
+    * **Le package est déjà installé** et prêt à l'emploi. **Tu dois** importer les icônes directement à partir de ce package.
+    * **Syntaxe d'Importation :** **Tu dois** utiliser la syntaxe correcte pour importer les composants d'icônes (par exemple, \`import { Home, Setting, ... } from 'iconsax-reactjs';\`).
+    * **Consigne d'Implémentation :** Pour tout besoin d'icône, **tu dois** chercher et utiliser un composant équivalent fourni par \`iconsax-reactjs\`. **Tu ne dois pas** utiliser de SVG manuels ou d'autres librairies d'icônes (comme Lucide, Feather, etc.).
+    
 
 
 
