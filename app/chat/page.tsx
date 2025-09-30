@@ -1769,6 +1769,9 @@ const handleRemoveMention = (filePath: string) => {
  
         
 
+ 
+// NOTE: Assurez-vous que toutes les dépendances (useState, addLog, extractFileArtifacts, applyArtifactsToProject, etc.) sont dans le scope.
+
 const sendChat = async (promptOverride?: string) => {
     
     const userPrompt = promptOverride || chatInput;
@@ -1829,8 +1832,7 @@ const sendChat = async (promptOverride?: string) => {
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let text = ""; // La source de vérité brute (pour l'extraction finale)
-        let streamBuffer = ""; // 🛑 NOUVEAU: Le buffer qui retient le texte brut du stream
+        let text = ""; // 🛑 La source de vérité brute, accumule tout
 
         setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
@@ -1839,26 +1841,28 @@ const sendChat = async (promptOverride?: string) => {
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
-            streamBuffer += chunk; // 🛑 Accumulation dans le buffer
+            text += chunk; // Mise à jour de la source de vérité
 
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
 
-            // 🛑 1. DÉTECTION DES ARTEFACTS (Utilise le streamBuffer) 🛑
+            // 🛑 1. DÉTECTION DES ARTEFACTS (Complets et Incomplets) 🛑
             
             // a) Extraction des balises COMPLÈTES (pour le contenu final)
-            const fileArtifacts = extractFileArtifacts(streamBuffer);
+            const fileArtifacts = extractFileArtifacts(text);
             
             // b) Détection des balises OUVRANTES INCOMPLÈTES (pour l'affichage immédiat du chemin)
+            // Regarde s'il y a une balise ouvrante SANS la balise fermante qui suit (?!...)
             const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
-            let incompleteMatches = [...streamBuffer.matchAll(incompleteRegex)]; 
+            let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
+
             const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
 
             if (isGeneratingCode) {
                 // 1. Ajouter les artefacts COMPLETS
                 fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
 
-                // 2. Ajouter les artefacts INCOMPLETS
+                // 2. Ajouter les artefacts INCOMPLETS (Affichage du chemin instantané)
                 incompleteMatches.forEach(match => {
                     const path = match[2];
                     const type = match[1] === 'create_file' ? 'create' : 'changes';
@@ -1871,29 +1875,24 @@ const sendChat = async (promptOverride?: string) => {
                     addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
                 }
                 
-                newArtifactData = { type: 'files', parsedList: artifactList, rawJson: streamBuffer };
+                newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
             }
 
-            // 🛑 2. NETTOYAGE ROBUSTE DU BUFFER POUR L'AFFICHAGE (Anti-Flash) 🛑
+            // 🛑 2. NETTOYAGE ROBUSTE DE LA CHAÎNE COMPLÈTE POUR L'AFFICHAGE 🛑
             
-            let contentToDisplay = streamBuffer; // Commence avec le contenu brut
-            
-            // Suppression du bloc COMPLET (balise + contenu multi-lignes)
-            contentToDisplay = contentToDisplay
-                .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
-            
-            // Supprime tout fragment de balise ou balise orpheline (y compris la balise ouvrante)
-            let finalContent = contentToDisplay
+            let textWithoutArtifacts = text
                 .replace(/```json[\s\S]*?```/g, '') 
+                
+                // CORRECTION: Supprime le bloc COMPLET (balise + contenu multi-lignes)
+                .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '') 
+                
+                // Supprime toutes les balises et fragments (y compris les balises ouvrantes isolées)
                 .replace(/<[^>]*>/g, '') 
                 .trim();
-            
-            // --- MISE À JOUR DE LA SOURCE DE VÉRITÉ ET DE L'AFFICHAGE ---
-            
-            // Ajoutez le chunk à la variable 'text' (source de vérité)
-            text += chunk;
 
+
+            // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
             setMessages((prev) => {
                 const lastMsgIndex = prev.length - 1;
                 const updatedMessages = [...prev];
@@ -1903,15 +1902,11 @@ const sendChat = async (promptOverride?: string) => {
                     if (newArtifactData) {
                         lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
                     }
-                    // 🛑 Le contenu affiché est le contenu nettoyé du buffer, garantissant l'absence de code
-                    lastMsg.content = finalContent;
+                    // Met à jour le contenu avec le texte nettoyé 
+                    lastMsg.content = textWithoutArtifacts;
                 }
                 return updatedMessages;
             });
-            
-            // Videz le buffer pour qu'il soit prêt pour le prochain chunk
-            streamBuffer = ""; 
-
         } // Fin du streaming
         
         // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
@@ -1951,6 +1946,7 @@ const sendChat = async (promptOverride?: string) => {
         setMentionedFiles([]); 
     }
 };
+      
              
             
          
