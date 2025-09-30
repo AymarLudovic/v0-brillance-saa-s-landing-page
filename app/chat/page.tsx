@@ -1770,9 +1770,7 @@ const handleRemoveMention = (filePath: string) => {
         
     
 
-       const sendChat = async (promptOverride?: string) => {
-    // La fonction suppose que toutes les dépendances (états et setters) sont
-    // accessibles dans la portée.
+      const sendChat = async (promptOverride?: string) => {
     
     const userPrompt = promptOverride || chatInput;
 
@@ -1783,7 +1781,8 @@ const handleRemoveMention = (filePath: string) => {
       return;
     }
     
-    // --- PRÉPARATION DU MESSAGE UTILISATEUR ET DU PROMPT (Inchangé) ---
+    // --- PRÉPARATION DU MESSAGE UTILISATEUR ET DU PROMPT ---
+    
     const userMsg: Message = {
         role: "user",
         content: userPrompt,
@@ -1814,7 +1813,7 @@ const handleRemoveMention = (filePath: string) => {
     addLog(`Sending prompt to Gemini...`);
 
     try {
-        // --- FETCH VERS L'API GEMINI EN MODE STREAMING (Inchangé) ---
+        // --- FETCH VERS L'API GEMINI EN MODE STREAMING ---
         const res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1843,14 +1842,13 @@ const handleRemoveMention = (filePath: string) => {
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
 
-            // 🛑 EXTRACTION EN TEMPS RÉEL DES ARTEFACTS (BALISES) (Inchangé)
+            // 🛑 1. EXTRACTION DES ARTEFACTS (Utilise le texte brut 'text')
             const fileArtifacts = extractFileArtifacts(text);
             const isGeneratingCode = fileArtifacts.length > 0;
 
             if (isGeneratingCode) {
                 fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
 
-                // Mise à jour du File Tree en temps réel
                 addFilesIfNew(
                     artifactList, 
                     currentProject?.files || [], 
@@ -1866,7 +1864,7 @@ const handleRemoveMention = (filePath: string) => {
                 };
             }
             
-            // 🛑 DÉTECTION DE L'URL (Inchangé)
+            // 🛑 2. DÉTECTION DE L'URL (Inchangé)
             const urlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
 
             if (urlMatch) {
@@ -1880,18 +1878,15 @@ const handleRemoveMention = (filePath: string) => {
               } catch (e) { /* Ignorer le JSON mal formé en cours de stream */ }
             }
 
-            // 🛑 CORRECTION MAJEURE: Nettoyage du texte explicatif. 
-            // Supprime la balise OUVRANTE, son CONTENU (code), et la balise FERMANTE.
+            // 🛑 3. NETTOYAGE DU TEXTE EXPLICATIF (Création de 'textWithoutArtifacts')
             let textWithoutArtifacts = text
                 .replace(/```json[\s\S]*?```/g, '') // Supprime le JSON de l'URL
                 
-                // 🛑 NOUVELLE EXPRESSION RÉGULIÈRE pour la suppression de la balise + contenu
-                // Le '/s' permet de correspondre aux retours à la ligne ('\n') dans le contenu du code.
-                .replace(/<create_file\s+path=["'](?:.*?)["']\s*>[\s\S]*?<\/create_file>/gs, '') 
-                .replace(/<file_changes\s+path=["'](?:.*?)["']\s*>[\s\S]*?<\/file_changes>/gs, '') 
+                // 🛑 CORRECTION FINALE: Suppression du bloc COMPLET (balise + contenu multi-lignes)
+                .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '') 
                 
-                // Assure qu'aucun fragment de balise ou d'XML mal formé ne subsiste
-                .replace(/<[^>]*>/g, '') 
+                .replace(/<[^>]*>/g, '') // Supprime les balises orphelines
                 .trim();
 
             // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
@@ -1913,7 +1908,7 @@ const handleRemoveMention = (filePath: string) => {
         
         // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
         
-        // 1. Gérer l'URL finale (Inchangé)
+        // 1. Gérer l'URL finale
         const finalUrlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
         if (finalUrlMatch) {
           try {
@@ -1926,12 +1921,11 @@ const handleRemoveMention = (filePath: string) => {
           }
         }
 
-        // 2. Gérer les fichiers finaux (Application des modifications et du contenu) (Inchangé)
+        // 2. Gérer les fichiers finaux (Application du contenu)
         const finalArtifacts = extractFileArtifacts(text);
 
         if (finalArtifacts.length > 0) {
           addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
-          // Appelle la fonction qui met à jour le contenu de l'éditeur
           applyArtifactsToProject(finalArtifacts); 
         } else {
           addLog("Response treated as simple text or unrecognized format.");
@@ -1944,12 +1938,13 @@ const handleRemoveMention = (filePath: string) => {
         setLoading(false);
         setAnalysisStatus(null); 
         
-        // Réinitialisation des états des inputs utilisateurs
         setUploadedImages([]); 
         setUploadedFiles([]); 
         setMentionedFiles([]); 
     }
 };
+      
+         
          
         
             
