@@ -438,13 +438,13 @@ const findPotentialComponents = (html: string): { tag: string; selector: string 
   const parser = new DOMParser()
   const doc = parser.parseFromString(html, "text/html")
   const components: { tag: string; selector: string }[] = []
-  const tagsToFind = ["header", "div", "img", "aside", "svg", "ul", "li", "h1", "h2", "h3", "h4", "p", "span", "a", "nav", "footer", "section", "button"]
+  const tagsToFind = ["header", "img", "aside", "ul", "li", "h1", "h2", "h3", "h4", "p", "span", "a", "nav", "footer", "section", "button"]
   tagsToFind.forEach((tag) => {
     if (doc.querySelector(tag)) components.push({ tag, selector: tag })
   })
   const cards: { tag: string; selector: string }[] = []
   doc.querySelectorAll("div").forEach((div, index) => {
-    if (div.querySelector("img") && div.querySelector("h1, h2, h3, p")) {
+    if (div.querySelector("img") && div.querySelector("h1, h2, h3, p, span, header, nav, a, button, aside, footer, section, img, video, ul, li, ol")) {
       const uniqueSelector = `[data-gemini-card-id="${index}"]`
       div.setAttribute("data-gemini-card-id", `${index}`)
       cards.push({ tag: `Card (div)`, selector: uniqueSelector })
