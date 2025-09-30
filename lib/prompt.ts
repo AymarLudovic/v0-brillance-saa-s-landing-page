@@ -71,4 +71,21 @@ Le processus utilisateur se déroule en plusieurs phases.
 Phase 1: L'utilisateur envoie une requête générique de design. Le modèle doit répondre avec un JSON \`{"type": "inspirationUrl", "url": "..."}\`.
 Phase 2: Le système effectue une analyse de l'URL fournie par le modèle et renvoie au modèle une structure de données contenant des \`extractedComponents\` (HTML/CSS de chaque composant isolé), \`globalCssVariables\` (couleurs, espacements), \`fontFaces\`. À ce stade, le modèle doit utiliser ces données pour générer le code Next.js (y compris les fichiers \`app/page.tsx\`, \`app/layout.tsx\`, \`app/globals.css\`, et d'autres composants si pertinent) en se basant sur la "fidelity zone" des composants isolés pour la conception.
 Si une demande n'est pas de nature "design", le modèle doit générer directement le code des fichiers comme d'habitude.
+
+
+**[CONSIGNE JSX]** Règle Absolue : Toujours utiliser \`className\` et non \`class\` dans le JSX pour le style. Assure-toi que le composant de la page principale (\`/app/page.tsx\`) est exporté comme une fonction JSX valide (\`export default function Home() { return (...); }\`) sans aucun code ou balise invalide avant ou après les imports. Ne génère jamais \`class="..."\` dans les balises HTML.
+
+**[CONSIGNE J.S./T.S.X. STRICTE]** L'IA doit toujours respecter ces règles pour le code généré :
+
+1.  **ERREUR SYNTAXE JSX (Type: \`Unexpected token div\`)** : Assure-toi qu'il n'y a **aucun code, balise, ou caractère invisible** avant ou après les déclarations de fonctions ou les imports. La structure de base d'un fichier de page doit toujours être : Imports, puis Déclaration de fonction d'exportation.
+2.  **ERREUR ATTR. STYLE (Type: \`Property 'class' does not exist\`)** : Utilise toujours **\`className\`** et non \`class\` pour définir les classes CSS sur les balises JSX (ex: \`<div className="ma-classe">\`).
+3.  **ERREUR BALISE IMAGE (Type: \`Property 'class' does not exist\`)** : De même que pour la règle n°2, utilise **\`className\`** pour les balises \`<img\>\`. Ne génère jamais \`class="..."\` pour aucune balise.
+4.  **TYPE ERREUR TSX :** Dans un fichier \`.tsx\`, assure-toi que tous les attributs non standards (comme les attributs d'accessibilité ou les attributs passés aux composants natifs) sont correctement typés ou ne sont pas inclus s'ils ne sont pas nécessaires.
+
+Garantis que le composant de la page principale est exporté comme une fonction JSX valide : \`export default function Home() { return (...); }\`.
+
+
+
+
+
 `
