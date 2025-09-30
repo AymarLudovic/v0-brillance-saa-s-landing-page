@@ -1766,8 +1766,11 @@ const handleRemoveMention = (filePath: string) => {
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
   
+ 
+        
+    
 
-      const sendChat = async (promptOverride?: string) => {
+       const sendChat = async (promptOverride?: string) => {
     // La fonction suppose que toutes les dépendances (états et setters) sont
     // accessibles dans la portée.
     
@@ -1780,9 +1783,7 @@ const handleRemoveMention = (filePath: string) => {
       return;
     }
     
-    // --- PRÉPARATION DU MESSAGE UTILISATEUR ET DU PROMPT ---
-    
-    // 1. Ajouter le message utilisateur à l'historique
+    // --- PRÉPARATION DU MESSAGE UTILISATEUR ET DU PROMPT (Inchangé) ---
     const userMsg: Message = {
         role: "user",
         content: userPrompt,
@@ -1796,7 +1797,6 @@ const handleRemoveMention = (filePath: string) => {
     
     let finalPrompt = userPrompt;
     
-    // 2. Inclure le contenu des fichiers mentionnés dans le prompt API
     if (mentionedFiles.length > 0 && currentProject) {
         let fileContents = "--- FICHIERS ACTUELLEMENT DANS LE PROJET ---\n";
         mentionedFiles.forEach(filePath => {
@@ -1814,7 +1814,7 @@ const handleRemoveMention = (filePath: string) => {
     addLog(`Sending prompt to Gemini...`);
 
     try {
-        // --- FETCH VERS L'API GEMINI EN MODE STREAMING ---
+        // --- FETCH VERS L'API GEMINI EN MODE STREAMING (Inchangé) ---
         const res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1831,7 +1831,6 @@ const handleRemoveMention = (filePath: string) => {
         const decoder = new TextDecoder();
         let text = ""; 
 
-        // Initialiser le message de l'assistant vide dans le state pour le streaming
         setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
         while (true) {
@@ -1844,14 +1843,14 @@ const handleRemoveMention = (filePath: string) => {
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
 
-            // 🛑 EXTRACTION EN TEMPS RÉEL DES ARTEFACTS (BALISES)
+            // 🛑 EXTRACTION EN TEMPS RÉEL DES ARTEFACTS (BALISES) (Inchangé)
             const fileArtifacts = extractFileArtifacts(text);
             const isGeneratingCode = fileArtifacts.length > 0;
 
             if (isGeneratingCode) {
                 fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
 
-                // Mise à jour du File Tree en temps réel (pour les nouveaux fichiers)
+                // Mise à jour du File Tree en temps réel
                 addFilesIfNew(
                     artifactList, 
                     currentProject?.files || [], 
@@ -1867,7 +1866,7 @@ const handleRemoveMention = (filePath: string) => {
                 };
             }
             
-            // 🛑 DÉTECTION DE L'URL (Format JSON spécifique)
+            // 🛑 DÉTECTION DE L'URL (Inchangé)
             const urlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
 
             if (urlMatch) {
@@ -1881,12 +1880,16 @@ const handleRemoveMention = (filePath: string) => {
               } catch (e) { /* Ignorer le JSON mal formé en cours de stream */ }
             }
 
-            // 🛑 CORRECTION FINALE DU NETTOYAGE: Supprime la balise ET son contenu
+            // 🛑 CORRECTION MAJEURE: Nettoyage du texte explicatif. 
+            // Supprime la balise OUVRANTE, son CONTENU (code), et la balise FERMANTE.
             let textWithoutArtifacts = text
                 .replace(/```json[\s\S]*?```/g, '') // Supprime le JSON de l'URL
-                // 🛑 NOUVELLE REGEX: Supprime tout, de la balise ouvrante à la balise fermante
-                .replace(/<create_file[\s\S]*?<\/create_file>/g, '') 
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/g, '') 
+                
+                // 🛑 NOUVELLE EXPRESSION RÉGULIÈRE pour la suppression de la balise + contenu
+                // Le '/s' permet de correspondre aux retours à la ligne ('\n') dans le contenu du code.
+                .replace(/<create_file\s+path=["'](?:.*?)["']\s*>[\s\S]*?<\/create_file>/gs, '') 
+                .replace(/<file_changes\s+path=["'](?:.*?)["']\s*>[\s\S]*?<\/file_changes>/gs, '') 
+                
                 // Assure qu'aucun fragment de balise ou d'XML mal formé ne subsiste
                 .replace(/<[^>]*>/g, '') 
                 .trim();
@@ -1910,7 +1913,7 @@ const handleRemoveMention = (filePath: string) => {
         
         // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
         
-        // 1. Gérer l'URL finale
+        // 1. Gérer l'URL finale (Inchangé)
         const finalUrlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
         if (finalUrlMatch) {
           try {
@@ -1923,7 +1926,7 @@ const handleRemoveMention = (filePath: string) => {
           }
         }
 
-        // 2. Gérer les fichiers finaux (Application des modifications et du contenu)
+        // 2. Gérer les fichiers finaux (Application des modifications et du contenu) (Inchangé)
         const finalArtifacts = extractFileArtifacts(text);
 
         if (finalArtifacts.length > 0) {
@@ -1947,10 +1950,7 @@ const handleRemoveMention = (filePath: string) => {
         setMentionedFiles([]); 
     }
 };
-        
-    
-
-                    
+         
         
             
  
