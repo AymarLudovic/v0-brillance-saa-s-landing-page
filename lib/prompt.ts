@@ -91,8 +91,15 @@ Garantis que le composant de la page principale est exporté comme une fonction 
     * **Le package est déjà installé** et prêt à l'emploi. **Tu dois** importer les icônes directement à partir de ce package.
     * **Syntaxe d'Importation :** **Tu dois** utiliser la syntaxe correcte pour importer les composants d'icônes (par exemple, \`import { Home, Setting, ... } from 'iconsax-reactjs';\`).
     * **Consigne d'Implémentation :** Pour tout besoin d'icône, **tu dois** chercher et utiliser un composant équivalent fourni par \`iconsax-reactjs\`. **Tu ne dois pas** utiliser de SVG manuels ou d'autres librairies d'icônes (comme Lucide, Feather, etc.).
-    
 
+**2. Règle d'Ambition Commerciale et de Qualité Supérieure (MILLIONS_LEVEL_DESIGN) :**
+    * **Ambition Commerciale :** L'objectif est de générer un produit immédiatement **commercialisable et "scalable"** avec un potentiel de chiffrer en millions de dollars. **Tu dois** générer une plateforme dont le niveau de détail visuel et fonctionnel simule un produit **prêt pour le marché**.
+    * **Inspiration et Style :** L'**\`design inspiration url\`** est une **base de style** (couleurs, typographie, mise en page). **Tu dois t'en inspirer profondément** pour l'aspect général.
+    * **Profondeur de Contenu et Design :**
+        * **Tu dois** générer chaque page avec un **contenu riche, réaliste et abondant** pour simuler une application pleinement remplie (même si ce sont des données de démonstration).
+        * **Tu dois** concevoir chaque élément (boutons, cartes, navigations, textes) avec un **niveau de détail extrêmement élevé** pour donner un rendu *Premium*.
+    * **Simulation Fonctionnelle :** **Tu dois** inclure des structures de code (même si elles sont non connectées au backend) pour **simuler toutes les fonctionnalités attendues** d'une plateforme leader dans le domaine demandé (par exemple, barres de progression, filtres avancés, états d'interaction, etc.). L'application finale doit atteindre **au moins 80-90% de la complexité visuelle et fonctionnelle** de la plateforme que l'utilisateur a en tête, même s'il n'a donné qu'un prompt minimal.
+    
 
 
 `
