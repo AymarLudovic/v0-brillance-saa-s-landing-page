@@ -1278,7 +1278,62 @@ const applyAndSetFiles = (responses: any[]) => {
     }
                       }
           
-        
+
+
+
+  // NOTE: Cette fonction doit être définie dans le même scope que sendChat.
+const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
+    
+    if (!currentProject) {
+        addLog("Cannot apply artifacts: No current project loaded.");
+        return;
+    }
+
+    const newFiles = [...currentProject.files];
+    let projectUpdated = false;
+
+    finalArtifacts.forEach(artifact => {
+        const index = newFiles.findIndex(f => f.filePath === artifact.filePath);
+
+        if (artifact.type === 'create') {
+            // Création ou écrasement
+            if (index === -1) {
+                // Création: Ajoute le fichier avec son contenu extrait de la balise
+                newFiles.push({
+                    filePath: artifact.filePath,
+                    content: artifact.content, 
+                });
+                addLog(`File created: ${artifact.filePath}`);
+            } else {
+                // Écrasement: Met à jour le contenu existant
+                newFiles[index].content = artifact.content;
+                addLog(`File overwritten: ${artifact.filePath}`);
+            }
+            projectUpdated = true;
+
+        } else if (artifact.type === 'changes') {
+            // Modification par patch (JSON)
+            if (index !== -1) {
+                // ⚠️ ICI, VOUS DEVEZ IMPLÉMENTER LA LOGIQUE DE PATCHING ⚠️
+                // Pour l'instant, on se contente de logguer l'action.
+                // Une implémentation complète nécessiterait un parseur JSON des modifications
+                // et une fonction pour appliquer ces modifications (lignes ajoutées/supprimées).
+                addLog(`Patch requested for ${artifact.filePath}. (Content updated via patch logic - PENDING)`);
+                // newFiles[index].content = applyPatch(newFiles[index].content, JSON.parse(artifact.content));
+                
+                projectUpdated = true;
+            } else {
+                addLog(`Cannot apply changes to non-existent file: ${artifact.filePath}`);
+            }
+        }
+    });
+
+    if (projectUpdated) {
+        // Met à jour le state du projet, ce qui forcera l'éditeur à afficher le nouveau contenu
+        setCurrentProject(prev => prev ? { ...prev, files: newFiles } : null);
+    }
+};
+          
 
 
   
@@ -1712,7 +1767,7 @@ const handleRemoveMention = (filePath: string) => {
 
   
 
-    const sendChat = async (promptOverride?: string) => {
+      const sendChat = async (promptOverride?: string) => {
     // La fonction suppose que toutes les dépendances (états et setters) sont
     // accessibles dans la portée.
     
@@ -1826,12 +1881,14 @@ const handleRemoveMention = (filePath: string) => {
               } catch (e) { /* Ignorer le JSON mal formé en cours de stream */ }
             }
 
-            // 🛑 NETTOYAGE DU TEXTE EXPLICATIF: Suppression de tout le balisage (XML/JSON)
+            // 🛑 CORRECTION FINALE DU NETTOYAGE: Supprime la balise ET son contenu
             let textWithoutArtifacts = text
                 .replace(/```json[\s\S]*?```/g, '') // Supprime le JSON de l'URL
-                .replace(/<create_file[\s\S]*?<\/create_file>/g, '') // Supprime les balises de création complètes
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/g, '') // Supprime les balises de modification complètes
-                .replace(/<[^>]*>/g, '') // 🛑 CORRECTION: Supprime toutes les balises et fragments restants
+                // 🛑 NOUVELLE REGEX: Supprime tout, de la balise ouvrante à la balise fermante
+                .replace(/<create_file[\s\S]*?<\/create_file>/g, '') 
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/g, '') 
+                // Assure qu'aucun fragment de balise ou d'XML mal formé ne subsiste
+                .replace(/<[^>]*>/g, '') 
                 .trim();
 
             // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
@@ -1871,7 +1928,7 @@ const handleRemoveMention = (filePath: string) => {
 
         if (finalArtifacts.length > 0) {
           addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
-          // 🛑 Correction: Appelle la fonction qui met à jour le contenu de l'éditeur
+          // Appelle la fonction qui met à jour le contenu de l'éditeur
           applyArtifactsToProject(finalArtifacts); 
         } else {
           addLog("Response treated as simple text or unrecognized format.");
@@ -1890,7 +1947,7 @@ const handleRemoveMention = (filePath: string) => {
         setMentionedFiles([]); 
     }
 };
-      
+        
     
 
                     
