@@ -2255,7 +2255,9 @@ useEffect(() => {
 
         
           
-           {messages.map((msg, index) => {
+           
+              
+      {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   
   return (
@@ -2287,7 +2289,6 @@ useEffect(() => {
             : "bg-none text-[#37322F] self-start"
         }`}
       >
-        {/* --- LOGIQUE D'AFFICHAGE CONSOLIDÉE --- */}
         {(() => {
           
           const textContent = msg.content;
@@ -2297,11 +2298,43 @@ useEffect(() => {
           
           const displayElements = [];
           
+          // 🛑 DÉBUT DU MASQUAGE AGRESSIF CÔTÉ RENDU (SOLUTION FINALE) 🛑
+          let finalContentToDisplay = textContent;
+          
+          // 1. Détecter si le stream contient un début de balise d'artefact
+          const isStreamingArtifact = textContent.includes('<create_file') || textContent.includes('<file_changes');
+          
+          if (isFileArtifact) {
+              
+              // 1. Suppression du bloc COMPLET (dans le cas où il est terminé)
+              finalContentToDisplay = finalContentToDisplay
+                  .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
+                  .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
+  
+              // 2. Masquage des FRAGMENTS PENDANT LE STREAMING
+              if (isStreamingArtifact) {
+                  // Trouve le début de la dernière balise ouvrante (le point de non-retour)
+                  const lastTagStart = finalContentToDisplay.lastIndexOf('<');
+                  
+                  if (lastTagStart !== -1) {
+                      // On coupe la chaîne juste avant le début de la balise ouvrante en cours de stream.
+                      finalContentToDisplay = finalContentToDisplay.substring(0, lastTagStart);
+                  }
+              }
+          }
+          
+          // 3. Nettoyage final des balises orphelines/JSON qui pourraient subsister dans le texte explicatif
+          finalContentToDisplay = finalContentToDisplay
+              .replace(/```json[\s\S]*?```/g, '')
+              .replace(/<[^>]*>/g, '') // Supprime toute balise restante (<create_file...)
+              .trim();
+          // 🛑 FIN DU MASQUAGE AGRESSIF 🛑
+
           // 1. AFFICHAGE DU TEXTE EXPLICATIF
-          if (hasTextContent) {
+          if (finalContentToDisplay.length > 0) { // Utilise la variable nettoyée
               displayElements.push(
                   <pre key="text" className="whitespace-pre-wrap font-sans text-sm leading-relaxed mb-1">
-                      {textContent}
+                      {finalContentToDisplay} 
                   </pre>
               );
           }
@@ -2318,7 +2351,7 @@ useEffect(() => {
                   Math.floor(msg.content.length / progressUnit) + 1 
               );
               
-              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+              const artifactClasses = finalContentToDisplay.length > 0 ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
 
               displayElements.push(
                   <div key="code-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
@@ -2327,7 +2360,6 @@ useEffect(() => {
                       </p>
                       <ul className="list-disc pl-5 w-[100%] space-y-1">
                           {/* Rendu progressif des chemins de fichiers */}
-                          {/* Utilise 'item.path' et 'item.type' basés sur la nouvelle structure parsedList */}
                           {artifact.parsedList
                               .slice(0, progressCount) 
                               .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
@@ -2353,7 +2385,7 @@ useEffect(() => {
 
           // 3. AFFICHAGE DE L'ARTEFACT URL
           if (isUrlArtifact) {
-              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+              const artifactClasses = finalContentToDisplay.length > 0 ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
               displayElements.push(
                   <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
                       <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
@@ -2371,7 +2403,7 @@ useEffect(() => {
         })()}
       </div>
 
-      {/* 🛑 Affichage des images persistantes (LOGIQUE INCHANGÉE) */}
+      {/* 🛑 LOGIQUE D'AFFICHAGE DES IMAGES, FICHIERS EXTERNES ET MENTIONS (INCHANGÉE) 🛑 */}
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
           <div className="flex gap-1 mt-1">
               {msg.images.map((base64Src, imgIndex) => (
@@ -2390,7 +2422,6 @@ useEffect(() => {
           </div>
       )}
       
-      {/* 🛑 Affichage des fichiers externes persistants (Upload File) */}
       {msg.role === "user" && msg.externalFiles && msg.externalFiles.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1">
               {msg.externalFiles.map((file, fileIndex) => (
@@ -2401,7 +2432,6 @@ useEffect(() => {
           </div>
       )}
 
-      {/* 🛑 Affichage des mentions de fichiers persistantes (@Mention) */}
       {msg.role === "user" && msg.mentionedFiles && msg.mentionedFiles.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1">
               {msg.mentionedFiles.map((filePath, mentionIndex) => (
@@ -2415,6 +2445,7 @@ useEffect(() => {
     </div>
   );
 })}
+            
                 
 
           
