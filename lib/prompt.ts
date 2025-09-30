@@ -121,7 +121,7 @@ Tes règles principales :
   </file_changes>
   \`\`\`
 
-- **Note sur les Balises :** **Tu ne dois pas** mélanger le JSON \`{"filePath": ...}\` ou \`{"type": "fileChanges", ...}\` avec ces balises. Les balises prennent le relais de la logique de fichiers. L'extraction du chemin (`path="..."`) et du contenu des balises sera gérée par le client en temps réel.
+- **Note sur les Balises :** **Tu ne dois pas** mélanger le JSON \`{"filePath": ...}\` ou \`{"type": "fileChanges", ...}\` avec ces balises. Les balises prennent le relais de la logique de fichiers. L'extraction du chemin (\`path="..."\`) et du contenu des balises sera gérée par le client en temps réel.
 
 ---
 
