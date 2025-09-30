@@ -1770,10 +1770,12 @@ const handleRemoveMention = (filePath: string) => {
         
     
 
-      const sendChat = async (promptOverride?: string) => {
+        
+        const sendChat = async (promptOverride?: string) => {
     
     const userPrompt = promptOverride || chatInput;
 
+    // Vérifications initiales
     if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
 
     if (!currentProject && !promptOverride) {
@@ -1796,6 +1798,7 @@ const handleRemoveMention = (filePath: string) => {
     
     let finalPrompt = userPrompt;
     
+    // Ajout du contexte des fichiers mentionnés
     if (mentionedFiles.length > 0 && currentProject) {
         let fileContents = "--- FICHIERS ACTUELLEMENT DANS LE PROJET ---\n";
         mentionedFiles.forEach(filePath => {
@@ -1829,67 +1832,74 @@ const handleRemoveMention = (filePath: string) => {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let text = ""; 
+        let textBuffer = ""; // 🛑 Buffer pour accumuler les chunks avant l'affichage/analyse
 
         setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
-
             const chunk = decoder.decode(value, { stream: true });
-            text += chunk;
-
+            
+            // Accumule le chunk dans le buffer
+            textBuffer += chunk;
+            
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
 
-            // 🛑 1. EXTRACTION DES ARTEFACTS (Utilise le texte brut 'text')
-            const fileArtifacts = extractFileArtifacts(text);
-            const isGeneratingCode = fileArtifacts.length > 0;
+            // 🛑 1. DÉTECTION IMMÉDIATE DES ARTEFACTS (Complets et Incomplets) 🛑
+            
+            // a) Extraction des balises COMPLÈTES (pour la logique finale et l'extraction de contenu)
+            const fileArtifacts = extractFileArtifacts(textBuffer);
+            
+            // b) Détection des balises OUVRANTES INCOMPLÈTES (pour l'affichage immédiat du chemin)
+            // Cette regex trouve une balise ouvrante sans sa balise fermante correspondante derrière elle.
+            const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
+            let incompleteMatches = [...textBuffer.matchAll(incompleteRegex)];
+            
+            const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
 
             if (isGeneratingCode) {
+                // 1. Ajouter les artefacts COMPLETS
                 fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
 
-                addFilesIfNew(
-                    artifactList, 
-                    currentProject?.files || [], 
-                    activeFile, 
-                    setActiveFile, 
-                    setCurrentProject 
-                );
+                // 2. Ajouter les artefacts INCOMPLETS (affichage immédiat du chemin)
+                incompleteMatches.forEach(match => {
+                    const path = match[2];
+                    const type = match[1] === 'create_file' ? 'create' : 'changes';
+                    
+                    if (!artifactList.some(a => a.path === path)) {
+                        artifactList.push({ path, type });
+                    }
+                });
 
-                newArtifactData = {
-                    type: 'files', 
-                    parsedList: artifactList, 
-                    rawJson: text, 
-                };
+                if (currentProject) {
+                    addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
+                }
+                
+                newArtifactData = { type: 'files', parsedList: artifactList, rawJson: textBuffer };
             }
             
-            // 🛑 2. DÉTECTION DE L'URL (Inchangé)
-            const urlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
+            // 🛑 2. NETTOYAGE ROBUSTE DU BUFFER 🛑
+            
+            let finalContent = textBuffer; 
 
-            if (urlMatch) {
-              try {
-                  const parsedUrl = JSON.parse(urlMatch[0].replace(/```json|```/g, '').trim());
-                  newArtifactData = {
-                      type: 'url',
-                      parsedList: [parsedUrl.url],
-                      rawJson: text,
-                  };
-              } catch (e) { /* Ignorer le JSON mal formé en cours de stream */ }
-            }
-
-            // 🛑 3. NETTOYAGE DU TEXTE EXPLICATIF (Création de 'textWithoutArtifacts')
-            let textWithoutArtifacts = text
-                .replace(/```json[\s\S]*?```/g, '') // Supprime le JSON de l'URL
-                
-                // 🛑 CORRECTION FINALE: Suppression du bloc COMPLET (balise + contenu multi-lignes)
+            // Masquage du bloc COMPLET (balise + contenu)
+            // Notez l'utilisation du flag 's' pour le mode dotAll (multi-lignes)
+            finalContent = finalContent
                 .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '') 
-                
-                .replace(/<[^>]*>/g, '') // Supprime les balises orphelines
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
+            
+            // Nettoyage final du texte (JSON URL, balises orphelines)
+            finalContent = finalContent
+                .replace(/```json[\s\S]*?```/g, '')
+                .replace(/<[^>]*>/g, '') 
                 .trim();
+            
+            // Met à jour la variable 'text' (la source de vérité pour le post-stream)
+            text += chunk; 
+            textBuffer = ""; // Réinitialise le buffer après traitement
 
-            // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
+            // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
             setMessages((prev) => {
                 const lastMsgIndex = prev.length - 1;
                 const updatedMessages = [...prev];
@@ -1899,12 +1909,14 @@ const handleRemoveMention = (filePath: string) => {
                     if (newArtifactData) {
                         lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
                     }
-                    // Met à jour le contenu avec le texte nettoyé (explication pure)
-                    lastMsg.content = textWithoutArtifacts;
+                    // Ajoute le contenu nettoyé au message
+                    lastMsg.content += finalContent; 
                 }
                 return updatedMessages;
             });
-        } // Fin du streaming
+
+            if (done) break;
+        } // Fin de la boucle while
         
         // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
         
@@ -1943,6 +1955,7 @@ const handleRemoveMention = (filePath: string) => {
         setMentionedFiles([]); 
     }
 };
+      
       
          
          
