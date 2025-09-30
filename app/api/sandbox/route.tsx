@@ -35,6 +35,7 @@ export async function POST(req: Request) {
             next: "14.2.16",
             react: "18.2.0",
             "react-dom": "18.2.0",
+            "iconsax-reactjs": "0.0.8"
           },
         };
         await sandbox.files.write("/home/user/package.json", JSON.stringify(defaultPackageJson, null, 2));
