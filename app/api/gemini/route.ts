@@ -1,4 +1,3 @@
-// app/api/gemini/route.ts
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part } from "@google/genai"
 import { basePrompt } from "@/lib/prompt" 
@@ -83,14 +82,31 @@ export async function POST(req: Request) {
     })
 
     const encoder = new TextEncoder()
+    
+    // 🛑 NOUVEAU: Logique de Batching pour regrouper les chunks 🛑
+    const BATCH_SIZE = 256; // Seuil de regroupement des caractères
+    let batchBuffer = ""; // Buffer interne au serveur
+
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of response) {
             if (chunk.text) {
-              controller.enqueue(encoder.encode(chunk.text))
+              batchBuffer += chunk.text; // Accumuler le texte du chunk
+              
+              // VÉRIFICATION DU SEUIL: Envoi du batch si la taille est atteinte
+              if (batchBuffer.length >= BATCH_SIZE) {
+                controller.enqueue(encoder.encode(batchBuffer));
+                batchBuffer = ""; // Réinitialiser le buffer après envoi
+              }
             }
           }
+          
+          // FIN DU STREAM: S'assurer que le contenu restant est envoyé
+          if (batchBuffer.length > 0) {
+             controller.enqueue(encoder.encode(batchBuffer));
+          }
+
         } catch (err) {
           console.error("[API Gemini] Erreur de streaming:", err)
           controller.enqueue(encoder.encode(`[Stream error: ${(err as Error).message}]`))
@@ -110,5 +126,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-        }
-      
+                }
+                  
