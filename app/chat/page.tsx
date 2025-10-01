@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import  { useState, useRef, useEffect, useMemo } from "react"
+import  { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import CodeMirror from "@uiw/react-codemirror"
