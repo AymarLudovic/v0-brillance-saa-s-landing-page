@@ -586,13 +586,18 @@ const cloneWithComputedStyles = (element: Element): HTMLElement => {
   return clone
 }
 
+// Assurez-vous que cette fonction est bien présente, car elle est appelée par la logique des artefacts.
 const applyChanges = (originalContent: string, changes: any[]): string => {
-  if (!originalContent && changes.some((c) => c.action !== "insertAfter")) return ""
+  // Gère le cas où le contenu original est vide mais qu'il y a des suppressions/remplacements
+  if (!originalContent && changes.some((c) => c.action !== "insertAfter" && c.action !== "insert")) return "" 
   const lines = originalContent ? originalContent.split("\n") : []
 
+  // Les suppressions doivent être traitées en premier et en ordre inverse pour ne pas affecter les indices des lignes suivantes.
   const deletions = changes.filter((c) => c.action === "delete").sort((a, b) => b.startLine - a.startLine)
-  const insertions = changes.filter((c) => c.action === "insertAfter").sort((a, b) => b.lineNumber - a.lineNumber)
-  const replacements = changes.filter((c) => c.action === "replace")
+  const replacements = changes.filter((c) => c.action === "replace").sort((a, b) => b.lineNumber - a.lineNumber)
+  // Les insertions sont traitées après. "insert" ou "insertAfter"
+  const insertions = changes.filter((c) => c.action === "insertAfter" || c.action === "insert").sort((a, b) => b.lineNumber - a.lineNumber)
+
 
   deletions.forEach((change) => {
     const startLineIndex = change.startLine - 1
@@ -602,14 +607,7 @@ const applyChanges = (originalContent: string, changes: any[]): string => {
     }
   })
 
-  insertions.forEach((change) => {
-    const lineIndex = change.lineNumber - 1
-    if (lineIndex >= -1 && lineIndex < lines.length) {
-      // Allow inserting at the beginning if lineNumber is 0
-      lines.splice(lineIndex + 1, 0, change.contentToInsert)
-    }
-  })
-
+  // Le remplacement est une forme d'insertion/suppression, mais plus simple à gérer ligne par ligne
   replacements.forEach((change) => {
     const lineIndex = change.lineNumber - 1
     if (lineIndex >= 0 && lineIndex < lines.length) {
@@ -617,8 +615,31 @@ const applyChanges = (originalContent: string, changes: any[]): string => {
     }
   })
 
+
+  // Correction: Utiliser 'insert' pour insérer AVANT la ligne et 'insertAfter' pour insérer APRÈS.
+  insertions.forEach((change) => {
+    const lineIndex = change.lineNumber - 1
+    let insertionPoint = lineIndex;
+
+    // 'insert' insère avant la ligne spécifiée.
+    if (change.action === "insert") {
+      insertionPoint = lineIndex;
+    }
+    // 'insertAfter' insère après la ligne spécifiée.
+    else if (change.action === "insertAfter") {
+      insertionPoint = lineIndex + 1;
+    }
+
+    // Assurez-vous que le point d'insertion est valide
+    if (insertionPoint >= 0 && insertionPoint <= lines.length) {
+      lines.splice(insertionPoint, 0, change.contentToInsert)
+    }
+  })
+
+
   return lines.join("\n")
-}
+    }
+                                      
 
 
 
@@ -1254,118 +1275,84 @@ const parseMessageContent = (content: string) => {
   
 
   
-const applyAndSetFiles = (responses: any[]) => {
-    // Vérifie si un projet est chargé
-    if (!currentProject) {
-        addLog(`❌ Impossible d'appliquer les changements de fichiers : Aucun projet n'est chargé.`);
-        return;
-    }
 
-    // 🛑 Étape Clé: Utilise les fichiers du projet actuel
-    const newFiles = [...currentProject.files];
-    let filesUpdated = false;
-
-    responses.forEach((res) => {
-      // Ignorer l'objet 'inspirationUrl' s'il est malencontreusement passé ici
-      if (res.type === "inspirationUrl") {
-          addLog(`Ignoré : URL d'inspiration détectée.`);
-          return; 
-      }
-        
-      if (res.type === "fileChanges" && res.filePath && res.changes) {
-        // Logique de modification (patch)
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
-        if (fileIndex !== -1) {
-          const originalContent = newFiles[fileIndex].content;
-          newFiles[fileIndex].content = applyChanges(originalContent, res.changes);
-          filesUpdated = true;
-          addLog(`Applied ${res.changes.length} changes to ${res.filePath}`);
-        } else {
-          addLog(`Warning: L'IA a tenté de modifier un fichier inexistant : ${res.filePath}`);
-        }
-      } else if (res.filePath && typeof res.content === "string") {
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
-        if (fileIndex !== -1) {
-          // Mise à jour de contenu complet
-          newFiles[fileIndex].content = res.content;
-        } else {
-          // 🚀 CRÉATION D'UN NOUVEAU FICHIER PAR L'IA
-          newFiles.push({ filePath: res.filePath, content: res.content });
-        }
-        filesUpdated = true;
-      }
-    });
-
-    if (filesUpdated) {
-      // 🛑 Mise à jour de l'état global du projet, ce qui met à jour l'arborescence
-      setCurrentProject({ 
-        ...currentProject, 
-        files: newFiles // Les fichiers mis à jour ou créés sont inclus ici
-      });
-      addLog(`✅ Fichiers du projet mis à jour selon la proposition de l'IA.`);
-      setActiveTab("code");
-      // Sauvegarde immédiate du projet mis à jour
-      if (currentProject) saveProject(); 
-    } else {
-      addLog(`❌ La réponse de l'IA ne contenait pas de créations/modifications de fichiers valides.`);
-    }
-                      }
           
 
 
 
-  // NOTE: Cette fonction doit être définie dans le même scope que sendChat.
-const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
-    
-    if (!currentProject) {
-        addLog("Cannot apply artifacts: No current project loaded.");
-        return;
-    }
+    // REMPLACER À LA FOIS la fonction applyArtifactsToProject (incomplète)
+    // ET la fonction applyAndSetFiles par ce bloc unique.
+    const applyArtifactsToProject = useCallback((artifacts: any[]) => {
+        
+        // Assurez-vous que applyChanges, currentProject, setCurrentProject, 
+        // addLog, setActiveTab, activeFile sont définis dans le scope ou les dépendances.
 
-    const newFiles = [...currentProject.files];
-    let projectUpdated = false;
-
-    finalArtifacts.forEach(artifact => {
-        const index = newFiles.findIndex(f => f.filePath === artifact.filePath);
-
-        if (artifact.type === 'create') {
-            // Création ou écrasement
-            if (index === -1) {
-                // Création: Ajoute le fichier avec son contenu extrait de la balise
-                newFiles.push({
-                    filePath: artifact.filePath,
-                    content: artifact.content, 
-                });
-                addLog(`File created: ${artifact.filePath}`);
-            } else {
-                // Écrasement: Met à jour le contenu existant
-                newFiles[index].content = artifact.content;
-                addLog(`File overwritten: ${artifact.filePath}`);
-            }
-            projectUpdated = true;
-
-        } else if (artifact.type === 'changes') {
-            // Modification par patch (JSON)
-            if (index !== -1) {
-                // ⚠️ ICI, VOUS DEVEZ IMPLÉMENTER LA LOGIQUE DE PATCHING ⚠️
-                // Pour l'instant, on se contente de logguer l'action.
-                // Une implémentation complète nécessiterait un parseur JSON des modifications
-                // et une fonction pour appliquer ces modifications (lignes ajoutées/supprimées).
-                addLog(`Patch requested for ${artifact.filePath}. (Content updated via patch logic - PENDING)`);
-                // newFiles[index].content = applyPatch(newFiles[index].content, JSON.parse(artifact.content));
-                
-                projectUpdated = true;
-            } else {
-                addLog(`Cannot apply changes to non-existent file: ${artifact.filePath}`);
-            }
+        if (!currentProject || !setCurrentProject) {
+            addLog(`❌ Impossible d'appliquer les changements de fichiers : Aucun projet n'est chargé.`);
+            return;
         }
-    });
 
-    if (projectUpdated) {
-        // Met à jour le state du projet, ce qui forcera l'éditeur à afficher le nouveau contenu
-        setCurrentProject(prev => prev ? { ...prev, files: newFiles } : null);
-    }
-};
+        const newFiles = [...currentProject.files];
+        let filesUpdated = false;
+
+        artifacts.forEach((artifact) => {
+            
+            // Ignorer l'artefact d'URL qui pourrait avoir été extrait accidentellement
+            if (artifact.type === "inspirationUrl") return; 
+
+            const filePath = artifact.filePath;
+            const fileIndex = newFiles.findIndex((f) => f.filePath === filePath);
+
+            // LOGIQUE DE MODIFICATION (PATCH)
+            if ((artifact.type === "fileChanges" || artifact.type === "changes") && artifact.changes) {
+                if (fileIndex !== -1) {
+                    const originalContent = newFiles[fileIndex].content;
+                    // Appel à la fonction applyChanges (qui doit être dans le scope)
+                    newFiles[fileIndex].content = applyChanges(originalContent, artifact.changes); 
+                    filesUpdated = true;
+                    addLog(`Applied ${artifact.changes.length} changes to ${filePath}`);
+                } else {
+                    addLog(`Warning: L'IA a tenté de modifier un fichier inexistant : ${filePath}`);
+                }
+            } 
+            
+            // LOGIQUE DE CRÉATION/ÉCRASSEMENT (createFile ou create)
+            else if ((artifact.type === "createFile" || artifact.type === "create") && typeof artifact.content === "string") {
+                
+                if (fileIndex === -1) {
+                    // CRÉATION
+                    newFiles.push({ filePath: filePath, content: artifact.content });
+                    addLog(`Created new file: ${filePath}`);
+                } else {
+                    // ÉCRASSEMENT
+                    newFiles[fileIndex].content = artifact.content;
+                    addLog(`Overwrote existing file: ${filePath}`);
+                }
+                filesUpdated = true;
+                
+                // Mettre le focus sur le nouveau/fichier mis à jour
+                if (filePath !== activeFile) {
+                    setActiveFile(filePath); 
+                }
+            }
+        });
+
+        if (filesUpdated) {
+            // 🛑 Mise à jour de l'état global du projet, ce qui est le DÉCLENCHEUR RAG dans sendChat
+            setCurrentProject(prevProject => {
+                if (!prevProject) return null;
+                return {
+                    ...prevProject, 
+                    files: newFiles
+                };
+            });
+            addLog(`✅ Fichiers du projet mis à jour et prêts pour la ré-indexation RAG.`);
+            setActiveTab("code");
+            // Appeler la sauvegarde si nécessaire
+            // if (currentProject) saveProject(); 
+        }
+    }, [currentProject, setCurrentProject, addLog, setActiveTab, activeFile, applyChanges]);
+              
           
 
 
@@ -1431,12 +1418,11 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
  * puis notifie le LLM.
  */
 
+    
 
-  
-
-  
-  const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
-    if (!currentProject || !setCurrentProject) {
+  const processAnalysisResult = useCallback(async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+    // Note : Assurez-vous que toutes les dépendances sont déclarées dans useCallback si nécessaire.
+    if (!currentProject || !setCurrentProject || !reindexFile) { // Ajout de reindexFile ici
         addLog("ERROR: Project state is missing or cannot be updated.")
         throw new Error("Project state is missing or cannot be updated.")
     }
@@ -1448,22 +1434,18 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
     const trimmedHTML = fullHTML.trim();
     const trimmedJS = fullJS.trim();
 
-    // 2. Échappement agressif pour template literals
-    // Ceci empêche les caractères spéciaux (backslashes, backticks, dollars) de briser la syntaxe JSX/JS.
+    // 2. Échappement agressif pour template literals (Logique inchangée)
     const escapeContent = (content: string) => {
         return content
-            // 1. Échapper les backslashes: '\\' -> '\\\\' (Doit être fait en premier)
             .replace(/\\/g, '\\\\') 
-            // 2. Échapper les backticks: '`' -> '\`'
             .replace(/`/g, '\\`')
-            // 3. Échapper le signe dollar: '$' -> '\$'
             .replace(/\$/g, '\\$');
     };
     
     const escapedHTML = escapeContent(trimmedHTML);
     const escapedJS = escapeContent(trimmedJS);
 
-    // 3. Construction du fichier app/page.tsx
+    // 3. Construction du fichier app/page.tsx (Logique inchangée)
     const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
     
     // 4. Préparation de la mise à jour de l'état
@@ -1489,13 +1471,24 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
         }
     })
     
-    addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini...")
+    // 🛑 AJOUT CRUCIAL RAG : Indexation des fichiers clonés pour la RAG 🛑
+    // C'est cette étape qui assure que le contenu des gros fichiers sera accessible à Gemini.
+    filesToUpdate.forEach(async ({ filePath }) => {
+        const file = updatedFiles.find(f => f.filePath === filePath);
+        if (file) {
+            await reindexFile(file); // Utilise la fonction reindexFile du Bloc 2B
+        }
+    });
+
+    addLog("[CLONE-FLOW] ✅ Local project files updated and indexed. Notifying Gemini...")
     const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make an clone action of the website, just respond to tell to the user that you have understand the action and not generated codes.`
     
+    // 6. Envoi de la notification
     await sendChat(simplePrompt)
-      }
-    
-              
+  }, [currentProject, setCurrentProject, addLog, setAnalysisStatus, sendChat, reindexFile]);
+                                            
+
+  
 
 
 /**
