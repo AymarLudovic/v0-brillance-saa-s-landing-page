@@ -6,11 +6,9 @@ const EMBEDDING_MODEL = "text-embedding-004";
 // Taille de morceau de code (chunk)
 const CHUNK_SIZE = 4000; 
 
-// Fonctions utilitaires à placer dans ce fichier ou dans un fichier à part
+// Fonction utilitaire pour découper le code (simple version)
 function chunkText(text: string, chunkSize: number): string[] {
     const chunks: string[] = [];
-    // Utiliser le saut de ligne comme séparateur pourrait être mieux pour le code, 
-    // mais la version simple par caractère est suffisante pour le POC.
     for (let i = 0; i < text.length; i += chunkSize) {
         chunks.push(text.substring(i, i + chunkSize));
     }
@@ -19,7 +17,6 @@ function chunkText(text: string, chunkSize: number): string[] {
 
 export async function POST(req: Request) {
     try {
-        // Le client envoie un fichier à indexer
         const { filePath, content } = await req.json() as { 
             filePath: string, 
             content: string 
@@ -36,13 +33,13 @@ export async function POST(req: Request) {
         const chunks = chunkText(content, CHUNK_SIZE);
         const indexedChunks = [];
         
-        // Gemini permet d'intégrer plusieurs contenus à la fois
+        // Préparation des requêtes de vectorisation
         const embedRequests = chunks.map(chunk => ({
             model: EMBEDDING_MODEL,
             content: chunk,
         }));
 
-        // 🛑 Utiliser l'appel batch pour plus d'efficacité
+        // Appel en batch pour une meilleure performance
         const batchResults = await ai.embed.batchEmbedContents(embedRequests);
 
         batchResults.embeddings.forEach((embedding, i) => {
@@ -50,11 +47,10 @@ export async function POST(req: Request) {
                 filePath: filePath,
                 chunkIndex: i,
                 text: chunks[i],
-                embedding: embedding.values, // Le vecteur lui-même
+                embedding: embedding.values, // Le vecteur
             });
         });
 
-        // Retourner les morceaux vectorisés. Le client devra les stocker.
         return NextResponse.json({ 
             message: `Successfully indexed ${indexedChunks.length} chunks for ${filePath}`,
             chunks: indexedChunks 
@@ -66,5 +62,5 @@ export async function POST(req: Request) {
             error: "Failed to generate embeddings: " + err.message 
         }, { status: 500 });
     }
-         }
-          
+            }
+            
