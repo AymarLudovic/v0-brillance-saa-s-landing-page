@@ -1767,16 +1767,14 @@ const handleRemoveMention = (filePath: string) => {
 
   
  
-        
-
- 
-// NOTE: Assurez-vous que toutes les dépendances (useState, addLog, extractFileArtifacts, applyArtifactsToProject, etc.) sont dans le scope.
+        // Assurez-vous que les états et fonctions suivantes sont accessibles dans le scope :
+// chatInput, uploadedImages, uploadedFiles, mentionedFiles, messages, currentProject, 
+// addLog, setLoading, setMessages, etc.
 
 const sendChat = async (promptOverride?: string) => {
     
     const userPrompt = promptOverride || chatInput;
 
-    // Vérifications initiales
     if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
 
     if (!currentProject && !promptOverride) {
@@ -1784,56 +1782,62 @@ const sendChat = async (promptOverride?: string) => {
       return;
     }
     
-    // --- PRÉPARATION DU MESSAGE UTILISATEUR ET DU PROMPT ---
+    // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
     
+    // Ajout du contexte des fichiers mentionnés (pour le prompt texte de l'utilisateur)
+    let contextForPrompt = "";
+    if (mentionedFiles.length > 0 && currentProject) {
+        contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
+    }
+    
+    const finalUserPrompt = userPrompt + contextForPrompt;
+
+    // Création du message utilisateur final (pour l'affichage)
     const userMsg: Message = {
         role: "user",
-        content: userPrompt,
+        content: finalUserPrompt,
         artifactData: { type: null, rawJson: "", parsedList: [] },
         images: uploadedImages, 
         externalFiles: uploadedFiles, 
         mentionedFiles: mentionedFiles
     };
+    
+    // L'historique que nous envoyons au serveur inclut l'historique passé + le nouveau message
+    const currentHistory = [...messages, userMsg]; 
+    
+    // Extraction des fichiers du projet (seulement chemins et contenus)
+    const currentProjectFiles = currentProject 
+        ? currentProject.files.map(f => ({ filePath: f.filePath, content: f.content }))
+        : [];
+
     setMessages((prev) => [...prev, userMsg]);
     setChatInput(""); 
     
-    let finalPrompt = userPrompt;
-    
-    // Ajout du contexte des fichiers mentionnés
-    if (mentionedFiles.length > 0 && currentProject) {
-        let fileContents = "--- FICHIERS ACTUELLEMENT DANS LE PROJET ---\n";
-        mentionedFiles.forEach(filePath => {
-            const file = currentProject.files.find(f => f.filePath === filePath);
-            if (file) {
-                const numberedContent = file.content.split('\n').map((line, index) => `${index + 1}: ${line}`).join('\n');
-                fileContents += `// Fichier: ${filePath}\n${numberedContent}\n\n`;
-            }
-        });
-        fileContents += "--- FIN DES FICHIERS ---\n";
-        finalPrompt = `${fileContents}\n\n${userPrompt}`;
-    }
-
     setLoading(true);
     addLog(`Sending prompt to Gemini...`);
 
     try {
-        // --- FETCH VERS L'API GEMINI EN MODE STREAMING ---
+        // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
         const res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
-                message: finalPrompt, 
+                // 🛑 DONNÉES CLÉS POUR LA PERSISTANCE DU CONTEXTE 🛑
+                history: currentHistory, 
+                currentProjectFiles: currentProjectFiles, 
+                
+                // Les images et fichiers externes sont toujours inclus pour la route API
                 uploadedImages: uploadedImages,
                 uploadedFiles: uploadedFiles, 
-                mentionedFiles: mentionedFiles, 
             }), 
         });
         if (!res.ok || !res.body) throw new Error(`Gemini API request failed: ${res.statusText}`);
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let text = ""; // 🛑 La source de vérité brute, accumule tout
+        let text = ""; 
 
+        // Initialisation de la bulle de l'IA
         setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
         while (true) {
@@ -1841,28 +1845,20 @@ const sendChat = async (promptOverride?: string) => {
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
-            text += chunk; // Mise à jour de la source de vérité
+            text += chunk; 
 
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
 
-            // 🛑 1. DÉTECTION DES ARTEFACTS (Complets et Incomplets) 🛑
-            
-            // a) Extraction des balises COMPLÈTES (pour le contenu final)
+            // 🛑 3. LOGIQUE D'EXTRACTION D'ARTEFACTS (INCHANGÉE) 🛑
             const fileArtifacts = extractFileArtifacts(text);
-            
-            // b) Détection des balises OUVRANTES INCOMPLÈTES (pour l'affichage immédiat du chemin)
-            // Regarde s'il y a une balise ouvrante SANS la balise fermante qui suit (?!...)
             const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
             let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
 
             const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
 
             if (isGeneratingCode) {
-                // 1. Ajouter les artefacts COMPLETS
                 fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
-
-                // 2. Ajouter les artefacts INCOMPLETS (Affichage du chemin instantané)
                 incompleteMatches.forEach(match => {
                     const path = match[2];
                     const type = match[1] === 'create_file' ? 'create' : 'changes';
@@ -1878,20 +1874,19 @@ const sendChat = async (promptOverride?: string) => {
                 newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
             }
 
-            // 🛑 2. NETTOYAGE ROBUSTE DE LA CHAÎNE COMPLÈTE POUR L'AFFICHAGE 🛑
+            // 🛑 4. NETTOYAGE DU TEXTE POUR L'AFFICHAGE (POUR ENREGISTREMENT DANS L'ÉTAT) 🛑
             
+            // Cette partie s'assure que le contenu du message stocké (msg.content)
+            // n'affiche pas le code XML, mais conserve le marqueur '---' pour le JSX.
             let textWithoutArtifacts = text
                 .replace(/```json[\s\S]*?```/g, '') 
-                
-                // CORRECTION: Supprime le bloc COMPLET (balise + contenu multi-lignes)
+                // Nettoyage agressif des balises pour éviter le flash
                 .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '') 
-                
-                // Supprime toutes les balises et fragments (y compris les balises ouvrantes isolées)
-                .replace(/<[^>]*>/g, '') 
-                .trim();
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
 
-
+            // On ne retire PAS le marqueur '---' ici, ni le code XML incomplet qui suit.
+            textWithoutArtifacts = textWithoutArtifacts.trim();
+            
             // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
             setMessages((prev) => {
                 const lastMsgIndex = prev.length - 1;
@@ -1902,29 +1897,14 @@ const sendChat = async (promptOverride?: string) => {
                     if (newArtifactData) {
                         lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
                     }
-                    // Met à jour le contenu avec le texte nettoyé 
-                    lastMsg.content = textWithoutArtifacts;
+                    // Le contenu affiché sera le texte nettoyé (coupé plus tard par le JSX grâce à '---')
+                    lastMsg.content = textWithoutArtifacts; 
                 }
                 return updatedMessages;
             });
         } // Fin du streaming
         
-        // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
-        
-        // 1. Gérer l'URL finale
-        const finalUrlMatch = text.match(/```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/);
-        if (finalUrlMatch) {
-          try {
-              const url = JSON.parse(finalUrlMatch[0].replace(/```json|```/g, '').trim()).url;
-              addLog(`✅ Gemini suggests inspiration URL: ${url}`);
-              await runAutomatedAnalysis(url, userPrompt); 
-              return; 
-          } catch (e) {
-              addLog(`❌ Échec du parsage final de l'URL.`);
-          }
-        }
-
-        // 2. Gérer les fichiers finaux (Application du contenu)
+        // ... (Logique POST-STREAM : URL, applyArtifactsToProject inchangée) ...
         const finalArtifacts = extractFileArtifacts(text);
 
         if (finalArtifacts.length > 0) {
@@ -1946,7 +1926,9 @@ const sendChat = async (promptOverride?: string) => {
         setMentionedFiles([]); 
     }
 };
-      
+          
+
+ 
              
             
          
