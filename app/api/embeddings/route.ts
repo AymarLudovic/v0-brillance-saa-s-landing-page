@@ -1,12 +1,11 @@
+// app/api/embeddings/route.ts
+
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 
-// Modèle d'embeddings
 const EMBEDDING_MODEL = "text-embedding-004"; 
-// Taille de morceau de code (chunk)
 const CHUNK_SIZE = 4000; 
 
-// Fonction utilitaire pour découper le code (simple version)
 function chunkText(text: string, chunkSize: number): string[] {
     const chunks: string[] = [];
     for (let i = 0; i < text.length; i += chunkSize) {
@@ -33,13 +32,11 @@ export async function POST(req: Request) {
         const chunks = chunkText(content, CHUNK_SIZE);
         const indexedChunks = [];
         
-        // Préparation des requêtes de vectorisation
         const embedRequests = chunks.map(chunk => ({
             model: EMBEDDING_MODEL,
             content: chunk,
         }));
 
-        // Appel en batch pour une meilleure performance
         const batchResults = await ai.embed.batchEmbedContents(embedRequests);
 
         batchResults.embeddings.forEach((embedding, i) => {
@@ -47,7 +44,7 @@ export async function POST(req: Request) {
                 filePath: filePath,
                 chunkIndex: i,
                 text: chunks[i],
-                embedding: embedding.values, // Le vecteur
+                embedding: embedding.values,
             });
         });
 
@@ -62,5 +59,5 @@ export async function POST(req: Request) {
             error: "Failed to generate embeddings: " + err.message 
         }, { status: 500 });
     }
-            }
-            
+    }
+                
