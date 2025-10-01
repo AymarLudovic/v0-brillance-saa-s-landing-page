@@ -11,6 +11,10 @@ import { EditorView } from "@codemirror/view"
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { tags } from "@lezer/highlight" 
 
+// Imports à ajouter dans SandboxPage.tsx
+import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
+
+
 // REMPLACER CodeMirror par Monaco Editor
 import Editor, { OnChange, OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor'; // Pour les types
@@ -875,6 +879,35 @@ export default function SandboxPage() {
   // ⚠️ À placer au début de votre composant SandboxPage
 const [isCloning, setIsCloning] = useState(false)
 const [cloneUrl, setCloneUrl] = useState("")
+
+
+      // 🛑 NOUVEL ÉTAT RAG : Le cache vectoriel du projet 🛑
+    const [projectEmbeddings, setProjectEmbeddings] = useState<IndexedChunk[]>([]);
+    
+    // --- LOGIQUE D'INDEXATION DES FICHIERS ---
+    
+    const reindexFile = useCallback(async (file: any /* Utilisez votre type ProjectFile réel ici */) => {
+        if (file.content.length < 50) return; 
+        
+        const newChunks = await indexFileContent(file);
+        
+        setProjectEmbeddings(prevEmbeddings => 
+            updateProjectEmbeddings(newChunks, prevEmbeddings)
+        );
+    }, []);
+
+    // --- GESTION DE L'INDEXATION LORS DU CHARGEMENT DE PROJET ---
+    
+    useEffect(() => {
+        if (currentProject) {
+            currentProject.files.forEach((file: any /* Utilisez votre type ProjectFile réel ici */) => {
+                 reindexFile(file);
+            });
+        } else {
+            setProjectEmbeddings([]); // Réinitialiser si aucun projet
+        }
+    }, [currentProject, reindexFile]);
+                                         
 
 
 
@@ -1766,166 +1799,193 @@ const handleRemoveMention = (filePath: string) => {
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
   
- 
-        // Assurez-vous que les états et fonctions suivantes sont accessibles dans le scope :
-// chatInput, uploadedImages, uploadedFiles, mentionedFiles, messages, currentProject, 
-// addLog, setLoading, setMessages, etc.
-
-const sendChat = async (promptOverride?: string) => {
+         // --- FONCTION sendChat INTÉGRALE ET FINALE (RAG, Historique, Artefacts) ---
     
-    const userPrompt = promptOverride || chatInput;
+    const sendChat = useCallback(async (promptOverride?: string) => {
+        
+        // Assurez-vous que les dépendances suivantes sont accessibles: chatInput, 
+        // uploadedImages, uploadedFiles, mentionedFiles, messages, currentProject, 
+        // addLog, setLoading, setMessages, applyArtifactsToProject, extractFileArtifacts, 
+        // activeFile, setActiveFile, setCurrentProject, reindexFile, projectEmbeddings
+        
+        const userPrompt = promptOverride || chatInput;
 
-    if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
+        if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
 
-    if (!currentProject && !promptOverride) {
-      addLog("Please create or load a project before starting a conversation.");
-      return;
-    }
-    
-    // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
-    
-    // Ajout du contexte des fichiers mentionnés (pour le prompt texte de l'utilisateur)
-    let contextForPrompt = "";
-    if (mentionedFiles.length > 0 && currentProject) {
-        contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
-    }
-    
-    const finalUserPrompt = userPrompt + contextForPrompt;
+        if (!currentProject && !promptOverride) {
+          addLog("Please create or load a project before starting a conversation.");
+          return;
+        }
+        
+        // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
+        let contextForPrompt = "";
+        if (mentionedFiles.length > 0 && currentProject) {
+            contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
+        }
+        
+        const finalUserPrompt = userPrompt + contextForPrompt;
 
-    // Création du message utilisateur final (pour l'affichage)
-    const userMsg: Message = {
-        role: "user",
-        content: finalUserPrompt,
-        artifactData: { type: null, rawJson: "", parsedList: [] },
-        images: uploadedImages, 
-        externalFiles: uploadedFiles, 
-        mentionedFiles: mentionedFiles
-    };
-    
-    // L'historique que nous envoyons au serveur inclut l'historique passé + le nouveau message
-    const currentHistory = [...messages, userMsg]; 
-    
-    // Extraction des fichiers du projet (seulement chemins et contenus)
-    const currentProjectFiles = currentProject 
-        ? currentProject.files.map(f => ({ filePath: f.filePath, content: f.content }))
-        : [];
+        const userMsg: Message = {
+            role: "user",
+            content: finalUserPrompt,
+            artifactData: { type: null, rawJson: "", parsedList: [] },
+            images: uploadedImages, 
+            externalFiles: uploadedFiles, 
+            mentionedFiles: mentionedFiles
+        };
+        
+        const currentHistory = [...messages, userMsg]; 
+        
+        const currentProjectFiles = currentProject 
+            ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
+            : [];
 
-    setMessages((prev) => [...prev, userMsg]);
-    setChatInput(""); 
-    
-    setLoading(true);
-    addLog(`Sending prompt to Gemini...`);
+        setMessages((prev) => [...prev, userMsg]);
+        setChatInput(""); 
+        
+        setLoading(true);
+        addLog(`Sending prompt to Gemini...`);
 
-    try {
-        // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
-        const res = await fetch("/api/gemini", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                // 🛑 DONNÉES CLÉS POUR LA PERSISTANCE DU CONTEXTE 🛑
-                history: currentHistory, 
-                currentProjectFiles: currentProjectFiles, 
-                
-                // Les images et fichiers externes sont toujours inclus pour la route API
-                uploadedImages: uploadedImages,
-                uploadedFiles: uploadedFiles, 
-            }), 
-        });
-        if (!res.ok || !res.body) throw new Error(`Gemini API request failed: ${res.statusText}`);
+        try {
+            // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
+            const res = await fetch("/api/gemini", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    history: currentHistory, 
+                    currentProjectFiles: currentProjectFiles, 
+                    // 🛑 DONNÉE CRUCIALE POUR LA RAG 🛑
+                    projectEmbeddings: projectEmbeddings, 
+                    
+                    uploadedImages: uploadedImages,
+                    uploadedFiles: uploadedFiles, 
+                }), 
+            });
+            if (!res.ok || !res.body) throw new Error(`Gemini API request failed: ${res.statusText}`);
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let text = ""; 
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let text = ""; 
+            let urlArtifact: any = null; 
 
-        // Initialisation de la bulle de l'IA
-        setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
+            setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            const chunk = decoder.decode(value, { stream: true });
-            text += chunk; 
+                const chunk = decoder.decode(value, { stream: true });
+                text += chunk; 
 
-            let newArtifactData = undefined;
-            const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+                let newArtifactData = undefined;
+                const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
 
-            // 🛑 3. LOGIQUE D'EXTRACTION D'ARTEFACTS (INCHANGÉE) 🛑
-            const fileArtifacts = extractFileArtifacts(text);
-            const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
-            let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
+                // 🛑 1. DÉTECTION DE L'ARTEFACT URL (JSON) 🛑
+                const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
+                const urlMatch = text.match(inspirationUrlRegex);
 
-            const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
-
-            if (isGeneratingCode) {
-                fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
-                incompleteMatches.forEach(match => {
-                    const path = match[2];
-                    const type = match[1] === 'create_file' ? 'create' : 'changes';
-                    if (!artifactList.some(a => a.path === path)) {
-                        artifactList.push({ path, type });
+                if (urlMatch) {
+                    try {
+                        const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
+                        const parsedUrlData = JSON.parse(jsonString);
+                        
+                        if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
+                            urlArtifact = { url: parsedUrlData.url }; 
+                            newArtifactData = { type: 'url', url: parsedUrlData.url, rawJson: text };
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse URL JSON:", e);
                     }
-                });
-
-                if (currentProject) {
-                    addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
                 }
                 
-                newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
+                // 2. LOGIQUE D'EXTRACTION DE FICHIERS 
+                const fileArtifacts = extractFileArtifacts(text); 
+                const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
+                let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
+
+                const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
+
+                if (isGeneratingCode) {
+                    fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
+                    incompleteMatches.forEach(match => {
+                        const path = match[2];
+                        const type = match[1] === 'create_file' ? 'create' : 'changes';
+                        if (!artifactList.some(a => a.path === path)) {
+                            artifactList.push({ path, type });
+                        }
+                    });
+
+                    if (currentProject) {
+                        addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
+                    }
+                    
+                    newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
+                }
+
+                // 3. NETTOYAGE DU TEXTE POUR L'AFFICHAGE
+                
+                let textWithoutArtifacts = text
+                    .replace(inspirationUrlRegex, '') // Supprime le JSON URL
+                    .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
+                    .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
+
+                // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
+                setMessages((prev) => {
+                    const lastMsgIndex = prev.length - 1;
+                    const updatedMessages = [...prev];
+                    const lastMsg = updatedMessages[lastMsgIndex];
+                    
+                    if (lastMsg?.role === "assistant") {
+                        if (newArtifactData) {
+                            lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
+                        }
+                        lastMsg.content = textWithoutArtifacts; 
+                    }
+                    return updatedMessages;
+                });
+            } // Fin du streaming
+
+            // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
+            
+            if (urlArtifact) {
+              addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
+              // Ajoutez ici votre appel à runAutomatedAnalysis(urlArtifact.url, userPrompt); si nécessaire
             }
 
-            // 🛑 4. NETTOYAGE DU TEXTE POUR L'AFFICHAGE (POUR ENREGISTREMENT DANS L'ÉTAT) 🛑
-            
-            // Cette partie s'assure que le contenu du message stocké (msg.content)
-            // n'affiche pas le code XML, mais conserve le marqueur '---' pour le JSX.
-            let textWithoutArtifacts = text
-                .replace(/```json[\s\S]*?```/g, '') 
-                // Nettoyage agressif des balises pour éviter le flash
-                .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
+            const finalArtifacts = extractFileArtifacts(text);
 
-            // On ne retire PAS le marqueur '---' ici, ni le code XML incomplet qui suit.
-            textWithoutArtifacts = textWithoutArtifacts.trim();
-            
-            // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
-            setMessages((prev) => {
-                const lastMsgIndex = prev.length - 1;
-                const updatedMessages = [...prev];
-                const lastMsg = updatedMessages[lastMsgIndex];
+            if (finalArtifacts.length > 0) {
+                addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
                 
-                if (lastMsg?.role === "assistant") {
-                    if (newArtifactData) {
-                        lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
-                    }
-                    // Le contenu affiché sera le texte nettoyé (coupé plus tard par le JSX grâce à '---')
-                    lastMsg.content = textWithoutArtifacts; 
-                }
-                return updatedMessages;
-            });
-        } // Fin du streaming
-        
-        // ... (Logique POST-STREAM : URL, applyArtifactsToProject inchangée) ...
-        const finalArtifacts = extractFileArtifacts(text);
+                // 1. Appliquer les changements au projet
+                applyArtifactsToProject(finalArtifacts); 
+                
+                // 🛑 2. Vectoriser les fichiers modifiés après l'application 🛑
+                setTimeout(() => {
+                    finalArtifacts.forEach(async (artifact) => {
+                        const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
+                        if (updatedFile) {
+                            await reindexFile(updatedFile); // Ré-indexation du fichier modifié
+                        }
+                    });
+                }, 100); 
+                
+            } else {
+              addLog("Response treated as simple text or unrecognized format.");
+            }
 
-        if (finalArtifacts.length > 0) {
-          addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
-          applyArtifactsToProject(finalArtifacts); 
-        } else {
-          addLog("Response treated as simple text or unrecognized format.");
+        } catch (err: any) {
+            addLog(`CLIENT-SIDE ERROR: ${err.message}`);
+            setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
+        } finally {
+            setLoading(false);
         }
+    }, [chatInput, currentProject, messages, projectEmbeddings, reindexFile]); 
+            
 
-    } catch (err: any) {
-        addLog(`CLIENT-SIDE ERROR: ${err.message}`);
-        setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
-    } finally {
-        setLoading(false);
-        setAnalysisStatus(null); 
+            
         
-        setUploadedImages([]); 
-        setUploadedFiles([]); 
-        setMentionedFiles([]); 
-    }
-};
+
           
 
  
