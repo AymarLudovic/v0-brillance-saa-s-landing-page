@@ -1,9 +1,13 @@
+// app/api/gemini/route.ts
+
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part } from "@google/genai"
+// Assurez-vous que basePrompt existe ou ajustez l'importation
 import { basePrompt } from "@/lib/prompt" 
-import { IndexedChunk } from "@/lib/rag-utils" // Import du type
-
-// ... (vos fonctions utilitaires : getMimeTypeFromBase64, cleanBase64Data, vos types Message et ProjectFile) ...
+// Types nécessaires pour la RAG et le contexte
+interface IndexedChunk { filePath: string; chunkIndex: number; text: string; embedding: number[]; } 
+interface Message { role: "user" | "assistant"; content: string; images?: string[]; externalFiles?: { fileName: string; base64Content: string }[]; mentionedFiles?: string[]; }
+interface ProjectFile { filePath: string; content: string; }
 
 // --- FONCTIONS MATHÉMATIQUES POUR LA SIMILARITÉ COSINE ---
 function dotProduct(vecA: number[], vecB: number[]): number {
@@ -34,28 +38,23 @@ async function retrieveRelevantContext(
     
     const EMBEDDING_MODEL = "text-embedding-004";
     
-    // 1. Vectoriser la question de l'utilisateur (Query)
     const queryEmbeddingResponse = await ai.embed.embedContent({
         model: EMBEDDING_MODEL, 
         content: prompt,
     });
     const queryVector = queryEmbeddingResponse.embedding.values;
 
-    // 2. Calculer la Similarité et classer
     const rankedChunks = allEmbeddings.map(chunk => ({
         ...chunk,
         similarity: cosineSimilarity(queryVector, chunk.embedding),
     })).sort((a, b) => b.similarity - a.similarity);
 
-    // 3. Sélectionner les 5 morceaux de code les plus pertinents (Top K)
     const TOP_K = 5;
-    // Utiliser un seuil de pertinence minimal de 0.8 pour un code très spécifique
     const relevantChunks = rankedChunks.slice(0, TOP_K).filter(chunk => chunk.similarity > 0.8); 
     
     if (relevantChunks.length === 0) return "";
 
-    // 4. Augmentation: Formater le contexte pour l'IA
-    let context = "\n\n--- CODE CONTEXTUEL RÉCUPÉRÉ (Pour la modification ou référence) ---\n";
+    let context = "\n\n--- CODE CONTEXTUEL RÉCUPÉRÉ (RAG) ---\n";
     relevantChunks.forEach(chunk => {
         context += `// Fichier: ${chunk.filePath} (Pertinence: ${chunk.similarity.toFixed(2)})\n`;
         context += `${chunk.text}\n`;
@@ -66,6 +65,16 @@ async function retrieveRelevantContext(
     return context;
 }
 
+// Utilitaires pour les fichiers
+function getMimeTypeFromBase64(dataUrl: string): string {
+    const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
+    return match ? match[1] : 'application/octet-stream';
+}
+
+function cleanBase64Data(dataUrl: string): string {
+    return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+}
+
 const BATCH_SIZE = 256; 
 
 export async function POST(req: Request) {
@@ -74,10 +83,10 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
-        projectEmbeddings // Les vecteurs indexés par le client
+        projectEmbeddings 
     } = await req.json() as { 
         history: Message[], 
-        currentProjectFiles: ProjectFile[], // Non utilisé ici, car RAG est prioritaire
+        currentProjectFiles: ProjectFile[], 
         uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
         projectEmbeddings: IndexedChunk[], 
@@ -93,7 +102,6 @@ export async function POST(req: Request) {
 
     const model = "gemini-2.5-flash"
     
-    // 1. CONVERSION DE L'HISTORIQUE EN FORMAT GEMINI (contents)
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
 
     for (const msg of history) {
@@ -103,19 +111,33 @@ export async function POST(req: Request) {
 
         if (msg === history[history.length - 1] && role === 'user') {
             
-            // 🛑 ÉTAPE RAG : Récupération du contexte pertinent
             const userPrompt = msg.content;
+            // 🛑 Injection du contexte RAG 🛑
             const relevantContext = await retrieveRelevantContext(userPrompt, projectEmbeddings, ai);
 
-            // On injecte le BasePrompt + le contexte du projet (RAG) + le message actuel de l'utilisateur
             textContent = basePrompt + relevantContext + "\n\n" + textContent;
             
-            // ... (Injection des images/fichiers inchangée) ...
+            // Gestion des images/fichiers
             if (uploadedImages && uploadedImages.length > 0) {
-                // ... (logic) ...
+                uploadedImages.forEach((dataUrl) => {
+                    parts.push({
+                        inlineData: {
+                            data: cleanBase64Data(dataUrl),
+                            mimeType: getMimeTypeFromBase64(dataUrl),
+                        },
+                    });
+                });
             }
             if (uploadedFiles && uploadedFiles.length > 0) {
-                 // ... (logic) ...
+                 uploadedFiles.forEach((file) => {
+                    parts.push({
+                        inlineData: {
+                            data: file.base64Content,
+                            mimeType: getMimeTypeFromBase64(`data:text/plain;base64,${file.base64Content}`),
+                        },
+                    });
+                    parts.push({ text: `[EXTERNAL FILE: ${file.fileName}]` });
+                });
             }
         }
         
@@ -129,13 +151,12 @@ export async function POST(req: Request) {
       contents, 
     })
 
-    // ... (Le streaming, le BATCH_SIZE, et le retour sont inchangés) ...
+    // Streaming
     const encoder = new TextEncoder()
     let batchBuffer = ""; 
 
     const stream = new ReadableStream({
       async start(controller) {
-        // ... (Streaming logic) ...
         try {
           for await (const chunk of response) {
             if (chunk.text) {
@@ -171,5 +192,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-    }
-                                     
+}
+    
