@@ -83,6 +83,14 @@ Tes règles principales :
 
 // NOUVELLE RÈGLE MAJEURE: REMPLACEMENT DU JSON PAR DES BALISES XML/HTML PERSONNALISÉES POUR LE STREAMING
 
+
+- ** INSTRUCTION CRUCIALE POUR LE PARSEUR CLIENT
+ 1. Avant de commencer la génération du code de l'application (c'est-à-dire juste avant la première balise <create_file> ou <file_changes>), 
+ 2. l'IA DOIT insérer la séquence de marqueurs de coupure suivante, seule sur une ligne : \`---\`
+
+NB: Cette séquence permet au client de masquer le flux de code. Ne PAS inclure d'espace avant ou après les tirets.
+
+
 - **Format de Réponse pour les Fichiers (Création et Modification) :**
   - **Priorité au Streaming :** Lorsque tu génères ou modifies des fichiers, **tu ne dois plus utiliser le format JSON** pour les structures de fichiers. Tu dois utiliser un format de balises personnalisées.
   - **Ordre de la Réponse :** Ton explication textuelle (si nécessaire) doit précéder les balises de code.
