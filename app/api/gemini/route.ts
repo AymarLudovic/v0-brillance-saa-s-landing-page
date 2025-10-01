@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { GoogleGenAI, Part } from "@google/genai"
 import { basePrompt } from "@/lib/prompt" 
 
+// Fonctions utilitaires inchangées
 function getMimeTypeFromBase64(dataUrl: string): string {
     const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
     return match ? match[1] : 'application/octet-stream';
@@ -11,18 +12,39 @@ function cleanBase64Data(dataUrl: string): string {
     return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 }
 
+// 🛑 Définition du type pour l'historique
+interface Message {
+    role: "user" | "assistant";
+    content: string;
+    images?: string[];
+    externalFiles?: { fileName: string; base64Content: string }[];
+    mentionedFiles?: string[];
+}
+
+interface ProjectFile {
+    filePath: string;
+    content: string;
+}
+
+// 🛑 TAILLE DE BATCH (pour éviter le flash du code)
+const BATCH_SIZE = 256; 
+
 export async function POST(req: Request) {
   try {
-    // 🛑 MISE À JOUR : Récupération de tous les nouveaux champs
-    const { message, uploadedImages, uploadedFiles, mentionedFiles } = await req.json() as { 
-        message: string, 
-        uploadedImages: string[], 
+    const { 
+        history, // L'historique complet (user + assistant)
+        currentProjectFiles, // Fichiers du projet (pour la RAG-lite)
+        uploadedImages, // Images du message actuel
+        uploadedFiles, // Fichiers externes du message actuel
+    } = await req.json() as { 
+        history: Message[], 
+        currentProjectFiles: ProjectFile[],
+        uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
-        mentionedFiles: string[], // Les chemins de fichiers déjà dans le projet
     }
 
-    if (!message && (!uploadedImages || uploadedImages.length === 0) && (!uploadedFiles || uploadedFiles.length === 0)) {
-        return NextResponse.json({ error: "Message ou contenu manquant" }, { status: 400 })
+    if (!history || history.length === 0) {
+        return NextResponse.json({ error: "Historique de conversation manquant" }, { status: 400 })
     }
 
     const ai = new GoogleGenAI({
@@ -30,79 +52,85 @@ export async function POST(req: Request) {
     })
 
     const model = "gemini-2.5-flash"
+    
+    // 🛑 1. CONVERSION DE L'HISTORIQUE EN FORMAT GEMINI (contents) 🛑
+    const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
 
-    // 🛑 MISE À JOUR : Construction du tableau 'contents'
-    const userParts: Part[] = []
+    // On parcourt tout l'historique
+    for (const msg of history) {
+        const parts: Part[] = [];
+        const role = msg.role === 'assistant' ? 'model' : 'user';
 
-    // 1. Ajouter les images (Base64)
-    if (uploadedImages && uploadedImages.length > 0) {
-        uploadedImages.forEach((dataUrl) => {
-            userParts.push({
-                inlineData: {
-                    data: cleanBase64Data(dataUrl),
-                    mimeType: getMimeTypeFromBase64(dataUrl),
-                },
-            });
-        });
+        // Texte principal (y compris le prompt final de l'utilisateur)
+        let textContent = msg.content;
+
+        // Si c'est le DERNIER message (le message utilisateur actuel)
+        if (msg === history[history.length - 1] && role === 'user') {
+            
+            // --- INJECTION DU CONTEXTE RAG-LITE (Liste des fichiers) ---
+            let projectContext = "\n--- PROJECT FILE LIST ---\n";
+            // Ceci est la RAG-lite : seulement la liste des fichiers, pas le contenu !
+            // Pour les fichiers de 500k lignes, seul le chemin est envoyé ici.
+            projectContext += currentProjectFiles.map(f => f.filePath).join('\n');
+            projectContext += "\n--- END PROJECT FILE LIST ---\n";
+            
+            // On injecte le BasePrompt + le contexte du projet + le message actuel de l'utilisateur
+            textContent = basePrompt + projectContext + "\n\n" + textContent;
+            
+            // --- INJECTION DES IMAGES/FICHIERS UPLOADÉS ---
+            if (uploadedImages && uploadedImages.length > 0) {
+                uploadedImages.forEach((dataUrl) => {
+                    parts.push({
+                        inlineData: {
+                            data: cleanBase64Data(dataUrl),
+                            mimeType: getMimeTypeFromBase64(dataUrl),
+                        },
+                    });
+                });
+            }
+            
+            if (uploadedFiles && uploadedFiles.length > 0) {
+                 uploadedFiles.forEach((file) => {
+                    parts.push({
+                        inlineData: {
+                            data: file.base64Content,
+                            mimeType: getMimeTypeFromBase64(`data:text/plain;base64,${file.base64Content}`),
+                        },
+                    });
+                    parts.push({ text: `[EXTERNAL FILE: ${file.fileName}]` });
+                });
+            }
+        }
+        
+        parts.push({ text: textContent });
+        contents.push({ role, parts });
     }
     
-    // 2. Ajouter les fichiers externes (Base64)
-    if (uploadedFiles && uploadedFiles.length > 0) {
-        uploadedFiles.forEach((file) => {
-            userParts.push({
-                inlineData: {
-                    data: file.base64Content,
-                    mimeType: getMimeTypeFromBase64(`data:text/plain;base64,${file.base64Content}`), // Tente d'estimer le mime type
-                },
-            });
-            // Ajoute le nom du fichier comme contexte textuel pour l'IA
-            userParts.push({ text: `[FILE NAME: ${file.fileName}]` });
-        });
-    }
-
-    // 3. Ajouter la mention des fichiers internes
-    let mentionContext = "";
-    if (mentionedFiles && mentionedFiles.length > 0) {
-        mentionContext = `\n[MENTIONED PROJECT FILES: ${mentionedFiles.join(', ')}]`;
-    }
-    
-    // 4. Ajouter le prompt texte
-    const fullPrompt = basePrompt + mentionContext + "\n\n" + message
-    userParts.push({ text: fullPrompt });
-
-    // 5. Construire la requête contents
-    const contents = [{
-        role: "user",
-        parts: userParts,
-    }];
-
+    // 🛑 2. APPEL À L'API AVEC L'HISTORIQUE COMPLET 🛑
     const response = await ai.models.generateContentStream({
       model,
-      contents,
+      contents, // L'historique complet est ici !
     })
 
     const encoder = new TextEncoder()
-    
-    // 🛑 NOUVEAU: Logique de Batching pour regrouper les chunks 🛑
-    const BATCH_SIZE = 256; // Seuil de regroupement des caractères
-    let batchBuffer = ""; // Buffer interne au serveur
+    let batchBuffer = ""; 
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of response) {
             if (chunk.text) {
-              batchBuffer += chunk.text; // Accumuler le texte du chunk
+              batchBuffer += chunk.text; 
               
-              // VÉRIFICATION DU SEUIL: Envoi du batch si la taille est atteinte
+              // VÉRIFICATION DU SEUIL
               if (batchBuffer.length >= BATCH_SIZE) {
                 controller.enqueue(encoder.encode(batchBuffer));
-                batchBuffer = ""; // Réinitialiser le buffer après envoi
+                batchBuffer = ""; 
               }
             }
           }
           
-          // FIN DU STREAM: S'assurer que le contenu restant est envoyé
+          // FIN DU STREAM
           if (batchBuffer.length > 0) {
              controller.enqueue(encoder.encode(batchBuffer));
           }
@@ -111,7 +139,7 @@ export async function POST(req: Request) {
           console.error("[API Gemini] Erreur de streaming:", err)
           controller.enqueue(encoder.encode(`[Stream error: ${(err as Error).message}]`))
         } finally {
-          controller.close()
+          controller.close();
         }
       },
     })
@@ -126,5 +154,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-                }
-                  
+        }
+            
