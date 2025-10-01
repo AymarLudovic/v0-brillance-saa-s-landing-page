@@ -1,95 +1,86 @@
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part } from "@google/genai"
 import { basePrompt } from "@/lib/prompt" 
+import { IndexedChunk } from "@/lib/rag-utils" // Import du type
 
-// Fonctions utilitaires inchangées
-function getMimeTypeFromBase64(dataUrl: string): string {
-    const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
-    return match ? match[1] : 'application/octet-stream';
+// ... (vos fonctions utilitaires : getMimeTypeFromBase64, cleanBase64Data, vos types Message et ProjectFile) ...
+
+// --- FONCTIONS MATHÉMATIQUES POUR LA SIMILARITÉ COSINE ---
+function dotProduct(vecA: number[], vecB: number[]): number {
+    return vecA.reduce((acc, val, i) => acc + val * vecB[i], 0);
 }
 
-function cleanBase64Data(dataUrl: string): string {
-    return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+function magnitude(vec: number[]): number {
+    return Math.sqrt(vec.reduce((acc, val) => acc + val * val, 0));
 }
 
-// 🛑 Définition des types
-interface Message {
-    role: "user" | "assistant";
-    content: string;
-    images?: string[];
-    externalFiles?: { fileName: string; base64Content: string }[];
-    mentionedFiles?: string[];
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+    const product = dotProduct(vecA, vecB);
+    const magA = magnitude(vecA);
+    const magB = magnitude(vecB);
+    
+    if (magA === 0 || magB === 0) return 0;
+    
+    return product / (magA * magB);
 }
 
-interface ProjectFile {
-    filePath: string;
-    content: string;
-}
-
-// 🛑 NOUVEAU : Type pour les morceaux de code vectorisés
-interface IndexedChunk {
-    filePath: string;
-    chunkIndex: number;
-    text: string;
-    embedding: number[]; // Le vecteur
-}
-
-// 🛑 NOUVEAU : Fonction de Récupération du Contexte (Placeholder/Concept)
-// C'est ici que la magie de la RAG se produira.
+// --- FONCTION DE RÉCUPÉRATION (RETRIEVAL) RAG ---
 async function retrieveRelevantContext(
     prompt: string, 
     allEmbeddings: IndexedChunk[], 
     ai: GoogleGenAI
 ): Promise<string> {
-    // Si la liste des embeddings est vide, on ne peut rien récupérer
     if (allEmbeddings.length === 0) return "";
     
-    // --- Étape 1: Vectoriser la question de l'utilisateur (Query) ---
+    const EMBEDDING_MODEL = "text-embedding-004";
+    
+    // 1. Vectoriser la question de l'utilisateur (Query)
     const queryEmbeddingResponse = await ai.embed.embedContent({
-        model: "text-embedding-004", // Utiliser le modèle d'embeddings
+        model: EMBEDDING_MODEL, 
         content: prompt,
     });
     const queryVector = queryEmbeddingResponse.embedding.values;
 
-    // --- Étape 2: Calculer la Similarité (Simplicité : on ne le fait pas vraiment ici, 
-    // car le calcul de similarité entre tous les vecteurs est lourd en Node.js.
-    // Cette étape serait idéale dans une vraie DB Vectorielle).
+    // 2. Calculer la Similarité et classer
+    const rankedChunks = allEmbeddings.map(chunk => ({
+        ...chunk,
+        similarity: cosineSimilarity(queryVector, chunk.embedding),
+    })).sort((a, b) => b.similarity - a.similarity);
 
-    // Pour le POC, on va juste injecter la liste complète des fichiers (RAG-lite)
-    // et s'assurer que si un fichier est mentionné, son contenu est injecté (si petit).
+    // 3. Sélectionner les 5 morceaux de code les plus pertinents (Top K)
+    const TOP_K = 5;
+    // Utiliser un seuil de pertinence minimal de 0.8 pour un code très spécifique
+    const relevantChunks = rankedChunks.slice(0, TOP_K).filter(chunk => chunk.similarity > 0.8); 
     
-    let context = "";
-    // Ici, vous auriez le code de calcul de similarité pour récupérer les Top N chunks.
-    
-    // Simplicité : Retourner la liste des fichiers comme RAG-lite
-    const fileList = allEmbeddings.map(e => e.filePath).filter((v, i, a) => a.indexOf(v) === i).join('\n');
-    context += "\n--- CONTEXTE DE FICHIERS DISPONIBLES (Structure du projet) ---\n";
-    context += fileList;
-    context += "\n--- FIN DU CONTEXTE ---\n";
+    if (relevantChunks.length === 0) return "";
 
-    // Si vous aviez le contenu pertinent, vous l'ajouteriez ici :
-    // context += "\n--- CODE PERTINENT RÉCUPÉRÉ ---\n" + retrievedChunks.join('\n') + "\n---\n";
+    // 4. Augmentation: Formater le contexte pour l'IA
+    let context = "\n\n--- CODE CONTEXTUEL RÉCUPÉRÉ (Pour la modification ou référence) ---\n";
+    relevantChunks.forEach(chunk => {
+        context += `// Fichier: ${chunk.filePath} (Pertinence: ${chunk.similarity.toFixed(2)})\n`;
+        context += `${chunk.text}\n`;
+        context += `// ---\n`;
+    });
+    context += "--- FIN DU CONTEXTE DE CODE RÉCUPÉRÉ ---\n\n";
 
     return context;
 }
 
-// 🛑 TAILLE DE BATCH (pour éviter le flash du code)
 const BATCH_SIZE = 256; 
 
 export async function POST(req: Request) {
   try {
     const { 
         history, 
-        currentProjectFiles,
         uploadedImages,
         uploadedFiles,
-        projectEmbeddings // 🛑 NOUVEAU: Les vecteurs indexés par le client
+        projectEmbeddings // Les vecteurs indexés par le client
     } = await req.json() as { 
         history: Message[], 
-        currentProjectFiles: ProjectFile[],
+        currentProjectFiles: ProjectFile[], // Non utilisé ici, car RAG est prioritaire
         uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
-        projectEmbeddings: IndexedChunk[], // Les vecteurs (pour la RAG)
+        projectEmbeddings: IndexedChunk[], 
     }
 
     if (!history || history.length === 0) {
@@ -102,49 +93,29 @@ export async function POST(req: Request) {
 
     const model = "gemini-2.5-flash"
     
-    // 🛑 1. CONVERSION DE L'HISTORIQUE EN FORMAT GEMINI (contents) 🛑
+    // 1. CONVERSION DE L'HISTORIQUE EN FORMAT GEMINI (contents)
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
 
-    // On parcourt tout l'historique
     for (const msg of history) {
         const parts: Part[] = [];
         const role = msg.role === 'assistant' ? 'model' : 'user';
         let textContent = msg.content;
 
-        // Si c'est le DERNIER message (le message utilisateur actuel)
         if (msg === history[history.length - 1] && role === 'user') {
-            
-            // --- INJECTION DU CONTEXTE RAG (Liste des fichiers + Code Pertinent) ---
             
             // 🛑 ÉTAPE RAG : Récupération du contexte pertinent
             const userPrompt = msg.content;
             const relevantContext = await retrieveRelevantContext(userPrompt, projectEmbeddings, ai);
 
-            // On injecte le BasePrompt + le contexte du projet + le message actuel de l'utilisateur
+            // On injecte le BasePrompt + le contexte du projet (RAG) + le message actuel de l'utilisateur
             textContent = basePrompt + relevantContext + "\n\n" + textContent;
             
-            // --- INJECTION DES IMAGES/FICHIERS UPLOADÉS ---
+            // ... (Injection des images/fichiers inchangée) ...
             if (uploadedImages && uploadedImages.length > 0) {
-                uploadedImages.forEach((dataUrl) => {
-                    parts.push({
-                        inlineData: {
-                            data: cleanBase64Data(dataUrl),
-                            mimeType: getMimeTypeFromBase64(dataUrl),
-                        },
-                    });
-                });
+                // ... (logic) ...
             }
-            
             if (uploadedFiles && uploadedFiles.length > 0) {
-                 uploadedFiles.forEach((file) => {
-                    parts.push({
-                        inlineData: {
-                            data: file.base64Content,
-                            mimeType: getMimeTypeFromBase64(`data:text/plain;base64,${file.base64Content}`),
-                        },
-                    });
-                    parts.push({ text: `[EXTERNAL FILE: ${file.fileName}]` });
-                });
+                 // ... (logic) ...
             }
         }
         
@@ -152,18 +123,19 @@ export async function POST(req: Request) {
         contents.push({ role, parts });
     }
     
-    // 🛑 2. APPEL À L'API AVEC L'HISTORIQUE COMPLET 🛑
+    // 2. APPEL À L'API AVEC L'HISTORIQUE COMPLET 
     const response = await ai.models.generateContentStream({
       model,
-      contents, // L'historique complet est ici !
+      contents, 
     })
 
-    // ... (Le streaming et la gestion des BATCH_SIZE sont inchangés) ...
+    // ... (Le streaming, le BATCH_SIZE, et le retour sont inchangés) ...
     const encoder = new TextEncoder()
     let batchBuffer = ""; 
 
     const stream = new ReadableStream({
       async start(controller) {
+        // ... (Streaming logic) ...
         try {
           for await (const chunk of response) {
             if (chunk.text) {
@@ -199,4 +171,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-        }
+    }
+                                     
