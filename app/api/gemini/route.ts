@@ -12,7 +12,7 @@ function cleanBase64Data(dataUrl: string): string {
     return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 }
 
-// 🛑 Définition du type pour l'historique
+// 🛑 Définition des types
 interface Message {
     role: "user" | "assistant";
     content: string;
@@ -26,21 +26,70 @@ interface ProjectFile {
     content: string;
 }
 
+// 🛑 NOUVEAU : Type pour les morceaux de code vectorisés
+interface IndexedChunk {
+    filePath: string;
+    chunkIndex: number;
+    text: string;
+    embedding: number[]; // Le vecteur
+}
+
+// 🛑 NOUVEAU : Fonction de Récupération du Contexte (Placeholder/Concept)
+// C'est ici que la magie de la RAG se produira.
+async function retrieveRelevantContext(
+    prompt: string, 
+    allEmbeddings: IndexedChunk[], 
+    ai: GoogleGenAI
+): Promise<string> {
+    // Si la liste des embeddings est vide, on ne peut rien récupérer
+    if (allEmbeddings.length === 0) return "";
+    
+    // --- Étape 1: Vectoriser la question de l'utilisateur (Query) ---
+    const queryEmbeddingResponse = await ai.embed.embedContent({
+        model: "text-embedding-004", // Utiliser le modèle d'embeddings
+        content: prompt,
+    });
+    const queryVector = queryEmbeddingResponse.embedding.values;
+
+    // --- Étape 2: Calculer la Similarité (Simplicité : on ne le fait pas vraiment ici, 
+    // car le calcul de similarité entre tous les vecteurs est lourd en Node.js.
+    // Cette étape serait idéale dans une vraie DB Vectorielle).
+
+    // Pour le POC, on va juste injecter la liste complète des fichiers (RAG-lite)
+    // et s'assurer que si un fichier est mentionné, son contenu est injecté (si petit).
+    
+    let context = "";
+    // Ici, vous auriez le code de calcul de similarité pour récupérer les Top N chunks.
+    
+    // Simplicité : Retourner la liste des fichiers comme RAG-lite
+    const fileList = allEmbeddings.map(e => e.filePath).filter((v, i, a) => a.indexOf(v) === i).join('\n');
+    context += "\n--- CONTEXTE DE FICHIERS DISPONIBLES (Structure du projet) ---\n";
+    context += fileList;
+    context += "\n--- FIN DU CONTEXTE ---\n";
+
+    // Si vous aviez le contenu pertinent, vous l'ajouteriez ici :
+    // context += "\n--- CODE PERTINENT RÉCUPÉRÉ ---\n" + retrievedChunks.join('\n') + "\n---\n";
+
+    return context;
+}
+
 // 🛑 TAILLE DE BATCH (pour éviter le flash du code)
 const BATCH_SIZE = 256; 
 
 export async function POST(req: Request) {
   try {
     const { 
-        history, // L'historique complet (user + assistant)
-        currentProjectFiles, // Fichiers du projet (pour la RAG-lite)
-        uploadedImages, // Images du message actuel
-        uploadedFiles, // Fichiers externes du message actuel
+        history, 
+        currentProjectFiles,
+        uploadedImages,
+        uploadedFiles,
+        projectEmbeddings // 🛑 NOUVEAU: Les vecteurs indexés par le client
     } = await req.json() as { 
         history: Message[], 
         currentProjectFiles: ProjectFile[],
         uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
+        projectEmbeddings: IndexedChunk[], // Les vecteurs (pour la RAG)
     }
 
     if (!history || history.length === 0) {
@@ -60,22 +109,19 @@ export async function POST(req: Request) {
     for (const msg of history) {
         const parts: Part[] = [];
         const role = msg.role === 'assistant' ? 'model' : 'user';
-
-        // Texte principal (y compris le prompt final de l'utilisateur)
         let textContent = msg.content;
 
         // Si c'est le DERNIER message (le message utilisateur actuel)
         if (msg === history[history.length - 1] && role === 'user') {
             
-            // --- INJECTION DU CONTEXTE RAG-LITE (Liste des fichiers) ---
-            let projectContext = "\n--- PROJECT FILE LIST ---\n";
-            // Ceci est la RAG-lite : seulement la liste des fichiers, pas le contenu !
-            // Pour les fichiers de 500k lignes, seul le chemin est envoyé ici.
-            projectContext += currentProjectFiles.map(f => f.filePath).join('\n');
-            projectContext += "\n--- END PROJECT FILE LIST ---\n";
+            // --- INJECTION DU CONTEXTE RAG (Liste des fichiers + Code Pertinent) ---
             
+            // 🛑 ÉTAPE RAG : Récupération du contexte pertinent
+            const userPrompt = msg.content;
+            const relevantContext = await retrieveRelevantContext(userPrompt, projectEmbeddings, ai);
+
             // On injecte le BasePrompt + le contexte du projet + le message actuel de l'utilisateur
-            textContent = basePrompt + projectContext + "\n\n" + textContent;
+            textContent = basePrompt + relevantContext + "\n\n" + textContent;
             
             // --- INJECTION DES IMAGES/FICHIERS UPLOADÉS ---
             if (uploadedImages && uploadedImages.length > 0) {
@@ -112,6 +158,7 @@ export async function POST(req: Request) {
       contents, // L'historique complet est ici !
     })
 
+    // ... (Le streaming et la gestion des BATCH_SIZE sont inchangés) ...
     const encoder = new TextEncoder()
     let batchBuffer = ""; 
 
@@ -122,7 +169,6 @@ export async function POST(req: Request) {
             if (chunk.text) {
               batchBuffer += chunk.text; 
               
-              // VÉRIFICATION DU SEUIL
               if (batchBuffer.length >= BATCH_SIZE) {
                 controller.enqueue(encoder.encode(batchBuffer));
                 batchBuffer = ""; 
@@ -130,7 +176,6 @@ export async function POST(req: Request) {
             }
           }
           
-          // FIN DU STREAM
           if (batchBuffer.length > 0) {
              controller.enqueue(encoder.encode(batchBuffer));
           }
@@ -155,4 +200,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
         }
-            
