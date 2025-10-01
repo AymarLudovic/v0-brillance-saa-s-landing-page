@@ -2255,9 +2255,7 @@ useEffect(() => {
 
         
           
-           
-              
-      {messages.map((msg, index) => {
+           {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   
   return (
@@ -2291,47 +2289,32 @@ useEffect(() => {
       >
         {(() => {
           
-          const textContent = msg.content;
-          const hasTextContent = textContent && textContent.length > 0;
+          const rawTextContent = msg.content; // Le contenu brut du stream (y compris '---' et le code)
           const isFileArtifact = artifact && (artifact.type === 'files');
           const isUrlArtifact = artifact && (artifact.type === 'url');
-          
           const displayElements = [];
           
-          // 🛑 DÉBUT DU MASQUAGE AGRESSIF CÔTÉ RENDU (SOLUTION FINALE) 🛑
-          let finalContentToDisplay = textContent;
+          // 🛑 1. LOGIQUE DE COUPE ET DE NETTOYAGE DANS LE RENDU 🛑
           
-          // 1. Détecter si le stream contient un début de balise d'artefact
-          const isStreamingArtifact = textContent.includes('<create_file') || textContent.includes('<file_changes');
+          let finalContentToDisplay = rawTextContent;
+          let codeMarkerIndex = finalContentToDisplay.indexOf('---'); // Détection du marqueur
           
-          if (isFileArtifact) {
-              
-              // 1. Suppression du bloc COMPLET (dans le cas où il est terminé)
-              finalContentToDisplay = finalContentToDisplay
-                  .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
-                  .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
-  
-              // 2. Masquage des FRAGMENTS PENDANT LE STREAMING
-              if (isStreamingArtifact) {
-                  // Trouve le début de la dernière balise ouvrante (le point de non-retour)
-                  const lastTagStart = finalContentToDisplay.lastIndexOf('<');
-                  
-                  if (lastTagStart !== -1) {
-                      // On coupe la chaîne juste avant le début de la balise ouvrante en cours de stream.
-                      finalContentToDisplay = finalContentToDisplay.substring(0, lastTagStart);
-                  }
-              }
+          // Si le marqueur est trouvé, on coupe immédiatement l'affichage du texte (masquage)
+          if (codeMarkerIndex !== -1) {
+              // Couper le texte juste avant le marqueur.
+              finalContentToDisplay = finalContentToDisplay.substring(0, codeMarkerIndex).trim();
           }
-          
-          // 3. Nettoyage final des balises orphelines/JSON qui pourraient subsister dans le texte explicatif
+
+          // Nettoyage final pour s'assurer que les fragments non désirés sont retirés de l'affichage
           finalContentToDisplay = finalContentToDisplay
               .replace(/```json[\s\S]*?```/g, '')
-              .replace(/<[^>]*>/g, '') // Supprime toute balise restante (<create_file...)
+              .replace(/<[^>]*>/g, '') 
               .trim();
-          // 🛑 FIN DU MASQUAGE AGRESSIF 🛑
-
-          // 1. AFFICHAGE DU TEXTE EXPLICATIF
-          if (finalContentToDisplay.length > 0) { // Utilise la variable nettoyée
+          
+          const hasTextContent = finalContentToDisplay.length > 0;
+          
+          // 🛑 2. AFFICHAGE DU TEXTE EXPLICATIF
+          if (hasTextContent) {
               displayElements.push(
                   <pre key="text" className="whitespace-pre-wrap font-sans text-sm leading-relaxed mb-1">
                       {finalContentToDisplay} 
@@ -2339,19 +2322,19 @@ useEffect(() => {
               );
           }
 
-          // 2. AFFICHAGE DE L'ARTEFACT DE CODE (en temps réel)
+          // 🛑 3. AFFICHAGE DE L'ARTEFACT DE CODE (en temps réel)
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
               
               const totalPaths = artifact.parsedList.length;
 
-              // Progression basée sur la longueur du texte total streamé (heuristique)
+              // Progression basée sur la longueur du contenu BRUT (msg.content)
               const progressUnit = 100; 
               const progressCount = Math.min(
                   totalPaths, 
                   Math.floor(msg.content.length / progressUnit) + 1 
               );
               
-              const artifactClasses = finalContentToDisplay.length > 0 ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
 
               displayElements.push(
                   <div key="code-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
@@ -2373,7 +2356,8 @@ useEffect(() => {
                               </li>
                           ))}
                           {/* Indication qu'il reste du contenu à streamer */}
-                          {msg.content.includes('<') && !msg.content.endsWith('</create_file>') && !msg.content.endsWith('</file_changes>') && (
+                          {/* Ceci utilise rawTextContent, qui contient encore le code */}
+                          {rawTextContent.includes('<') && !rawTextContent.endsWith('</create_file>') && !rawTextContent.endsWith('</file_changes>') && (
                                <li className="text-xs text-[#37322F]/60 italic">
                                  Building... ({progressCount} chemins trouvés)
                                </li>
@@ -2383,9 +2367,9 @@ useEffect(() => {
               );
           }
 
-          // 3. AFFICHAGE DE L'ARTEFACT URL
+          // 4. AFFICHAGE DE L'ARTEFACT URL
           if (isUrlArtifact) {
-              const artifactClasses = finalContentToDisplay.length > 0 ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
               displayElements.push(
                   <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
                       <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
@@ -2396,6 +2380,7 @@ useEffect(() => {
               );
           }
           
+          // Si rien n'a été affiché, on affiche le contenu brut (cas d'erreur ou message sans artefat)
           return displayElements.length > 0 
                  ? displayElements 
                  : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>;
@@ -2445,6 +2430,12 @@ useEffect(() => {
     </div>
   );
 })}
+
+              
+
+                                  
+
+      
             
                 
 
