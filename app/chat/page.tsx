@@ -1878,6 +1878,20 @@ const handleChatSubmit = (e: React.FormEvent) => {
   
  
             // --- FONCTION sendChat INTÉGRALE ET FINALE (RAG, Historique, Artefacts) ---
+
+
+
+  // À l'intérieur de SandboxPage()
+// ... Déclarations de useState, useContext ...
+
+// Définition locale de la regex de l'artefact de lecture
+const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/; 
+// Laisser ici ne devrait pas causer de problème d'initialisation car c'est une simple constante.
+
+// ... Maintenant, votre fonction sendChat
+
+// ...
+  
     
                     
                     
@@ -1886,9 +1900,14 @@ const handleChatSubmit = (e: React.FormEvent) => {
 
      // SandboxPage.tsx
 
+
+
+// SandboxPage.tsx
+
+// ...
 const sendChat = useCallback(async (promptOverride?: string) => {
-    // Assurez-vous que les dépendances nécessaires sont accessibles par closure ou par le tableau de useCallback.
     
+    // Assurez-vous que readFileRegex est défini (voir section 1)
     const userPrompt = promptOverride || chatInput;
 
     if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
@@ -1898,7 +1917,7 @@ const sendChat = useCallback(async (promptOverride?: string) => {
       return;
     }
     
-    // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE (Inchangée) ---
+    // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
     let contextForPrompt = "";
     if (mentionedFiles.length > 0 && currentProject) {
         contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
@@ -1921,12 +1940,12 @@ const sendChat = useCallback(async (promptOverride?: string) => {
         ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
         : [];
 
-    // Met à jour l'UI seulement si ce n'est pas un prompt d'injection silencieuse
+    // Mettre à jour l'UI différemment si c'est une injection silencieuse ou une nouvelle discussion
     if (!promptOverride) {
         setMessages((prev) => [...prev, userMsg]);
         setChatInput(""); 
     } else {
-        // Nettoyage de l'injection passée
+        // Retirer le message d'injection de l'historique UI (pour le garder propre)
         setMessages((prev) => prev.slice(0, -1)); 
     }
     
@@ -1936,6 +1955,7 @@ const sendChat = useCallback(async (promptOverride?: string) => {
     try {
         // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
         const res = await fetch("/api/gemini", {
+            // ... (body inchangé)
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
@@ -1959,9 +1979,8 @@ const sendChat = useCallback(async (promptOverride?: string) => {
         }
 
         // --- 3. TRAITEMENT DU STREAMING ---
-        const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/; // ⬅️ AJOUTÉ
         const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-
+        
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -1971,12 +1990,13 @@ const sendChat = useCallback(async (promptOverride?: string) => {
 
             // ⬅️ LOGIQUE D'EXTRACTION read_file INTÉGRÉE ⬅️
             if (!readFileArtifact) { 
-                const readFileMatch = text.match(readFileRegex);
+                const readFileMatch = text.match(readFileRegex); // Utilisation de la variable définie ci-dessus
                 if (readFileMatch) {
                     readFileArtifact = { path: readFileMatch[1].trim() };
                     addLog(`[ACTION] Gemini requested file content: ${readFileArtifact.path}`);
                 }
             }
+            // ... (Reste de la logique d'artefact inchangée)
             
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
@@ -1998,7 +2018,7 @@ const sendChat = useCallback(async (promptOverride?: string) => {
                 }
             }
             
-            // 2. LOGIQUE D'EXTRACTION DE FICHIERS (Inchangée)
+            // 2. LOGIQUE D'EXTRACTION DE FICHIERS 
             const fileArtifacts = extractFileArtifacts(text); 
             const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
             let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
@@ -2016,12 +2036,12 @@ const sendChat = useCallback(async (promptOverride?: string) => {
                 });
 
                 if (currentProject) {
-                    addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
+                    // Cette fonction est une dépendance critique!
+                    addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject); 
                 }
                 
                 newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
             }
-
 
             // 3. NETTOYAGE DU TEXTE POUR L'AFFICHAGE
             
@@ -2068,9 +2088,8 @@ Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et c
 `;
                 addLog(`[ACTION] Injecting ${fileContent.length} caractères de ${filePath} pour l'analyse.`);
                 
-                // Relance sendChat (le flag promptOverride sera vrai)
-                await sendChat(injectionPrompt);
-                return; // Stoppe l'exécution actuelle
+                await sendChat(injectionPrompt); // Relance sendChat (recursive)
+                return; 
                 
             } else {
                 addLog(`[ERROR] File not found in project: ${filePath}`);
@@ -2083,23 +2102,20 @@ Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et c
         
         if (urlArtifact) {
           addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-          // Ajoutez ici votre appel à runAutomatedAnalysis(urlArtifact.url, userPrompt); si nécessaire
+          // ...
         }
 
         const finalArtifacts = extractFileArtifacts(text);
 
         if (finalArtifacts.length > 0) {
             addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
-            
-            // 1. Appliquer les changements au projet
             applyArtifactsToProject(finalArtifacts); 
             
-            // 🛑 2. Vectoriser les fichiers modifiés après l'application 🛑
             setTimeout(() => {
                 finalArtifacts.forEach(async (artifact) => {
                     const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
                     if (updatedFile) {
-                        await reindexFile(updatedFile); // Ré-indexation du fichier modifié
+                        await reindexFile(updatedFile); 
                     }
                 });
             }, 100); 
@@ -2112,12 +2128,43 @@ Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et c
         addLog(`CLIENT-SIDE ERROR: ${err.message}`);
         setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
     } finally {
-        if (!readFileArtifact) { // ⬅️ Masquer le loader uniquement si ce n'est pas une relance.
+        if (!readFileArtifact) { 
             setLoading(false);
         }
     }
-}, [chatInput, currentProject, messages, projectEmbeddings, reindexFile, sendChat]); // sendChat est nécessaire pour la récursivité
-      
+}, [
+    // 🚨 LISTE DE DÉPENDANCES CRITIQUE POUR ÉVITER LES BUGS ET LES ERREURS DE BUILD 🚨
+    chatInput, 
+    currentProject, 
+    messages, 
+    uploadedImages, 
+    uploadedFiles, 
+    mentionedFiles,
+    projectEmbeddings, 
+
+    // Les fonctions et setters (OBLIGATOIRE)
+    addLog, 
+    setMessages, 
+    setChatInput, 
+    setLoading, 
+    setActiveFile, 
+    setCurrentProject,
+    reindexFile,
+    
+    // Fonctions utilitaires utilisées dans le corps
+    extractFileArtifacts, // Existant dans votre code original
+    applyArtifactsToProject, // Existant dans votre code original
+    addFilesIfNew, // Existant dans votre code original
+    
+    // Référence récursive
+    sendChat,
+    
+    // La regex si elle n'est pas définie à l'intérieur du useCallback:
+    readFileRegex, // Incluez ceci SI vous l'avez défini en dehors du useCallback mais DANS SandboxPage.
+
+    activeFile, // Manquait dans votre liste fournie!
+]);
+                                    
 
 
             
