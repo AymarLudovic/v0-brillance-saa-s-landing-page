@@ -1854,7 +1854,12 @@ const handleChatSubmit = (e: React.FormEvent) => {
         
                
             
-              const sendChat = useCallback(async (promptOverride?: string) => { // ❌ Retrait du second argument (embeddingsOverride)
+            
+            
+
+        // SandboxPage.tsx
+
+const sendChat = useCallback(async (promptOverride?: string) => { 
     // --- 0. DÉPENDANCES ET VALIDATIONS ---
     const userPrompt = promptOverride || chatInput;
 
@@ -1884,7 +1889,6 @@ const handleChatSubmit = (e: React.FormEvent) => {
     
     const currentHistory = [...messages, userMsg]; 
     
-    // ✅ CRUCIAL : On récupère la liste complète des fichiers du projet.
     const currentProjectFiles = currentProject 
         ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
         : [];
@@ -1902,8 +1906,7 @@ const handleChatSubmit = (e: React.FormEvent) => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 history: currentHistory, 
-                currentProjectFiles: currentProjectFiles, // ✅ ENVOI DES FICHIERS POUR INJECTION DE CONTEXTE
-                // ❌ projectEmbeddings est retiré du body
+                currentProjectFiles: currentProjectFiles, 
                 uploadedImages: uploadedImages,
                 uploadedFiles: uploadedFiles, 
             }), 
@@ -1915,81 +1918,99 @@ const handleChatSubmit = (e: React.FormEvent) => {
         const decoder = new TextDecoder();
         let text = ""; 
         let urlArtifact: any = null; 
+        
+        // 🛑 NOUVELLE VARIABLE POUR L'ARTEFACT DE LECTURE
+        let readFileArtifact: { path: string } | null = null; 
 
         setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
-        // --- 3. TRAITEMENT DU STREAMING (Logique conservée) ---
+        // --- 3. TRAITEMENT DU STREAMING ---
         while (true) {
-            // ... (TOUTE TA LOGIQUE DE STREAMING RESTE IDENTIQUE)
             const { done, value } = await reader.read();
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
             text += chunk; 
 
-            let newArtifactData = undefined;
-            const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
-
-            const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-            const urlMatch = text.match(inspirationUrlRegex);
-
-            if (urlMatch) {
-                try {
-                    const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
-                    const parsedUrlData = JSON.parse(jsonString);
-                    if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
-                        urlArtifact = { url: parsedUrlData.url }; 
-                        newArtifactData = { type: 'url', url: parsedUrlData.url, rawJson: text };
-                    }
-                } catch (e) {
-                    console.error("Failed to parse URL JSON:", e);
-                }
-            }
+            // ... (Logique de détection d'artefacts existante: inspirationUrl, file_changes, create_file)
             
-            const fileArtifacts = extractFileArtifacts(text); 
-            const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
-            let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
-
-            const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
-
-            if (isGeneratingCode) {
-                fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
-                incompleteMatches.forEach(match => {
-                    const path = match[2];
-                    const type = match[1] === 'create_file' ? 'create' : 'changes';
-                    if (!artifactList.some(a => a.path === path)) {
-                        artifactList.push({ path, type });
-                    }
-                });
-
-                if (currentProject) {
-                    addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
-                }
-                
-                newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
+            // 🛑 NOUVELLE LOGIQUE : Détection de l'artefact <read_file>
+            const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
+            const readFileMatch = text.match(readFileRegex);
+            
+            if (readFileMatch) {
+                const filePath = readFileMatch[1];
+                readFileArtifact = { path: filePath };
+                addLog(`[ACTION] Gemini requested file content: ${filePath}`);
             }
 
+            // Conservez votre logique pour urlArtifact et fileArtifacts...
             let textWithoutArtifacts = text
                 .replace(inspirationUrlRegex, '')
                 .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+                .replace(readFileRegex, ''); // 🛑 Nettoyez le texte du nouvel artefact
 
             setMessages((prev) => {
+                // ... (Votre logique de mise à jour des messages)
                 const lastMsgIndex = prev.length - 1;
                 const updatedMessages = [...prev];
                 const lastMsg = updatedMessages[lastMsgIndex];
                 
                 if (lastMsg?.role === "assistant") {
-                    if (newArtifactData) {
-                        lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
-                    }
+                    // Mettre à jour artifactData si besoin
                     lastMsg.content = textWithoutArtifacts; 
                 }
                 return updatedMessages;
             });
         } // Fin du streaming
 
-        // --- 4. LOGIQUE POST-STREAM (Logique conservée, sans RAG) ---
+        // --- 4. LOGIQUE POST-STREAM ---
+        
+        // 🛑 LOGIQUE CRUCIALE : Exécuter la demande de lecture de fichier
+        if (readFileArtifact) {
+            const filePath = readFileArtifact.path;
+            const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
+
+            if (fileToRead) {
+                const fileContent = fileToRead.content;
+                const injectionPrompt = `
+[FICHIER REQUIS PAR VOUS : ${filePath}]
+\`\`\`${filePath.split('.').pop() || 'text'}
+${fileContent}
+\`\`\`
+[FIN FICHIER REQUIS]
+
+Vous avez maintenant le contenu du fichier ${filePath} pour continuer votre raisonnement et générer le code ou la réponse. Ne redemandez pas le fichier. Reprenez votre réponse là où vous vous êtes arrêté.
+`;
+                addLog(`[ACTION] Injecting ${fileContent.length} chars of ${filePath} into new prompt.`);
+                
+                // 🛑 On relance sendChat avec le contenu injecté, mais SANS effacer l'historique de conversation !
+                // Le nouveau prompt sera le prompt utilisateur habituel + l'injection.
+                // NOTE: Pour simplifier, on prend le prompt initial si c'était une requête manuelle, ou on relance le processus.
+                
+                // Pour éviter la récursivité infinie si Gemini redemande le fichier,
+                // il est vital que Gemini soit capable de répondre après avoir vu le contenu.
+                
+                // La meilleure approche est de simuler une nouvelle requête utilisateur
+                // contenant les instructions originales + le contenu du fichier.
+                
+                // On met à jour le chatInput (ou l'historique) avant de relancer
+                setChatInput(injectionPrompt);
+                
+                // Relance l'appel de chat immédiatement avec ce nouveau contexte
+                await sendChat(injectionPrompt); // Relance l'appel avec le contexte
+                
+                return; // Termine l'exécution du premier sendChat pour ne pas exécuter le reste
+                
+            } else {
+                addLog(`[ERROR] File not found in project: ${filePath}`);
+                // Notifier Gemini qu'il n'a pas pu lire le fichier
+                await sendChat(`[FICHIER INTROUVABLE : ${filePath}] Le fichier que vous avez demandé n'existe pas dans le projet. Veuillez reconsidérer votre requête.`);
+            }
+        }
+        
+        // --- Logique post-stream normale (code artefacts) ---
         if (urlArtifact) {
             addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
         }
@@ -1999,8 +2020,6 @@ const handleChatSubmit = (e: React.FormEvent) => {
         if (finalArtifacts.length > 0) {
             addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
             applyArtifactsToProject(finalArtifacts); 
-            
-            // 🛑 SUPPRESSION DE LA LOGIQUE DE reindexFile POST-MODIFICATION
         } else {
             addLog("Response treated as simple text or unrecognized format.");
         }
@@ -2009,11 +2028,13 @@ const handleChatSubmit = (e: React.FormEvent) => {
         addLog(`CLIENT-SIDE ERROR: ${err.message}`);
         setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
     } finally {
-        setLoading(false);
+        // Le `setLoading(false)` est sauté si on relance `sendChat`
+        if (!readFileArtifact) { 
+            setLoading(false);
+        }
     }
-}, [chatInput, currentProject, messages, addLog, uploadedImages, uploadedFiles, mentionedFiles, setActiveFile, setCurrentProject, activeFile, applyArtifactsToProject, extractFileArtifacts, addFilesIfNew]); // ❌ Retrait de projectEmbeddings et reindexFile des dépendances
-                                                                                
-            
+}, [chatInput, currentProject, messages, addLog, uploadedImages, uploadedFiles, mentionedFiles, setActiveFile, setCurrentProject, activeFile, applyArtifactsToProject, extractFileArtifacts, addFilesIfNew]);
+      
           
 
 
