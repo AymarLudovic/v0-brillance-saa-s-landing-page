@@ -856,6 +856,12 @@ const DatabaseConnector: React.FC<DatabaseConnectorProps> = ({ dbConfig, setDbCo
 
 
 
+// En haut de votre fichier SandboxPage.tsx (avant export default function SandboxPage() { ... })
+const READ_FILE_REGEX = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
+
+// ... (vos types, imports, et autres constantes globales)
+
+
 
 
 
@@ -1454,11 +1460,10 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
     addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
     setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-    // 1. Nettoyage initial (trim)
+    // 1. Nettoyage et échappement (inchangé)
     const trimmedHTML = fullHTML.trim();
     const trimmedJS = fullJS.trim();
 
-    // 2. Échappement agressif pour template literals
     const escapeContent = (content: string) => {
         return content
             .replace(/\\/g, '\\\\') 
@@ -1469,10 +1474,10 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
     const escapedHTML = escapeContent(trimmedHTML);
     const escapedJS = escapeContent(trimmedJS);
 
-    // 3. Construction du fichier app/page.tsx
+    // 2. Construction du fichier app/page.tsx (inchangé)
     const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
     
-    // 4. Préparation de la mise à jour de l'état
+    // 3. Préparation et mise à jour de l'état (inchangé)
     const filesToUpdate = [
         { filePath: "app/globals.css", content: fullCSS },
         { filePath: "app/page.tsx", content: newPageContent },
@@ -1486,7 +1491,6 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
 
     const updatedFiles = Array.from(newFilesMap.values())
 
-    // 5. Mise à jour de l'état
     setCurrentProject(prevProject => {
         if (!prevProject) return null
         return {
@@ -1497,7 +1501,7 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
     
     addLog("[CLONE-FLOW] ✅ Local project files updated.");
 
-    // 🛑 DÉBUT INJECTION DÉTAILLÉE DU CODE AU PROMPT 🛑
+    // 🛑 INJECTION DÉTAILLÉE DU CODE AU PROMPT (inchangée) 🛑
     let injectionPrompt = `
 [ACTION AUTOMATISÉE DE CLONAGE]
 Le code du site ${urlToAnalyze} a été cloné et écrit dans les fichiers suivants. Vous avez maintenant ce code pour référence.
@@ -1523,7 +1527,8 @@ L'utilisateur a demandé à cloner ce site : "${originalUserPrompt}". Veuillez r
     addLog("[CLONE-FLOW] ✅ Notifying Gemini with full file content...");
     
     await sendChat(injectionPrompt) // Utilisation du prompt d'injection détaillé
-                                    }
+}
+
   
   
               
@@ -1881,33 +1886,11 @@ const handleChatSubmit = (e: React.FormEvent) => {
 
 
 
-  // À l'intérieur de SandboxPage()
-// ... Déclarations de useState, useContext ...
+  // SandboxPage.tsx
 
-// Définition locale de la regex de l'artefact de lecture
-const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/; 
-// Laisser ici ne devrait pas causer de problème d'initialisation car c'est une simple constante.
-
-// ... Maintenant, votre fonction sendChat
-
-// ...
-  
+// 🛑 REMPLACEMENT DE USECALLBACK 🛑
+const sendChat = async (promptOverride?: string) => {
     
-                    
-                    
-                
-          
-
-     // SandboxPage.tsx
-
-
-
-// SandboxPage.tsx
-
-// ...
-const sendChat = useCallback(async (promptOverride?: string) => {
-    
-    // Assurez-vous que readFileRegex est défini (voir section 1)
     const userPrompt = promptOverride || chatInput;
 
     if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
@@ -1940,7 +1923,6 @@ const sendChat = useCallback(async (promptOverride?: string) => {
         ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
         : [];
 
-    // Mettre à jour l'UI différemment si c'est une injection silencieuse ou une nouvelle discussion
     if (!promptOverride) {
         setMessages((prev) => [...prev, userMsg]);
         setChatInput(""); 
@@ -1955,7 +1937,6 @@ const sendChat = useCallback(async (promptOverride?: string) => {
     try {
         // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
         const res = await fetch("/api/gemini", {
-            // ... (body inchangé)
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
@@ -1972,7 +1953,7 @@ const sendChat = useCallback(async (promptOverride?: string) => {
         const decoder = new TextDecoder();
         let text = ""; 
         let urlArtifact: any = null; 
-        let readFileArtifact: { path: string } | null = null; // ⬅️ AJOUTÉ
+        let readFileArtifact: { path: string } | null = null; 
 
         if (!promptOverride) {
             setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
@@ -1988,15 +1969,14 @@ const sendChat = useCallback(async (promptOverride?: string) => {
             const chunk = decoder.decode(value, { stream: true });
             text += chunk; 
 
-            // ⬅️ LOGIQUE D'EXTRACTION read_file INTÉGRÉE ⬅️
+            // LOGIQUE D'EXTRACTION read_file INTÉGRÉE
             if (!readFileArtifact) { 
-                const readFileMatch = text.match(readFileRegex); // Utilisation de la variable définie ci-dessus
+                const readFileMatch = text.match(READ_FILE_REGEX); // Utilisation de la constante externe
                 if (readFileMatch) {
                     readFileArtifact = { path: readFileMatch[1].trim() };
                     addLog(`[ACTION] Gemini requested file content: ${readFileArtifact.path}`);
                 }
             }
-            // ... (Reste de la logique d'artefact inchangée)
             
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
@@ -2004,7 +1984,6 @@ const sendChat = useCallback(async (promptOverride?: string) => {
             // 🛑 1. DÉTECTION DE L'ARTEFACT URL (JSON) 🛑
             const urlMatch = text.match(inspirationUrlRegex);
             if (urlMatch) {
-                // ... (Logique de urlArtifact)
                 try {
                     const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
                     const parsedUrlData = JSON.parse(jsonString);
@@ -2036,7 +2015,6 @@ const sendChat = useCallback(async (promptOverride?: string) => {
                 });
 
                 if (currentProject) {
-                    // Cette fonction est une dépendance critique!
                     addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject); 
                 }
                 
@@ -2046,10 +2024,10 @@ const sendChat = useCallback(async (promptOverride?: string) => {
             // 3. NETTOYAGE DU TEXTE POUR L'AFFICHAGE
             
             let textWithoutArtifacts = text
-                .replace(inspirationUrlRegex, '') // Supprime le JSON URL
+                .replace(inspirationUrlRegex, '') 
                 .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
                 .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-                .replace(readFileRegex, ''); // ⬅️ AJOUTÉ : Supprime le read_file
+                .replace(READ_FILE_REGEX, ''); // Utilisation de la constante externe
 
             // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
             setMessages((prev) => {
@@ -2067,7 +2045,7 @@ const sendChat = useCallback(async (promptOverride?: string) => {
             });
         } // Fin du streaming
 
-        // 🛑 --- LOGIQUE POST-STREAM : TRAITEMENT DE read_file (BLOCK CRUCIAL) --- 🛑
+        // 🛑 --- LOGIQUE POST-STREAM : TRAITEMENT DE read_file (RÉCURSIF) --- 🛑
         
         if (readFileArtifact) { 
             const filePath = readFileArtifact.path;
@@ -2088,7 +2066,7 @@ Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et c
 `;
                 addLog(`[ACTION] Injecting ${fileContent.length} caractères de ${filePath} pour l'analyse.`);
                 
-                await sendChat(injectionPrompt); // Relance sendChat (recursive)
+                await sendChat(injectionPrompt); // Relance sendChat
                 return; 
                 
             } else {
@@ -2132,38 +2110,12 @@ Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et c
             setLoading(false);
         }
     }
-}, [
-    // 🚨 LISTE DE DÉPENDANCES CRITIQUE POUR ÉVITER LES BUGS ET LES ERREURS DE BUILD 🚨
-    chatInput, 
-    currentProject, 
-    messages, 
-    uploadedImages, 
-    uploadedFiles, 
-    mentionedFiles,
-    projectEmbeddings, 
+}; // Pas de tableau de dépendances!
+  
 
-    // Les fonctions et setters (OBLIGATOIRE)
-    addLog, 
-    setMessages, 
-    setChatInput, 
-    setLoading, 
-    setActiveFile, 
-    setCurrentProject,
-    reindexFile,
-    
-    // Fonctions utilitaires utilisées dans le corps
-    extractFileArtifacts, // Existant dans votre code original
-    applyArtifactsToProject, // Existant dans votre code original
-    addFilesIfNew, // Existant dans votre code original
-    
-    // Référence récursive
-    sendChat,
-    
-    // La regex si elle n'est pas définie à l'intérieur du useCallback:
-    readFileRegex, // Incluez ceci SI vous l'avez défini en dehors du useCallback mais DANS SandboxPage.
 
-    activeFile, // Manquait dans votre liste fournie!
-]);
+    
+
                                     
 
 
