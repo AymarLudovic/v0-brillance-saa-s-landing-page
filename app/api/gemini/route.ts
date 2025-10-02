@@ -1,8 +1,8 @@
-// app/api/gemini/route.ts
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
 
+// Types
 interface IndexedChunk { filePath: string; chunkIndex: number; text: string; embedding: number[]; }
 interface Message { role: "user" | "assistant"; content: string; images?: string[]; externalFiles?: { fileName: string; base64Content: string }[]; mentionedFiles?: string[]; }
 interface ProjectFile { filePath: string; content: string; }
@@ -64,6 +64,18 @@ function cleanBase64Data(dataUrl: string): string {
   return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 }
 
+// --- NEW: local chunking util (pas besoin de BASE_URL ni de fetch)
+function getFileChunks(targetFile: string, currentProjectFiles: ProjectFile[], chunkLimit = 20000, chunkSize = 4000) {
+  const file = currentProjectFiles.find(f => f.filePath === targetFile);
+  if (!file) return "";
+
+  let chunks: string[] = [];
+  for (let i = 0; i < Math.min(file.content.length, chunkLimit); i += chunkSize) {
+    chunks.push(file.content.substring(i, i + chunkSize));
+  }
+  return chunks.join("\n");
+}
+
 const BATCH_SIZE = 256;
 
 export async function POST(req: Request) {
@@ -102,7 +114,7 @@ export async function POST(req: Request) {
         // --- 1. RAG context
         const relevantContext = await retrieveRelevantContext(userPrompt, projectEmbeddings || [], ai);
 
-        // --- 2. Preview context
+        // --- 2. Preview context (petit extrait des fichiers dispo)
         let filesContext = "";
         if (currentProjectFiles && currentProjectFiles.length > 0) {
           const maxFilesPreview = 3;
@@ -113,19 +125,16 @@ export async function POST(req: Request) {
           });
         }
 
-        // --- 3. Detect file mentions in user prompt
+        // --- 3. Detect file mentions & get chunks locally
         let extraContext = "";
-        if (/app\/page\.tsx|app\/globals\.css/.test(userPrompt)) {
-          const targetFile = userPrompt.includes("globals.css") ? "app/globals.css" : "app/page.tsx";
-          const file = currentProjectFiles?.find(f => f.filePath === targetFile);
-          if (file) {
-            // Chunk on the fly
-            const chunkSize = 4000;
-            const chunks: string[] = [];
-            for (let i = 0; i < Math.min(file.content.length, 20000); i += chunkSize) {
-              chunks.push(file.content.substring(i, i + chunkSize));
+        if (currentProjectFiles?.length) {
+          for (const file of currentProjectFiles) {
+            if (userPrompt.includes(file.filePath)) {
+              const chunked = getFileChunks(file.filePath, currentProjectFiles);
+              if (chunked) {
+                extraContext += `\n\n--- ON-DEMAND FILE (${file.filePath}) ---\n${chunked}\n--- END FILE ---\n`;
+              }
             }
-            extraContext += `\n\n--- ON-DEMAND FILE (${targetFile}) ---\n${chunks.join("\n")}\n--- END FILE ---\n`;
           }
         }
 
@@ -159,7 +168,7 @@ export async function POST(req: Request) {
       contents.push({ role, parts });
     }
 
-    // Streaming
+    // --- Streaming Gemini response (inchangé)
     const response = await ai.models.generateContentStream({ model, contents })
     const encoder = new TextEncoder()
     let batchBuffer = "";
@@ -195,5 +204,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Fatal error:", err)
     return NextResponse.json({ error: err.message || "Gemini error" }, { status: 500 })
   }
-      }
-    
+    }
+  
