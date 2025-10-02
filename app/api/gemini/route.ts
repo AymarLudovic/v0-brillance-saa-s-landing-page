@@ -1,8 +1,5 @@
-// app/api/gemini/route.ts
-
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part } from "@google/genai"
-// Assurez-vous que basePrompt existe ou ajustez l'importation
 import { basePrompt } from "@/lib/prompt" 
 // Types nécessaires pour la RAG et le contexte
 interface IndexedChunk { filePath: string; chunkIndex: number; text: string; embedding: number[]; } 
@@ -51,11 +48,9 @@ async function retrieveRelevantContext(
 
     const TOP_K = 5;
     
-    // 🛑 CORRECTION APPLIQUÉE : Abaissement du seuil de similarité à 0.5 (était 0.8)
-    // Cela permet au modèle de récupérer des morceaux de code moins directement liés
-    // à la question, mais essentiels pour la RAG sur des fichiers volumineux.
-    const RELEVANCE_THRESHOLD = 0.5;
-    
+    // 🛑 CORRECTION 1 : Abaissement du seuil de similarité à 0.5
+    const RELEVANCE_THRESHOLD = 0.5; 
+
     const relevantChunks = rankedChunks
         .slice(0, TOP_K)
         .filter(chunk => chunk.similarity > RELEVANCE_THRESHOLD); 
@@ -120,8 +115,19 @@ export async function POST(req: Request) {
         if (msg === history[history.length - 1] && role === 'user') {
             
             const userPrompt = msg.content;
+            
             // 🛑 Injection du contexte RAG 🛑
             const relevantContext = await retrieveRelevantContext(userPrompt, projectEmbeddings, ai);
+
+            // 🛑 CORRECTION 2 : AJOUT DU LOG DE DÉBOGAGE RAG dans le flux
+            if (relevantContext.length > 0) {
+                 // Nous envoyons un message préfixé [RAG_SUCCESS] pour que le client l'intercepte.
+                 const ragLog = `[RAG_SUCCESS] ${relevantContext.split('\n').filter(line => line.includes('Fichier')).join(' | ')}`;
+                 parts.push({ text: ragLog });
+            } else {
+                 parts.push({ text: "[RAG_FAIL] No relevant context found above threshold." });
+            }
+            // ------------------------------------
 
             textContent = basePrompt + relevantContext + "\n\n" + textContent;
             
@@ -200,5 +206,4 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-        }
-                       
+}
