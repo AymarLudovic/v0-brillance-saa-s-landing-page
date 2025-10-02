@@ -1444,7 +1444,7 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
   
 
   
-   const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+    const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
     if (!currentProject || !setCurrentProject) {
         addLog("ERROR: Project state is missing or cannot be updated.")
         throw new Error("Project state is missing or cannot be updated.")
@@ -1483,12 +1483,13 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
     const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
 
     for (const { filePath, content } of filesToUpdate) {
+        // NOTE: Assurez-vous que l'objet créé ici contient tous les champs requis par votre type ProjectFile
         newFilesMap.set(filePath, { filePath, content })
     }
 
     const updatedFiles = Array.from(newFilesMap.values())
 
-    // 5. Mise à jour de l'état du Projet (pour l'UI et la sauvegarde). Cette mise à jour est asynchrone par nature.
+    // 5. Mise à jour de l'état du Projet (pour l'UI et la sauvegarde).
     setCurrentProject(prevProject => {
         if (!prevProject) return null
         return {
@@ -1502,29 +1503,29 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
     setAnalysisStatus(`3/3: Indexation RAG en cours...`)
     
     const indexingPromises = filesToUpdate.map(async (file) => {
-        // Appelle l'API pour obtenir les chunks et leurs embeddings
+        // 🛑 Utilisation de indexFileContent pour la vectorisation côté serveur
         const newChunks = await indexFileContent(file); 
         
-        // Met à jour l'état projectEmbeddings. La forme fonctionnelle (prevEmbeddings)
-        // permet de s'assurer que l'on travaille sur le dernier état connu.
+        // 🛑 Mise à jour de l'état projectEmbeddings immédiatement (formulaire fonctionnel)
         setProjectEmbeddings(prevEmbeddings => 
             updateProjectEmbeddings(newChunks, prevEmbeddings)
         );
     });
 
-    // ATTENDRE que TOUTES les requêtes d'indexation soient terminées
+    // 🛑 ATTENDRE que TOUTES les requêtes d'indexation soient terminées
     await Promise.all(indexingPromises);
 
     addLog("[CLONE-FLOW] ✅ Local project files updated & RAG indexation complete. Notifying Gemini...")
     setAnalysisStatus(`Fini: Notification de Gemini.`)
     // -----------------------------------------------------------
 
-    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make an clone action of the website, just respond to tell to the user that you have understand the action and not generated codes.`;
+    // 🛑 Modification du prompt pour forcer l'IA à utiliser le contexte RAG
+    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The content of these two files has been *indexed via RAG* and is now available in your context. The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make an clone action of the website, just respond to tell to the user that you have understand the action and not generated codes.`;
     
-    // L'appel sendChat peut maintenant se faire, car projectEmbeddings est garanti d'être à jour
+    // L'appel sendChat se fait maintenant que projectEmbeddings est à jour
     await sendChat(simplePrompt)
-}
-
+                                         }
+                                         
     
               
 
