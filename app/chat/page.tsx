@@ -1444,21 +1444,20 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
   
 
   
-  const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+   const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
     if (!currentProject || !setCurrentProject) {
         addLog("ERROR: Project state is missing or cannot be updated.")
         throw new Error("Project state is missing or cannot be updated.")
     }
 
     addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
-    setAnalysisStatus(`2/2: Mise à jour du projet local...`)
+    setAnalysisStatus(`2/3: Mise à jour du projet local...`)
 
     // 1. Nettoyage initial (trim)
     const trimmedHTML = fullHTML.trim();
     const trimmedJS = fullJS.trim();
 
     // 2. Échappement agressif pour template literals
-    // Ceci empêche les caractères spéciaux (backslashes, backticks, dollars) de briser la syntaxe JSX/JS.
     const escapeContent = (content: string) => {
         return content
             // 1. Échapper les backslashes: '\\' -> '\\\\' (Doit être fait en premier)
@@ -1489,7 +1488,7 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
 
     const updatedFiles = Array.from(newFilesMap.values())
 
-    // 5. Mise à jour de l'état (Création d'une nouvelle référence d'array)
+    // 5. Mise à jour de l'état du Projet (pour l'UI et la sauvegarde). Cette mise à jour est asynchrone par nature.
     setCurrentProject(prevProject => {
         if (!prevProject) return null
         return {
@@ -1498,11 +1497,34 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
         }
     })
     
-    addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini...")
-    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make an clone action of the website, just respond to tell to the user that you have understand the action and not generated codes.`
+    // --- NOUVELLE ÉTAPE CRITIQUE : INDEXATION RAG SYNCHRONE ---
+    addLog("[CLONE-FLOW] Phase 3: Indexation RAG des nouveaux fichiers (globals.css, page.tsx)...")
+    setAnalysisStatus(`3/3: Indexation RAG en cours...`)
     
+    const indexingPromises = filesToUpdate.map(async (file) => {
+        // Appelle l'API pour obtenir les chunks et leurs embeddings
+        const newChunks = await indexFileContent(file); 
+        
+        // Met à jour l'état projectEmbeddings. La forme fonctionnelle (prevEmbeddings)
+        // permet de s'assurer que l'on travaille sur le dernier état connu.
+        setProjectEmbeddings(prevEmbeddings => 
+            updateProjectEmbeddings(newChunks, prevEmbeddings)
+        );
+    });
+
+    // ATTENDRE que TOUTES les requêtes d'indexation soient terminées
+    await Promise.all(indexingPromises);
+
+    addLog("[CLONE-FLOW] ✅ Local project files updated & RAG indexation complete. Notifying Gemini...")
+    setAnalysisStatus(`Fini: Notification de Gemini.`)
+    // -----------------------------------------------------------
+
+    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make an clone action of the website, just respond to tell to the user that you have understand the action and not generated codes.`;
+    
+    // L'appel sendChat peut maintenant se faire, car projectEmbeddings est garanti d'être à jour
     await sendChat(simplePrompt)
-      }
+}
+
     
               
 
