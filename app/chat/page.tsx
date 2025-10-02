@@ -1438,7 +1438,7 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
 
   
 
-  const processAnalysisResult = async (
+  const processAnalysisResult = useCallback(async (
     fullHTML: string,
     fullCSS: string,
     fullJS: string,
@@ -1453,7 +1453,7 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
     addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
     setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-    // 1. Préparation du contenu des fichiers (ton code est parfait ici)
+    // 1. Préparation du contenu des fichiers (Logique conservée)
     const trimmedHTML = fullHTML.trim();
     const trimmedJS = fullJS.trim();
     const escapeContent = (content: string) => {
@@ -1463,7 +1463,7 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
     const escapedJS = escapeContent(trimmedJS);
     const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
 
-    // 2. Préparation de la liste des fichiers à mettre à jour
+    // 2. Préparation de la liste des fichiers à mettre à jour (Logique conservée)
     const filesToUpdate = [
         { filePath: "app/globals.css", content: fullCSS },
         { filePath: "app/page.tsx", content: newPageContent },
@@ -1474,7 +1474,7 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
     }
     const updatedFiles = Array.from(newFilesMap.values())
 
-    // 3. Mise à jour de l'état du projet
+    // 3. Mise à jour de l'état du projet (Logique conservée)
     setCurrentProject(prevProject => {
         if (!prevProject) return null
         return {
@@ -1483,41 +1483,17 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
         }
     })
 
-    addLog("[CLONE-FLOW] ✅ Local project files updated. Starting immediate reindexing...")
+    addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini with full context...");
 
-    // 4. 🛑 RÉINDEXATION ET RÉCUPÉRATION DES NOUVEAUX EMBEDDINGS
-    let newEmbeddingsFromClone: IndexedChunk[] = [];
-    try {
-        // Crée une liste de promesses de réindexation
-        const reindexPromises = filesToUpdate
-            .filter(f => f.content && f.content.length > 50)
-            .map(f => reindexFile(f));
+    // 🛑 SUPPRESSION COMPLÈTE DE LA LOGIQUE D'INDEXATION RAG (Étapes 4, 6, 7 dans l'ancien code)
 
-        // Attend que TOUTES les réindexations soient finies et récupère les résultats
-        const chunkArrays = await Promise.all(reindexPromises);
-        
-        // Aplatit le tableau de tableaux [[...chunksFile1], [...chunksFile2]] en un seul tableau
-        newEmbeddingsFromClone = chunkArrays.flat();
-
-        addLog(`[CLONE-FLOW] ✅ Reindexation finished. ${newEmbeddingsFromClone.length} new chunks created.`);
-
-    } catch (err: any) {
-        addLog(`[CLONE-FLOW] Warning: reindexation failed: ${err?.message || err}`);
-    }
-
-    // 5. Prépare le prompt de notification
+    // 4. Prépare le prompt de notification (Logique conservée)
     const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make a clone action of the website, just respond to tell to the user that you have understood the action and not generated codes.`;
 
-    // 6. 🛑 CONSTRUCTION DE LA LISTE FINALE D'EMBEDDINGS
-    // On utilise la même logique que dans ton `setProjectEmbeddings` pour avoir la liste la plus à jour
-    const latestEmbeddings = updateProjectEmbeddings(newEmbeddingsFromClone, projectEmbeddings);
-
-    addLog("[CLONE-FLOW] ✅ Notifying Gemini with updated context...");
-
-    // 7. ENVOI en passant le prompt ET la liste d'embeddings à jour
-    await sendChat(simplePrompt, latestEmbeddings);
-      }
-      
+    // 5. ENVOI en passant SEULEMENT le prompt (le contexte des fichiers sera inclus par sendChat lui-même)
+    await sendChat(simplePrompt); // ❌ Retrait du second argument (embeddingsOverride)
+}, [currentProject, setCurrentProject, addLog]);
+    
                                                                    
   
     
@@ -1865,7 +1841,7 @@ const handleUpdateEmbeddings = useCallback(async () => {
 // --- NOUVELLE FONCTION POUR SOUMETTRE LE CHAT (Formulaire) ---
 const handleChatSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Votre sendChat existant prend l'input du chat en interne
+    // Votre sendChat existant prend l'input du chanterne
     sendChat(); 
 }
   
@@ -1876,7 +1852,9 @@ const handleChatSubmit = (e: React.FormEvent) => {
     
     
         
-               const sendChat = useCallback(async (promptOverride?: string, embeddingsOverride?: IndexedChunk[]) => {
+               
+            
+              const sendChat = useCallback(async (promptOverride?: string) => { // ❌ Retrait du second argument (embeddingsOverride)
     // --- 0. DÉPENDANCES ET VALIDATIONS ---
     const userPrompt = promptOverride || chatInput;
 
@@ -1906,6 +1884,7 @@ const handleChatSubmit = (e: React.FormEvent) => {
     
     const currentHistory = [...messages, userMsg]; 
     
+    // ✅ CRUCIAL : On récupère la liste complète des fichiers du projet.
     const currentProjectFiles = currentProject 
         ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
         : [];
@@ -1917,17 +1896,14 @@ const handleChatSubmit = (e: React.FormEvent) => {
     addLog(`Sending prompt to Gemini...`);
 
     try {
-        // 🛑 Utilise les embeddings fournis en priorité, sinon ceux de l'état
-        const embeddingsToSend = embeddingsOverride || projectEmbeddings;
-
         // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
         const res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 history: currentHistory, 
-                currentProjectFiles: currentProjectFiles, 
-                projectEmbeddings: embeddingsToSend, // ✅ Envoi des embeddings à jour
+                currentProjectFiles: currentProjectFiles, // ✅ ENVOI DES FICHIERS POUR INJECTION DE CONTEXTE
+                // ❌ projectEmbeddings est retiré du body
                 uploadedImages: uploadedImages,
                 uploadedFiles: uploadedFiles, 
             }), 
@@ -1942,11 +1918,9 @@ const handleChatSubmit = (e: React.FormEvent) => {
 
         setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
-        // --- 3. TRAITEMENT DU STREAMING ---
+        // --- 3. TRAITEMENT DU STREAMING (Logique conservée) ---
         while (true) {
             // ... (TOUTE TA LOGIQUE DE STREAMING RESTE IDENTIQUE)
-            // ... (détection d'artefacts, mise à jour du state, etc.)
-            // ... CETTE PARTIE N'A PAS BESOIN DE CHANGER
             const { done, value } = await reader.read();
             if (done) break;
 
@@ -2015,7 +1989,7 @@ const handleChatSubmit = (e: React.FormEvent) => {
             });
         } // Fin du streaming
 
-        // --- 4. LOGIQUE POST-STREAM ---
+        // --- 4. LOGIQUE POST-STREAM (Logique conservée, sans RAG) ---
         if (urlArtifact) {
             addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
         }
@@ -2026,15 +2000,7 @@ const handleChatSubmit = (e: React.FormEvent) => {
             addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
             applyArtifactsToProject(finalArtifacts); 
             
-            setTimeout(() => {
-                finalArtifacts.forEach(async (artifact) => {
-                    const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
-                    if (updatedFile) {
-                        await reindexFile(updatedFile);
-                    }
-                });
-            }, 100); 
-            
+            // 🛑 SUPPRESSION DE LA LOGIQUE DE reindexFile POST-MODIFICATION
         } else {
             addLog("Response treated as simple text or unrecognized format.");
         }
@@ -2045,8 +2011,8 @@ const handleChatSubmit = (e: React.FormEvent) => {
     } finally {
         setLoading(false);
     }
-}, [chatInput, currentProject, messages, projectEmbeddings, reindexFile]);
-        
+}, [chatInput, currentProject, messages, addLog, uploadedImages, uploadedFiles, mentionedFiles, setActiveFile, setCurrentProject, activeFile, applyArtifactsToProject, extractFileArtifacts, addFilesIfNew]); // ❌ Retrait de projectEmbeddings et reindexFile des dépendances
+                                                                                
             
           
 
