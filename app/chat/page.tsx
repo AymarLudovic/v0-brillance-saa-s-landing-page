@@ -124,6 +124,24 @@ const extractFileArtifacts = (content: string): FileArtifact[] => {
   return artifacts;
 };
 
+
+// À ajouter à côté de extractFileArtifacts dans SandboxPage.tsx ou un utilitaire.
+
+/**
+ * Extrait la demande de lecture de fichier (<read_file>) du contenu texte.
+ */
+const extractReadFileArtifact = (content: string): { path: string } | null => {
+    const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
+    const readFileMatch = content.match(readFileRegex);
+
+    if (readFileMatch) {
+        return { path: readFileMatch[1].trim() };
+    }
+    return null;
+};
+
+
+
 /**
  * Met à jour l'arbre des fichiers du projet si de nouveaux chemins de fichiers sont détectés
  * pendant le streaming.
@@ -1438,63 +1456,95 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
 
   
 
-  const processAnalysisResult = useCallback(async (
+    
+    // SandboxPage.tsx
+
+const processAnalysisResult = useCallback(async (
     fullHTML: string,
     fullCSS: string,
     fullJS: string,
     urlToAnalyze: string,
     originalUserPrompt: string
 ) => {
-    if (!currentProject || !setCurrentProject) {
-        addLog("ERROR: Project state is missing or cannot be updated.")
-        throw new Error("Project state is missing or cannot be updated.")
+    // Validation des dépendances critiques
+    if (!currentProject || !setCurrentProject || !sendChat) {
+        addLog("ERROR: Project state or critical functions (setCurrentProject, sendChat) are missing.")
+        throw new Error("Project state or critical functions are missing.")
     }
 
     addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
     setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-    // 1. Préparation du contenu des fichiers (Logique conservée)
+    // 1. Préparation et échappement du contenu
     const trimmedHTML = fullHTML.trim();
     const trimmedJS = fullJS.trim();
     const escapeContent = (content: string) => {
+        // Logique d'échappement CRUCIALE pour les backticks dans le template string JS
         return content.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
     };
     const escapedHTML = escapeContent(trimmedHTML);
     const escapedJS = escapeContent(trimmedJS);
+    
+    // Contenu de app/page.tsx (avec JS et HTML)
     const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
 
-    // 2. Préparation de la liste des fichiers à mettre à jour (Logique conservée)
+    // 2. Mise à jour des fichiers du projet dans l'état local
     const filesToUpdate = [
-        { filePath: "app/globals.css", content: fullCSS },
-        { filePath: "app/page.tsx", content: newPageContent },
+        { filePath: "app/globals.css", content: fullCSS }, // ✅ Toujours présent, le contenu est 'fullCSS'
+        { filePath: "app/page.tsx", content: newPageContent }, // ✅ Toujours présent, le contenu est 'newPageContent'
     ]
     const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
     for (const { filePath, content } of filesToUpdate) {
+        // Cette boucle crée ou remplace les fichiers dans la Map
         newFilesMap.set(filePath, { filePath, content })
     }
     const updatedFiles = Array.from(newFilesMap.values())
 
-    // 3. Mise à jour de l'état du projet (Logique conservée)
     setCurrentProject(prevProject => {
         if (!prevProject) return null
         return {
             ...prevProject,
-            files: updatedFiles,
+            files: updatedFiles, // Mise à jour de la liste des fichiers du projet
         }
     })
 
-    addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini with full context...");
+    addLog("[CLONE-FLOW] ✅ Local project files updated.");
 
-    // 🛑 SUPPRESSION COMPLÈTE DE LA LOGIQUE D'INDEXATION RAG (Étapes 4, 6, 7 dans l'ancien code)
-
-    // 4. Prépare le prompt de notification (Logique conservée)
-    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make a clone action of the website, just respond to tell to the user that you have understood the action and not generated codes.`;
-
-    // 5. ENVOI en passant SEULEMENT le prompt (le contexte des fichiers sera inclus par sendChat lui-même)
-    await sendChat(simplePrompt); // ❌ Retrait du second argument (embeddingsOverride)
-}, [currentProject, setCurrentProject, addLog]);
+    // 🛑 3. INJECTION DU CODE COMPLET À L'IA 
     
-                                                                   
+    let injectionPrompt = `
+[ACTION AUTOMATISÉE DE CLONAGE]
+Le code du site ${urlToAnalyze} a été cloné et écrit dans les fichiers suivants. Vous avez maintenant ce code pour référence.
+
+`;
+
+    // AJOUT STRUCTURÉ DANS LE PROMPT
+    filesToUpdate.forEach(file => {
+        // Log pour confirmer l'injection
+        addLog(`[CLONE-FLOW] Injecting ${file.filePath} (${file.content.length} chars) into Gemini's prompt.`);
+
+        // Injection du contenu complet dans le prompt de l'IA
+        injectionPrompt += `
+[CONTENU DU FICHIER: ${file.filePath}]
+\`\`\`${file.filePath.split('.').pop() || 'text'}
+${file.content}
+\`\`\`
+[FIN CONTENU FICHIER: ${file.filePath}]
+
+`;
+    });
+
+    injectionPrompt += `
+L'utilisateur a demandé à cloner ce site : "${originalUserPrompt}". Veuillez répondre en confirmant l'action SANS générer de code, et SANS redemander ces fichiers.
+`;
+
+    addLog("[CLONE-FLOW] ✅ Notifying Gemini with full file content...");
+
+    // Relance sendChat avec le contenu des fichiers comme prompt
+    await sendChat(injectionPrompt);
+
+}, [currentProject, setCurrentProject, addLog, sendChat]); // 🚨 sendChat ajouté aux dépendances
+                                    
   
     
               
@@ -1855,9 +1905,15 @@ const handleChatSubmit = (e: React.FormEvent) => {
                
             
             
-            
+            // SandboxPage.tsx
 
-        // SandboxPage.tsx
+// Assurez-vous que les fonctions utilitaires suivantes sont définies
+// ou importées dans ce fichier :
+// - extractReadFileArtifact
+// - extractFileArtifacts
+// - applyArtifactsToProject
+// - addLog
+// ... et que toutes les dépendances (messages, currentProject, etc.) sont définies via useState/useContext/etc.
 
 const sendChat = useCallback(async (promptOverride?: string) => { 
     // --- 0. DÉPENDANCES ET VALIDATIONS ---
@@ -1871,10 +1927,9 @@ const sendChat = useCallback(async (promptOverride?: string) => {
     }
 
     // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
-    let contextForPrompt = "";
-    if (mentionedFiles.length > 0 && currentProject) {
-        contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
-    }
+    const contextForPrompt = (mentionedFiles.length > 0 && currentProject)
+        ? "\n[FICHIERS PROJET MENTIONNÉS: " + mentionedFiles.join(', ') + "]"
+        : "";
     
     const finalUserPrompt = userPrompt + contextForPrompt;
 
@@ -1887,14 +1942,18 @@ const sendChat = useCallback(async (promptOverride?: string) => {
         mentionedFiles: mentionedFiles
     };
     
+    // Ajout du message utilisateur à l'historique pour l'API
     const currentHistory = [...messages, userMsg]; 
     
     const currentProjectFiles = currentProject 
         ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
         : [];
 
-    setMessages((prev) => [...prev, userMsg]);
-    setChatInput(""); 
+    // Met à jour l'UI seulement si ce n'est pas un prompt d'injection silencieuse
+    if (!promptOverride) {
+        setMessages((prev) => [...prev, userMsg]);
+        setChatInput(""); 
+    }
     
     setLoading(true);
     addLog(`Sending prompt to Gemini...`);
@@ -1918,13 +1977,16 @@ const sendChat = useCallback(async (promptOverride?: string) => {
         const decoder = new TextDecoder();
         let text = ""; 
         let urlArtifact: any = null; 
-        
-        // 🛑 NOUVELLE VARIABLE POUR L'ARTEFACT DE LECTURE
         let readFileArtifact: { path: string } | null = null; 
-
-        setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
+        
+        // On n'ajoute un nouveau message assistant que si on n'est pas en train d'injecter
+        if (!promptOverride) {
+            setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
+        }
 
         // --- 3. TRAITEMENT DU STREAMING ---
+        const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
+
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -1932,89 +1994,77 @@ const sendChat = useCallback(async (promptOverride?: string) => {
             const chunk = decoder.decode(value, { stream: true });
             text += chunk; 
 
-            // ... (Logique de détection d'artefacts existante: inspirationUrl, file_changes, create_file)
-            
-            // 🛑 NOUVELLE LOGIQUE : Détection de l'artefact <read_file>
-            const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
-            const readFileMatch = text.match(readFileRegex);
-            
-            if (readFileMatch) {
-                const filePath = readFileMatch[1];
-                readFileArtifact = { path: filePath };
-                addLog(`[ACTION] Gemini requested file content: ${filePath}`);
+            // Capture de l'artefact de lecture
+            if (!readFileArtifact) { 
+                readFileArtifact = extractReadFileArtifact(text);
+                if (readFileArtifact) {
+                    addLog(`[ACTION] Gemini requested file content: ${readFileArtifact.path}`);
+                }
             }
 
-            // Conservez votre logique pour urlArtifact et fileArtifacts...
+            // ... (Votre logique de détection des autres artefacts: urlArtifact, fileArtifacts)
+
+            // Mise à jour de l'affichage
             let textWithoutArtifacts = text
-                .replace(inspirationUrlRegex, '')
-                .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-                .replace(readFileRegex, ''); // 🛑 Nettoyez le texte du nouvel artefact
+                .replace(readFileRegex, ''); // Retire le read_file de l'affichage
+            
+            // Retrait de la balise <read_file> de l'affichage.
+            // Le reste de votre logique de retrait des autres balises doit suivre ici.
 
-            setMessages((prev) => {
-                // ... (Votre logique de mise à jour des messages)
-                const lastMsgIndex = prev.length - 1;
-                const updatedMessages = [...prev];
-                const lastMsg = updatedMessages[lastMsgIndex];
-                
-                if (lastMsg?.role === "assistant") {
-                    // Mettre à jour artifactData si besoin
-                    lastMsg.content = textWithoutArtifacts; 
-                }
-                return updatedMessages;
-            });
+            if (!promptOverride) {
+                setMessages((prev) => {
+                    const lastMsgIndex = prev.length - 1;
+                    const updatedMessages = [...prev];
+                    const lastMsg = updatedMessages[lastMsgIndex];
+                    
+                    if (lastMsg?.role === "assistant") {
+                        // ... (Mise à jour de lastMsg.artifactData)
+                        lastMsg.content = textWithoutArtifacts; 
+                    }
+                    return updatedMessages;
+                });
+            }
         } // Fin du streaming
-
-        // --- 4. LOGIQUE POST-STREAM ---
         
-        // 🛑 LOGIQUE CRUCIALE : Exécuter la demande de lecture de fichier
+        // Nettoyage de l'injection (on retire le message utilisateur d'injection de l'historique UI)
+        if (promptOverride) {
+            // Retirer le dernier message utilisateur (l'injection)
+            setMessages((prev) => prev.slice(0, -1)); 
+        }
+
+        // --- 4. LOGIQUE POST-STREAM : TRAITEMENT DE read_file ---
+        
         if (readFileArtifact) {
             const filePath = readFileArtifact.path;
             const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
 
             if (fileToRead) {
                 const fileContent = fileToRead.content;
+                
+                // L'injection que l'IA va voir :
                 const injectionPrompt = `
-[FICHIER REQUIS PAR VOUS : ${filePath}]
+[CONTENU DU FICHIER REQUIS PAR VOUS : ${filePath}]
 \`\`\`${filePath.split('.').pop() || 'text'}
 ${fileContent}
 \`\`\`
-[FIN FICHIER REQUIS]
+[FIN CONTENU FICHIER]
 
-Vous avez maintenant le contenu du fichier ${filePath} pour continuer votre raisonnement et générer le code ou la réponse. Ne redemandez pas le fichier. Reprenez votre réponse là où vous vous êtes arrêté.
+Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et continuer votre réponse à la dernière requête utilisateur (qui était "${messages[messages.length - 1].content}" avant le run read_file). Ne redemandez pas ce fichier.
 `;
-                addLog(`[ACTION] Injecting ${fileContent.length} chars of ${filePath} into new prompt.`);
+                addLog(`[ACTION] Injecting ${fileContent.length} caractères de ${filePath} pour l'analyse.`);
                 
-                // 🛑 On relance sendChat avec le contenu injecté, mais SANS effacer l'historique de conversation !
-                // Le nouveau prompt sera le prompt utilisateur habituel + l'injection.
-                // NOTE: Pour simplifier, on prend le prompt initial si c'était une requête manuelle, ou on relance le processus.
-                
-                // Pour éviter la récursivité infinie si Gemini redemande le fichier,
-                // il est vital que Gemini soit capable de répondre après avoir vu le contenu.
-                
-                // La meilleure approche est de simuler une nouvelle requête utilisateur
-                // contenant les instructions originales + le contenu du fichier.
-                
-                // On met à jour le chatInput (ou l'historique) avant de relancer
-                setChatInput(injectionPrompt);
-                
-                // Relance l'appel de chat immédiatement avec ce nouveau contexte
-                await sendChat(injectionPrompt); // Relance l'appel avec le contexte
-                
-                return; // Termine l'exécution du premier sendChat pour ne pas exécuter le reste
+                // Relance sendChat (le flag promptOverride sera vrai)
+                await sendChat(injectionPrompt);
+                return;
                 
             } else {
                 addLog(`[ERROR] File not found in project: ${filePath}`);
-                // Notifier Gemini qu'il n'a pas pu lire le fichier
                 await sendChat(`[FICHIER INTROUVABLE : ${filePath}] Le fichier que vous avez demandé n'existe pas dans le projet. Veuillez reconsidérer votre requête.`);
+                return;
             }
         }
         
         // --- Logique post-stream normale (code artefacts) ---
-        if (urlArtifact) {
-            addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-        }
-
         const finalArtifacts = extractFileArtifacts(text);
 
         if (finalArtifacts.length > 0) {
@@ -2024,18 +2074,36 @@ Vous avez maintenant le contenu du fichier ${filePath} pour continuer votre rais
             addLog("Response treated as simple text or unrecognized format.");
         }
 
+
     } catch (err: any) {
         addLog(`CLIENT-SIDE ERROR: ${err.message}`);
         setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
     } finally {
-        // Le `setLoading(false)` est sauté si on relance `sendChat`
+        // Ne masquer le loader que si ce n'est PAS un appel d'injection
         if (!readFileArtifact) { 
             setLoading(false);
         }
     }
-}, [chatInput, currentProject, messages, addLog, uploadedImages, uploadedFiles, mentionedFiles, setActiveFile, setCurrentProject, activeFile, applyArtifactsToProject, extractFileArtifacts, addFilesIfNew]);
-      
-          
+}, [
+    chatInput, 
+    currentProject, 
+    messages, 
+    addLog, 
+    uploadedImages, 
+    uploadedFiles, 
+    mentionedFiles,
+    // Fonctions de mise à jour de l'état
+    setMessages, 
+    setChatInput, 
+    setLoading, 
+    // Fonctions d'outils
+    extractReadFileArtifact, // Assurez-vous que cette fonction n'est pas recréée à chaque rendu
+    extractFileArtifacts, // Idem
+    applyArtifactsToProject, // Idem
+    sendChat, // 🚨 CRUCIAL pour la relance récursive de read_file
+]);
+  
+
 
 
 
