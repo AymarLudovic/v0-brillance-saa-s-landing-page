@@ -2,15 +2,9 @@
 
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part } from "@google/genai"
-import { basePrompt } from "@/lib/prompt" 
+import { basePrompt } from "@/lib/prompt" // Assurez-vous que ce chemin est correct
 
 // --- TYPES ---
-interface IndexedChunk { 
-    filePath: string; 
-    chunkIndex: number; 
-    text: string; 
-    embedding: number[]; 
-} 
 interface Message { 
     role: "user" | "assistant"; 
     content: string; 
@@ -23,63 +17,6 @@ interface ProjectFile {
     content: string; 
 }
 
-// --- FONCTIONS MATHÉMATIQUES POUR LA SIMILARITÉ COSINE ---
-function dotProduct(vecA: number[], vecB: number[]): number {
-    return vecA.reduce((acc, val, i) => acc + val * vecB[i], 0);
-}
-
-function magnitude(vec: number[]): number {
-    return Math.sqrt(vec.reduce((acc, val) => acc + val * val, 0));
-}
-
-function cosineSimilarity(vecA: number[], vecB: number[]): number {
-    const product = dotProduct(vecA, vecB);
-    const magA = magnitude(vecA);
-    const magB = magnitude(vecB);
-    
-    if (magA === 0 || magB === 0) return 0;
-    
-    return product / (magA * magB);
-}
-
-// --- FONCTION DE RÉCUPÉRATION (RETRIEVAL) RAG ---
-async function retrieveRelevantContext(
-    prompt: string, 
-    allEmbeddings: IndexedChunk[], 
-    ai: GoogleGenAI
-): Promise<string> {
-    if (allEmbeddings.length === 0) return "";
-    
-    const EMBEDDING_MODEL = "text-embedding-004";
-    
-    const queryEmbeddingResponse = await ai.embed.embedContent({
-        model: EMBEDDING_MODEL, 
-        content: prompt,
-    });
-    const queryVector = queryEmbeddingResponse.embedding.values;
-
-    const rankedChunks = allEmbeddings.map(chunk => ({
-        ...chunk,
-        similarity: cosineSimilarity(queryVector, chunk.embedding),
-    })).sort((a, b) => b.similarity - a.similarity);
-
-    const TOP_K = 5;
-    // J'ai baissé un peu le seuil pour être sûr de remonter des choses même si la similarité n'est pas parfaite
-    const relevantChunks = rankedChunks.slice(0, TOP_K).filter(chunk => chunk.similarity > 0.75); 
-    
-    if (relevantChunks.length === 0) return "";
-
-    let context = "\n\n--- CODE CONTEXTUEL RÉCUPÉRÉ (RAG) ---\n";
-    relevantChunks.forEach(chunk => {
-        context += `// Fichier: ${chunk.filePath} (Pertinence: ${chunk.similarity.toFixed(2)})\n`;
-        context += `${chunk.text}\n`;
-        context += `// ---\n`;
-    });
-    context += "--- FIN DU CONTEXTE DE CODE RÉCUPÉRÉ ---\n\n";
-
-    return context;
-}
-
 // Utilitaires pour les fichiers
 function getMimeTypeFromBase64(dataUrl: string): string {
     const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
@@ -87,6 +24,7 @@ function getMimeTypeFromBase64(dataUrl: string): string {
 }
 
 function cleanBase64Data(dataUrl: string): string {
+    // Si c'est un data-url, on retire le préfixe
     return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 }
 
@@ -96,15 +34,16 @@ export async function POST(req: Request) {
   try {
     const { 
         history, 
+        currentProjectFiles, // ✅ Reçu du client pour l'injection de contexte
         uploadedImages,
         uploadedFiles,
-        projectEmbeddings // Reçoit la liste d'embeddings du client
+        // projectEmbeddings n'est plus utilisé/traité
     } = await req.json() as { 
         history: Message[], 
         currentProjectFiles: ProjectFile[], 
         uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
-        projectEmbeddings: IndexedChunk[], 
+        projectEmbeddings: any[], // Gardé uniquement pour la déstructuration si le client l'envoie toujours
     }
 
     if (!history || history.length === 0) {
@@ -115,7 +54,7 @@ export async function POST(req: Request) {
       apiKey: process.env.GEMINI_API_KEY!,
     })
 
-    const model = "gemini-2.5-flash" // J'ai mis 1.5-flash, plus récent, mais 1.5-pro marche aussi
+    const model = "gemini-2.5-flash" // ✨ Modèle essentiel pour la grande fenêtre de contexte
     
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
 
@@ -124,17 +63,25 @@ export async function POST(req: Request) {
         const role = msg.role === 'assistant' ? 'model' : 'user';
         let textContent = msg.content;
 
-        // On injecte le contexte RAG uniquement sur le dernier message utilisateur
+        // 🛑 LOGIQUE D'INJECTION DE CONTEXTE COMPLET
+        // On injecte le contexte de code uniquement sur le dernier message utilisateur
         if (msg === history[history.length - 1] && role === 'user') {
             
-            const userPrompt = msg.content;
-            // 🛑 C'est ici que tout se joue : on utilise les embeddings reçus !
-            const relevantContext = await retrieveRelevantContext(userPrompt, projectEmbeddings, ai);
-
-            // On construit le prompt final
-            textContent = basePrompt + relevantContext + "\n\n" + textContent;
+            let fileContext = "\n\n--- FICHIERS PROJET ACTUELS ---\n";
             
-            // Gestion des images/fichiers (cette partie est correcte)
+            // 1. Concaténation des fichiers du projet
+            currentProjectFiles.forEach(file => {
+                fileContext += `// Fichier: ${file.filePath} (Longueur: ${file.content.length} caractères)\n`;
+                fileContext += file.content + "\n";
+                fileContext += `// ---\n`;
+            });
+            fileContext += "--- FIN FICHIERS PROJET ---\n\n";
+
+            // 2. Construction du prompt final (BasePrompt + Fichiers + Prompt Utilisateur)
+            // L'ordre est important : le contexte de fichiers sert de référence avant la requête de l'utilisateur.
+            textContent = basePrompt + fileContext + "\n\n" + textContent; 
+            
+            // 3. Gestion des images/fichiers binaires (votre logique originale)
             if (uploadedImages && uploadedImages.length > 0) {
                 uploadedImages.forEach((dataUrl) => {
                     parts.push({
@@ -150,7 +97,6 @@ export async function POST(req: Request) {
                     parts.push({
                         inlineData: {
                             data: file.base64Content,
-                            // Mime type générique pour les fichiers texte/code
                             mimeType: 'text/plain', 
                         },
                     });
@@ -159,7 +105,7 @@ export async function POST(req: Request) {
             }
         }
         
-        parts.push({ text: textContent });
+        parts.push({ text: textContent }); // Ajout du texte final (qui inclut le contexte pour le dernier message)
         contents.push({ role, parts });
     }
     
@@ -168,7 +114,7 @@ export async function POST(req: Request) {
       contents, 
     })
 
-    // Streaming
+    // Streaming (Logique inchangée)
     const encoder = new TextEncoder()
     let batchBuffer = ""; 
 
@@ -209,5 +155,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-      }
-      
+}
+    
