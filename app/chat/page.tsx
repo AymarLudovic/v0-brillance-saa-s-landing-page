@@ -914,27 +914,22 @@ const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ
     
     // --- LOGIQUE D'INDEXATION DES FICHIERS ---
     
-    const reindexFile = useCallback(async (file: any /* Utilisez votre type ProjectFile réel ici */) => {
-        if (file.content.length < 50) return; 
-        
-        const newChunks = await indexFileContent(file);
-        
-        setProjectEmbeddings(prevEmbeddings => 
-            updateProjectEmbeddings(newChunks, prevEmbeddings)
-        );
-    }, []);
-
-    // --- GESTION DE L'INDEXATION LORS DU CHARGEMENT DE PROJET ---
+    const reindexFile = useCallback(async (file: any /* Utilisez votre type ProjectFile réel ici */): Promise<IndexedChunk[]> => {
+    // Ne pas indexer les fichiers trop petits
+    if (file.content.length < 50) return []; 
     
-    useEffect(() => {
-        if (currentProject) {
-            currentProject.files.forEach((file: any /* Utilisez votre type ProjectFile réel ici */) => {
-                 reindexFile(file);
-            });
-        } else {
-            setProjectEmbeddings([]); // Réinitialiser si aucun projet
-        }
-    }, [currentProject, reindexFile]);
+    // Appel à la fonction qui appelle ton API /api/embeddings
+    const newChunks = await indexFileContent(file);
+    
+    // Met à jour l'état global des embeddings pour les futurs appels
+    setProjectEmbeddings(prevEmbeddings => 
+        updateProjectEmbeddings(newChunks, prevEmbeddings)
+    );
+    
+    // 🛑 RETOURNE les chunks fraîchement créés pour une utilisation immédiate
+    return newChunks; 
+}, []);
+  
   
 
 
@@ -1442,92 +1437,87 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
 
 
   
-const processAnalysisResult = async (
-  fullHTML: string,
-  fullCSS: string,
-  fullJS: string,
-  urlToAnalyze: string,
-  originalUserPrompt: string
+
+  const processAnalysisResult = async (
+    fullHTML: string,
+    fullCSS: string,
+    fullJS: string,
+    urlToAnalyze: string,
+    originalUserPrompt: string
 ) => {
-  if (!currentProject || !setCurrentProject) {
-      addLog("ERROR: Project state is missing or cannot be updated.")
-      throw new Error("Project state is missing or cannot be updated.")
-  }
+    if (!currentProject || !setCurrentProject) {
+        addLog("ERROR: Project state is missing or cannot be updated.")
+        throw new Error("Project state is missing or cannot be updated.")
+    }
 
-  addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
-  setAnalysisStatus(`2/2: Mise à jour du projet local...`)
+    addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
+    setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-  // 1. Nettoyage initial (trim)
-  const trimmedHTML = fullHTML.trim();
-  const trimmedJS = fullJS.trim();
+    // 1. Préparation du contenu des fichiers (ton code est parfait ici)
+    const trimmedHTML = fullHTML.trim();
+    const trimmedJS = fullJS.trim();
+    const escapeContent = (content: string) => {
+        return content.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    };
+    const escapedHTML = escapeContent(trimmedHTML);
+    const escapedJS = escapeContent(trimmedJS);
+    const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
 
-  // 2. Échappement agressif pour template literals
-  const escapeContent = (content: string) => {
-      return content
-          .replace(/\\/g, '\\\\')   // échappe backslashes en premier
-          .replace(/`/g, '\\`')     // échappe backticks
-          .replace(/\$/g, '\\$');   // échappe dollars
-  };
+    // 2. Préparation de la liste des fichiers à mettre à jour
+    const filesToUpdate = [
+        { filePath: "app/globals.css", content: fullCSS },
+        { filePath: "app/page.tsx", content: newPageContent },
+    ]
+    const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
+    for (const { filePath, content } of filesToUpdate) {
+        newFilesMap.set(filePath, { filePath, content })
+    }
+    const updatedFiles = Array.from(newFilesMap.values())
 
-  const escapedHTML = escapeContent(trimmedHTML);
-  const escapedJS = escapeContent(trimmedJS);
+    // 3. Mise à jour de l'état du projet
+    setCurrentProject(prevProject => {
+        if (!prevProject) return null
+        return {
+            ...prevProject,
+            files: updatedFiles,
+        }
+    })
 
-  // 3. Construction du fichier app/page.tsx (inchangé logiquement)
-  const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
+    addLog("[CLONE-FLOW] ✅ Local project files updated. Starting immediate reindexing...")
 
-  // 4. Préparation de la mise à jour de l'état
-  const filesToUpdate = [
-      { filePath: "app/globals.css", content: fullCSS },
-      { filePath: "app/page.tsx", content: newPageContent },
-  ]
+    // 4. 🛑 RÉINDEXATION ET RÉCUPÉRATION DES NOUVEAUX EMBEDDINGS
+    let newEmbeddingsFromClone: IndexedChunk[] = [];
+    try {
+        // Crée une liste de promesses de réindexation
+        const reindexPromises = filesToUpdate
+            .filter(f => f.content && f.content.length > 50)
+            .map(f => reindexFile(f));
 
-  const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
+        // Attend que TOUTES les réindexations soient finies et récupère les résultats
+        const chunkArrays = await Promise.all(reindexPromises);
+        
+        // Aplatit le tableau de tableaux [[...chunksFile1], [...chunksFile2]] en un seul tableau
+        newEmbeddingsFromClone = chunkArrays.flat();
 
-  for (const { filePath, content } of filesToUpdate) {
-      newFilesMap.set(filePath, { filePath, content })
-  }
+        addLog(`[CLONE-FLOW] ✅ Reindexation finished. ${newEmbeddingsFromClone.length} new chunks created.`);
 
-  const updatedFiles = Array.from(newFilesMap.values())
+    } catch (err: any) {
+        addLog(`[CLONE-FLOW] Warning: reindexation failed: ${err?.message || err}`);
+    }
 
-  // 5. Mise à jour de l'état (création d'une nouvelle référence d'array)
-  setCurrentProject(prevProject => {
-      if (!prevProject) return null
-      return {
-          ...prevProject,
-          files: updatedFiles,
+    // 5. Prépare le prompt de notification
+    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make a clone action of the website, just respond to tell to the user that you have understood the action and not generated codes.`;
+
+    // 6. 🛑 CONSTRUCTION DE LA LISTE FINALE D'EMBEDDINGS
+    // On utilise la même logique que dans ton `setProjectEmbeddings` pour avoir la liste la plus à jour
+    const latestEmbeddings = updateProjectEmbeddings(newEmbeddingsFromClone, projectEmbeddings);
+
+    addLog("[CLONE-FLOW] ✅ Notifying Gemini with updated context...");
+
+    // 7. ENVOI en passant le prompt ET la liste d'embeddings à jour
+    await sendChat(simplePrompt, latestEmbeddings);
       }
-  })
-
-  addLog("[CLONE-FLOW] ✅ Local project files updated. Starting immediate reindexing...")
-
-  // 6. 🛑 RÉINDEXATION IMMÉDIATE — Important pour que la RAG voit ces fichiers.
-  //    On lance reindexFile pour chaque fichier mis à jour et on attend.
-  try {
-      const reindexPromises: Promise<any>[] = []
-
-      for (const f of filesToUpdate) {
-          // n'indexe que si le contenu est suffisant
-          if (f.content && f.content.length > 50) {
-              reindexPromises.push(reindexFile(f))
-          }
-      }
-
-      // Attend la fin de toutes les réindexations (cela mettra à jour projectEmbeddings via setProjectEmbeddings)
-      await Promise.all(reindexPromises)
-
-      addLog("[CLONE-FLOW] ✅ Reindexation terminée pour les fichiers clonés.")
-  } catch (err: any) {
-      addLog(`[CLONE-FLOW] Warning: reindexation failed: ${err?.message || err}`)
-      // Ne throw pas — on souhaite toujours notifier le LLM même si la réindexation partielle échoue.
-  }
-
-  // 7. Prépare un prompt simple pour notifier l'IA — on le garde comme tu l'avais.
-  addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini...")
-  const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make a clone action of the website, just respond to tell to the user that you have understood the action and not generated codes.`
-
-  // 8. ENVOI: appelle sendChat **après** la réindexation pour que projectEmbeddings contienne les nouveaux chunks.
-  await sendChat(simplePrompt)
-      }
+      
                                                                    
   
     
@@ -1884,186 +1874,180 @@ const handleChatSubmit = (e: React.FormEvent) => {
  
             // --- FONCTION sendChat INTÉGRALE ET FINALE (RAG, Historique, Artefacts) ---
     
-    const sendChat = useCallback(async (promptOverride?: string) => {
+    
         
-        // Assurez-vous que les dépendances suivantes sont accessibles: chatInput, 
-        // uploadedImages, uploadedFiles, mentionedFiles, messages, currentProject, 
-        // addLog, setLoading, setMessages, applyArtifactsToProject, extractFileArtifacts, 
-        // activeFile, setActiveFile, setCurrentProject, reindexFile, projectEmbeddings
-        
-        const userPrompt = promptOverride || chatInput;
+               const sendChat = useCallback(async (promptOverride?: string, embeddingsOverride?: IndexedChunk[]) => {
+    // --- 0. DÉPENDANCES ET VALIDATIONS ---
+    const userPrompt = promptOverride || chatInput;
 
-        if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
+    if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
 
-        if (!currentProject && !promptOverride) {
-          addLog("Please create or load a project before starting a conversation.");
-          return;
-        }
-        
-        // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
-        let contextForPrompt = "";
-        if (mentionedFiles.length > 0 && currentProject) {
-            contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
-        }
-        
-        const finalUserPrompt = userPrompt + contextForPrompt;
+    if (!currentProject && !promptOverride) {
+      addLog("Please create or load a project before starting a conversation.");
+      return;
+    }
 
-        const userMsg: Message = {
-            role: "user",
-            content: finalUserPrompt,
-            artifactData: { type: null, rawJson: "", parsedList: [] },
-            images: uploadedImages, 
-            externalFiles: uploadedFiles, 
-            mentionedFiles: mentionedFiles
-        };
-        
-        const currentHistory = [...messages, userMsg]; 
-        
-        const currentProjectFiles = currentProject 
-            ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
-            : [];
+    // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
+    let contextForPrompt = "";
+    if (mentionedFiles.length > 0 && currentProject) {
+        contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
+    }
+    
+    const finalUserPrompt = userPrompt + contextForPrompt;
 
-        setMessages((prev) => [...prev, userMsg]);
-        setChatInput(""); 
-        
-        setLoading(true);
-        addLog(`Sending prompt to Gemini...`);
+    const userMsg: Message = {
+        role: "user",
+        content: finalUserPrompt,
+        artifactData: { type: null, rawJson: "", parsedList: [] },
+        images: uploadedImages, 
+        externalFiles: uploadedFiles, 
+        mentionedFiles: mentionedFiles
+    };
+    
+    const currentHistory = [...messages, userMsg]; 
+    
+    const currentProjectFiles = currentProject 
+        ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
+        : [];
 
-        try {
-            // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
-            const res = await fetch("/api/gemini", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    history: currentHistory, 
-                    currentProjectFiles: currentProjectFiles, 
-                    // 🛑 DONNÉE CRUCIALE POUR LA RAG 🛑
-                    projectEmbeddings: projectEmbeddings, 
-                    
-                    uploadedImages: uploadedImages,
-                    uploadedFiles: uploadedFiles, 
-                }), 
-            });
-            if (!res.ok || !res.body) throw new Error(`Gemini API request failed: ${res.statusText}`);
+    setMessages((prev) => [...prev, userMsg]);
+    setChatInput(""); 
+    
+    setLoading(true);
+    addLog(`Sending prompt to Gemini...`);
 
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let text = ""; 
-            let urlArtifact: any = null; 
+    try {
+        // 🛑 Utilise les embeddings fournis en priorité, sinon ceux de l'état
+        const embeddingsToSend = embeddingsOverride || projectEmbeddings;
 
-            setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
+        // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
+        const res = await fetch("/api/gemini", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                history: currentHistory, 
+                currentProjectFiles: currentProjectFiles, 
+                projectEmbeddings: embeddingsToSend, // ✅ Envoi des embeddings à jour
+                uploadedImages: uploadedImages,
+                uploadedFiles: uploadedFiles, 
+            }), 
+        });
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+        if (!res.ok || !res.body) throw new Error(`Gemini API request failed: ${res.statusText}`);
 
-                const chunk = decoder.decode(value, { stream: true });
-                text += chunk; 
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let text = ""; 
+        let urlArtifact: any = null; 
 
-                let newArtifactData = undefined;
-                const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+        setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
-                // 🛑 1. DÉTECTION DE L'ARTEFACT URL (JSON) 🛑
-                const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-                const urlMatch = text.match(inspirationUrlRegex);
+        // --- 3. TRAITEMENT DU STREAMING ---
+        while (true) {
+            // ... (TOUTE TA LOGIQUE DE STREAMING RESTE IDENTIQUE)
+            // ... (détection d'artefacts, mise à jour du state, etc.)
+            // ... CETTE PARTIE N'A PAS BESOIN DE CHANGER
+            const { done, value } = await reader.read();
+            if (done) break;
 
-                if (urlMatch) {
-                    try {
-                        const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
-                        const parsedUrlData = JSON.parse(jsonString);
-                        
-                        if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
-                            urlArtifact = { url: parsedUrlData.url }; 
-                            newArtifactData = { type: 'url', url: parsedUrlData.url, rawJson: text };
-                        }
-                    } catch (e) {
-                        console.error("Failed to parse URL JSON:", e);
+            const chunk = decoder.decode(value, { stream: true });
+            text += chunk; 
+
+            let newArtifactData = undefined;
+            const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+
+            const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
+            const urlMatch = text.match(inspirationUrlRegex);
+
+            if (urlMatch) {
+                try {
+                    const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
+                    const parsedUrlData = JSON.parse(jsonString);
+                    if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
+                        urlArtifact = { url: parsedUrlData.url }; 
+                        newArtifactData = { type: 'url', url: parsedUrlData.url, rawJson: text };
                     }
+                } catch (e) {
+                    console.error("Failed to parse URL JSON:", e);
                 }
-                
-                // 2. LOGIQUE D'EXTRACTION DE FICHIERS 
-                const fileArtifacts = extractFileArtifacts(text); 
-                const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
-                let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
-
-                const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
-
-                if (isGeneratingCode) {
-                    fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
-                    incompleteMatches.forEach(match => {
-                        const path = match[2];
-                        const type = match[1] === 'create_file' ? 'create' : 'changes';
-                        if (!artifactList.some(a => a.path === path)) {
-                            artifactList.push({ path, type });
-                        }
-                    });
-
-                    if (currentProject) {
-                        addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
-                    }
-                    
-                    newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
-                }
-
-                // 3. NETTOYAGE DU TEXTE POUR L'AFFICHAGE
-                
-                let textWithoutArtifacts = text
-                    .replace(inspirationUrlRegex, '') // Supprime le JSON URL
-                    .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
-                    .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
-
-                // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
-                setMessages((prev) => {
-                    const lastMsgIndex = prev.length - 1;
-                    const updatedMessages = [...prev];
-                    const lastMsg = updatedMessages[lastMsgIndex];
-                    
-                    if (lastMsg?.role === "assistant") {
-                        if (newArtifactData) {
-                            lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
-                        }
-                        lastMsg.content = textWithoutArtifacts; 
-                    }
-                    return updatedMessages;
-                });
-            } // Fin du streaming
-
-            // --- LOGIQUE POST-STREAM (ACTIONS FINALES) ---
+            }
             
-            if (urlArtifact) {
-              addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-              // Ajoutez ici votre appel à runAutomatedAnalysis(urlArtifact.url, userPrompt); si nécessaire
+            const fileArtifacts = extractFileArtifacts(text); 
+            const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
+            let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
+
+            const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
+
+            if (isGeneratingCode) {
+                fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
+                incompleteMatches.forEach(match => {
+                    const path = match[2];
+                    const type = match[1] === 'create_file' ? 'create' : 'changes';
+                    if (!artifactList.some(a => a.path === path)) {
+                        artifactList.push({ path, type });
+                    }
+                });
+
+                if (currentProject) {
+                    addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
+                }
+                
+                newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
             }
 
-            const finalArtifacts = extractFileArtifacts(text);
+            let textWithoutArtifacts = text
+                .replace(inspirationUrlRegex, '')
+                .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
 
-            if (finalArtifacts.length > 0) {
-                addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+            setMessages((prev) => {
+                const lastMsgIndex = prev.length - 1;
+                const updatedMessages = [...prev];
+                const lastMsg = updatedMessages[lastMsgIndex];
                 
-                // 1. Appliquer les changements au projet
-                applyArtifactsToProject(finalArtifacts); 
-                
-                // 🛑 2. Vectoriser les fichiers modifiés après l'application 🛑
-                setTimeout(() => {
-                    finalArtifacts.forEach(async (artifact) => {
-                        const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
-                        if (updatedFile) {
-                            await reindexFile(updatedFile); // Ré-indexation du fichier modifié
-                        }
-                    });
-                }, 100); 
-                
-            } else {
-              addLog("Response treated as simple text or unrecognized format.");
-            }
+                if (lastMsg?.role === "assistant") {
+                    if (newArtifactData) {
+                        lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
+                    }
+                    lastMsg.content = textWithoutArtifacts; 
+                }
+                return updatedMessages;
+            });
+        } // Fin du streaming
 
-        } catch (err: any) {
-            addLog(`CLIENT-SIDE ERROR: ${err.message}`);
-            setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
-        } finally {
-            setLoading(false);
+        // --- 4. LOGIQUE POST-STREAM ---
+        if (urlArtifact) {
+            addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
         }
-    }, [chatInput, currentProject, messages, projectEmbeddings, reindexFile]); 
+
+        const finalArtifacts = extractFileArtifacts(text);
+
+        if (finalArtifacts.length > 0) {
+            addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+            applyArtifactsToProject(finalArtifacts); 
+            
+            setTimeout(() => {
+                finalArtifacts.forEach(async (artifact) => {
+                    const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
+                    if (updatedFile) {
+                        await reindexFile(updatedFile);
+                    }
+                });
+            }, 100); 
+            
+        } else {
+            addLog("Response treated as simple text or unrecognized format.");
+        }
+
+    } catch (err: any) {
+        addLog(`CLIENT-SIDE ERROR: ${err.message}`);
+        setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
+    } finally {
+        setLoading(false);
+    }
+}, [chatInput, currentProject, messages, projectEmbeddings, reindexFile]);
+        
+            
           
 
 
