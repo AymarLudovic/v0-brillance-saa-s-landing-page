@@ -1483,13 +1483,12 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
     const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
 
     for (const { filePath, content } of filesToUpdate) {
-        // NOTE: Assurez-vous que l'objet créé ici contient tous les champs requis par votre type ProjectFile
         newFilesMap.set(filePath, { filePath, content })
     }
 
     const updatedFiles = Array.from(newFilesMap.values())
 
-    // 5. Mise à jour de l'état du Projet (pour l'UI et la sauvegarde).
+    // 5. Mise à jour de l'état du Projet 
     setCurrentProject(prevProject => {
         if (!prevProject) return null
         return {
@@ -1498,33 +1497,34 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
         }
     })
     
-    // --- NOUVELLE ÉTAPE CRITIQUE : INDEXATION RAG SYNCHRONE ---
+    // -----------------------------------------------------------
+    // 🛑 CORRECTION : INDEXATION RAG SYNCHRONE ET FORCING DU PROMPT
+    // -----------------------------------------------------------
     addLog("[CLONE-FLOW] Phase 3: Indexation RAG des nouveaux fichiers (globals.css, page.tsx)...")
     setAnalysisStatus(`3/3: Indexation RAG en cours...`)
     
     const indexingPromises = filesToUpdate.map(async (file) => {
-        // 🛑 Utilisation de indexFileContent pour la vectorisation côté serveur
         const newChunks = await indexFileContent(file); 
-        
-        // 🛑 Mise à jour de l'état projectEmbeddings immédiatement (formulaire fonctionnel)
         setProjectEmbeddings(prevEmbeddings => 
             updateProjectEmbeddings(newChunks, prevEmbeddings)
         );
     });
 
-    // 🛑 ATTENDRE que TOUTES les requêtes d'indexation soient terminées
+    // ATTENDRE que TOUTES les requêtes d'indexation soient terminées
     await Promise.all(indexingPromises);
 
     addLog("[CLONE-FLOW] ✅ Local project files updated & RAG indexation complete. Notifying Gemini...")
     setAnalysisStatus(`Fini: Notification de Gemini.`)
-    // -----------------------------------------------------------
-
-    // 🛑 Modification du prompt pour forcer l'IA à utiliser le contexte RAG
-    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The content of these two files has been *indexed via RAG* and is now available in your context. The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make an clone action of the website, just respond to tell to the user that you have understand the action and not generated codes.`;
+    
+    // 🛑 Modification du prompt pour forcer l'usage du contexte RAG (très explicite)
+    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). We confirm that the content of these two files has been **fully indexed via RAG** and is now available in your context. **You MUST use the CODE CONTEXTUEL RÉCUPÉRÉ (RAG) to answer all future user questions about the content of these files.** The original user request was: "${originalUserPrompt}". Acknowledge the cloning action and confirm your ability to read the code using RAG, and do not generate any code in your response.`;
     
     // L'appel sendChat se fait maintenant que projectEmbeddings est à jour
     await sendChat(simplePrompt)
-                                         }
+}
+
+
+    
                                          
     
               
@@ -1876,9 +1876,10 @@ const handleChatSubmit = (e: React.FormEvent) => {
 }
   
 
-  
- 
-            // --- FONCTION sendChat INTÉGRALE ET FINALE (RAG, Historique, Artefacts) ---
+   
+
+
+          // --- FONCTION sendChat INTÉGRALE ET FINALE (RAG, Historique, Artefacts) ---
     
     const sendChat = useCallback(async (promptOverride?: string) => {
         
@@ -1949,11 +1950,27 @@ const handleChatSubmit = (e: React.FormEvent) => {
 
             setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
 
+            const RAG_SUCCESS_PREFIX = "[RAG_SUCCESS]";
+            const RAG_FAIL_PREFIX = "[RAG_FAIL]";
+
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value, { stream: true });
+                let chunk = decoder.decode(value, { stream: true });
+                
+                // 🛑 CORRECTION : Interception du log RAG envoyé par le serveur 🛑
+                if (chunk.includes(RAG_SUCCESS_PREFIX)) {
+                    const logContent = chunk.substring(chunk.indexOf(RAG_SUCCESS_PREFIX) + RAG_SUCCESS_PREFIX.length).trim();
+                    addLog(`✅ RAG: Contexte récupéré. Chunks utilisés: ${logContent}`);
+                    // Nettoyer le chunk pour ne pas l'afficher dans le chat
+                    chunk = chunk.replace(RAG_SUCCESS_PREFIX + logContent, '');
+                } else if (chunk.includes(RAG_FAIL_PREFIX)) {
+                    addLog(`⚠️ RAG: Aucun contexte de code pertinent trouvé (sim. < 0.5).`);
+                    chunk = chunk.replace(RAG_FAIL_PREFIX + ' No relevant context found above threshold.', '');
+                }
+                // ----------------------------------------------------
+                
                 text += chunk; 
 
                 let newArtifactData = undefined;
@@ -2040,14 +2057,13 @@ const handleChatSubmit = (e: React.FormEvent) => {
                 applyArtifactsToProject(finalArtifacts); 
                 
                 // 🛑 2. Vectoriser les fichiers modifiés après l'application 🛑
-                setTimeout(() => {
-                    finalArtifacts.forEach(async (artifact) => {
-                        const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
-                        if (updatedFile) {
-                            await reindexFile(updatedFile); // Ré-indexation du fichier modifié
-                        }
-                    });
-                }, 100); 
+                // Utilisation de .forEach async pour une ré-indexation rapide sans bloquer le thread principal
+                finalArtifacts.forEach(async (artifact) => {
+                    const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
+                    if (updatedFile) {
+                        await reindexFile(updatedFile); // Ré-indexation du fichier modifié
+                    }
+                });
                 
             } else {
               addLog("Response treated as simple text or unrecognized format.");
@@ -2060,12 +2076,7 @@ const handleChatSubmit = (e: React.FormEvent) => {
             setLoading(false);
         }
     }, [chatInput, currentProject, messages, projectEmbeddings, reindexFile]); 
-          
 
-
-
-
-            
        
 
  
