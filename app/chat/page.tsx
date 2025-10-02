@@ -1442,67 +1442,94 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
 
 
   
+const processAnalysisResult = async (
+  fullHTML: string,
+  fullCSS: string,
+  fullJS: string,
+  urlToAnalyze: string,
+  originalUserPrompt: string
+) => {
+  if (!currentProject || !setCurrentProject) {
+      addLog("ERROR: Project state is missing or cannot be updated.")
+      throw new Error("Project state is missing or cannot be updated.")
+  }
 
-  
-  const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
-    if (!currentProject || !setCurrentProject) {
-        addLog("ERROR: Project state is missing or cannot be updated.")
-        throw new Error("Project state is missing or cannot be updated.")
-    }
+  addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
+  setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-    addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
-    setAnalysisStatus(`2/2: Mise à jour du projet local...`)
+  // 1. Nettoyage initial (trim)
+  const trimmedHTML = fullHTML.trim();
+  const trimmedJS = fullJS.trim();
 
-    // 1. Nettoyage initial (trim)
-    const trimmedHTML = fullHTML.trim();
-    const trimmedJS = fullJS.trim();
+  // 2. Échappement agressif pour template literals
+  const escapeContent = (content: string) => {
+      return content
+          .replace(/\\/g, '\\\\')   // échappe backslashes en premier
+          .replace(/`/g, '\\`')     // échappe backticks
+          .replace(/\$/g, '\\$');   // échappe dollars
+  };
 
-    // 2. Échappement agressif pour template literals
-    // Ceci empêche les caractères spéciaux (backslashes, backticks, dollars) de briser la syntaxe JSX/JS.
-    const escapeContent = (content: string) => {
-        return content
-            // 1. Échapper les backslashes: '\\' -> '\\\\' (Doit être fait en premier)
-            .replace(/\\/g, '\\\\') 
-            // 2. Échapper les backticks: '`' -> '\`'
-            .replace(/`/g, '\\`')
-            // 3. Échapper le signe dollar: '$' -> '\$'
-            .replace(/\$/g, '\\$');
-    };
-    
-    const escapedHTML = escapeContent(trimmedHTML);
-    const escapedJS = escapeContent(trimmedJS);
+  const escapedHTML = escapeContent(trimmedHTML);
+  const escapedJS = escapeContent(trimmedJS);
 
-    // 3. Construction du fichier app/page.tsx
-    const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
-    
-    // 4. Préparation de la mise à jour de l'état
-    const filesToUpdate = [
-        { filePath: "app/globals.css", content: fullCSS },
-        { filePath: "app/page.tsx", content: newPageContent },
-    ]
+  // 3. Construction du fichier app/page.tsx (inchangé logiquement)
+  const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
 
-    const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
+  // 4. Préparation de la mise à jour de l'état
+  const filesToUpdate = [
+      { filePath: "app/globals.css", content: fullCSS },
+      { filePath: "app/page.tsx", content: newPageContent },
+  ]
 
-    for (const { filePath, content } of filesToUpdate) {
-        newFilesMap.set(filePath, { filePath, content })
-    }
+  const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
 
-    const updatedFiles = Array.from(newFilesMap.values())
+  for (const { filePath, content } of filesToUpdate) {
+      newFilesMap.set(filePath, { filePath, content })
+  }
 
-    // 5. Mise à jour de l'état (Création d'une nouvelle référence d'array)
-    setCurrentProject(prevProject => {
-        if (!prevProject) return null
-        return {
-            ...prevProject,
-            files: updatedFiles, 
-        }
-    })
-    
-    addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini...")
-    const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make an clone action of the website, just respond to tell to the user that you have understand the action and not generated codes.`
-    
-    await sendChat(simplePrompt)
+  const updatedFiles = Array.from(newFilesMap.values())
+
+  // 5. Mise à jour de l'état (création d'une nouvelle référence d'array)
+  setCurrentProject(prevProject => {
+      if (!prevProject) return null
+      return {
+          ...prevProject,
+          files: updatedFiles,
       }
+  })
+
+  addLog("[CLONE-FLOW] ✅ Local project files updated. Starting immediate reindexing...")
+
+  // 6. 🛑 RÉINDEXATION IMMÉDIATE — Important pour que la RAG voit ces fichiers.
+  //    On lance reindexFile pour chaque fichier mis à jour et on attend.
+  try {
+      const reindexPromises: Promise<any>[] = []
+
+      for (const f of filesToUpdate) {
+          // n'indexe que si le contenu est suffisant
+          if (f.content && f.content.length > 50) {
+              reindexPromises.push(reindexFile(f))
+          }
+      }
+
+      // Attend la fin de toutes les réindexations (cela mettra à jour projectEmbeddings via setProjectEmbeddings)
+      await Promise.all(reindexPromises)
+
+      addLog("[CLONE-FLOW] ✅ Reindexation terminée pour les fichiers clonés.")
+  } catch (err: any) {
+      addLog(`[CLONE-FLOW] Warning: reindexation failed: ${err?.message || err}`)
+      // Ne throw pas — on souhaite toujours notifier le LLM même si la réindexation partielle échoue.
+  }
+
+  // 7. Prépare un prompt simple pour notifier l'IA — on le garde comme tu l'avais.
+  addLog("[CLONE-FLOW] ✅ Local project files updated. Notifying Gemini...")
+  const simplePrompt = `[AUTOMATED ACTION] The full content (HTML, CSS, JS) of ${urlToAnalyze} has been written to the local project files (app/page.tsx and app/globals.css). The user should now see the cloned website in the preview. The original user request was: "${originalUserPrompt}". Don't generate any code because it's just for notify you that we have make a clone action of the website, just respond to tell to the user that you have understood the action and not generated codes.`
+
+  // 8. ENVOI: appelle sendChat **après** la réindexation pour que projectEmbeddings contienne les nouveaux chunks.
+  await sendChat(simplePrompt)
+      }
+                                                                   
+  
     
               
 
