@@ -71,6 +71,16 @@ NB: Cette séquence permet au client de masquer le flux de code. Ne PAS inclure 
   </file_changes>
   \`\`\`
 
+- **3. Demande de Lecture de Fichier (Tool Use) :**
+  Utilisez la balise **<read_file>** si vous avez besoin du contenu d'un fichier du projet pour répondre ou pour modifier le code. Le client interceptera cette balise et vous fournira le contenu dans la prochaine requête. N'incluez AUCUN autre texte ou code avec cette balise.
+
+  \`\`\`html
+  <read_file path="app/page.tsx" />
+  \`\`\`
+
+
+
+
 - **Note sur les Balises :** **Tu ne dois pas** mélanger le JSON \`{"filePath": ...}\` ou \`{"type": "fileChanges", ...}\` avec ces balises. Les balises prennent le relais de la logique de fichiers. L'extraction du chemin (\`path="..."\`) et du contenu des balises sera gérée par le client en temps réel.
 
 
