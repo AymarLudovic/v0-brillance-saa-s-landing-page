@@ -1235,48 +1235,7 @@ const parseMessageContent = (content: string) => {
 
 
   
-const fillFilesFromGeminiResponse = (text: string) => {
-    // --- Ligne de débogage ---
-    console.log("Texte brut reçu par fillFilesFromGeminiResponse:", text)
 
-    let jsonString = ""
-    const firstBrace = text.indexOf("{")
-    const lastBrace = text.lastIndexOf("}")
-    const firstBracket = text.indexOf("[")
-    const lastBracket = text.lastIndexOf("]")
-
-    if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
-      jsonString = text.substring(firstBrace, lastBrace + 1)
-    } else if (firstBracket !== -1 && lastBracket > firstBracket) {
-      jsonString = text.substring(firstBracket, lastBracket + 1)
-    }
-
-    if (!jsonString) {
-      addLog(`❌ N'a trouvé aucune structure JSON ({...} ou [...]) dans la réponse.`)
-      return
-    }
-
-    try {
-      const parsed = JSON.parse(jsonString)
-
-      if (Array.isArray(parsed)) {
-        // Cas 1: C'est un tableau (pour la création de fichiers)
-        // 🛑 CORRECTION : Appel à la nouvelle fonction 
-        applyArtifactsToProject(parsed) 
-      } else if (typeof parsed === "object" && parsed !== null && parsed.type === "fileChanges") {
-        // Cas 2: C'est un objet unique pour la modification d'un fichier
-        // 🛑 CORRECTION : Appel à la nouvelle fonction (doit être dans un tableau)
-        applyArtifactsToProject([parsed]) 
-      } else {
-        addLog(`❌ Le JSON a été parsé mais son format n'est pas reconnu.`)
-      }
-    } catch (e: any) {
-      addLog(`❌ Échec du parsage du JSON extrait. Erreur: ${e.message}`)
-      addLog(`--- Chaîne qui a échoué ---`)
-      addLog(jsonString)
-      addLog(`--------------------------`)
-    }
-        }
       
 
   
@@ -1310,55 +1269,7 @@ const fillFilesFromGeminiResponse = (text: string) => {
 
 // ⚠️ Assurez-vous que parseRootVariables, extractFontFaces, findPotentialComponents, 
 // cloneWithComputedStyles et sendChat sont disponibles dans le scope.
-const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, baseURL: string, urlToAnalyze: string, originalUserPrompt: string) => {
-    setAnalysisStatus(`2/4: Analyse CSS et recherche des composants...`)
-    
-    const globalCssVariables = parseRootVariables(fullCSS) 
-    const fontFaces = extractFontFaces(fullCSS)
 
-    const componentsToFind = findPotentialComponents(fullHTML) 
-    const isolatedComponents = []
-    addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
-
-    // --- ISOLATION DES COMPOSANTS PAR IFRAME ---
-    for (const comp of componentsToFind) {
-        setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
-        addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
-
-        const hiddenIframe = document.createElement("iframe")
-        hiddenIframe.style.display = "none"
-        document.body.appendChild(hiddenIframe)
-
-        const isolatedHtml = await new Promise<string>((resolve, reject) => {
-            hiddenIframe.onload = () => {
-                const iframeDoc = hiddenIframe.contentDocument
-                if (!iframeDoc) return reject(new Error("Could not access hidden iframe document."))
-                const element = iframeDoc.querySelector(comp.selector)
-                
-                if (element) resolve(cloneWithComputedStyles(element).outerHTML)
-                else resolve("")
-                
-                document.body.removeChild(hiddenIframe)
-            }
-            hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${baseURL}"><style>${fullCSS}</style></head><body>${fullHTML}</body></html>`
-        })
-
-        if (isolatedHtml) {
-            isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
-            addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
-        }
-    }
-
-    // --- CONSTRUCTION DU PROMPT RICHE ET ENVOI ---
-    setAnalysisStatus(`4/4: Construction du prompt final pour Gemini...`)
-    addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
-    
-    const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces:\n${fontFaces}\n\nIsolated Components:\n${isolatedComponents.map(c => `// Component: ${c.name}\n${c.html}`).join("\n\n")}\n---\nPlease generate the code as asked above.`
-    
-    addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
-    await sendChat(finalPrompt)
-                                         }
-  
 
 
   
@@ -1654,6 +1565,51 @@ const handleRemoveMention = (filePath: string) => {
     }, [currentProject, setCurrentProject, addLog, setActiveTab, activeFile]);
 
 
+
+  const fillFilesFromGeminiResponse = (text: string) => {
+    // --- Ligne de débogage ---
+    console.log("Texte brut reçu par fillFilesFromGeminiResponse:", text)
+
+    let jsonString = ""
+    const firstBrace = text.indexOf("{")
+    const lastBrace = text.lastIndexOf("}")
+    const firstBracket = text.indexOf("[")
+    const lastBracket = text.lastIndexOf("]")
+
+    if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
+      jsonString = text.substring(firstBrace, lastBrace + 1)
+    } else if (firstBracket !== -1 && lastBracket > firstBracket) {
+      jsonString = text.substring(firstBracket, lastBracket + 1)
+    }
+
+    if (!jsonString) {
+      addLog(`❌ N'a trouvé aucune structure JSON ({...} ou [...]) dans la réponse.`)
+      return
+    }
+
+    try {
+      const parsed = JSON.parse(jsonString)
+
+      if (Array.isArray(parsed)) {
+        // Cas 1: C'est un tableau (pour la création de fichiers)
+        // 🛑 CORRECTION : Appel à la nouvelle fonction 
+        applyArtifactsToProject(parsed) 
+      } else if (typeof parsed === "object" && parsed !== null && parsed.type === "fileChanges") {
+        // Cas 2: C'est un objet unique pour la modification d'un fichier
+        // 🛑 CORRECTION : Appel à la nouvelle fonction (doit être dans un tableau)
+        applyArtifactsToProject([parsed]) 
+      } else {
+        addLog(`❌ Le JSON a été parsé mais son format n'est pas reconnu.`)
+      }
+    } catch (e: any) {
+      addLog(`❌ Échec du parsage du JSON extrait. Erreur: ${e.message}`)
+      addLog(`--- Chaîne qui a échoué ---`)
+      addLog(jsonString)
+      addLog(`--------------------------`)
+    }
+    }
+
+
     // 3. processAnalysisResult (Clonage et RAG, dépend de reindexFile)
     const processAnalysisResult = useCallback(async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
         // Dépendances de useCallback : currentProject, setCurrentProject, addLog, setAnalysisStatus, sendChat, reindexFile
@@ -1779,6 +1735,59 @@ const handleRemoveMention = (filePath: string) => {
           setAnalysisStatus(null)
         }
     }, [sandboxId, addLog, setLoading, setIsCloning, setCloneUrl, setAnalysisStatus, processAnalysisResult, runIsolationAndGeneration]); 
+
+
+
+
+  const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, baseURL: string, urlToAnalyze: string, originalUserPrompt: string) => {
+    setAnalysisStatus(`2/4: Analyse CSS et recherche des composants...`)
+    
+    const globalCssVariables = parseRootVariables(fullCSS) 
+    const fontFaces = extractFontFaces(fullCSS)
+
+    const componentsToFind = findPotentialComponents(fullHTML) 
+    const isolatedComponents = []
+    addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
+
+    // --- ISOLATION DES COMPOSANTS PAR IFRAME ---
+    for (const comp of componentsToFind) {
+        setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
+        addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
+
+        const hiddenIframe = document.createElement("iframe")
+        hiddenIframe.style.display = "none"
+        document.body.appendChild(hiddenIframe)
+
+        const isolatedHtml = await new Promise<string>((resolve, reject) => {
+            hiddenIframe.onload = () => {
+                const iframeDoc = hiddenIframe.contentDocument
+                if (!iframeDoc) return reject(new Error("Could not access hidden iframe document."))
+                const element = iframeDoc.querySelector(comp.selector)
+                
+                if (element) resolve(cloneWithComputedStyles(element).outerHTML)
+                else resolve("")
+                
+                document.body.removeChild(hiddenIframe)
+            }
+            hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${baseURL}"><style>${fullCSS}</style></head><body>${fullHTML}</body></html>`
+        })
+
+        if (isolatedHtml) {
+            isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
+            addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
+        }
+    }
+
+    // --- CONSTRUCTION DU PROMPT RICHE ET ENVOI ---
+    setAnalysisStatus(`4/4: Construction du prompt final pour Gemini...`)
+    addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
+    
+    const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces:\n${fontFaces}\n\nIsolated Components:\n${isolatedComponents.map(c => `// Component: ${c.name}\n${c.html}`).join("\n\n")}\n---\nPlease generate the code as asked above.`
+    
+    addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
+    await sendChat(finalPrompt)
+                                         }
+  
 
 
     // --- FONCTION PRINCIPALE (Dépend des autres) ---
