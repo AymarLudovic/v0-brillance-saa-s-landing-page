@@ -1,8 +1,8 @@
 // app/api/gemini/route.ts
 
 import { NextResponse } from "next/server"
-import { GoogleGenAI, Part } from "@google/genai"
-import { basePrompt } from "@/lib/prompt" // Assurez-vous que ce chemin est correct
+import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
+import { basePrompt } from "@/lib/prompt"
 
 // --- TYPES ---
 interface Message { 
@@ -11,6 +11,11 @@ interface Message {
     images?: string[]; 
     externalFiles?: { fileName: string; base64Content: string }[]; 
     mentionedFiles?: string[]; 
+    // Nouveau type pour la réponse d'un outil (functionResponse)
+    functionResponse?: {
+        name: string;
+        response: any;
+    }
 }
 interface ProjectFile { 
     filePath: string; 
@@ -24,26 +29,39 @@ function getMimeTypeFromBase64(dataUrl: string): string {
 }
 
 function cleanBase64Data(dataUrl: string): string {
-    // Si c'est un data-url, on retire le préfixe
     return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 }
 
 const BATCH_SIZE = 256; 
 
+// 🛑 NOUVEAU: DÉCLARATION DE L'OUTIL readFile 🛑
+const readFileDeclaration: FunctionDeclaration = {
+  name: "readFile",
+  description: "Lit le contenu d'un fichier du projet par son chemin d'accès (e.g., app/page.tsx, components/button.tsx). Doit être appelé avant de modifier ou d'analyser le contenu d'un fichier. Retourne le contenu du fichier sous forme de chaîne.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      path: {
+        type: Type.STRING,
+        description: "Le chemin d'accès complet au fichier à lire (e.g., 'app/page.tsx')."
+      }
+    },
+    required: ["path"],
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { 
         history, 
-        currentProjectFiles, // ✅ Reçu du client pour l'injection de contexte
         uploadedImages,
         uploadedFiles,
-        // projectEmbeddings n'est plus utilisé/traité
     } = await req.json() as { 
         history: Message[], 
-        currentProjectFiles: ProjectFile[], 
+        currentProjectFiles: ProjectFile[], // Reçu mais non utilisé ici
         uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
-        projectEmbeddings: any[], // Gardé uniquement pour la déstructuration si le client l'envoie toujours
+        projectEmbeddings: any[],
     }
 
     if (!history || history.length === 0) {
@@ -54,7 +72,7 @@ export async function POST(req: Request) {
       apiKey: process.env.GEMINI_API_KEY!,
     })
 
-    const model = "gemini-2.5-flash" // ✨ Modèle essentiel pour la grande fenêtre de contexte
+    const model = "gemini-2.5-flash"
     
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
 
@@ -63,65 +81,81 @@ export async function POST(req: Request) {
         const role = msg.role === 'assistant' ? 'model' : 'user';
         let textContent = msg.content;
 
-        // 🛑 LOGIQUE D'INJECTION DE CONTEXTE COMPLET
-        // On injecte le contexte de code uniquement sur le dernier message utilisateur
-        if (msg === history[history.length - 1] && role === 'user') {
-            
-            let fileContext = "\n\n--- FICHIERS PROJET ACTUELS ---\n";
-            
-            // 1. Concaténation des fichiers du projet
-            currentProjectFiles.forEach(file => {
-                fileContext += `// Fichier: ${file.filePath} (Longueur: ${file.content.length} caractères)\n`;
-                fileContext += file.content + "\n";
-                fileContext += `// ---\n`;
+        // 🛑 TRAITEMENT DES RÉPONSES D'OUTILS 🛑
+        if (msg.functionResponse) {
+            parts.push({
+                functionResponse: {
+                    name: msg.functionResponse.name,
+                    response: msg.functionResponse.response,
+                }
             });
-            fileContext += "--- FIN FICHIERS PROJET ---\n\n";
-
-            // 2. Construction du prompt final (BasePrompt + Fichiers + Prompt Utilisateur)
-            // L'ordre est important : le contexte de fichiers sert de référence avant la requête de l'utilisateur.
-            textContent = basePrompt + fileContext + "\n\n" + textContent; 
-            
-            // 3. Gestion des images/fichiers binaires (votre logique originale)
-            if (uploadedImages && uploadedImages.length > 0) {
-                uploadedImages.forEach((dataUrl) => {
-                    parts.push({
-                        inlineData: {
-                            data: cleanBase64Data(dataUrl),
-                            mimeType: getMimeTypeFromBase64(dataUrl),
-                        },
+            // Nous n'ajoutons pas de texte si c'est une réponse d'outil
+        } 
+        // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT 🛑
+        else {
+            if (msg === history[history.length - 1] && role === 'user') {
+                // INJECTION DE BASEPROMPT UNIQUEMENT pour le dernier message
+                textContent = basePrompt + "\n\n" + textContent; 
+                
+                // Gestion des images/fichiers binaires
+                if (uploadedImages && uploadedImages.length > 0) {
+                    uploadedImages.forEach((dataUrl) => {
+                        parts.push({
+                            inlineData: {
+                                data: cleanBase64Data(dataUrl),
+                                mimeType: getMimeTypeFromBase64(dataUrl),
+                            },
+                        });
                     });
-                });
-            }
-            if (uploadedFiles && uploadedFiles.length > 0) {
-                 uploadedFiles.forEach((file) => {
-                    parts.push({
-                        inlineData: {
-                            data: file.base64Content,
-                            mimeType: 'text/plain', 
-                        },
+                }
+                if (uploadedFiles && uploadedFiles.length > 0) {
+                     uploadedFiles.forEach((file) => {
+                        parts.push({
+                            inlineData: {
+                                data: file.base64Content,
+                                mimeType: 'text/plain', 
+                            },
+                        });
+                        parts.push({ text: `\n[Le contenu du fichier externe "${file.fileName}" est fourni ci-dessus]` });
                     });
-                    parts.push({ text: `\n[Le contenu du fichier externe "${file.fileName}" est fourni ci-dessus]` });
-                });
+                }
             }
+            parts.push({ text: textContent }); 
         }
-        
-        parts.push({ text: textContent }); // Ajout du texte final (qui inclut le contexte pour le dernier message)
+
         contents.push({ role, parts });
     }
     
     const response = await ai.models.generateContentStream({
       model,
       contents, 
+      // 🛑 NOUVEAU: ENREGISTREMENT DE L'OUTIL 🛑
+      tools: [{ functionDeclarations: [readFileDeclaration] }],
     })
 
-    // Streaming (Logique inchangée)
+    // Streaming (inchangé)
     const encoder = new TextEncoder()
     let batchBuffer = ""; 
 
     const stream = new ReadableStream({
       async start(controller) {
-        try {
-          for await (const chunk of response) {
+        let functionCall = false; // Flag pour détecter si l'IA appelle une fonction
+
+        for await (const chunk of response) {
+            
+            // 🛑 NOUVEAU: VÉRIFICATION DES APPELS DE FONCTIONS 🛑
+            if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+                // L'IA a stoppé le texte pour demander un outil
+                functionCall = true; 
+                
+                // On met en queue l'appel de fonction sous forme JSON sérialisé
+                // Le client le lira, exécutera l'outil et renverra le résultat
+                controller.enqueue(encoder.encode(JSON.stringify({ 
+                    functionCall: chunk.functionCalls[0]
+                })));
+                break; // Stoppe le stream immédiatement après l'appel d'outil
+            }
+
             if (chunk.text) {
               batchBuffer += chunk.text; 
               
@@ -130,24 +164,19 @@ export async function POST(req: Request) {
                 batchBuffer = ""; 
               }
             }
-          }
-          
-          if (batchBuffer.length > 0) {
-             controller.enqueue(encoder.encode(batchBuffer));
-          }
-
-        } catch (err) {
-          console.error("[API Gemini] Erreur de streaming:", err)
-          controller.enqueue(encoder.encode(`[Stream error: ${(err as Error).message}]`))
-        } finally {
-          controller.close();
         }
+        
+        if (!functionCall && batchBuffer.length > 0) {
+            controller.enqueue(encoder.encode(batchBuffer));
+        }
+
+        controller.close();
       },
     })
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "text/plain; charset=utf-8", // Utilise text/plain même si on envoie du JSON à la fin
         "Transfer-Encoding": "chunked",
       },
     })
@@ -155,5 +184,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-}
-    
+            }
+                                      
