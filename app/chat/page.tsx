@@ -1448,10 +1448,14 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
 
 
   
+// SandboxPage.tsx
 
-  // SandboxPage.tsx
-
+/**
+ * Traite le résultat de l'analyse d'URL après clonage, met à jour les fichiers locaux 
+ * du projet et envoie un prompt d'injection détaillé à Gemini.
+ */
 const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+    // Vérification de l'état du projet (inchangée)
     if (!currentProject || !setCurrentProject) {
         addLog("ERROR: Project state is missing or cannot be updated.")
         throw new Error("Project state is missing or cannot be updated.")
@@ -1460,10 +1464,11 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
     addLog(`[CLONE-FLOW] Phase 2: Updating local project files for ${urlToAnalyze}...`)
     setAnalysisStatus(`2/2: Mise à jour du projet local...`)
 
-    // 1. Nettoyage et échappement (inchangé)
+    // --- 1. Préparation du contenu des fichiers ---
     const trimmedHTML = fullHTML.trim();
     const trimmedJS = fullJS.trim();
 
+    // Fonction d'échappement pour intégrer le contenu dans les templates litéraux (backticks)
     const escapeContent = (content: string) => {
         return content
             .replace(/\\/g, '\\\\') 
@@ -1474,15 +1479,16 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
     const escapedHTML = escapeContent(trimmedHTML);
     const escapedJS = escapeContent(trimmedJS);
 
-    // 2. Construction du fichier app/page.tsx (inchangé)
+    // Contenu du nouveau app/page.tsx (avec CSS et JS intégrés)
     const newPageContent = `"use client"\n\nimport React from 'react'\n\nconst ClonedPage = () => {\n  return (\n    <>\n      <div\n        dangerouslySetInnerHTML={{ __html: \`${escapedHTML}\` }}\n      />\n      {${!!trimmedJS} && (\n          <script\n            dangerouslySetInnerHTML={{ __html: \`${escapedJS}\` }}\n          />\n      )}\n    </>\n  )\n}\n\nexport default ClonedPage`
     
-    // 3. Préparation et mise à jour de l'état (inchangé)
+    // Fichiers à mettre à jour
     const filesToUpdate = [
         { filePath: "app/globals.css", content: fullCSS },
         { filePath: "app/page.tsx", content: newPageContent },
     ]
 
+    // --- 2. Mise à jour de l'état local du projet ---
     const newFilesMap = new Map(currentProject.files.map(f => [f.filePath, f]))
 
     for (const { filePath, content } of filesToUpdate) {
@@ -1501,16 +1507,16 @@ const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: 
     
     addLog("[CLONE-FLOW] ✅ Local project files updated.");
 
-    // 🛑 INJECTION DÉTAILLÉE DU CODE AU PROMPT (inchangée) 🛑
-    let injectionPrompt = `
+    // --- 3. Construction du prompt d'injection de contexte pour Gemini ---
+    let injectionContext = `
 [ACTION AUTOMATISÉE DE CLONAGE]
-Le code du site ${urlToAnalyze} a été cloné et écrit dans les fichiers suivants. Vous avez maintenant ce code pour référence.
+Le code du site ${urlToAnalyze} a été cloné et écrit dans les fichiers suivants. Vous avez maintenant ce code pour référence dans ce tour de conversation.
 `;
 
     filesToUpdate.forEach(file => {
         addLog(`[CLONE-FLOW] Injecting ${file.filePath} (${file.content.length} chars) into Gemini's prompt.`);
 
-        injectionPrompt += `
+        injectionContext += `
 [CONTENU DU FICHIER: ${file.filePath}]
 \`\`\`${file.filePath.split('.').pop() || 'text'}
 ${file.content}
@@ -1520,14 +1526,20 @@ ${file.content}
 `;
     });
 
-    injectionPrompt += `
-L'utilisateur a demandé à cloner ce site : "${originalUserPrompt}". Veuillez répondre en confirmant l'action SANS générer de code, et SANS redemander ces fichiers.
+    // 🛑 NOUVEAU: On combine le contexte d'injection avec la demande originale. 
+    // Cela force l'IA à considérer TOUT ce bloc comme son dernier message utilisateur.
+    const finalInjectionPrompt = injectionContext + `
+[DEMANDE UTILISATEUR ORIGINALE]: "${originalUserPrompt}"
+
+Veuillez confirmer que vous avez compris le nouvel état du projet et que vous avez les fichiers pour référence. Ne générez pas de code.
 `;
 
     addLog("[CLONE-FLOW] ✅ Notifying Gemini with full file content...");
     
-    await sendChat(injectionPrompt) // Utilisation du prompt d'injection détaillé
-}
+    // Appel de la fonction sendChat (qui est maintenant stable sans useCallback)
+    await sendChat(finalInjectionPrompt) 
+  }
+          
 
   
   
