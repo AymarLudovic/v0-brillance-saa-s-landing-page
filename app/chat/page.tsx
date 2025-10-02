@@ -11,6 +11,13 @@ import { EditorView } from "@codemirror/view"
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { tags } from "@lezer/highlight" 
 
+
+// Imports à ajouter dans votre liste d'imports existante
+import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
+
+// Assurez-vous que useCallback est dans les imports React (e.g., import { useState, useRef, useEffect, useMemo, useCallback } from "react")
+
+
 // REMPLACER CodeMirror par Monaco Editor
 import Editor, { OnChange, OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor'; // Pour les types
@@ -901,6 +908,11 @@ const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ
   const [showSidebar, setShowSidebar] = useState(false)
 
 
+  // --- NOUVEAUX ÉTATS/RÉFÉRENCES (À placer avec vos autres const [state, ...] = useState) ---
+const chatBottomRef = useRef<HTMLDivElement>(null); // Pour le scrolling automatique du chat
+// Vous utilisez déjà `loading` pour le spinner, mais ce state peut être utile pour l'UI chat
+const [isChatDisabled, setIsChatDisabled] = useState(false); 
+  
 
 // --- DANS SandboxPage(), après vos autres const [state, setState] = useState(...) ---
 
@@ -1765,13 +1777,61 @@ const handleRemoveMention = (filePath: string) => {
       
         // --- MISE À JOUR DES MESSAGES DANS LE STATE ---
 
+
+
+// --- NOUVELLE FONCTION D'INDEXATION RAG (À placer avec vos autres fonctions) ---
+
+/**
+ * Fonction pour mettre à jour les embeddings du projet (logique RAG)
+ * Utilisée pour l'indexation du code du projet dans la base de données vectorielle.
+ */
+const handleUpdateEmbeddings = useCallback(async () => {
+    if (!currentProject || !currentProject.id) return;
+    
+    addLog(`[RAG] Démarrage de la mise à jour des embeddings pour ${currentProject.files.length} fichiers.`);
+    
+    const indexChunks: IndexedChunk[] = [];
+    
+    // 1. Indexation du contenu des fichiers
+    currentProject.files.forEach(file => {
+        // indexFileContent est la fonction importée de '@/lib/rag-utils'
+        indexChunks.push(...indexFileContent(file));
+    });
+
+    if (indexChunks.length === 0) {
+        addLog(`[RAG] Aucun contenu de fichier pertinent trouvé pour l'indexation.`);
+        return;
+    }
+
+    // 2. Envoi à l'API pour générer et stocker les embeddings
+    // updateProjectEmbeddings est la fonction importée de '@/lib/rag-utils'
+    const success = await updateProjectEmbeddings(currentProject.id, indexChunks);
+
+    if (success) {
+        addLog(`[RAG] ✅ Indexation et stockage de ${indexChunks.length} fragments d'information réussis.`);
+    } else {
+        addLog(`[RAG] ❌ Échec de la mise à jour des embeddings.`);
+    }
+}, [currentProject, addLog]);
+
+
+// --- NOUVELLE FONCTION POUR SOUMETTRE LE CHAT (Formulaire) ---
+const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Votre sendChat existant prend l'input du chat en interne
+    sendChat(); 
+}
+  
+
   
  
         // Assurez-vous que les états et fonctions suivantes sont accessibles dans le scope :
 // chatInput, uploadedImages, uploadedFiles, mentionedFiles, messages, currentProject, 
 // addLog, setLoading, setMessages, etc.
 
-const sendChat = async (promptOverride?: string) => {
+
+            
+     const sendChat = async (promptOverride?: string) => {
     
     const userPrompt = promptOverride || chatInput;
 
@@ -1822,7 +1882,10 @@ const sendChat = async (promptOverride?: string) => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
-                // 🛑 DONNÉES CLÉS POUR LA PERSISTANCE DU CONTEXTE 🛑
+                // 🛑 MODIFICATION CRUCIALE POUR LE RAG (ajout du ProjectId)
+                projectId: currentProject?.id || null, 
+                
+                // DONNÉES CLÉS POUR LA PERSISTANCE DU CONTEXTE 
                 history: currentHistory, 
                 currentProjectFiles: currentProjectFiles, 
                 
@@ -1850,8 +1913,9 @@ const sendChat = async (promptOverride?: string) => {
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
 
-            // 🛑 3. LOGIQUE D'EXTRACTION D'ARTEFACTS (INCHANGÉE) 🛑
+            // 🛑 3. LOGIQUE D'EXTRACTION D'ARTEFACTS 🛑
             const fileArtifacts = extractFileArtifacts(text);
+            // Détection des balises incomplètes (pour la mise à jour de l'arborescence)
             const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
             let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
 
@@ -1868,23 +1932,20 @@ const sendChat = async (promptOverride?: string) => {
                 });
 
                 if (currentProject) {
+                    // Cette fonction doit être définie dans le scope de SandboxPage, elle met à jour l'état `files`
                     addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
                 }
                 
                 newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
             }
 
-            // 🛑 4. NETTOYAGE DU TEXTE POUR L'AFFICHAGE (POUR ENREGISTREMENT DANS L'ÉTAT) 🛑
-            
-            // Cette partie s'assure que le contenu du message stocké (msg.content)
-            // n'affiche pas le code XML, mais conserve le marqueur '---' pour le JSX.
+            // 🛑 4. NETTOYAGE DU TEXTE POUR L'AFFICHAGE 🛑
             let textWithoutArtifacts = text
                 .replace(/```json[\s\S]*?```/g, '') 
                 // Nettoyage agressif des balises pour éviter le flash
                 .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
                 .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '');
 
-            // On ne retire PAS le marqueur '---' ici, ni le code XML incomplet qui suit.
             textWithoutArtifacts = textWithoutArtifacts.trim();
             
             // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
@@ -1897,18 +1958,19 @@ const sendChat = async (promptOverride?: string) => {
                     if (newArtifactData) {
                         lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any; 
                     }
-                    // Le contenu affiché sera le texte nettoyé (coupé plus tard par le JSX grâce à '---')
+                    // Le contenu affiché sera le texte nettoyé
                     lastMsg.content = textWithoutArtifacts; 
                 }
                 return updatedMessages;
             });
         } // Fin du streaming
         
-        // ... (Logique POST-STREAM : URL, applyArtifactsToProject inchangée) ...
+        // --- 5. LOGIQUE POST-STREAM ---
         const finalArtifacts = extractFileArtifacts(text);
 
         if (finalArtifacts.length > 0) {
           addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+          // applyArtifactsToProject est la fonction qui gère l'application finale des modifications
           applyArtifactsToProject(finalArtifacts); 
         } else {
           addLog("Response treated as simple text or unrecognized format.");
@@ -1921,12 +1983,13 @@ const sendChat = async (promptOverride?: string) => {
         setLoading(false);
         setAnalysisStatus(null); 
         
+        // Réinitialisation des états
         setUploadedImages([]); 
         setUploadedFiles([]); 
         setMentionedFiles([]); 
     }
 };
-          
+       
 
  
              
@@ -2136,6 +2199,23 @@ useEffect(() => {
         setFiles([]);
     }
 }, [currentProject, files, setFiles]);
+
+
+
+  // 2. Effet pour l'indexation RAG après un changement de fichier
+useEffect(() => {
+    // Si le projet existe et a un ID
+    if (currentProject && currentProject.id) {
+        // Déclenche l'indexation après 2s d'inactivité sur les fichiers
+        const timeoutId = setTimeout(() => {
+            handleUpdateEmbeddings(); 
+        }, 2000); // Délai de 2 secondes
+
+        // Fonction de nettoyage: annule l'indexation si les fichiers changent avant 2s
+        return () => clearTimeout(timeoutId);
+    }
+// Dépendances: Le hook se ré-exécute chaque fois que la liste des fichiers ou l'ID du projet change.
+}, [currentProject?.files, currentProject?.id, handleUpdateEmbeddings]);
   
   
         
