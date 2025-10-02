@@ -130,15 +130,7 @@ const extractFileArtifacts = (content: string): FileArtifact[] => {
 /**
  * Extrait la demande de lecture de fichier (<read_file>) du contenu texte.
  */
-const extractReadFileArtifact = (content: string): { path: string } | null => {
-    const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
-    const readFileMatch = content.match(readFileRegex);
 
-    if (readFileMatch) {
-        return { path: readFileMatch[1].trim() };
-    }
-    return null;
-};
 
 
 
@@ -1902,18 +1894,13 @@ const handleChatSubmit = (e: React.FormEvent) => {
     
     
         
-               
-            
-            
-            // SandboxPage.tsx
 
-// Assurez-vous que les fonctions utilitaires suivantes sont définies
-// ou importées dans ce fichier :
-// - extractReadFileArtifact
-// - extractFileArtifacts
-// - applyArtifactsToProject
-// - addLog
-// ... et que toutes les dépendances (messages, currentProject, etc.) sont définies via useState/useContext/etc.
+
+
+  // SandboxPage.tsx
+
+// 🛑 N'oubliez pas de définir (ou d'importer) cette fonction en dehors du composant :
+// const extractReadFileArtifact = (content: string): { path: string } | null => { ... };
 
 const sendChat = useCallback(async (promptOverride?: string) => { 
     // --- 0. DÉPENDANCES ET VALIDATIONS ---
@@ -1942,14 +1929,12 @@ const sendChat = useCallback(async (promptOverride?: string) => {
         mentionedFiles: mentionedFiles
     };
     
-    // Ajout du message utilisateur à l'historique pour l'API
     const currentHistory = [...messages, userMsg]; 
     
     const currentProjectFiles = currentProject 
         ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
         : [];
 
-    // Met à jour l'UI seulement si ce n'est pas un prompt d'injection silencieuse
     if (!promptOverride) {
         setMessages((prev) => [...prev, userMsg]);
         setChatInput(""); 
@@ -1976,16 +1961,14 @@ const sendChat = useCallback(async (promptOverride?: string) => {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let text = ""; 
-        let urlArtifact: any = null; 
-        let readFileArtifact: { path: string } | null = null; 
+        let readFileArtifact: { path: string } | null = null; // ⬅️ AJOUTÉ
         
-        // On n'ajoute un nouveau message assistant que si on n'est pas en train d'injecter
         if (!promptOverride) {
             setMessages((prev) => [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }]);
         }
 
         // --- 3. TRAITEMENT DU STREAMING ---
-        const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
+        const readFileRegex = /<read_file\s+path=["']([^"']+)["']\s*\/>/; // ⬅️ AJOUTÉ
 
         while (true) {
             const { done, value } = await reader.read();
@@ -1994,22 +1977,18 @@ const sendChat = useCallback(async (promptOverride?: string) => {
             const chunk = decoder.decode(value, { stream: true });
             text += chunk; 
 
-            // Capture de l'artefact de lecture
+            // ⬅️ DÉBUT GESTION read_file DANS LE STREAM
             if (!readFileArtifact) { 
                 readFileArtifact = extractReadFileArtifact(text);
                 if (readFileArtifact) {
                     addLog(`[ACTION] Gemini requested file content: ${readFileArtifact.path}`);
                 }
             }
-
-            // ... (Votre logique de détection des autres artefacts: urlArtifact, fileArtifacts)
+            // ⬅️ FIN GESTION read_file DANS LE STREAM
 
             // Mise à jour de l'affichage
             let textWithoutArtifacts = text
-                .replace(readFileRegex, ''); // Retire le read_file de l'affichage
-            
-            // Retrait de la balise <read_file> de l'affichage.
-            // Le reste de votre logique de retrait des autres balises doit suivre ici.
+                .replace(readFileRegex, ''); // ⬅️ Retire le read_file de l'affichage
 
             if (!promptOverride) {
                 setMessages((prev) => {
@@ -2026,22 +2005,22 @@ const sendChat = useCallback(async (promptOverride?: string) => {
             }
         } // Fin du streaming
         
-        // Nettoyage de l'injection (on retire le message utilisateur d'injection de l'historique UI)
+        // Nettoyage de l'injection
         if (promptOverride) {
-            // Retirer le dernier message utilisateur (l'injection)
             setMessages((prev) => prev.slice(0, -1)); 
         }
 
-        // --- 4. LOGIQUE POST-STREAM : TRAITEMENT DE read_file ---
+        // --- 4. LOGIQUE POST-STREAM : TRAITEMENT DE read_file (BLOCK CRUCIAL) ---
         
-        if (readFileArtifact) {
+        if (readFileArtifact) { // ⬅️ SI on a détecté un read_file
             const filePath = readFileArtifact.path;
             const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
+            const lastUserMessage = messages[messages.length - 1]?.content || "précédente requête utilisateur";
 
             if (fileToRead) {
                 const fileContent = fileToRead.content;
                 
-                // L'injection que l'IA va voir :
+                // Prompt d'injection pour l'IA
                 const injectionPrompt = `
 [CONTENU DU FICHIER REQUIS PAR VOUS : ${filePath}]
 \`\`\`${filePath.split('.').pop() || 'text'}
@@ -2049,13 +2028,13 @@ ${fileContent}
 \`\`\`
 [FIN CONTENU FICHIER]
 
-Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et continuer votre réponse à la dernière requête utilisateur (qui était "${messages[messages.length - 1].content}" avant le run read_file). Ne redemandez pas ce fichier.
+Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et continuer votre réponse à la dernière requête utilisateur (qui était "${lastUserMessage}"). Ne redemandez pas ce fichier.
 `;
                 addLog(`[ACTION] Injecting ${fileContent.length} caractères de ${filePath} pour l'analyse.`);
                 
                 // Relance sendChat (le flag promptOverride sera vrai)
                 await sendChat(injectionPrompt);
-                return;
+                return; // Stoppe l'exécution actuelle
                 
             } else {
                 addLog(`[ERROR] File not found in project: ${filePath}`);
@@ -2064,7 +2043,9 @@ Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et c
             }
         }
         
-        // --- Logique post-stream normale (code artefacts) ---
+        // --- 5. LOGIQUE POST-STREAM NORMALE (CODE ARTEFACTS) ---
+        // Cette logique (extractFileArtifacts, applyArtifactsToProject) est supposée exister
+        // et gérer le code de création/modification.
         const finalArtifacts = extractFileArtifacts(text);
 
         if (finalArtifacts.length > 0) {
@@ -2079,28 +2060,19 @@ Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et c
         addLog(`CLIENT-SIDE ERROR: ${err.message}`);
         setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
     } finally {
-        // Ne masquer le loader que si ce n'est PAS un appel d'injection
         if (!readFileArtifact) { 
             setLoading(false);
         }
     }
 }, [
+    // 🚨 Dépendances minimales : Ajustez selon votre code si vous recevez des warnings.
     chatInput, 
     currentProject, 
     messages, 
     addLog, 
-    uploadedImages, 
-    uploadedFiles, 
-    mentionedFiles,
-    // Fonctions de mise à jour de l'état
-    setMessages, 
-    setChatInput, 
-    setLoading, 
-    // Fonctions d'outils
-    extractReadFileArtifact, // Assurez-vous que cette fonction n'est pas recréée à chaque rendu
-    extractFileArtifacts, // Idem
-    applyArtifactsToProject, // Idem
-    sendChat, // 🚨 CRUCIAL pour la relance récursive de read_file
+    // ... toutes les fonctions de mise à jour de l'état (setMessages, setChatInput, setLoading)
+    // ... autres fonctions utilitaires utilisées (extractFileArtifacts, applyArtifactsToProject, extractReadFileArtifact)
+    sendChat, // Nécessaire pour la récursivité
 ]);
   
 
