@@ -1231,6 +1231,67 @@ const parseMessageContent = (content: string) => {
 
     // REMPLACER À LA FOIS la fonction applyArtifactsToProject (incomplète)
 
+
+ const applyAndSetFiles = (responses: any[]) => {
+    // Vérifie si un projet est chargé
+    if (!currentProject) {
+        addLog(`❌ Impossible d'appliquer les changements de fichiers : Aucun projet n'est chargé.`);
+        return;
+    }
+
+    // 🛑 Étape Clé: Utilise les fichiers du projet actuel
+    const newFiles = [...currentProject.files];
+    let filesUpdated = false;
+
+    responses.forEach((res) => {
+      // Ignorer l'objet 'inspirationUrl' s'il est malencontreusement passé ici
+      if (res.type === "inspirationUrl") {
+          addLog(`Ignoré : URL d'inspiration détectée.`);
+          return; 
+      }
+        
+      if (res.type === "fileChanges" && res.filePath && res.changes) {
+        // Logique de modification (patch)
+        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
+        if (fileIndex !== -1) {
+          const originalContent = newFiles[fileIndex].content;
+          newFiles[fileIndex].content = applyChanges(originalContent, res.changes);
+          filesUpdated = true;
+          addLog(`Applied ${res.changes.length} changes to ${res.filePath}`);
+        } else {
+          addLog(`Warning: L'IA a tenté de modifier un fichier inexistant : ${res.filePath}`);
+        }
+      } else if (res.filePath && typeof res.content === "string") {
+        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
+        if (fileIndex !== -1) {
+          // Mise à jour de contenu complet
+          newFiles[fileIndex].content = res.content;
+        } else {
+          // 🚀 CRÉATION D'UN NOUVEAU FICHIER PAR L'IA
+          newFiles.push({ filePath: res.filePath, content: res.content });
+        }
+        filesUpdated = true;
+      }
+    });
+
+    if (filesUpdated) {
+      // 🛑 Mise à jour de l'état global du projet, ce qui met à jour l'arborescence
+      setCurrentProject({ 
+        ...currentProject, 
+        files: newFiles // Les fichiers mis à jour ou créés sont inclus ici
+      });
+      addLog(`✅ Fichiers du projet mis à jour selon la proposition de l'IA.`);
+      setActiveTab("code");
+      // Sauvegarde immédiate du projet mis à jour
+      if (currentProject) saveProject(); 
+    } else {
+      addLog(`❌ La réponse de l'IA ne contenait pas de créations/modifications de fichiers valides.`);
+    }
+                      }
+          
+
+  
+// apply 
           
 
 
