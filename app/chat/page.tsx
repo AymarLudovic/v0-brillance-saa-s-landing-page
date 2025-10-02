@@ -716,8 +716,8 @@ const DatabaseConnector: React.FC<DatabaseConnectorProps> = ({ dbConfig, setDbCo
             .join('\n');
             
         const aiMessage = `[AUTOMATED ACTION] L'utilisateur a connecté la base de données ${providerInfo.name}. Veuillez créer un fichier d'environnement nommé .env à la racine du projet avec le contenu suivant pour configurer l'accès au backend :\n\n\`\`\`\n${envContent}\n\`\`\nAssurez-vous que les clés sont bien les variables d'environnement nécessaires pour ${providerInfo.name}.`;
-
-        await sendChat(aiMessage);
+      
+        
     };
 
     // La modale/le panneau de configuration
