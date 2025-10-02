@@ -50,7 +50,15 @@ async function retrieveRelevantContext(
     })).sort((a, b) => b.similarity - a.similarity);
 
     const TOP_K = 5;
-    const relevantChunks = rankedChunks.slice(0, TOP_K).filter(chunk => chunk.similarity > 0.8); 
+    
+    // 🛑 CORRECTION APPLIQUÉE : Abaissement du seuil de similarité à 0.5 (était 0.8)
+    // Cela permet au modèle de récupérer des morceaux de code moins directement liés
+    // à la question, mais essentiels pour la RAG sur des fichiers volumineux.
+    const RELEVANCE_THRESHOLD = 0.5;
+    
+    const relevantChunks = rankedChunks
+        .slice(0, TOP_K)
+        .filter(chunk => chunk.similarity > RELEVANCE_THRESHOLD); 
     
     if (relevantChunks.length === 0) return "";
 
@@ -192,5 +200,5 @@ export async function POST(req: Request) {
     console.error("[API Gemini] Erreur globale:", err)
     return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
   }
-}
-    
+        }
+                       
