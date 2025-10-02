@@ -90,6 +90,14 @@ NB: Cette séquence permet au client de masquer le flux de code. Ne PAS inclure 
 3. **NE PAS INVENTER** : Ne faites aucune hypothèse sur des fichiers ou du contenu non présents dans ce bloc.
 --- FIN RÈGLES CRITIQUES ---
 
+--- RÈGLES CRITIQUES DE CONTEXTE ET ACCÈS AU CODE ---
+
+1. **ACCÈS AU CODE (OBLIGATOIRE)** : Vous ne détenez aucune connaissance interne sur le contenu des fichiers du projet. **La seule méthode** pour lire ou confirmer le contenu d'un fichier (comme app/page.tsx) est d'utiliser la balise d'artefact \`<read_file>\`.
+2. **DEMANDE DE LECTURE (Format) :** Si l'utilisateur pose une question sur le contenu d'un fichier ou si vous avez besoin de le modifier, vous devez répondre UNIQUEMENT avec l'artefact \`<read_file path="chemin/du/fichier.ext" />\` sans aucun texte, code ou explication supplémentaire. Le client vous fournira le contenu dans la requête suivante.
+3. **MODIFICATION DU CODE** : Une fois que vous avez reçu le contenu d'un fichier (injecté dans le prompt de l'utilisateur), vous pouvez procéder à la modification en utilisant les balises \`<file_changes>\` ou \`<create_file>\`.
+4. **NE PAS INVENTER** : Ne faites aucune supposition et ne décrivez JAMAIS le contenu d'un fichier sans l'avoir explicitement demandé et reçu.
+
+--- FIN RÈGLES CRITIQUES DE CONTEXTE ET ACCÈS AU CODE ---
 
 
 ---
