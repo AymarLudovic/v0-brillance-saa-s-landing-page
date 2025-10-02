@@ -1232,90 +1232,22 @@ const parseMessageContent = (content: string) => {
     // REMPLACER À LA FOIS la fonction applyArtifactsToProject (incomplète)
 
 
- const applyAndSetFiles = (responses: any[]) => {
-    // Vérifie si un projet est chargé
-    if (!currentProject) {
-        addLog(`❌ Impossible d'appliquer les changements de fichiers : Aucun projet n'est chargé.`);
-        return;
-    }
-
-    // 🛑 Étape Clé: Utilise les fichiers du projet actuel
-    const newFiles = [...currentProject.files];
-    let filesUpdated = false;
-
-    responses.forEach((res) => {
-      // Ignorer l'objet 'inspirationUrl' s'il est malencontreusement passé ici
-      if (res.type === "inspirationUrl") {
-          addLog(`Ignoré : URL d'inspiration détectée.`);
-          return; 
-      }
-        
-      if (res.type === "fileChanges" && res.filePath && res.changes) {
-        // Logique de modification (patch)
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
-        if (fileIndex !== -1) {
-          const originalContent = newFiles[fileIndex].content;
-          newFiles[fileIndex].content = applyChanges(originalContent, res.changes);
-          filesUpdated = true;
-          addLog(`Applied ${res.changes.length} changes to ${res.filePath}`);
-        } else {
-          addLog(`Warning: L'IA a tenté de modifier un fichier inexistant : ${res.filePath}`);
-        }
-      } else if (res.filePath && typeof res.content === "string") {
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
-        if (fileIndex !== -1) {
-          // Mise à jour de contenu complet
-          newFiles[fileIndex].content = res.content;
-        } else {
-          // 🚀 CRÉATION D'UN NOUVEAU FICHIER PAR L'IA
-          newFiles.push({ filePath: res.filePath, content: res.content });
-        }
-        filesUpdated = true;
-      }
-    });
-
-    if (filesUpdated) {
-      // 🛑 Mise à jour de l'état global du projet, ce qui met à jour l'arborescence
-      setCurrentProject({ 
-        ...currentProject, 
-        files: newFiles // Les fichiers mis à jour ou créés sont inclus ici
-      });
-      addLog(`✅ Fichiers du projet mis à jour selon la proposition de l'IA.`);
-      setActiveTab("code");
-      // Sauvegarde immédiate du projet mis à jour
-      if (currentProject) saveProject(); 
-    } else {
-      addLog(`❌ La réponse de l'IA ne contenait pas de créations/modifications de fichiers valides.`);
-    }
-                      }
-          
-
-  
-// apply 
-          
 
 
   
-  const fillFilesFromGeminiResponse = (text: string) => {
+const fillFilesFromGeminiResponse = (text: string) => {
     // --- Ligne de débogage ---
-    // Affiche la réponse exacte de l'IA dans la console de votre navigateur (accessible avec F12)
     console.log("Texte brut reçu par fillFilesFromGeminiResponse:", text)
 
     let jsonString = ""
-    // On cherche les délimiteurs d'un objet JSON `{...}`
     const firstBrace = text.indexOf("{")
     const lastBrace = text.lastIndexOf("}")
-
-    // On cherche les délimiteurs d'un tableau JSON `[...]`
     const firstBracket = text.indexOf("[")
     const lastBracket = text.lastIndexOf("]")
 
-    // On décide quelle structure extraire en priorité
     if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
-      // Si on trouve un objet, et qu'il apparaît avant un éventuel tableau, on le choisit.
       jsonString = text.substring(firstBrace, lastBrace + 1)
     } else if (firstBracket !== -1 && lastBracket > firstBracket) {
-      // Sinon, on choisit le tableau.
       jsonString = text.substring(firstBracket, lastBracket + 1)
     }
 
@@ -1329,10 +1261,12 @@ const parseMessageContent = (content: string) => {
 
       if (Array.isArray(parsed)) {
         // Cas 1: C'est un tableau (pour la création de fichiers)
-        applyAndSetFiles(parsed)
+        // 🛑 CORRECTION : Appel à la nouvelle fonction 
+        applyArtifactsToProject(parsed) 
       } else if (typeof parsed === "object" && parsed !== null && parsed.type === "fileChanges") {
         // Cas 2: C'est un objet unique pour la modification d'un fichier
-        applyAndSetFiles([parsed]) // On l'encapsule dans un tableau pour la fonction suivante
+        // 🛑 CORRECTION : Appel à la nouvelle fonction (doit être dans un tableau)
+        applyArtifactsToProject([parsed]) 
       } else {
         addLog(`❌ Le JSON a été parsé mais son format n'est pas reconnu.`)
       }
@@ -1342,7 +1276,8 @@ const parseMessageContent = (content: string) => {
       addLog(jsonString)
       addLog(`--------------------------`)
     }
-  }
+        }
+      
 
   
 
