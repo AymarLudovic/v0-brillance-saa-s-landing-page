@@ -1454,7 +1454,7 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
  * Traite le résultat de l'analyse d'URL après clonage, met à jour les fichiers locaux 
  * du projet et envoie un prompt d'injection détaillé à Gemini.
  */
-const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string, originalUserPrompt: string) => {
+const processAnalysisResult = async (fullHTML: string, fullCSS: string, fullJS: string, urlToAnalyze: string,) => {
     // Vérification de l'état du projet (inchangée)
     if (!currentProject || !setCurrentProject) {
         addLog("ERROR: Project state is missing or cannot be updated.")
@@ -1533,7 +1533,7 @@ ${file.content}
     addLog("[CLONE-FLOW] ✅ Notifying Gemini with full file content...");
     
     // Appel de la fonction sendChat (qui est maintenant stable sans useCallback)
-    await sendChat(finalInjectionPrompt) 
+    await sendChat(escapedHTML) 
   }
           
 
@@ -1656,7 +1656,7 @@ const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: st
       // --- ÉTAPE 3: DISPATCHING DE LA LOGIQUE ---
       if (isCloning) {
           // Mode CLONAGE (écriture locale)
-          await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze, originalUserPrompt);
+          await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze,);
       } else {
           // Mode ISOLATION (prompt riche)
           await runIsolationAndGeneration(fullHTML, fullCSS, baseURL, urlToAnalyze, originalUserPrompt);
