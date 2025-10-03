@@ -1890,6 +1890,55 @@ const handleChatSubmit = (e: React.FormEvent) => {
     // Votre sendChat existant prend l'input du chat en interne
     sendChat(); 
 }
+
+
+
+
+
+  // SandboxPage.tsx
+
+/**
+ * Lit le contenu d'un fichier du projet et relance sendChat avec le contenu injecté.
+ * Cette fonction est appelée UNIQUEMENT après la détection de l'artefact <read_file> dans le stream.
+ * * @param filePath Le chemin du fichier demandé par l'IA.
+ * @param currentProjectFiles La liste des fichiers disponibles pour la lecture.
+ * @param messages L'historique des messages pour déterminer la dernière requête utilisateur.
+ */
+const handleReadFileAction = async (filePath: string, currentProjectFiles: ProjectFile[], messages: Message[]) => {
+    
+    setLoading(true); // Assurez-vous que le loading reste actif pendant la lecture
+
+    const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
+    // On doit retirer le dernier message utilisateur qui contient la demande de lecture
+    const lastUserMessage = messages[messages.length - 1]?.content || "précédente requête utilisateur"; 
+    
+    if (fileToRead) {
+        const fileContent = fileToRead.content;
+        
+        const injectionPrompt = `
+[CONTENU DU FICHIER REQUIS PAR VOUS : ${filePath}]
+\`\`\`${filePath.split('.').pop() || 'text'}
+${fileContent}
+\`\`\`
+[FIN CONTENU FICHIER]
+
+Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et continuer votre réponse à la dernière requête utilisateur (qui était "${lastUserMessage}"). Ne redemandez pas ce fichier.
+`;
+        addLog(`[ACTION] Injecting ${fileContent.length} caractères de ${filePath} pour l'analyse.`);
+        
+        // 🛑 Relance sendChat, mais PAS en mode récursif. 
+        // On passe simplement le prompt d'injection et on retire le dernier message utilisateur de l'historique avant de relancer.
+        // On ne passe PAS de toolResponse, on revient à une injection simple.
+        await sendChat(injectionPrompt); 
+        
+    } else {
+        addLog(`[ERROR] File not found in project: ${filePath}`);
+        // Relance avec un message d'erreur pour l'IA
+        await sendChat(`[FICHIER INTROUVABLE : ${filePath}] Le fichier que vous avez demandé n'existe pas dans le projet. Veuillez reconsidérer votre requête.`);
+    }
+    
+    setLoading(false);
+};
   
 
   
@@ -1899,23 +1948,27 @@ const handleChatSubmit = (e: React.FormEvent) => {
                 
 // SandboxPage.tsx
 
-// REMPLACEZ VOTRE FONCTION sendChat EXISTANTE
-const sendChat = async (promptOverride?: string, toolResponse?: { name: string; response: any }) => {
+// SandboxPage.tsx
+
+// Constante pour la regex (à s'assurer qu'elle est définie au début du composant)
+
+
+
+const sendChat = async (promptOverride?: string) => { 
     
+    // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
     const userPrompt = promptOverride || chatInput;
 
-    // Si on a une réponse d'outil, l'utilisateur n'a pas besoin de saisir de prompt
-    if (!userPrompt && !toolResponse && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
+    if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
 
     if (!currentProject && !promptOverride) {
       addLog("Please create or load a project before starting a conversation.");
       return;
     }
     
-    // --- 1. PRÉPARATION DU MESSAGE UTILISATEUR ET DE L'HISTORIQUE ---
     let contextForPrompt = "";
-    if (mentionedFiles.length > 0 && currentProject && !toolResponse) { // Pas de mention si c'est une réponse d'outil
-        contextForPrompt = "\n[FICHIERS PROJET MENTIONNÉS: " + mentionedFiles.join(', ') + "]";
+    if (mentionedFiles.length > 0 && currentProject) {
+        contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
     }
     
     const finalUserPrompt = userPrompt + contextForPrompt;
@@ -1923,33 +1976,30 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
     const userMsg: Message = {
         role: "user",
         content: finalUserPrompt,
-        // Si c'est une réponse d'outil, on l'ajoute au message utilisateur pour l'historique API
-        functionResponse: toolResponse, 
-        // ... (autres champs)
         artifactData: { type: null, rawJson: "", parsedList: [] },
         images: uploadedImages, 
         externalFiles: uploadedFiles, 
         mentionedFiles: mentionedFiles
     };
     
-    // Si c'est une réponse d'outil, on ne met pas à jour l'UI avec un message utilisateur
-    if (!toolResponse) {
-        const currentHistory = [...messages, userMsg]; 
-        setMessages((prev) => [...prev, userMsg]);
-    }
-
+    // On travaille toujours sur une copie de l'historique
     const currentHistory = [...messages, userMsg]; 
     
     const currentProjectFiles = currentProject 
         ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
         : [];
 
-    if (!promptOverride && !toolResponse) {
+    if (!promptOverride) {
+        // Ajout du message utilisateur normal
+        setMessages((prev) => [...prev, userMsg]);
         setChatInput(""); 
+    } else {
+        // Si c'est un promptOverride (injection), on supprime le dernier message utilisateur qui a déjà été géré
+        setMessages((prev) => prev.slice(0, -1)); 
     }
     
     setLoading(true);
-    addLog(`Sending prompt to Gemini... (Tool response: ${!!toolResponse})`);
+    addLog(`Sending prompt to Gemini...`);
 
     try {
         // --- 2. FETCH VERS L'API GEMINI EN MODE STREAMING ---
@@ -1958,7 +2008,7 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 history: currentHistory, 
-                currentProjectFiles: currentProjectFiles, // Nécessaire pour l'exécution locale du tool
+                currentProjectFiles: currentProjectFiles, 
                 projectEmbeddings: projectEmbeddings, 
                 uploadedImages: uploadedImages,
                 uploadedFiles: uploadedFiles, 
@@ -1971,23 +2021,21 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
         let text = ""; 
         let urlArtifact: any = null; 
         
-        let assistantMessageIndex = -1; 
-        if (!promptOverride && !toolResponse) {
+        let readFileMatch: RegExpMatchArray | null = null; 
+
+        let assistantMessageIndex = -1;
+        if (!promptOverride) {
+             // Ajout du slot pour la réponse de l'assistant si on ne fait pas d'override
              setMessages((prev) => {
                 assistantMessageIndex = prev.length;
                 return [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }];
             });
         } else {
-            // Si c'est une override ou une réponse d'outil, on prend le dernier message de l'IA existant
-             assistantMessageIndex = messages.findIndex(m => m.role === 'assistant' && m.content === '');
-             if (assistantMessageIndex === -1) {
-                 assistantMessageIndex = messages.length; // Cas où on ajoute quand même un message
-             }
+             // Si override, on prend la position finale pour le message assistant qui sera créé
+             assistantMessageIndex = messages.length; 
         }
 
         // --- 3. TRAITEMENT DU STREAMING ---
-        const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-        
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -1995,55 +2043,24 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
             const chunk = decoder.decode(value, { stream: true });
             text += chunk; 
             
-            // 🛑 NOUVEAU: DÉTECTION DE L'APPEL DE FONCTION (JSON) À LA FIN DU FLUX 🛑
-            try {
-                const parsedChunk = JSON.parse(text);
-                if (parsedChunk.functionCall) {
-                    const call = parsedChunk.functionCall;
-                    addLog(`[ACTION] Gemini requested tool: ${call.name}(${JSON.stringify(call.args)})`);
-                    
-                    // --- EXÉCUTION LOCALE DU TOOL ---
-                    if (call.name === 'readFile' && call.args.path) {
-                        const filePath = call.args.path;
-                        const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
-
-                        let fileContent = null;
-                        if (fileToRead) {
-                            fileContent = fileToRead.content;
-                            addLog(`[ACTION] Reading file ${filePath} (${fileContent.length} chars).`);
-                        } else {
-                            fileContent = `[FICHIER INTROUVABLE : ${filePath}] Le fichier que vous avez demandé n'existe pas dans le projet.`;
-                            addLog(`[ERROR] File not found in project: ${filePath}`);
-                        }
-                        
-                        // Relance sendChat avec la réponse du tool
-                        await sendChat(undefined, { 
-                            name: 'readFile', 
-                            response: { 
-                                path: filePath,
-                                content: fileContent 
-                            } 
-                        });
-                        return; // Stoppe le flux actuel
-                    }
-                    
-                    // Gérer d'autres outils ici si nécessaire
-                    
+            // 🛑 DÉTECTION DE L'ARTEFACT read_file 🛑
+            if (!readFileMatch) { 
+                readFileMatch = text.match(READ_FILE_REGEX); 
+                if (readFileMatch) {
+                    addLog(`[ACTION] Gemini requested file content via artifact: ${readFileMatch[1].trim()}`);
+                    break; // Stoppe le stream immédiatement pour passer à handleReadFileAction
                 }
-            } catch (e) {
-                // Le chunk n'est pas un JSON complet ou pas un appel de fonction (c'est du texte)
             }
-
-
-            // ... (Logique d'artefact URL et de code inchangée)
+            
+            // --- LOGIQUE D'EXTRACTION DES AUTRES ARTEFACTS (URL et Fichiers) ---
             
             let newArtifactData = undefined;
             const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+            const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
             
-            // 🛑 1. DÉTECTION DE L'ARTEFACT URL (JSON) 🛑
+            // 1. DÉTECTION DE L'ARTEFACT URL (JSON)
             const urlMatch = text.match(inspirationUrlRegex);
             if (urlMatch) {
-                // ... (Logique d'extraction de l'artefact URL inchangée)
                 try {
                     const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
                     const parsedUrlData = JSON.parse(jsonString);
@@ -2058,7 +2075,6 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
             }
 
             // 2. LOGIQUE D'EXTRACTION DE FICHIERS 
-            // ... (Logique d'extraction de fichiers inchangée)
             const fileArtifacts = extractFileArtifacts(text); 
             const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
             let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
@@ -2076,6 +2092,7 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
                 });
 
                 if (currentProject) {
+                    // Les fonctions utilitaires (addFilesIfNew, extractFileArtifacts) doivent exister
                     addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject); 
                 }
                 
@@ -2083,13 +2100,11 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
             }
 
             // 3. NETTOYAGE DU TEXTE POUR L'AFFICHAGE
-            
             let textWithoutArtifacts = text
                 .replace(inspirationUrlRegex, '') 
                 .replace(/<create_file[\s\S]*?<\/create_file>/gs, '') 
                 .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-                // PLUS BESOIN DE REMPLACER READ_FILE_REGEX
-                ; 
+                .replace(READ_FILE_REGEX, ''); 
 
             // --- MISE À JOUR DU STATE DE LA DISCUSSION ---
             setMessages((prev) => {
@@ -2104,9 +2119,17 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
                 }
                 return updatedMessages;
             });
-        } // Fin du streaming (si pas d'appel de fonction)
+        } // Fin du streaming
 
-        // 🛑 AUCUNE LOGIQUE read_file RÉCURSIVE ICI 🛑
+        // 🛑 --- LOGIQUE POST-STREAM : APPEL DE LA NOUVELLE FONCTION --- 🛑
+        
+        if (readFileMatch) {
+            const filePath = readFileMatch[1].trim();
+            // Appel de la fonction de traitement externe et on s'arrête ici.
+            // C'est handleReadFileAction qui relancera sendChat avec l'injection de contexte.
+            await handleReadFileAction(filePath, currentProjectFiles, messages); 
+            return; 
+        }
         
         // --- LOGIQUE POST-STREAM NORMALE (ACTIONS FINALES) ---
         
@@ -2119,12 +2142,14 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
 
         if (finalArtifacts.length > 0) {
             addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+            // La fonction applyArtifactsToProject doit exister et appliquer les changements
             applyArtifactsToProject(finalArtifacts); 
             
             setTimeout(() => {
                 finalArtifacts.forEach(async (artifact) => {
                     const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
                     if (updatedFile) {
+                        // La fonction reindexFile doit exister
                         await reindexFile(updatedFile); 
                     }
                 });
@@ -2138,9 +2163,18 @@ const sendChat = async (promptOverride?: string, toolResponse?: { name: string; 
         addLog(`CLIENT-SIDE ERROR: ${err.message}`);
         setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
     } finally {
-        setLoading(false);
+        // Uniquement si readFile n'a pas été déclenché (car handleReadFileAction gère le setLoading après relance)
+        if (!readFileMatch) { 
+            setLoading(false);
+        }
     }
-}; 
+};
+              
+
+    
+
+                    
+                
 
                  
 
