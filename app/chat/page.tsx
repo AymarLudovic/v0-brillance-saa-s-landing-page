@@ -1528,11 +1528,7 @@ ${file.content}
 
     // 🛑 NOUVEAU: On combine le contexte d'injection avec la demande originale. 
     // Cela force l'IA à considérer TOUT ce bloc comme son dernier message utilisateur.
-    const finalInjectionPrompt = injectionContext + `
-[DEMANDE UTILISATEUR ORIGINALE]: "${originalUserPrompt}"
-
-Veuillez confirmer que vous avez compris le nouvel état du projet et que vous avez les fichiers pour référence. Ne générez pas de code.
-`;
+    const finalInjectionPrompt = injectionContext;
 
     addLog("[CLONE-FLOW] ✅ Notifying Gemini with full file content...");
     
