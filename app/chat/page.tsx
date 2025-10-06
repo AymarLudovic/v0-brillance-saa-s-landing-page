@@ -1900,49 +1900,136 @@ const handleChatSubmit = (e: React.FormEvent) => {
  * @param currentProjectFiles La liste des fichiers disponibles pour la lecture.
  * @param messages L'historique des messages pour déterminer la dernière requête utilisateur.
  */
-const handleReadFileAction = async (filePath: string, currentProjectFiles: ProjectFile[], messages: Message[]) => {
-    
-    setLoading(true); // Assurez-vous que le loading reste actif pendant la lecture
 
-    const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
-    // On doit retirer le dernier message utilisateur qui contient la demande de lecture
-    const lastUserMessage = messages[messages.length - 1]?.content || "précédente requête utilisateur"; 
+  
+
+  /**
+ * Lit le contenu d'un fichier du projet et l'envoie à Gemini via sendFileToGemini.
+ * Déclenchée quand l'IA émet <read_file path="..."/>.
+ */
+const handleReadFileAction = async (
+  filePath: string,
+  currentProjectFiles: ProjectFile[],
+  messages: Message[]
+) => {
+  setLoading(true);
+
+  addLog(`📂 [READ_FILE] Demande de lecture du fichier ${filePath} reçue.`);
+
+  const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
+  const lastUserMessage = messages[messages.length - 1]?.content || "requête précédente de l'utilisateur";
+
+  if (fileToRead) {
+    const fileContent = fileToRead.content;
+
+    addLog(`[READ_FILE] Fichier trouvé : ${filePath} (${fileContent.length} caractères).`);
     
-    if (fileToRead) {
-        const fileContent = fileToRead.content;
-        
-        const injectionPrompt = `
+    // 🧩 Envoie direct à Gemini
+    await sendFileToGemini(
+      filePath,
+      fileContent,
+      lastUserMessage,
+      addLog,
+      setMessages,
+      currentProjectFiles
+    );
+  } else {
+    addLog(`❌ [READ_FILE] Fichier introuvable : ${filePath}`);
+
+    // Fichier introuvable → on prévient aussi Gemini
+    await sendFileToGemini(
+      filePath,
+      "",
+      `Le fichier ${filePath} est introuvable dans le projet.`,
+      addLog,
+      setMessages,
+      currentProjectFiles
+    );
+  }
+
+  setLoading(false);
+};
+
+ 
+            // --- FONCTION sendChat INTÉGRALE ET FINALE (RAG, Historique, Artefacts) ---
+
+                
+// SandboxPage.tsx
+
+  
+
+/**
+ * Envoie directement le contenu d’un fichier à Gemini sans passer par sendChat().
+ * Utilisé quand l’IA demande <read_file path="..."/>.
+ */
+const sendFileToGemini = async (
+  filePath: string,
+  fileContent: string,
+  lastUserMessage: string,
+  addLog: (msg: string) => void,
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+  currentProjectFiles: ProjectFile[]
+) => {
+  try {
+    addLog(`📤 [sendFileToGemini] Injection du fichier ${filePath} vers Gemini...`);
+
+    // 🧩 Création du prompt d'injection
+    const injectionPrompt = `
 [CONTENU DU FICHIER REQUIS PAR VOUS : ${filePath}]
 \`\`\`${filePath.split('.').pop() || 'text'}
 ${fileContent}
 \`\`\`
 [FIN CONTENU FICHIER]
 
-Vous avez maintenant le contenu du fichier ${filePath}. Veuillez l'analyser et continuer votre réponse à la dernière requête utilisateur (qui était "${lastUserMessage}"). Ne redemandez pas ce fichier.
+✅ Vous avez maintenant le contenu COMPLET du fichier ${filePath}.
+Veuillez analyser ce fichier et continuer votre réponse à la dernière requête utilisateur :
+"${lastUserMessage}"
+
+Ne redemandez PAS ce fichier. Si vous avez besoin d'un autre, émettez simplement une autre balise <read_file path="..."/>.
 `;
-        addLog(`[ACTION] Injecting ${fileContent.length} caractères de ${filePath} pour l'analyse.`);
-        
-        // 🛑 Relance sendChat, mais PAS en mode récursif. 
-        // On passe simplement le prompt d'injection et on retire le dernier message utilisateur de l'historique avant de relancer.
-        // On ne passe PAS de toolResponse, on revient à une injection simple.
-        await sendChat(injectionPrompt); 
-        
-    } else {
-        addLog(`[ERROR] File not found in project: ${filePath}`);
-        // Relance avec un message d'erreur pour l'IA
-        await sendChat(`[FICHIER INTROUVABLE : ${filePath}] Le fichier que vous avez demandé n'existe pas dans le projet. Veuillez reconsidérer votre requête.`);
-    }
-    
-    setLoading(false);
+
+    addLog(`✅ [sendFileToGemini] ${filePath} injecté (${fileContent.length} caractères)`);
+
+    // 🧠 Affiche dans le chat
+    setMessages((prev) => [
+      ...prev,
+      { role: "system", content: `✅ Fichier ${filePath} injecté avec succès (${fileContent.length} caractères)` },
+    ]);
+
+    // 🔄 Envoi direct à ton API Gemini
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        history: [
+          { role: "user", content: injectionPrompt }
+        ],
+        currentProjectFiles: currentProjectFiles,
+      }),
+    });
+
+    if (!res.ok) throw new Error(`Gemini API request failed: ${res.statusText}`);
+    const data = await res.text();
+
+    addLog(`💬 [sendFileToGemini] Réponse reçue (${data.length} caractères)`);
+
+    // 🪄 Affiche la réponse de Gemini dans le chat
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: data },
+    ]);
+
+  } catch (err: any) {
+    addLog(`❌ [sendFileToGemini] Erreur: ${err.message}`);
+    setMessages((prev) => [
+      ...prev,
+      { role: "system", content: `Erreur lors de l'envoi du fichier ${filePath}: ${err.message}` },
+    ]);
+  }
 };
   
 
-  
- 
-            // --- FONCTION sendChat INTÉGRALE ET FINALE (RAG, Historique, Artefacts) ---
-
-                
-// SandboxPage.tsx
+    
 
 // SandboxPage.tsx
 
