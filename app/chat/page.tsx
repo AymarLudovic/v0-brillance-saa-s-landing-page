@@ -1852,6 +1852,47 @@ const handleRemoveMention = (filePath: string) => {
  * Fonction pour mettre à jour les embeddings du projet (logique RAG)
  * Utilisée pour l'indexation du code du projet dans la base de données vectorielle.
  */
+// --- Empêche les répétitions et les boucles RAG infinies ---
+const ragRunningRef = useRef(false);
+
+const handleUpdateEmbeddings = useCallback(async () => {
+  if (!currentProject || !currentProject.id) return;
+  if (ragRunningRef.current) {
+    // Empêche les logs répétés
+    return;
+  }
+
+  ragRunningRef.current = true; // Active le verrou
+
+  try {
+    addLog(`[RAG] 🧠 Démarrage de la mise à jour des embeddings pour ${currentProject.files.length} fichiers...`);
+
+    const indexChunks: IndexedChunk[] = [];
+
+    // 1. Indexation du contenu des fichiers
+    currentProject.files.forEach(file => {
+      indexChunks.push(...indexFileContent(file));
+    });
+
+    if (indexChunks.length === 0) {
+      addLog(`[RAG] Aucun contenu pertinent trouvé. Rien à indexer.`);
+      return;
+    }
+
+    // 2. Mise à jour effective
+    const success = await updateProjectEmbeddings(currentProject.id, indexChunks);
+
+    if (success) {
+      addLog(`[RAG] ✅ Indexation de ${indexChunks.length} fragments réussie.`);
+    } else {
+      addLog(`[RAG] ⚠️ Échec de la mise à jour des embeddings.`);
+    }
+  } catch (err: any) {
+    addLog(`[RAG] ❌ Erreur: ${err.message}`);
+  } finally {
+    ragRunningRef.current = false; // Libère le verrou
+  }
+}, [currentProject, addLog]);
 
 
 
