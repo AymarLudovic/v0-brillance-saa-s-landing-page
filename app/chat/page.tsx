@@ -1313,6 +1313,22 @@ const applyAndSetFiles = (responses: any[]) => {
       }
     });
 
+  if (res.filePath && typeof res.content === "string") {
+  const cleanContent = res.content
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/^diff\s*/gm, "")
+    .trim();
+
+  const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
+  if (fileIndex !== -1) {
+    newFiles[fileIndex].content = cleanContent;
+  } else {
+    newFiles.push({ filePath: res.filePath, content: cleanContent });
+  }
+  filesUpdated = true;
+        }
+                 
+
     if (filesUpdated) {
       // 🛑 Mise à jour de l'état global du projet, ce qui met à jour l'arborescence
       setCurrentProject({ 
@@ -1332,65 +1348,81 @@ const applyAndSetFiles = (responses: any[]) => {
 
 
   // NOTE: Cette fonction doit être définie dans le même scope que sendChat.
-
 const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
   if (!currentProject) {
-    addLog("Cannot apply artifacts: No current project loaded.");
+    addLog("❌ Aucun projet chargé, impossible d'appliquer les artifacts.");
     return;
   }
 
   const newFiles = [...currentProject.files];
   let projectUpdated = false;
 
-  finalArtifacts.forEach(artifact => {
-    const index = newFiles.findIndex(f => f.filePath === artifact.filePath);
+  finalArtifacts.forEach((artifact) => {
+    const index = newFiles.findIndex((f) => f.filePath === artifact.filePath);
+
+    // 🧹 Nettoyage du contenu renvoyé par Gemini
+    let rawContent = artifact.content || "";
+    let cleanContent = rawContent
+      .replace(/```[\s\S]*?```/g, "") // supprime les blocs ```diff ```ts etc
+      .replace(/^diff\s*/gm, "")      // supprime les tags "diff"
+      .trim();
 
     if (artifact.type === "create") {
       // Création ou écrasement complet
       if (index === -1) {
         newFiles.push({
           filePath: artifact.filePath,
-          content: artifact.content || "",
+          content: cleanContent,
         });
-        addLog(`🆕 File created: ${artifact.filePath}`);
+        addLog(`🆕 Fichier créé : ${artifact.filePath}`);
       } else {
-        newFiles[index].content = artifact.content || "";
-        addLog(`♻️ File overwritten: ${artifact.filePath}`);
+        newFiles[index].content = cleanContent;
+        addLog(`♻️ Fichier remplacé : ${artifact.filePath}`);
       }
       projectUpdated = true;
-    } 
-    
+    }
+
     else if (artifact.type === "changes") {
-      // Application des changements ligne par ligne
       if (index !== -1) {
         try {
-          const patchData = JSON.parse(artifact.content || "[]");
-          if (Array.isArray(patchData)) {
+          // Sécurisation du parsing JSON
+          let patchData = [];
+          try {
+            patchData = JSON.parse(cleanContent || "[]");
+          } catch {
+            addLog(`⚠️ Le patch reçu pour ${artifact.filePath} n'était pas du JSON valide — ignoré.`);
+            return;
+          }
+
+          if (Array.isArray(patchData) && patchData.length > 0) {
             const original = newFiles[index].content;
             const newContent = applyChanges(original, patchData);
             newFiles[index].content = newContent;
-            addLog(`✏️ Applied ${patchData.length} line changes to ${artifact.filePath}`);
+            addLog(`✏️ ${patchData.length} changements appliqués à ${artifact.filePath}`);
             projectUpdated = true;
           } else {
-            addLog(`⚠️ Patch format invalid for ${artifact.filePath}`);
+            addLog(`⚠️ Aucun changement valide à appliquer pour ${artifact.filePath}`);
           }
         } catch (e) {
-          addLog(`❌ Failed to apply patch for ${artifact.filePath}: ${e}`);
+          addLog(`❌ Échec de l’application du patch sur ${artifact.filePath}: ${e}`);
         }
       } else {
-        addLog(`⚠️ Cannot apply patch: File not found (${artifact.filePath})`);
+        addLog(`⚠️ Impossible d’appliquer le patch : fichier introuvable (${artifact.filePath})`);
       }
     }
   });
 
   if (projectUpdated) {
-    setCurrentProject(prev => prev ? { ...prev, files: newFiles } : null);
-    addLog(`✅ Project updated after artifact application.`);
+    setCurrentProject((prev) =>
+      prev ? { ...prev, files: newFiles } : null
+    );
+    addLog(`✅ Projet mis à jour après application des artifacts.`);
     setActiveTab("code");
     saveProject();
   }
 };
-          
+                                   
+
 
   
   const fillFilesFromGeminiResponse = (text: string) => {
@@ -1870,6 +1902,12 @@ const handleUpdateEmbeddings = useCallback(async () => {
     const files = currentProject.files || [];
     const indexChunks: IndexedChunk[] = [];
 
+if (!files || files.length === 0 || files.every(f => !f.content?.trim())) {
+  addLog(`[RAG] ⚠️ Aucun contenu détecté à indexer — arrêt de la boucle.`);
+  return;
+    }
+            
+  
     addLog(`[RAG] 🧠 Démarrage de la mise à jour des embeddings pour ${files.length} fichiers...`);
 
     for (const file of files) {
