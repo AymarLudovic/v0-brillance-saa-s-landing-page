@@ -863,6 +863,8 @@ const READ_FILE_REGEX = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
 
 
 
+// Nouveau format d’artefact de lecture
+const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["']\s*\/>/;
 
 
                                       
@@ -1955,6 +1957,79 @@ const handleReadFileAction = async (
 
                 
 // SandboxPage.tsx
+
+
+  /**
+ * Nouvelle version : lecture de fichier via <fetch_file path="..."/> 
+ * sans utiliser l’ancien artefact <read_file>.
+ */
+const handleFetchFileAction = async (
+  filePath: string,
+  currentProjectFiles: ProjectFile[],
+  messages: Message[]
+) => {
+  setLoading(true);
+  addLog(`📂 [FETCH_FILE] Demande de lecture du fichier : ${filePath}`);
+
+  const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
+  const lastUserMessage = messages[messages.length - 1]?.content || "requête précédente de l'utilisateur";
+
+  if (fileToRead) {
+    const fileContent = fileToRead.content;
+
+    addLog(`✅ [FETCH_FILE] Fichier trouvé (${fileContent.length} caractères). Envoi à Gemini...`);
+
+    const injectionPrompt = `
+[CONTENU DU FICHIER DEMANDÉ : ${filePath}]
+\`\`\`${filePath.split('.').pop() || 'text'}
+${fileContent}
+\`\`\`
+[FIN DU FICHIER]
+
+Vous venez de recevoir le contenu complet de ${filePath}.
+Veuillez reprendre la suite de votre réponse en tenant compte de ce fichier.
+Ne redemandez pas ce fichier.
+`;
+
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        history: [
+          { role: "user", content: injectionPrompt },
+        ],
+        currentProjectFiles: currentProjectFiles,
+      }),
+    });
+
+    if (!res.ok) throw new Error(`Erreur API Gemini : ${res.statusText}`);
+    const data = await res.text();
+
+    addLog(`💬 [FETCH_FILE] Réponse reçue de Gemini (${data.length} caractères).`);
+
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: data },
+    ]);
+  } else {
+    addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
+    await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        history: [
+          {
+            role: "user",
+            content: `Le fichier ${filePath} est introuvable dans le projet.`,
+          },
+        ],
+      }),
+    });
+  }
+
+  setLoading(false);
+};
+        
 
   
 
