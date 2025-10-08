@@ -2202,13 +2202,7 @@ const sendChat = async (promptOverride?: string) => {
             text += chunk; 
             
             // 🛑 DÉTECTION DE L'ARTEFACT read_file 🛑
-            if (!readFileMatch) { 
-                readFileMatch = text.match(READ_FILE_REGEX); 
-                if (readFileMatch) {
-                    addLog(`[ACTION] Gemini requested file content via artifact: ${readFileMatch[1].trim()}`);
-                    break; // Stoppe le stream immédiatement pour passer à handleReadFileAction
-                }
-            }
+            
             
             // --- LOGIQUE D'EXTRACTION DES AUTRES ARTEFACTS (URL et Fichiers) ---
             
