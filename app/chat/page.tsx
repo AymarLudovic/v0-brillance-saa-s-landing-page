@@ -1852,34 +1852,7 @@ const handleRemoveMention = (filePath: string) => {
  * Fonction pour mettre à jour les embeddings du projet (logique RAG)
  * Utilisée pour l'indexation du code du projet dans la base de données vectorielle.
  */
-const handleUpdateEmbeddings = useCallback(async () => {
-    if (!currentProject || !currentProject.id) return;
-    
-    addLog(`[RAG] Démarrage de la mise à jour des embeddings pour ${currentProject.files.length} fichiers.`);
-    
-    const indexChunks: IndexedChunk[] = [];
-    
-    // 1. Indexation du contenu des fichiers
-    currentProject.files.forEach(file => {
-        // indexFileContent est la fonction importée de '@/lib/rag-utils'
-        indexChunks.push(...indexFileContent(file));
-    });
 
-    if (indexChunks.length === 0) {
-        addLog(`[RAG] Aucun contenu de fichier pertinent trouvé pour l'indexation.`);
-        return;
-    }
-
-    // 2. Envoi à l'API pour générer et stocker les embeddings
-    // updateProjectEmbeddings est la fonction importée de '@/lib/rag-utils'
-    const success = await updateProjectEmbeddings(currentProject.id, indexChunks);
-
-    if (success) {
-        addLog(`[RAG] ✅ Indexation et stockage de ${indexChunks.length} fragments d'information réussis.`);
-    } else {
-        addLog(`[RAG] ❌ Échec de la mise à jour des embeddings.`);
-    }
-}, [currentProject, addLog]);
 
 
 // --- NOUVELLE FONCTION POUR SOUMETTRE LE CHAT (Formulaire) ---
@@ -2333,9 +2306,9 @@ if (fetchFileMatch) {
         setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
     } finally {
         // Uniquement si readFile n'a pas été déclenché (car handleReadFileAction gère le setLoading après relance)
-        if (!readFileMatch) { 
+      
             setLoading(false);
-        }
+  
     }
 };
               
