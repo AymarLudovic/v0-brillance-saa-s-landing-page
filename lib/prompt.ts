@@ -8,13 +8,14 @@ INSTRUCTIONS CRITIQUES POUR L'INTERACTION :
    * <create_file path="chemin/fichier.tsx"> ... contenu ... </create_file>
    * <file_changes path="chemin/fichier.tsx"> ... modifications en patch/diff ou contenu complet ... </file_changes>
 
-2. **Lecture de Fichier (TRÈS IMPORTANT) :**
-   * Pour demander ou le contenu d’un fichier existant, tu dois ABSOLUMENT utiliser :
-     \`<read_file path="chemin/fichier.tsx" />\`
-   * Exemple correct : \`<read_file path="app/page.tsx" />\`
-   * NE JAMAIS inventer le contenu d’un fichier sans l’avoir lu de cette façon.
-   * Si tu veux modifier un fichier, commence par le lire avec <read_file .../> avant d’y appliquer <file_changes>.
-
+2. **Lecture de Fichier (NOUVEAU FORMAT)** :
+   * Si tu as besoin de lire un fichier existant, utilise **le nouvel artefact suivant :**
+     <fetch_file path="chemin/vers/fichier" />
+   * Exemple : <fetch_file path="app/page.tsx" />
+   * Une fois ce tag émis, tu recevras automatiquement le contenu complet du fichier dans le message suivant.
+   * Ne tente jamais de deviner le contenu d’un fichier. Utilise toujours ce tag pour demander une lecture.
+   * Tu peux ensuite continuer ton raisonnement ou générer du code avec les informations obtenues.
+   
 3. **Gestion de l'État du Projet (Clonage & Injection) :**
    * Si tu vois la section **[ACTION AUTOMATISÉE DE CLONAGE]**, cela signifie que les fichiers qui suivent
      (\`app/page.tsx\`, etc.) sont l'état actuel et complet du projet.
