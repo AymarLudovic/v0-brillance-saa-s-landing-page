@@ -1348,7 +1348,12 @@ const applyAndSetFiles = (responses: any[]) => {
 
 
   // NOTE: Cette fonction doit être définie dans le même scope que sendChat.
-const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
+
+
+                                   
+
+
+  const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
   if (!currentProject) {
     addLog("❌ Aucun projet chargé, impossible d'appliquer les artifacts.");
     return;
@@ -1360,20 +1365,17 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
   finalArtifacts.forEach((artifact) => {
     const index = newFiles.findIndex((f) => f.filePath === artifact.filePath);
 
-    // 🧹 Nettoyage du contenu renvoyé par Gemini
+    // Nettoyage du contenu reçu
     let rawContent = artifact.content || "";
     let cleanContent = rawContent
-      .replace(/```[\s\S]*?```/g, "") // supprime les blocs ```diff ```ts etc
-      .replace(/^diff\s*/gm, "")      // supprime les tags "diff"
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/^diff\s*/gm, "")
       .trim();
 
     if (artifact.type === "create") {
-      // Création ou écrasement complet
+      // Création ou remplacement complet
       if (index === -1) {
-        newFiles.push({
-          filePath: artifact.filePath,
-          content: cleanContent,
-        });
+        newFiles.push({ filePath: artifact.filePath, content: cleanContent });
         addLog(`🆕 Fichier créé : ${artifact.filePath}`);
       } else {
         newFiles[index].content = cleanContent;
@@ -1382,54 +1384,21 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
       projectUpdated = true;
     }
 
-
-  else if (artifact.type === "changes") {
-  if (index !== -1) {
-    try {
-      // 🧹 Nettoyage du contenu
-      let cleanContent = (artifact.content || "").trim();
-
-      // 🚨 Si le contenu ressemble à un diff textuel, on l'ignore
-      if (/^(\+\+\+|---|@@|Building|edited|diff)/im.test(cleanContent)) {
-        addLog(`⚠️ L'IA a envoyé un diff textuel pour ${artifact.filePath}, ignoré (non-JSON).`);
-        return;
-      }
-
-      // ✅ Sinon, on tente le parsing JSON normal
-      let patchData = JSON.parse(cleanContent || "[]");
-      if (Array.isArray(patchData)) {
-        const original = newFiles[index].content;
-        const newContent = applyChanges(original, patchData);
-        newFiles[index].content = newContent;
-        addLog(`✏️ ${patchData.length} changements appliqués à ${artifact.filePath}`);
-        projectUpdated = true;
-      } else {
-        addLog(`⚠️ Patch JSON non valide pour ${artifact.filePath}`);
-      }
-    } catch (e) {
-      addLog(`❌ Échec du patch sur ${artifact.filePath}: ${e}`);
-    }
-  } else {
-    addLog(`⚠️ Fichier introuvable pour patch (${artifact.filePath})`);
-  }
-          }
-    
-
     else if (artifact.type === "changes") {
       if (index !== -1) {
         try {
-          // Sécurisation du parsing JSON
-          let patchData = [];
+          // Tente de parser JSON des changements
+          let patchData: any[] = [];
           try {
             patchData = JSON.parse(cleanContent || "[]");
           } catch {
-            addLog(`⚠️ Le patch reçu pour ${artifact.filePath} n'était pas du JSON valide — ignoré.`);
+            addLog(`⚠️ Patch JSON invalide pour ${artifact.filePath}, ignoré.`);
             return;
           }
 
           if (Array.isArray(patchData) && patchData.length > 0) {
             const original = newFiles[index].content;
-            const newContent = applyChanges(original, patchData);
+            const newContent = applyChanges(original, patchData); // <-- Applique ligne par ligne
             newFiles[index].content = newContent;
             addLog(`✏️ ${patchData.length} changements appliqués à ${artifact.filePath}`);
             projectUpdated = true;
@@ -1437,10 +1406,10 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
             addLog(`⚠️ Aucun changement valide à appliquer pour ${artifact.filePath}`);
           }
         } catch (e) {
-          addLog(`❌ Échec de l’application du patch sur ${artifact.filePath}: ${e}`);
+          addLog(`❌ Échec du patch sur ${artifact.filePath}: ${e}`);
         }
       } else {
-        addLog(`⚠️ Impossible d’appliquer le patch : fichier introuvable (${artifact.filePath})`);
+        addLog(`⚠️ Fichier introuvable pour patch (${artifact.filePath})`);
       }
     }
   });
@@ -1454,8 +1423,7 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
     saveProject();
   }
 };
-                                   
-
+      
 
   
   const fillFilesFromGeminiResponse = (text: string) => {
