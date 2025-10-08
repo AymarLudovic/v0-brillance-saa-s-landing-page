@@ -2252,6 +2252,19 @@ const sendChat = async (promptOverride?: string) => {
 
             // 2. LOGIQUE D'EXTRACTION DE FICHIERS 
             const fileArtifacts = extractFileArtifacts(text); 
+
+            // 🩹 Correction pour les artefacts partiellement streamés
+fileArtifacts.forEach((artifact: any) => {
+  if (artifact.type === "changes" && artifact.content && !artifact.content.trim().endsWith("</file_changes>")) {
+    artifact.content += "\n</file_changes>";
+  }
+  if (artifact.type === "create" && artifact.content && !artifact.content.trim().endsWith("</create_file>")) {
+    artifact.content += "\n</create_file>";
+  }
+});
+          
+
+          
             const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
             let incompleteMatches = [...text.matchAll(incompleteRegex)]; 
 
