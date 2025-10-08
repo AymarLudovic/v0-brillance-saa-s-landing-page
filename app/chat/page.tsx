@@ -1332,59 +1332,65 @@ const applyAndSetFiles = (responses: any[]) => {
 
 
   // NOTE: Cette fonction doit être définie dans le même scope que sendChat.
+
 const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
+  if (!currentProject) {
+    addLog("Cannot apply artifacts: No current project loaded.");
+    return;
+  }
+
+  const newFiles = [...currentProject.files];
+  let projectUpdated = false;
+
+  finalArtifacts.forEach(artifact => {
+    const index = newFiles.findIndex(f => f.filePath === artifact.filePath);
+
+    if (artifact.type === "create") {
+      // Création ou écrasement complet
+      if (index === -1) {
+        newFiles.push({
+          filePath: artifact.filePath,
+          content: artifact.content || "",
+        });
+        addLog(`🆕 File created: ${artifact.filePath}`);
+      } else {
+        newFiles[index].content = artifact.content || "";
+        addLog(`♻️ File overwritten: ${artifact.filePath}`);
+      }
+      projectUpdated = true;
+    } 
     
-    if (!currentProject) {
-        addLog("Cannot apply artifacts: No current project loaded.");
-        return;
-    }
-
-    const newFiles = [...currentProject.files];
-    let projectUpdated = false;
-
-    finalArtifacts.forEach(artifact => {
-        const index = newFiles.findIndex(f => f.filePath === artifact.filePath);
-
-        if (artifact.type === 'create') {
-            // Création ou écrasement
-            if (index === -1) {
-                // Création: Ajoute le fichier avec son contenu extrait de la balise
-                newFiles.push({
-                    filePath: artifact.filePath,
-                    content: artifact.content, 
-                });
-                addLog(`File created: ${artifact.filePath}`);
-            } else {
-                // Écrasement: Met à jour le contenu existant
-                newFiles[index].content = artifact.content;
-                addLog(`File overwritten: ${artifact.filePath}`);
-            }
+    else if (artifact.type === "changes") {
+      // Application des changements ligne par ligne
+      if (index !== -1) {
+        try {
+          const patchData = JSON.parse(artifact.content || "[]");
+          if (Array.isArray(patchData)) {
+            const original = newFiles[index].content;
+            const newContent = applyChanges(original, patchData);
+            newFiles[index].content = newContent;
+            addLog(`✏️ Applied ${patchData.length} line changes to ${artifact.filePath}`);
             projectUpdated = true;
-
-        } else if (artifact.type === 'changes') {
-            // Modification par patch (JSON)
-            if (index !== -1) {
-                // ⚠️ ICI, VOUS DEVEZ IMPLÉMENTER LA LOGIQUE DE PATCHING ⚠️
-                // Pour l'instant, on se contente de logguer l'action.
-                // Une implémentation complète nécessiterait un parseur JSON des modifications
-                // et une fonction pour appliquer ces modifications (lignes ajoutées/supprimées).
-                addLog(`Patch requested for ${artifact.filePath}. (Content updated via patch logic - PENDING)`);
-                // newFiles[index].content = applyPatch(newFiles[index].content, JSON.parse(artifact.content));
-                
-                projectUpdated = true;
-            } else {
-                addLog(`Cannot apply changes to non-existent file: ${artifact.filePath}`);
-            }
+          } else {
+            addLog(`⚠️ Patch format invalid for ${artifact.filePath}`);
+          }
+        } catch (e) {
+          addLog(`❌ Failed to apply patch for ${artifact.filePath}: ${e}`);
         }
-    });
-
-    if (projectUpdated) {
-        // Met à jour le state du projet, ce qui forcera l'éditeur à afficher le nouveau contenu
-        setCurrentProject(prev => prev ? { ...prev, files: newFiles } : null);
+      } else {
+        addLog(`⚠️ Cannot apply patch: File not found (${artifact.filePath})`);
+      }
     }
+  });
+
+  if (projectUpdated) {
+    setCurrentProject(prev => prev ? { ...prev, files: newFiles } : null);
+    addLog(`✅ Project updated after artifact application.`);
+    setActiveTab("code");
+    saveProject();
+  }
 };
           
-
 
   
   const fillFilesFromGeminiResponse = (text: string) => {
@@ -1857,43 +1863,34 @@ const ragRunningRef = useRef(false);
 
 const handleUpdateEmbeddings = useCallback(async () => {
   if (!currentProject || !currentProject.id) return;
-  if (ragRunningRef.current) {
-    // Empêche les logs répétés
-    return;
-  }
-
-  ragRunningRef.current = true; // Active le verrou
-
+  if (ragRunningRef.current) return;
+  
+  ragRunningRef.current = true;
   try {
-    addLog(`[RAG] 🧠 Démarrage de la mise à jour des embeddings pour ${currentProject.files.length} fichiers...`);
-
+    const files = currentProject.files || [];
     const indexChunks: IndexedChunk[] = [];
 
-    // 1. Indexation du contenu des fichiers
-    currentProject.files.forEach(file => {
-      indexChunks.push(...indexFileContent(file));
-    });
+    addLog(`[RAG] 🧠 Démarrage de la mise à jour des embeddings pour ${files.length} fichiers...`);
+
+    for (const file of files) {
+      const chunks = indexFileContent(file);
+      if (Array.isArray(chunks)) indexChunks.push(...chunks);
+    }
 
     if (indexChunks.length === 0) {
-      addLog(`[RAG] Aucun contenu pertinent trouvé. Rien à indexer.`);
+      addLog(`[RAG] Aucun contenu à indexer.`);
       return;
     }
 
-    // 2. Mise à jour effective
     const success = await updateProjectEmbeddings(currentProject.id, indexChunks);
-
-    if (success) {
-      addLog(`[RAG] ✅ Indexation de ${indexChunks.length} fragments réussie.`);
-    } else {
-      addLog(`[RAG] ⚠️ Échec de la mise à jour des embeddings.`);
-    }
+    if (success) addLog(`[RAG] ✅ Indexation réussie.`);
   } catch (err: any) {
     addLog(`[RAG] ❌ Erreur: ${err.message}`);
   } finally {
-    ragRunningRef.current = false; // Libère le verrou
+    ragRunningRef.current = false;
   }
 }, [currentProject, addLog]);
-
+  
 
 
 // --- NOUVELLE FONCTION POUR SOUMETTRE LE CHAT (Formulaire) ---
@@ -2581,20 +2578,18 @@ useEffect(() => {
 
 
 
-  // 2. Effet pour l'indexation RAG après un changement de fichier
 useEffect(() => {
-    // Si le projet existe et a un ID
-    if (currentProject && currentProject.id) {
-        // Déclenche l'indexation après 2s d'inactivité sur les fichiers
-        const timeoutId = setTimeout(() => {
-            handleUpdateEmbeddings(); 
-        }, 2000); // Délai de 2 secondes
+  if (!currentProject || !currentProject.id) return;
 
-        // Fonction de nettoyage: annule l'indexation si les fichiers changent avant 2s
-        return () => clearTimeout(timeoutId);
-    }
-// Dépendances: Le hook se ré-exécute chaque fois que la liste des fichiers ou l'ID du projet change.
-}, [currentProject?.files, currentProject?.id, handleUpdateEmbeddings]);
+  const timeoutId = setTimeout(() => {
+    handleUpdateEmbeddings();
+  }, 2000);
+
+  return () => clearTimeout(timeoutId);
+
+  // ⚠️ Ne mets pas currentProject.files dans les deps sinon relance infinie
+}, [currentProject?.id, handleUpdateEmbeddings]);
+                               
   
   
         
