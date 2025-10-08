@@ -2281,13 +2281,17 @@ const sendChat = async (promptOverride?: string) => {
 
         // 🛑 --- LOGIQUE POST-STREAM : APPEL DE LA NOUVELLE FONCTION --- 🛑
         
-        if (readFileMatch) {
-            const filePath = readFileMatch[1].trim();
-            // Appel de la fonction de traitement externe et on s'arrête ici.
-            // C'est handleReadFileAction qui relancera sendChat avec l'injection de contexte.
-            await handleReadFileAction(filePath, currentProjectFiles, messages); 
-            return; 
-        }
+        // 🧩 DÉTECTION DU NOUVEL ARTEFACT <fetch_file path="..." /> 🧩
+const fetchFileMatch = text.match(FETCH_FILE_REGEX);
+if (fetchFileMatch) {
+  const filePath = fetchFileMatch[1].trim();
+  addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
+  
+  // Stoppe le stream et exécute la nouvelle action immédiatement
+  await handleFetchFileAction(filePath, currentProjectFiles, messages);
+  return; // Arrête sendChat ici, le reste sera géré après lecture du fichier
+}
+      
         
         // --- LOGIQUE POST-STREAM NORMALE (ACTIONS FINALES) ---
         
