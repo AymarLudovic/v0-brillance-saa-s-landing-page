@@ -1963,42 +1963,64 @@ const handleReadFileAction = async (
  * Nouvelle version : lecture de fichier via <fetch_file path="..."/> 
  * sans utiliser l’ancien artefact <read_file>.
  */
+
+/**
+ * 🧩 Version améliorée : lecture et analyse de fichier envoyée à Gemini
+ */
 const handleFetchFileAction = async (
   filePath: string,
-  currentProjectFiles: ProjectFile[],
+  currentProjectFiles: { filePath: string; content: string }[],
   messages: Message[]
 ) => {
   setLoading(true);
   addLog(`📂 [FETCH_FILE] Demande de lecture du fichier : ${filePath}`);
 
   const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
-  const lastUserMessage = messages[messages.length - 1]?.content || "requête précédente de l'utilisateur";
 
-  if (fileToRead) {
-    const fileContent = fileToRead.content;
+  if (!fileToRead) {
+    addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: `Le fichier ${filePath} est introuvable dans le projet.` },
+    ]);
+    setLoading(false);
+    return;
+  }
 
-    addLog(`✅ [FETCH_FILE] Fichier trouvé (${fileContent.length} caractères). Envoi à Gemini...`);
+  const fileContent = fileToRead.content;
+  addLog(`✅ [FETCH_FILE] Fichier trouvé (${fileContent.length} caractères). Envoi à Gemini...`);
 
-    const injectionPrompt = `
-[CONTENU DU FICHIER DEMANDÉ : ${filePath}]
+  // On récupère le dernier message utilisateur pour savoir ce qu’il voulait
+  const lastUserMessage = messages
+    .slice()
+    .reverse()
+    .find(m => m.role === "user")?.content || "Analyse du fichier demandée.";
+
+  // 👉 Prompt d’injection complet et clair
+  const injectionPrompt = `
+Tu viens de recevoir le contenu complet du fichier suivant :
+[FICHIER: ${filePath}]
 \`\`\`${filePath.split('.').pop() || 'text'}
 ${fileContent}
 \`\`\`
 [FIN DU FICHIER]
 
-Vous venez de recevoir le contenu complet de ${filePath}.
-Veuillez reprendre la suite de votre réponse en tenant compte de ce fichier.
-Ne redemandez pas ce fichier.
-`;
+La dernière demande de l'utilisateur était :
+"${lastUserMessage}"
 
+Analyse maintenant ce fichier et réponds spécifiquement à cette demande. 
+Ne dis pas "j'ai reçu le fichier" — agis comme si tu l'avais ouvert et lu.`;
+
+  try {
     const res = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         history: [
+          ...messages, // on garde tout le contexte de la conversation
           { role: "user", content: injectionPrompt },
         ],
-        currentProjectFiles: currentProjectFiles,
+        currentProjectFiles,
       }),
     });
 
@@ -2011,26 +2033,17 @@ Ne redemandez pas ce fichier.
       ...prev,
       { role: "assistant", content: data },
     ]);
-  } else {
-    addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
-    await fetch("/api/gemini", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        history: [
-          {
-            role: "user",
-            content: `Le fichier ${filePath} est introuvable dans le projet.`,
-          },
-        ],
-      }),
-    });
+  } catch (err: any) {
+    addLog(`❌ [FETCH_FILE] Erreur: ${err.message}`);
+    setMessages((prev) => [
+      ...prev,
+      { role: "system", content: `Erreur lors de la lecture de ${filePath}: ${err.message}` },
+    ]);
+  } finally {
+    setLoading(false);
   }
-
-  setLoading(false);
 };
-        
-
+      
   
 
 /**
