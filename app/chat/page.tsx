@@ -1382,6 +1382,39 @@ const applyArtifactsToProject = (finalArtifacts: FileArtifact[]) => {
       projectUpdated = true;
     }
 
+
+  else if (artifact.type === "changes") {
+  if (index !== -1) {
+    try {
+      // 🧹 Nettoyage du contenu
+      let cleanContent = (artifact.content || "").trim();
+
+      // 🚨 Si le contenu ressemble à un diff textuel, on l'ignore
+      if (/^(\+\+\+|---|@@|Building|edited|diff)/im.test(cleanContent)) {
+        addLog(`⚠️ L'IA a envoyé un diff textuel pour ${artifact.filePath}, ignoré (non-JSON).`);
+        return;
+      }
+
+      // ✅ Sinon, on tente le parsing JSON normal
+      let patchData = JSON.parse(cleanContent || "[]");
+      if (Array.isArray(patchData)) {
+        const original = newFiles[index].content;
+        const newContent = applyChanges(original, patchData);
+        newFiles[index].content = newContent;
+        addLog(`✏️ ${patchData.length} changements appliqués à ${artifact.filePath}`);
+        projectUpdated = true;
+      } else {
+        addLog(`⚠️ Patch JSON non valide pour ${artifact.filePath}`);
+      }
+    } catch (e) {
+      addLog(`❌ Échec du patch sur ${artifact.filePath}: ${e}`);
+    }
+  } else {
+    addLog(`⚠️ Fichier introuvable pour patch (${artifact.filePath})`);
+  }
+          }
+    
+
     else if (artifact.type === "changes") {
       if (index !== -1) {
         try {
