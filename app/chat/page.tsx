@@ -1961,40 +1961,62 @@ const handleChatSubmit = (e: React.FormEvent) => {
  * Déclenchée quand l'IA émet <read_file path="..."/>.
  */
 
-const handleFetchFileAction = async (filePath: string, projectFiles: any[], messages: Message[]) => {
-  addLog(`📂 [FETCH_FILE] Demande de lecture du fichier : ${filePath}`);
+  let isFetchInProgress = false; // ⬅️ variable globale (déclare-la tout en haut du fichier)
+  
 
-  const targetFile = projectFiles.find(f => f.filePath === filePath);
-  if (!targetFile) {
-    addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
+const handleFetchFileAction = async (filePath: string, projectFiles: any[], messages: Message[]) => {
+  if (isFetchInProgress) {
+    addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours pour ${filePath})`);
     return;
   }
 
-  const content = targetFile.content || "";
-  const lines = content.split("\n");
-  const totalLines = lines.length;
+  isFetchInProgress = true;
 
-  addLog(`✅ [FETCH_FILE] Fichier trouvé (${content.length} caractères, ${totalLines} lignes). Préparation pour envoi...`);
+  try {
+    addLog(`📂 [FETCH_FILE] Demande de lecture du fichier : ${filePath}`);
 
-  // 🧠 Crée un message structuré pour Gemini
-  const formattedFile = [
-    `<file_content path="${filePath}" totalLines="${totalLines}">`,
-    ...lines.map((line, i) => `${i + 1} | ${line}`),
-    `</file_content>`
-  ].join("\n");
+    const targetFile = projectFiles.find(f => f.filePath === filePath);
+    if (!targetFile) {
+      addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
+      isFetchInProgress = false;
+      return;
+    }
 
-  // 📨 Envoi automatique à Gemini comme si l’utilisateur l’avait envoyé
-  const newMessages = [
-    ...messages,
-    { role: "assistant", content: `📤 [FETCH_FILE] Envoi du contenu annoté à Gemini (${totalLines} lignes)...`, artifactData: { type: "fetch", path: filePath } },
-    { role: "user", content: formattedFile }
-  ];
+    const content = targetFile.content || "";
+    const lines = content.split("\n");
+    const totalLines = lines.length;
 
-  addLog(`📤 [FETCH_FILE] Envoi du contenu annoté à Gemini (${totalLines} lignes)...`);
+    addLog(`✅ [FETCH_FILE] Fichier trouvé (${content.length} caractères, ${totalLines} lignes). Préparation pour envoi...`);
 
-  // 🔁 Relance un cycle de chat avec le contenu du fichier
-  await sendChat("", newMessages);
+    // 🧠 Formatte le contenu du fichier ligne par ligne
+    const formattedFile = [
+      `<file_content path="${filePath}" totalLines="${totalLines}">`,
+      ...lines.map((line, i) => `${i + 1} | ${line}`),
+      `</file_content>`
+    ].join("\n");
+
+    // 🧹 Nettoie les anciens tags <fetch_file> de l’historique
+    const sanitizedMessages = messages.map(m => ({
+      ...m,
+      content: m.content.replace(/<fetch_file[^>]*>/g, "")
+    }));
+
+    // 📨 Crée un nouveau message clair
+    const newMessages = [
+      ...sanitizedMessages,
+      { role: "assistant", content: `📤 [FETCH_FILE] Envoi du contenu annoté à Gemini (${totalLines} lignes)...`, artifactData: { type: "fetch", path: filePath } },
+      { role: "user", content: formattedFile }
+    ];
+
+    addLog(`📤 [FETCH_FILE] Envoi du contenu annoté à Gemini (${totalLines} lignes)...`);
+
+    // 🚫 NE PAS rappeler sendChat si c’est déjà un fetch en cours
+    await sendChat("", newMessages);
+  } finally {
+    isFetchInProgress = false;
+  }
 };
+      
   
  
             // --- FONCTION sendChat INTÉGRALE ET FINALE (RAG, Historique, Artefacts) ---
@@ -2214,23 +2236,10 @@ const fetchFileMatch = text.match(FETCH_FILE_REGEX);
 if (fetchFileMatch) {
   const filePath = fetchFileMatch[1].trim();
   addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
-
-  // ✅ Ajoute un message temporaire visible dans le chat
-  setMessages(prev => [
-    ...prev,
-    {
-      role: "assistant",
-      content: `📂 Lecture du fichier demandé : ${filePath}...`,
-      artifactData: { type: "fetch", path: filePath, rawJson: "" }
-    }
-  ]);
-
-  // ✅ Lance la récupération sans bloquer tout le stream
-  handleFetchFileAction(filePath, currentProjectFiles, messages)
-    .catch(err => addLog(`❌ Erreur lecture fichier: ${err}`));
-
-  // ✅ Continue le streaming (pas de return)
+  await handleFetchFileAction(filePath, currentProjectFiles, messages);
+  return;
 }
+
           
                           
 
@@ -2297,15 +2306,7 @@ fileArtifacts.forEach((artifact: any) => {
         // 🛑 --- LOGIQUE POST-STREAM : APPEL DE LA NOUVELLE FONCTION --- 🛑
         
         // 🧩 DÉTECTION DU NOUVEL ARTEFACT <fetch_file path="..." /> 🧩
-const fetchFileMatch = text.match(FETCH_FILE_REGEX);
-if (fetchFileMatch) {
-  const filePath = fetchFileMatch[1].trim();
-  addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
-  
-  // Stoppe le stream et exécute la nouvelle action immédiatement
-  await handleFetchFileAction(filePath, currentProjectFiles, messages);
-  return; // Arrête sendChat ici, le reste sera géré après lecture du fichier
-}
+
       
         
         // --- LOGIQUE POST-STREAM NORMALE (ACTIONS FINALES) ---
