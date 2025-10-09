@@ -2936,7 +2936,7 @@ useEffect(() => {
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full bg-[#FFFAF0] h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
+    <div className="w-full bg-[#FFFAF0] h-[60%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)] p-2 ">
       <textarea
   placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
   className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
@@ -3247,7 +3247,7 @@ useEffect(() => {
           </div>
         </div>
 
-        <div className="w-full h-[calc(100%-64px)] bg-[#F7F5F3] flex flex-col">
+        <div className="w-full h-[calc(100%-64px)] bg-[#FFFAF0] flex flex-col">
 
         
           {activeTab === "preview" ? (
