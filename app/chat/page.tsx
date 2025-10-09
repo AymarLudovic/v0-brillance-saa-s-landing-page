@@ -2236,8 +2236,9 @@ const fetchFileMatch = text.match(FETCH_FILE_REGEX);
 if (fetchFileMatch) {
   const filePath = fetchFileMatch[1].trim();
   addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
-  await handleFetchFileAction(filePath, currentProjectFiles, messages);
-  return;
+  handleFetchFileAction(filePath, currentProjectFiles, messages); // async, mais pas await
+// ne pas faire return, continue le streaming
+  
 }
 
           
