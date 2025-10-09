@@ -2551,8 +2551,8 @@ useEffect(() => {
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
   return (
-    <div className="flex h-screen bg-[#F7F5F3] font-sans text-[#37322F]">
-      <div className="w-[40%] bg-[#F7F5F3] h-full flex flex-col border-r border-[rgba(55,50,47,0.12)]">
+    <div className="flex h-screen bg-[#F0EEEB] font-sans text-[#37322F]">
+      <div className="w-[40%] bg-[#F7F5F3] h-full flex flex-col  border-[rgba(55,50,47,0.12)]">
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
