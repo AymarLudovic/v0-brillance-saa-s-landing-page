@@ -910,6 +910,18 @@ const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ
             setProjectEmbeddings([]); // Réinitialiser si aucun projet
         }
     }, [currentProject, reindexFile]);
+
+
+  useEffect(() => {
+  if (currentProject) {
+    if (files !== currentProject.files) {
+      setFiles(currentProject.files)
+    }
+  } else if (files.length > 0) {
+    setFiles([])
+  }
+}, [currentProject])
+  
   
 
 
@@ -1146,16 +1158,21 @@ const parseMessageContent = (content: string) => {
     
 
   const updateFile = (value: string, viewUpdate: any) => {
-    if (viewUpdate.docChanged) {
-      setFiles((prev) => {
-        const updated = [...prev]
-        if (updated[activeFile]) {
-          updated[activeFile] = { ...updated[activeFile], content: value }
-        }
-        return updated
-      })
+  if (viewUpdate.docChanged) {
+    setFiles(prev => {
+      const updated = [...prev]
+      if (updated[activeFile]) updated[activeFile] = { ...updated[activeFile], content: value }
+      return updated
+    })
+
+    if (currentProject) {
+      const newFiles = [...currentProject.files]
+      if (newFiles[activeFile]) newFiles[activeFile].content = value
+      setCurrentProject({ ...currentProject, files: newFiles })
     }
   }
+  }
+  
 
   const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
     setLoading(true)
@@ -1238,78 +1255,59 @@ const parseMessageContent = (content: string) => {
   
 
   
+
+
+
+
+
+
+
 const applyAndSetFiles = (responses: any[]) => {
-    // Vérifie si un projet est chargé
-    if (!currentProject) {
-        addLog(`❌ Impossible d'appliquer les changements de fichiers : Aucun projet n'est chargé.`);
-        return;
-    }
-
-    // 🛑 Étape Clé: Utilise les fichiers du projet actuel
-    const newFiles = [...currentProject.files];
-    let filesUpdated = false;
-
-    responses.forEach((res) => {
-      // Ignorer l'objet 'inspirationUrl' s'il est malencontreusement passé ici
-      if (res.type === "inspirationUrl") {
-          addLog(`Ignoré : URL d'inspiration détectée.`);
-          return; 
-      }
-        
-      if (res.type === "fileChanges" && res.filePath && res.changes) {
-        // Logique de modification (patch)
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
-        if (fileIndex !== -1) {
-          const originalContent = newFiles[fileIndex].content;
-          newFiles[fileIndex].content = applyChanges(originalContent, res.changes);
-          filesUpdated = true;
-          addLog(`Applied ${res.changes.length} changes to ${res.filePath}`);
-        } else {
-          addLog(`Warning: L'IA a tenté de modifier un fichier inexistant : ${res.filePath}`);
-        }
-      } else if (res.filePath && typeof res.content === "string") {
-        const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
-        if (fileIndex !== -1) {
-          // Mise à jour de contenu complet
-          newFiles[fileIndex].content = res.content;
-        } else {
-          // 🚀 CRÉATION D'UN NOUVEAU FICHIER PAR L'IA
-          newFiles.push({ filePath: res.filePath, content: res.content });
-        }
-        filesUpdated = true;
-      }
-    });
-
-  if (res.filePath && typeof res.content === "string") {
-  const cleanContent = res.content
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/^diff\s*/gm, "")
-    .trim();
-
-  const fileIndex = newFiles.findIndex((f) => f.filePath === res.filePath);
-  if (fileIndex !== -1) {
-    newFiles[fileIndex].content = cleanContent;
-  } else {
-    newFiles.push({ filePath: res.filePath, content: cleanContent });
+  if (!currentProject) {
+    addLog(`❌ Impossible d'appliquer les changements : aucun projet chargé.`)
+    return
   }
-  filesUpdated = true;
-        }
-                 
 
-    if (filesUpdated) {
-      // 🛑 Mise à jour de l'état global du projet, ce qui met à jour l'arborescence
-      setCurrentProject({ 
-        ...currentProject, 
-        files: newFiles // Les fichiers mis à jour ou créés sont inclus ici
-      });
-      addLog(`✅ Fichiers du projet mis à jour selon la proposition de l'IA.`);
-      setActiveTab("code");
-      // Sauvegarde immédiate du projet mis à jour
-      if (currentProject) saveProject(); 
-    } else {
-      addLog(`❌ La réponse de l'IA ne contenait pas de créations/modifications de fichiers valides.`);
+  const newFiles = [...currentProject.files]
+  let filesUpdated = false
+
+  responses.forEach((res) => {
+    if (res.type === "inspirationUrl") return // ignore les URL
+
+    if (res.type === "fileChanges" && res.filePath && res.changes) {
+      const idx = newFiles.findIndex(f => f.filePath === res.filePath)
+      if (idx !== -1) {
+        newFiles[idx].content = applyChanges(newFiles[idx].content, res.changes)
+        filesUpdated = true
+        addLog(`Applied ${res.changes.length} changes to ${res.filePath}`)
+      }
+    } else if (res.filePath && typeof res.content === "string") {
+      const cleanContent = res.content
+        .replace(/```[\s\S]*?```/g, "")
+        .replace(/^diff\s*/gm, "")
+        .trim()
+      const idx = newFiles.findIndex(f => f.filePath === res.filePath)
+      if (idx !== -1) {
+        newFiles[idx].content = cleanContent
+      } else {
+        newFiles.push({ filePath: res.filePath, content: cleanContent })
+      }
+      filesUpdated = true
     }
-                      }
+  })
+
+  if (filesUpdated) {
+    // 🔑 Synchronisation avec projet et éditeur
+    setCurrentProject({ ...currentProject, files: newFiles })
+    setFiles(newFiles)
+    addLog(`✅ Fichiers du projet mis à jour.`)
+    setActiveTab("code")
+    saveProject()
+  } else {
+    addLog(`❌ Pas de fichiers modifiés/ajoutés.`)
+  }
+}
+
           
 
 
@@ -1424,6 +1422,9 @@ const applyAndSetFiles = (responses: any[]) => {
     saveProject();
   }
 };
+
+
+  
       
 
   
