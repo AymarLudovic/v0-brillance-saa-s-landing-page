@@ -589,39 +589,6 @@ const cloneWithComputedStyles = (element: Element): HTMLElement => {
   return clone
 }
 
-const applyChanges = (originalContent: string, changes: any[]): string => {
-  if (!originalContent && changes.some((c) => c.action !== "insertAfter")) return ""
-  const lines = originalContent ? originalContent.split("\n") : []
-
-  const deletions = changes.filter((c) => c.action === "delete").sort((a, b) => b.startLine - a.startLine)
-  const insertions = changes.filter((c) => c.action === "insertAfter").sort((a, b) => b.lineNumber - a.lineNumber)
-  const replacements = changes.filter((c) => c.action === "replace")
-
-  deletions.forEach((change) => {
-    const startLineIndex = change.startLine - 1
-    const endLineIndex = change.endLine - 1
-    if (startLineIndex >= 0 && endLineIndex >= startLineIndex && endLineIndex < lines.length) {
-      lines.splice(startLineIndex, endLineIndex - startLineIndex + 1)
-    }
-  })
-
-  insertions.forEach((change) => {
-    const lineIndex = change.lineNumber - 1
-    if (lineIndex >= -1 && lineIndex < lines.length) {
-      // Allow inserting at the beginning if lineNumber is 0
-      lines.splice(lineIndex + 1, 0, change.contentToInsert)
-    }
-  })
-
-  replacements.forEach((change) => {
-    const lineIndex = change.lineNumber - 1
-    if (lineIndex >= 0 && lineIndex < lines.length) {
-      lines[lineIndex] = change.newContent
-    }
-  })
-
-  return lines.join("\n")
-}
 
 
 
@@ -1350,6 +1317,40 @@ const applyAndSetFiles = (responses: any[]) => {
   // NOTE: Cette fonction doit être définie dans le même scope que sendChat.
 
 
+  const applyChanges = (originalContent: string, changes: any[]): string => {
+  const lines = originalContent.split("\n");
+
+  const deletions = changes.filter(c => c.action === "delete").sort((a, b) => b.startLine - a.startLine);
+  const insertions = changes.filter(c => c.action === "insertAfter").sort((a, b) => b.lineNumber - a.lineNumber);
+  const replacements = changes.filter(c => c.action === "replace");
+
+  deletions.forEach(change => {
+    const start = change.startLine - 1;
+    const end = change.endLine - 1;
+    if (start >= 0 && end >= start && end < lines.length) {
+      lines.splice(start, end - start + 1);
+    }
+  });
+
+  insertions.forEach(change => {
+    const index = change.lineNumber - 1;
+    if (index >= -1 && index < lines.length) {
+      lines.splice(index + 1, 0, change.contentToInsert);
+    }
+  });
+
+  replacements.forEach(change => {
+    const index = change.lineNumber - 1;
+    if (index >= 0 && index < lines.length) {
+      lines[index] = change.newContent;
+    }
+  });
+
+  return lines.join("\n");
+};
+  
+
+
                                    
 
 
@@ -2017,84 +2018,112 @@ const handleReadFileAction = async (
 /**
  * 🧩 Version améliorée : lecture et analyse de fichier envoyée à Gemini
  */
-const handleFetchFileAction = async (
+
+      
+  const handleFetchFileAction = async (
   filePath: string,
-  currentProjectFiles: { filePath: string; content: string }[],
+  currentProjectFiles: any[],
   messages: Message[]
 ) => {
-  setLoading(true);
-  addLog(`📂 [FETCH_FILE] Demande de lecture du fichier : ${filePath}`);
-
-  const fileToRead = currentProjectFiles.find(f => f.filePath === filePath);
-
-  if (!fileToRead) {
-    addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
-    setMessages((prev) => [
-      ...prev,
-      { role: "assistant", content: `Le fichier ${filePath} est introuvable dans le projet.` },
-    ]);
-    setLoading(false);
-    return;
-  }
-
-  const fileContent = fileToRead.content;
-  addLog(`✅ [FETCH_FILE] Fichier trouvé (${fileContent.length} caractères). Envoi à Gemini...`);
-
-  // On récupère le dernier message utilisateur pour savoir ce qu’il voulait
-  const lastUserMessage = messages
-    .slice()
-    .reverse()
-    .find(m => m.role === "user")?.content || "Analyse du fichier demandée.";
-
-  // 👉 Prompt d’injection complet et clair
-  const injectionPrompt = `
-Tu viens de recevoir le contenu complet du fichier suivant :
-[FICHIER: ${filePath}]
-\`\`\`${filePath.split('.').pop() || 'text'}
-${fileContent}
-\`\`\`
-[FIN DU FICHIER]
-
-La dernière demande de l'utilisateur était :
-"${lastUserMessage}"
-
-Analyse maintenant ce fichier et réponds spécifiquement à cette demande. 
-Ne dis pas "j'ai reçu le fichier" — agis comme si tu l'avais ouvert et lu.`;
-
   try {
+    addLog(`📂 [FETCH_FILE] Demande de lecture du fichier : ${filePath}`);
+
+    // 1️⃣ Vérifie si le fichier existe dans le projet courant
+    const file = currentProjectFiles.find((f) => f.filePath === filePath);
+    if (!file) {
+      addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
+      return;
+    }
+
+    const content = file.content || "";
+    const totalLines = content.split("\n").length;
+
+    addLog(`✅ [FETCH_FILE] Fichier trouvé (${content.length} caractères, ${totalLines} lignes). Préparation pour envoi...`);
+
+    // 2️⃣ Crée une version annotée ligne par ligne pour que l'IA voie clairement la structure du code
+    const annotatedLines = content
+      .split("\n")
+      .map((line, i) => `${i + 1}: ${line}`)
+      .join("\n");
+
+    const formattedForAI = `
+Tu as reçu le contenu complet du fichier "${filePath}" avec la numérotation de lignes.
+
+Ne fais AUCUNE supposition, lis-le attentivement.
+Lorsque tu voudras modifier ce fichier, tu devras renvoyer un objet JSON strictement au format suivant :
+
+<file_changes path="${filePath}">
+[
+  { "action": "delete", "startLine": 10, "endLine": 12 },
+  { "action": "insertAfter", "lineNumber": 25, "contentToInsert": "const name = 'Ludo';" },
+  { "action": "replace", "lineNumber": 30, "newContent": "console.log('Hello Ludovic');" }
+]
+</file_changes>
+
+Voici le contenu du fichier (annoté par ligne) :
+------------------------------------------
+${annotatedLines}
+------------------------------------------
+`;
+
+    // 3️⃣ Prépare le message utilisateur simulé pour que l’IA comprenne qu’il s’agit d’une réponse système
+    const fileMessage: Message = {
+      role: "user",
+      content: formattedForAI,
+      artifactData: { type: "file_fetch", rawJson: "", parsedList: [] },
+      images: [],
+      externalFiles: [],
+      mentionedFiles: [filePath],
+    };
+
+    // 4️⃣ Combine l’historique de discussion + message de lecture de fichier
+    const updatedMessages = [...messages, fileMessage];
+
+    addLog(`📤 [FETCH_FILE] Envoi du contenu annoté à Gemini (${totalLines} lignes)...`);
+
+    // 5️⃣ Appelle directement Gemini sans passer par sendChat (pour éviter les doubles appels)
     const res = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        history: [
-          ...messages, // on garde tout le contexte de la conversation
-          { role: "user", content: injectionPrompt },
-        ],
+        history: updatedMessages,
         currentProjectFiles,
       }),
     });
 
-    if (!res.ok) throw new Error(`Erreur API Gemini : ${res.statusText}`);
-    const data = await res.text();
+    if (!res.ok) {
+      throw new Error(`Gemini API request failed: ${res.statusText}`);
+    }
 
-    addLog(`💬 [FETCH_FILE] Réponse reçue de Gemini (${data.length} caractères).`);
+    // 6️⃣ Lecture du flux de réponse (stream)
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = "";
 
-    setMessages((prev) => [
-      ...prev,
-      { role: "assistant", content: data },
-    ]);
-  } catch (err: any) {
-    addLog(`❌ [FETCH_FILE] Erreur: ${err.message}`);
-    setMessages((prev) => [
-      ...prev,
-      { role: "system", content: `Erreur lors de la lecture de ${filePath}: ${err.message}` },
-    ]);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      fullResponse += decoder.decode(value, { stream: true });
+    }
+
+    addLog(`💬 [FETCH_FILE] Réponse reçue de Gemini (${fullResponse.length} caractères).`);
+
+    // 7️⃣ Vérifie si la réponse contient des artefacts <file_changes> (modif ligne par ligne)
+    const artifacts = extractFileArtifacts(fullResponse);
+    if (artifacts.length > 0) {
+      addLog(`🧩 [FETCH_FILE] ${artifacts.length} artefact(s) détecté(s) après lecture du fichier.`);
+      applyArtifactsToProject(artifacts);
+    } else {
+      addLog(`ℹ️ [FETCH_FILE] Aucune modification détectée.`);
+    }
+
+  } catch (error: any) {
+    addLog(`❌ [FETCH_FILE] Erreur : ${error.message}`);
   } finally {
     setLoading(false);
   }
 };
-      
-  
+    
 
 /**
  * Envoie directement le contenu d’un fichier à Gemini sans passer par sendChat().
@@ -2288,6 +2317,19 @@ const sendChat = async (promptOverride?: string) => {
                     console.error("Failed to parse URL JSON:", e);
                 }
             }
+
+
+      // 🧩 DÉTECTION DU NOUVEL ARTEFACT <fetch_file path="..." /> 🧩
+const fetchFileMatch = text.match(FETCH_FILE_REGEX);
+if (fetchFileMatch) {
+  const filePath = fetchFileMatch[1].trim();
+  addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
+
+  // Stoppe le flux ici et exécute l'action immédiatement
+  await handleFetchFileAction(filePath, currentProjectFiles, messages);
+  return; // Très important pour ne pas exécuter la suite du code de sendChat
+    }
+                          
 
             // 2. LOGIQUE D'EXTRACTION DE FICHIERS 
             const fileArtifacts = extractFileArtifacts(text); 
