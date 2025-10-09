@@ -3164,7 +3164,7 @@ useEffect(() => {
         
           
       <div className="w-[60%] h-full flex flex-col bg-[#fffcf6]">
-        <div className="flex items-center justify-between p-4 flex-shrink-0 h-12 border-b border-[rgba(55,50,47,0.12)]">
+        <div className="flex items-center justify-between p-4 flex-shrink-0 h-12  border-[rgba(55,50,47,0.12)]">
           <div className="bg-[#fffcf6] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
               variant={activeTab === "preview" ? "secondary" : "ghost"}
@@ -3247,7 +3247,7 @@ useEffect(() => {
           </div>
         </div>
 
-        <div className="w-full h-[calc(100%-64px)] bg-[#FFFAF0] flex flex-col">
+        <div className="w-full h-[calc(100%-64px)] bg-[#fffcf6] flex flex-col">
 
         
           {activeTab === "preview" ? (
@@ -3266,7 +3266,7 @@ useEffect(() => {
 
               {/* SECTION LOGS BRUTS (Ancienne version avec logs.join("\n")) */}
               <div
-                className="flex-shrink-0 border-t border-[rgba(55,50,47,0.12)] w-full bg-white"
+                className="flex-shrink-0 border-[rgba(55,50,47,0.12)] w-full bg-white"
                 style={{ height: `${logsHeight}%` }}
               >
                 {/* Barre de contrôle */}
