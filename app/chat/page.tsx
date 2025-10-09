@@ -2551,7 +2551,7 @@ useEffect(() => {
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
   return (
-    <div className="flex h-screen bg-[#FFFAF0] font-sans text-[#37322F]">
+    <div className="flex h-screen bg-[#fffcf6] font-sans text-[#37322F]">
       <div className="w-[40%] bg-[#fffcf6] h-full flex flex-col  border-[rgba(55,50,47,0.12)]">
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
@@ -2956,11 +2956,11 @@ useEffect(() => {
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
-    <div className="w-full p-4 rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
+    <div className="w-full p-4 bg-[#FFFAF0] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
-<div className="relative">
+<div className="relative p-2">
     <div 
         className="w-[25px] p-1 h-[25px] border border-black rounded-[8px] hidden items-center justify-center cursor-pointer hover:bg-gray-100"
         onClick={() => setIsPlusDropdownOpen(!isPlusDropdownOpen)}
@@ -3004,7 +3004,7 @@ useEffect(() => {
 </div>
 
 {/* 2. BOUTON MENTION */}
-<div className="relative">
+<div className="relative p-2">
     <div 
         className="w-auto p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center gap-1 cursor-pointer hover:bg-gray-100"
         onClick={() => setIsMentionDropdownOpen(!isMentionDropdownOpen)}
@@ -3086,7 +3086,7 @@ useEffect(() => {
       
       
     
-      <div className="flex pr-1 items-center gap-1 mb-1">
+      <div className="flex pr-1 p-2 items-center gap-1 mb-1">
               
 <label className="flex pr-1 items-center gap-1  cursor-pointer">
     <div className="h-[22px] w-[22px] relative -bottom-[2px]">
@@ -3163,7 +3163,7 @@ useEffect(() => {
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
         
           
-      <div className="w-[60%] h-full flex flex-col bg-transparent">
+      <div className="w-[60%] h-full flex flex-col bg-[#fffcf6]">
         <div className="flex items-center justify-between p-4 flex-shrink-0 h-12 border-b border-[rgba(55,50,47,0.12)]">
           <div className="bg-[#fffcf6] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
