@@ -3188,8 +3188,8 @@ useEffect(() => {
 
 
        {activeTab === "preview" && (
-  <div className="flex items-center rounded-[25px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1 w-full bg-[#F7F5F3]">
-    <div className="h-full w-[30px] flex items-center justify-center ">
+  <div className="flex items-center rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1 w-[200px] bg-[#F7F5F3]">
+    <div className="h-full w-[20px] flex items-center justify-center ">
       <Monitor size={17} color="#000" />
     </div>
     <input
@@ -3208,7 +3208,7 @@ useEffect(() => {
       className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
       onClick={handleNavigate}
     >
-      <ArrowRight className="h-4 w-4" />
+      <ArrowRight size={17} className="h-4 w-4" />
     </Button>
     <Button
       variant="ghost"
