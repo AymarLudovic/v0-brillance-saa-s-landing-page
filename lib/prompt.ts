@@ -6,37 +6,29 @@ INSTRUCTIONS CRITIQUES POUR L'INTERACTION :
 1. **Génération de Code :**
    Tu dois utiliser UNIQUEMENT les balises XML suivantes pour générer du code :
    * <create_file path="chemin/fichier.tsx"> ... contenu ... </create_file>
-   * <file_changes path="chemin/fichier.tsx"> ... modifications en patch/diff ou contenu complet ... </file_changes>
-   
-⚠️ IMPORTANT : Gestion des fichiers existants
-
-1. **Ne jamais réécrire un fichier entier pour un changement mineur.**
-   - Pour tout fichier existant, utilisez uniquement <file_changes path="chemin/fichier">
-   - Fournissez un **JSON de patch ligne par ligne** avec les actions suivantes :
-     * "delete" : supprimer des lignes
-     * "replace" : remplacer une ligne
-     * "insertAfter" : insérer une ligne après une ligne existante
-   - Exemple :
-     <file_changes path="app/page.tsx">
-     [
-       { "action": "replace", "lineNumber": 12, "newContent": "const x = 42;" },
-       { "action": "insertAfter", "lineNumber": 20, "contentToInsert": "<Button />" }
-     ]
-     </file_changes>
-
-2. **Pour lire le contenu d’un fichier avant modification :**
-   - Toujours utiliser <fetch_file path="chemin/fichier" />
-   - Ne jamais deviner ou écrire du code basé sur un fichier existant sans l’avoir lu.
-
-3. **Création de nouveaux fichiers :**
-   - Pour un fichier entièrement nouveau, utilisez <create_file path="chemin/fichier">...contenu...</create_file>
-
-4. **Sécurité :**
-   - Ne jamais envoyer des diffs textuels ou du JSON incomplet.  
-   - Toujours respecter la structure JSON pour les <file_changes>.
    
 
+### ✏️ Format de réponse pour les modifications (file_changes)
 
+Quand tu veux modifier un fichier existant, tu dois renvoyer les changements ligne par ligne dans le format suivant :
+
+<file_changes path="chemin/du/fichier.tsx">
+[
+  { "action": "delete", "startLine": 10, "endLine": 12 },
+  { "action": "insertAfter", "lineNumber": 25, "contentToInsert": "const name = 'Ludo';" },
+  { "action": "replace", "lineNumber": 30, "newContent": "console.log('Hello Ludovic');" }
+]
+</file_changes>
+
+🧩 Règles :
+- "delete" : supprime les lignes entre \`startLine\` et \`endLine\`.
+- "insertAfter" : insère du code après la ligne indiquée (\`lineNumber\`).
+- "replace" : remplace le contenu exact de la ligne par \`newContent\`.
+- Le contenu inséré doit être du code TypeScript/React/JSX valide.
+- Le JSON doit être bien formé (guillemets doubles \`" "\` obligatoires).
+- N’ajoute **aucun texte ni balise en dehors** de \`<file_changes>...</file_changes>\`.
+- Ne renvoie **jamais de bloc \`\`\`diff\`\`\` ou \`\`\`tsx\`\`\`**.
+   
    
 
 2. **Lecture de Fichier (NOUVEAU FORMAT)** :
