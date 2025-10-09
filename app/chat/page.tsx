@@ -3188,7 +3188,7 @@ useEffect(() => {
 
 
        {activeTab === "preview" && (
-  <div className="flex items-center rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1 w-[200px] bg-[#F7F5F3]">
+  <div className="flex items-center rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1 w-[80%] bg-[#F7F5F3]">
     <div className="h-full w-[20px] flex items-center justify-center ">
       <Monitor size={17} color="#000" />
     </div>
