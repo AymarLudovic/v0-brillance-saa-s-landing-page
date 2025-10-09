@@ -3163,7 +3163,7 @@ useEffect(() => {
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
         
           
-      <div className="w-[60%] h-full flex flex-col bg-white">
+      <div className="w-[60%] h-full flex flex-col bg-transparent">
         <div className="flex items-center justify-between p-4 flex-shrink-0 h-12 border-b border-[rgba(55,50,47,0.12)]">
           <div className="bg-[#F7F5F3] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
@@ -3189,7 +3189,7 @@ useEffect(() => {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-4">
               <button
-                className="flex items-center justify-center rounded-xl border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-8 w-8"
+                className="flex items-center justify-center rounded-[8px] border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-8 w-8"
                 aria-label="GitHub"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#37322F" className="h-[18px] w-[18px]" viewBox="0 0 16 16">
@@ -3197,8 +3197,8 @@ useEffect(() => {
 </svg>
                 
               </button>
-              <button className="rounded-full text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]">
-                Deploy
+              <button className="rounded-[10px] w-[150px] text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]">
+                Deploy site
               </button>
             </div>
           </div>
@@ -3206,7 +3206,7 @@ useEffect(() => {
 
         <div className="w-full h-[calc(100%-64px)] bg-[#F7F5F3] flex flex-col">
 
-        <div className="flex items-center justify-center gap-2 border border-[rgba(55,50,47,0.12)]  p-1 w-full bg-[#F7F5F3]">
+        <div className="flex items-center rounded-[25px] justify-center bg-[#E3DFDB] gap-2 border border-[rgba(55,50,47,0.12)]  p-1 w-full bg-[#F7F5F3]">
             <input
               type="text"
               value={iframeRoute}
