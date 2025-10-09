@@ -2325,10 +2325,23 @@ if (fetchFileMatch) {
   const filePath = fetchFileMatch[1].trim();
   addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
 
-  // Stoppe le flux ici et exécute l'action immédiatement
-  await handleFetchFileAction(filePath, currentProjectFiles, messages);
-  return; // Très important pour ne pas exécuter la suite du code de sendChat
+  // ✅ Ajoute un message temporaire visible dans le chat
+  setMessages(prev => [
+    ...prev,
+    {
+      role: "assistant",
+      content: `📂 Lecture du fichier demandé : ${filePath}...`,
+      artifactData: { type: "fetch", path: filePath, rawJson: "" }
     }
+  ]);
+
+  // ✅ Lance la récupération sans bloquer tout le stream
+  handleFetchFileAction(filePath, currentProjectFiles, messages)
+    .catch(err => addLog(`❌ Erreur lecture fichier: ${err}`));
+
+  // ✅ Continue le streaming (pas de return)
+}
+          
                           
 
             // 2. LOGIQUE D'EXTRACTION DE FICHIERS 
