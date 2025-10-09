@@ -2552,7 +2552,7 @@ useEffect(() => {
   // -------------------
   return (
     <div className="flex h-screen bg-[#FFFAF0] font-sans text-[#37322F]">
-      <div className="w-[40%] bg-[#FFFAF0] h-full flex flex-col  border-[rgba(55,50,47,0.12)]">
+      <div className="w-[40%] bg-[#fffcf6] h-full flex flex-col  border-[rgba(55,50,47,0.12)]">
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
@@ -2851,9 +2851,9 @@ useEffect(() => {
   <div className="relative p-2 flex flex-col h-[210px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[20%] rounded-t-[10px] bg-[#F0EEEB] w-full">
+    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
      <div className="w-full h-full flex items-center justify-center">
-        <div className="w-[95%] p-1 rounded-t-[8px] bg-[#E3DFDB] h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
+        <div className="w-full p-1 rounded-t-[8px]  h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
         
         {/* BOUTON/INPUT CLONE WEBSITE */}
         {!isCloning ? (
@@ -2956,7 +2956,7 @@ useEffect(() => {
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
-    <div className="w-full p-2 rounded-b-[8px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
+    <div className="w-full p-2 rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
