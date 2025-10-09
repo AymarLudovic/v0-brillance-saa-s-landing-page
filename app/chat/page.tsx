@@ -2853,7 +2853,7 @@ useEffect(() => {
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
     <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
      <div className="w-full h-full flex items-center justify-center">
-        <div className="w-full p-1 rounded-t-[8px]  h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
+        <div className="w-full p-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[rgba(55,50,47,0.12)] gap-1">
         
         {/* BOUTON/INPUT CLONE WEBSITE */}
         {!isCloning ? (
@@ -2936,7 +2936,7 @@ useEffect(() => {
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
+    <div className="w-full bg-[#FFFAF0] h-[60%] border-b-none border-t border-l border-r border-[rgba(55,50,47,0.12)] p-2 rounded-t-[8px]">
       <textarea
   placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
   className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
@@ -2956,7 +2956,7 @@ useEffect(() => {
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
-    <div className="w-full p-2 rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
+    <div className="w-full p-4 rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
@@ -3165,7 +3165,7 @@ useEffect(() => {
           
       <div className="w-[60%] h-full flex flex-col bg-transparent">
         <div className="flex items-center justify-between p-4 flex-shrink-0 h-12 border-b border-[rgba(55,50,47,0.12)]">
-          <div className="bg-[#F7F5F3] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
+          <div className="bg-[#fffcf6] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
               variant={activeTab === "preview" ? "secondary" : "ghost"}
               size="icon"
@@ -3253,7 +3253,7 @@ useEffect(() => {
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
               {/* SECTION PRÉVISUALISATION (IFRAME) */}
-              <div className="flex-grow bg-white w-full border border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
+              <div className="flex-grow bg-[#fffcf6] w-full border rounded-[20px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
                    style={{ height: `calc(100% - ${logsHeight}%)` }}>
                 {previewUrl ? (
                   <iframe ref={iframeRef} src={previewUrl} className="w-full h-full border-0" title="Sandbox Preview" />
@@ -3270,7 +3270,7 @@ useEffect(() => {
                 style={{ height: `${logsHeight}%` }}
               >
                 {/* Barre de contrôle */}
-                <div className="flex items-center justify-between p-4 h-12 bg-[#F7F5F3] border-b border-[rgba(55,50,47,0.12)]">
+                <div className="flex items-center justify-between p-4 h-12 bg-[#fffcf6] border-[rgba(55,50,47,0.12)]">
                   {/* Boutons d'action */}
                   <div className="flex items-center gap-2">
                     <Button
