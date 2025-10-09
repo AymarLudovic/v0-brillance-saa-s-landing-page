@@ -2851,7 +2851,7 @@ useEffect(() => {
   <div className="relative p-2 flex flex-col h-[210px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[20%] rounded-t-[10px] bg-transparent w-full">
+    <div className="flex flex-col h-[20%] rounded-t-[10px] bg-[#F0EEEB] w-full">
      <div className="w-full h-full flex items-center justify-center">
         <div className="w-[95%] p-1 rounded-t-[8px] bg-[#E3DFDB] h-full p-[2px] flex items-center border border-[rgba(55,50,47,0.12)] gap-1">
         
@@ -3184,6 +3184,49 @@ useEffect(() => {
             </Button>
           </div>
 
+
+
+       {activeTab === "preview" && (
+  <div className="flex items-center rounded-[25px] justify-center bg-[#E3DFDB] gap-2 border border-[rgba(55,50,47,0.12)] p-1 w-full bg-[#F7F5F3]">
+    <input
+      type="text"
+      value={iframeRoute}
+      onChange={(e) => setIframeRoute(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") handleNavigate()
+      }}
+      className="flex-grow bg-transparent outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
+      placeholder="/route"
+    />
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      onClick={handleNavigate}
+    >
+      <ArrowRight className="h-4 w-4" />
+    </Button>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      onClick={handleReload}
+    >
+      <RefreshCw className="h-4 w-4" />
+    </Button>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      disabled={!previewUrl}
+      onClick={() => window.open(previewUrl, "_blank")}
+    >
+      <ExternalLink className="h-4 w-4" />
+    </Button>
+  </div>
+)}
+        
+               
           
 
           <div className="flex items-center gap-3">
@@ -3206,44 +3249,7 @@ useEffect(() => {
 
         <div className="w-full h-[calc(100%-64px)] bg-[#F7F5F3] flex flex-col">
 
-        <div className="flex items-center rounded-[25px] justify-center bg-[#E3DFDB] gap-2 border border-[rgba(55,50,47,0.12)]  p-1 w-full bg-[#F7F5F3]">
-            <input
-              type="text"
-              value={iframeRoute}
-              onChange={(e) => setIframeRoute(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleNavigate()
-              }}
-              className="flex-grow bg-transparent outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
-              placeholder="/route"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
-              onClick={handleNavigate}
-            >
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
-              onClick={handleReload}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
-              disabled={!previewUrl}
-              onClick={() => window.open(previewUrl, "_blank")}
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          </div>
-
+        
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
               {/* SECTION PRÉVISUALISATION (IFRAME) */}
