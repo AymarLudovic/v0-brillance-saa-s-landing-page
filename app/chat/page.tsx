@@ -2443,10 +2443,10 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
   return (
     <li>
       <button
-        className={`w-full text-left text-sm py-1.5 px-2 rounded-lg flex items-center gap-2 transition-colors ${
+        className={`w-full text-left text-sm py-1 px-2 rounded-[10px] flex items-center gap-2 transition-colors ${
           isCurrentlyActive
-            ? "bg-[#F7F5F3] " 
-            : "hover:bg-[#F7F5F3] text-[#37322F]/80"
+            ? "bg-[#FFFAF0] " 
+            : "hover:bg-[#FFFAF0] text-[#37322F]/80"
         }`}
         onClick={() => {
           if (isDirectory) {
@@ -3380,14 +3380,7 @@ useEffect(() => {
                 />
             ))}
     </ul>
-    <Button
-        variant="outline"
-        size="sm"
-        className="mt-4 w-full border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-[#F7F5F3] bg-transparent"
-        onClick={() => setFiles((prev) => [...prev, { filePath: "new/file.tsx", content: "" }])}
-    >
-        + New File
-    </Button>
+    
 </ScrollArea>
               
               </div>
