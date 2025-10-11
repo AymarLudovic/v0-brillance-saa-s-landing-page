@@ -3189,7 +3189,7 @@ useEffect(() => {
 
        {activeTab === "preview" && (
   <div className="flex items-center rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1 w-[60%] bg-[#F7F5F3]">
-    <div className="h-full w-[20px] flex items-center justify-center ">
+    <div className="h-full w-auto flex items-center justify-center ">
       <Monitor size={17} color="#000" />
     </div>
     <input
@@ -3225,7 +3225,7 @@ useEffect(() => {
       disabled={!previewUrl}
       onClick={() => window.open(previewUrl, "_blank")}
     >
-      <ExternalLink className="h-4 w-4" />
+      <svg className="h-[16px] w-[16px] flex-shrink-0 mx-1"  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M838-65 720-183v89h-80v-226h226v80h-90l118 118-56 57ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 20-2 40t-6 40h-82q5-20 7.5-40t2.5-40q0-20-2.5-40t-7.5-40H654q3 20 4.5 40t1.5 40q0 20-1.5 40t-4.5 40h-80q3-20 4.5-40t1.5-40q0-20-1.5-40t-4.5-40H386q-3 20-4.5 40t-1.5 40q0 20 1.5 40t4.5 40h134v80H404q12 43 31 82.5t45 75.5q20 0 40-2.5t40-4.5v82q-20 2-40 4.5T480-80ZM170-400h136q-3-20-4.5-40t-1.5-40q0-20 1.5-40t4.5-40H170q-5 20-7.5 40t-2.5 40q0 20 2.5 40t7.5 40Zm34-240h118q9-37 22.5-72.5T376-782q-55 18-99 54.5T204-640Zm172 462q-18-34-31.5-69.5T322-320H204q29 51 73 87.5t99 54.5Zm28-462h152q-12-43-31-82.5T480-798q-26 36-45 75.5T404-640Zm234 0h118q-29-51-73-87.5T584-782q18 34 31.5 69.5T638-640Z"/></svg>
     </Button>
   </div>
 )}
@@ -3345,7 +3345,7 @@ useEffect(() => {
               </div>
             </div>
           ) : (
-            <div className="flex-grow border border-[rgba(55,50,47,0.90)]   flex flex-row overflow-hidden w-full h-full">
+            <div className="flex-grow border border-[rgba(55,50,47,0.12)] rounded-[12px]   flex flex-row overflow-hidden w-full h-full">
               <div className="w-1/3 h-full border-r border-[rgba(55,50,47,0.12)] bg-white">
                 <div className="p-4 border-b border-[rgba(55,50,47,0.12)] flex justify-between items-center h-14">
                   <h3 className="text-sm font-medium px-2 text-[#37322F]">Files</h3>
@@ -3433,6 +3433,7 @@ useEffect(() => {
         lineNumbersMinChars: 3, 
         fontFamily: "Mozilla Headline", 
         fontSize: 14, 
+        backgroundColor: "#fffcf6",
     }}
 />
 
