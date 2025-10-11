@@ -2400,6 +2400,7 @@ const handleEditorDidMount: OnMount = (editorInstance, monaco) => {
             // Sidebar (Numéros de Ligne Noirs avec Opacité)
             'editorLineNumber.foreground': '#00000033', // Inactif
             'editorLineNumber.activeForeground': '#000000FF', // Actif
+            'editorLineNumber.background': '#FFFAF0',
             // S'assurer que le texte par défaut est noir
             'editor.foreground': NOIR, 
             'editor.background': '#FFFCF6', // Fond blanc pour le thème 'vs'
@@ -3396,7 +3397,7 @@ useEffect(() => {
               <div className="w-2/3 h-full bg-white flex flex-col">
                 
                 {/* 🆕 1. LE BREADCRUMB HEADER (Header de l'éditeur) */}
-                <div className="h-10 flex items-center px-4 border-b border-[rgba(55,50,47,0.12)] bg-[#F7F5F3] flex-shrink-0">
+                <div className="h-10 flex items-center px-4 border-b border-[rgba(55,50,47,0.12)] bg-[#FFFAF0] flex-shrink-0">
                   {/* Affiche le chemin complet du fichier actif */}
                   {currentProject && files.length > 0 && activeFile !== null && (
                     <FileBreadcrumb 
