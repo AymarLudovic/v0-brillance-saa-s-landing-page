@@ -1592,6 +1592,9 @@ ${file.content}
  */
 
 
+
+  
+
 // ⚠️ Assurez-vous que parseRootVariables, extractFontFaces, findPotentialComponents, 
 // cloneWithComputedStyles et sendChat sont disponibles dans le scope.
 const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, baseURL: string, urlToAnalyze: string, originalUserPrompt: string) => {
@@ -1646,7 +1649,36 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
 
 
   
+const handleInspirationUrl = async (url: string, originalUserPrompt: string) => {
+  try {
+    addLog(`[AUTO-FLOW] 🌐 Début de l’analyse de l’URL: ${url}`);
 
+    // --- Étape 1: récupérer le HTML complet
+    const htmlRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+    const fullHTML = await htmlRes.text();
+
+    // --- Étape 2: extraire les feuilles de style
+    const cssLinks = [...fullHTML.matchAll(/<link[^>]+href=["']([^"']+\.css)["'][^>]*>/g)].map(m => m[1]);
+    let fullCSS = "";
+    for (const link of cssLinks) {
+      try {
+        const cssRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(new URL(link, url).href)}`);
+        fullCSS += await cssRes.text() + "\n";
+      } catch (err) {
+        addLog(`⚠️ Erreur lors du chargement du CSS: ${link}`);
+      }
+    }
+
+    addLog(`[AUTO-FLOW] ✅ HTML et CSS récupérés (${fullCSS.length} caractères de CSS).`);
+    
+    // --- Étape 3: lancer l'isolation & génération
+    await runIsolationAndGeneration(fullHTML, fullCSS, url, url, originalUserPrompt);
+
+  } catch (err: any) {
+    addLog(`❌ Erreur pendant l’analyse d’URL: ${err.message}`);
+  }
+};
+                                    
            
              
              
@@ -2287,7 +2319,15 @@ const sendChat = async (promptOverride?: string) => {
     } // FIN STREAMING
 
     // -------- POST STREAM ----------
-    if (urlArtifact) addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
+    
+
+    if (urlArtifact) {
+  addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
+  await handleInspirationUrl(urlArtifact.url, userPrompt);
+  return; // ⛔ On stoppe ici car le flux "analyse + génération" prend le relais
+    }
+    
+      
     const finalArtifacts = extractFileArtifacts(text);
     if (finalArtifacts.length > 0) {
       addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
