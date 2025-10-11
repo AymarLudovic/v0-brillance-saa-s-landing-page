@@ -2402,7 +2402,7 @@ const handleEditorDidMount: OnMount = (editorInstance, monaco) => {
             'editorLineNumber.activeForeground': '#000000FF', // Actif
             // S'assurer que le texte par défaut est noir
             'editor.foreground': NOIR, 
-            'editor.background': '#FFFFFF', // Fond blanc pour le thème 'vs'
+            'editor.background': '#FFFCF6', // Fond blanc pour le thème 'vs'
         },
     });
 
@@ -3346,8 +3346,8 @@ useEffect(() => {
             </div>
           ) : (
             <div className="flex-grow border border-[rgba(55,50,47,0.12)] rounded-[12px]   flex flex-row overflow-hidden w-full h-full">
-              <div className="w-1/3 h-full border-r border-[rgba(55,50,47,0.12)] bg-white">
-                <div className="p-4 border-b border-[rgba(55,50,47,0.12)] flex justify-between items-center h-14">
+              <div className="w-1/3 h-full border-r border-[rgba(55,50,47,0.12)] ">
+                <div className="p-1 border-[rgba(55,50,47,0.12)] flex justify-between items-center h-8">
                   <h3 className="text-sm font-medium px-2 text-[#37322F]">Files</h3>
                   <Button
                     onClick={() => runAction("addFiles")}
