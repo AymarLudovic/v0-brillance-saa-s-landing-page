@@ -3205,7 +3205,7 @@ useEffect(() => {
     <Button
       variant="ghost"
       size="icon"
-      className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
       onClick={handleNavigate}
     >
       <ArrowRight size={17} className="h-4 w-4" />
@@ -3213,7 +3213,7 @@ useEffect(() => {
     <Button
       variant="ghost"
       size="icon"
-      className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
       onClick={handleReload}
     >
       <RefreshCw className="h-4 w-4" />
@@ -3221,7 +3221,7 @@ useEffect(() => {
     <Button
       variant="ghost"
       size="icon"
-      className="h-7 w-7 flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
       disabled={!previewUrl}
       onClick={() => window.open(previewUrl, "_blank")}
     >
@@ -3345,7 +3345,7 @@ useEffect(() => {
               </div>
             </div>
           ) : (
-            <div className="flex-grow flex flex-row overflow-hidden w-full h-full">
+            <div className="flex-grow border border-[rgba(55,50,47,0.90)]   flex flex-row overflow-hidden w-full h-full">
               <div className="w-1/3 h-full border-r border-[rgba(55,50,47,0.12)] bg-white">
                 <div className="p-4 border-b border-[rgba(55,50,47,0.12)] flex justify-between items-center h-14">
                   <h3 className="text-sm font-medium px-2 text-[#37322F]">Files</h3>
@@ -3353,10 +3353,10 @@ useEffect(() => {
                     onClick={() => runAction("addFiles")}
                     disabled={loading || !sandboxId}
                     size="sm"
-                    className="bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white rounded-lg"
+                    className="bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white rounded-[25px]"
                   >
                     <HardDrive className="h-4 w-4 mr-2" />
-                    Save to Sandbox
+                    
                   </Button>
                 </div>
                 
