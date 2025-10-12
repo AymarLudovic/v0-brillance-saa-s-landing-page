@@ -1648,37 +1648,22 @@ const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, base
   
 
 
-  
+             // -----------------------------------------------------
+// 🔗 Liaison entre Gemini et le module d'analyse automatique
+// -----------------------------------------------------
 const handleInspirationUrl = async (url: string, originalUserPrompt: string) => {
   try {
-    addLog(`[AUTO-FLOW] 🌐 Début de l’analyse de l’URL: ${url}`);
-
-    // --- Étape 1: récupérer le HTML complet
-    const htmlRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
-    const fullHTML = await htmlRes.text();
-
-    // --- Étape 2: extraire les feuilles de style
-    const cssLinks = [...fullHTML.matchAll(/<link[^>]+href=["']([^"']+\.css)["'][^>]*>/g)].map(m => m[1]);
-    let fullCSS = "";
-    for (const link of cssLinks) {
-      try {
-        const cssRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(new URL(link, url).href)}`);
-        fullCSS += await cssRes.text() + "\n";
-      } catch (err) {
-        addLog(`⚠️ Erreur lors du chargement du CSS: ${link}`);
-      }
-    }
-
-    addLog(`[AUTO-FLOW] ✅ HTML et CSS récupérés (${fullCSS.length} caractères de CSS).`);
+    addLog(`[AUTO-FLOW] 🚀 Inspiration URL détectée: ${url}`);
+    addLog(`[AUTO-FLOW] Déclenchement automatique de runAutomatedAnalysis pour ${url}`);
     
-    // --- Étape 3: lancer l'isolation & génération
-    await runIsolationAndGeneration(fullHTML, fullCSS, url, url, originalUserPrompt);
+    // On appelle directement ta logique principale
+    await runAutomatedAnalysis(url, originalUserPrompt, false);
 
   } catch (err: any) {
-    addLog(`❌ Erreur pendant l’analyse d’URL: ${err.message}`);
+    addLog(`❌ Erreur pendant handleInspirationUrl: ${err.message}`);
   }
 };
-                                    
+  
            
              
              
@@ -2319,14 +2304,19 @@ const sendChat = async (promptOverride?: string) => {
     } // FIN STREAMING
 
     // -------- POST STREAM ----------
-    
-
     if (urlArtifact) {
   addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
   await handleInspirationUrl(urlArtifact.url, userPrompt);
-  return; // ⛔ On stoppe ici car le flux "analyse + génération" prend le relais
-    }
-    
+  return; // On interrompt ici le flux classique, car l’analyse automatique prend le relais
+          }
+                          
+
+
+const isAnalysisMode = promptOverride?.includes("Analysis data from");
+if (isAnalysisMode) {
+  addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
+                  }
+        
       
     const finalArtifacts = extractFileArtifacts(text);
     if (finalArtifacts.length > 0) {
