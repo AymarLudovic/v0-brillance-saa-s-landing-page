@@ -2311,59 +2311,64 @@ const sendChat = async (promptOverride?: string) => {
 
     // -------- POST STREAM ----------
     
-if (urlArtifact) {
+
+  if (urlArtifact) {
   addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
 
   try {
     addLog(`[AUTO-FLOW] Fetching full HTML & CSS from ${urlArtifact.url}...`);
 
-    // Étape 1 : Appel à ton API d’analyse
+    // 🔹 Étape 1 : Appel à ton API d’analyse interne
     const response = await fetch(`/api/analyze?url=${encodeURIComponent(urlArtifact.url)}`);
+
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status} - ${errorText || "Erreur inconnue"}`);
     }
 
-    // Étape 2 : Récupération du contenu complet (HTML, CSS, composants isolés)
+    // 🔹 Étape 2 : Récupération du contenu complet
     const { fullHTML, fullCSS, isolatedComponents, meta } = await response.json();
 
     if (!fullHTML || !fullCSS) {
-      throw new Error("❌ Le site n’a pas retourné de HTML ou CSS complet.");
+      throw new Error("❌ Aucun HTML ou CSS complet détecté. Analyse impossible.");
     }
 
     addLog("✅ Contenu complet récupéré depuis /api/analyze");
     addLog(`📄 HTML length: ${fullHTML.length} | 🎨 CSS length: ${fullCSS.length}`);
 
-    // Étape 3 : Construction du prompt complet pour Gemini
+    // 🔹 Étape 3 : Création du prompt complet pour Gemini
     const combinedPrompt = `
+Tu es un assistant expert en reconstruction front-end à partir de sites web existants.
+
 L’utilisateur souhaite s’inspirer du site suivant : ${urlArtifact.url}
 
-Voici le contenu complet du site analysé :
+Voici les données extraites par analyse automatique :
+
 ---
-🧩 **HTML Complet :**
+🧩 **HTML complet :**
 ${fullHTML}
 
-🎨 **CSS Global :**
+🎨 **CSS global :**
 ${fullCSS}
 
-🧱 **Composants isolés (si présents) :**
-${isolatedComponents?.join("\n\n") ?? "Aucun"}
+🧱 **Composants isolés :**
+${isolatedComponents?.join("\n\n") ?? "Aucun composant isolé détecté"}
 
 ---
 
-Analyse tout ce contenu pour :
-- Reproduire le style global du site.
-- Créer un fichier \`app/globals.css\` contenant **toutes les classes et variables CSS utiles** extraites du site.
-- Générer les composants React correspondants, en **réutilisant ces classes** pour garder la cohérence visuelle.
-- Recréer la structure logique du site dans des fichiers \`page.tsx\` et \`components/*\`.
-- Tu dois comprendre la relation entre les classes CSS et leur usage dans le HTML et reprendre tout les styles css ici fourni.
+Objectif :
+- Reproduis la structure du site sous forme d’application React/Next.js.
+- Crée un fichier \`app/globals.css\` contenant **toutes les classes et variables CSS utiles**.
+- Recrée les composants React correspondants en **réutilisant les classes** trouvées.
+- Inspire-toi fidèlement du HTML et du CSS fournis pour comprendre les relations entre classes et structure.
 
-Voici le prompt utilisateur original :
+Prompt utilisateur initial :
 "${userPrompt}"
 `;
 
-    addLog("🧠 Envoi du prompt complet à Gemini...");
-    
-    // Étape 4 : Appel normal à Gemini (même flux que le reste de sendChat)
+    addLog("🧠 Envoi du prompt complet à Gemini via /api/gemini...");
+
+    // 🔹 Étape 4 : Appel à ton endpoint IA (Gemini)
     const streamResponse = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2374,24 +2379,36 @@ Voici le prompt utilisateur original :
     });
 
     if (!streamResponse.ok) {
-      throw new Error(`Erreur API Gemini: ${streamResponse.status}`);
+      throw new Error(`Erreur API Gemini: HTTP ${streamResponse.status}`);
     }
 
-    addLog("💬 Réponse de Gemini reçue, traitement en cours...");
-    return; // Stop ici : l’analyse automatique a pris le relais
+    // 🔹 Étape 5 : Gestion du flux de réponse (stream)
+    const reader = streamResponse.body?.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        // tu peux ajouter ici ta logique d'affichage progressif ou parsing en direct
+      }
+    }
+
+    addLog("💬 Réponse complète reçue de Gemini (analyse terminée).");
+    return; // ✅ On interrompt ici le flux classique, l’analyse a pris le relais
   } catch (err: any) {
     addLog(`❌ Erreur pendant l’analyse automatique: ${err.message}`);
-    // Revenir au flux classique si l’analyse échoue
+    // On laisse le flux normal continuer si erreur
   }
-
-  
+      }
+      
 
     // 🔹 Lancement de l’isolation et génération
     
 
-  return
-        }
-    
+  
     
 
 
