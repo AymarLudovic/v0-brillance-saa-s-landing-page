@@ -2364,7 +2364,7 @@ Voici le prompt utilisateur original :
     addLog("🧠 Envoi du prompt complet à Gemini...");
     
     // Étape 4 : Appel normal à Gemini (même flux que le reste de sendChat)
-    const streamResponse = await fetch("/api/chat", {
+    const streamResponse = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2383,7 +2383,7 @@ Voici le prompt utilisateur original :
     addLog(`❌ Erreur pendant l’analyse automatique: ${err.message}`);
     // Revenir au flux classique si l’analyse échoue
   }
-}
+
   
 
     // 🔹 Lancement de l’isolation et génération
