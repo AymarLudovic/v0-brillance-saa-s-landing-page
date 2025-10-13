@@ -1597,55 +1597,61 @@ ${file.content}
 
 // ⚠️ Assurez-vous que parseRootVariables, extractFontFaces, findPotentialComponents, 
 // cloneWithComputedStyles et sendChat sont disponibles dans le scope.
-const runIsolationAndGeneration = async (fullHTML: string, fullCSS: string, baseURL: string, urlToAnalyze: string, originalUserPrompt: string) => {
-    setAnalysisStatus(`2/4: Analyse CSS et recherche des composants...`)
-    
-    const globalCssVariables = parseRootVariables(fullCSS) 
-    const fontFaces = extractFontFaces(fullCSS)
-
-    const componentsToFind = findPotentialComponents(fullHTML) 
-    const isolatedComponents = []
-    addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
-
-    // --- ISOLATION DES COMPOSANTS PAR IFRAME ---
-    for (const comp of componentsToFind) {
-        setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
-        addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
-
-        const hiddenIframe = document.createElement("iframe")
-        hiddenIframe.style.display = "none"
-        document.body.appendChild(hiddenIframe)
-
-        const isolatedHtml = await new Promise<string>((resolve, reject) => {
-            hiddenIframe.onload = () => {
-                const iframeDoc = hiddenIframe.contentDocument
-                if (!iframeDoc) return reject(new Error("Could not access hidden iframe document."))
-                const element = iframeDoc.querySelector(comp.selector)
-                
-                if (element) resolve(cloneWithComputedStyles(element).outerHTML)
-                else resolve("")
-                
-                document.body.removeChild(hiddenIframe)
-            }
-            hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${baseURL}"><style>${fullCSS}</style></head><body>${fullHTML}</body></html>`
-        })
-
-        if (isolatedHtml) {
-            isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
-            addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
-        }
-    }
-
-    // --- CONSTRUCTION DU PROMPT RICHE ET ENVOI ---
-    setAnalysisStatus(`4/4: Construction du prompt final pour Gemini...`)
-    addLog(`[AUTO-FLOW] Building final rich prompt for Gemini.`)
-    
-    const finalPrompt = `User's original request: "${originalUserPrompt}"\n---\nAnalysis data from ${urlToAnalyze}:\nGlobal CSS Variables to use in globals.css:\n\`\`\`css\n:root {\n  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}\n}\n\`\`\`\nFont Faces:\n${fontFaces}\n\nIsolated Components:\n${isolatedComponents.map(c => `// Component: ${c.name}\n${c.html}`).join("\n\n")}\n---\nPlease generate the code as asked above.`
-    
-    addLog("[AUTO-FLOW] Sending final prompt to Gemini for code generation.")
-    await sendChat(finalPrompt)
-                                         }
+const runIsolationAndGeneration = async (
+  fullHTML: string,
+  fullCSS: string,
+  baseURL: string,
+  urlToAnalyze: string,
+  originalUserPrompt: string
+) => {
+  setAnalysisStatus(`2/4: Analyse CSS et recherche des composants...`)
   
+  const globalCssVariables = parseRootVariables(fullCSS)
+  const fontFaces = extractFontFaces(fullCSS)
+  const componentsToFind = findPotentialComponents(fullHTML)
+  const isolatedComponents: { name: string; html: string }[] = []
+
+  addLog(`[AUTO-FLOW] Found ${componentsToFind.length} relevant components to isolate.`)
+
+  // --- Isolation de chaque composant ---
+  for (const comp of componentsToFind) {
+    setAnalysisStatus(`3/4: Isolation du composant: ${comp.tag}...`)
+    addLog(`[AUTO-FLOW] Isolating component: ${comp.tag} (${comp.selector})`)
+
+    const hiddenIframe = document.createElement("iframe")
+    hiddenIframe.style.display = "none"
+    document.body.appendChild(hiddenIframe)
+
+    const isolatedHtml = await new Promise<string>((resolve, reject) => {
+      hiddenIframe.onload = () => {
+        const iframeDoc = hiddenIframe.contentDocument
+        if (!iframeDoc) return reject(new Error("Could not access iframe document."))
+        const element = iframeDoc.querySelector(comp.selector)
+        if (element) resolve(cloneWithComputedStyles(element).outerHTML)
+        else resolve("")
+        document.body.removeChild(hiddenIframe)
+      }
+      hiddenIframe.srcdoc = `<!DOCTYPE html><html><head><base href="${baseURL}"><style>${fullCSS}</style></head><body>${fullHTML}</body></html>`
+    })
+
+    if (isolatedHtml) {
+      isolatedComponents.push({ name: comp.tag, html: isolatedHtml })
+      addLog(`[AUTO-FLOW] ✅ Component ${comp.tag} isolated successfully.`)
+    }
+  }
+
+  setAnalysisStatus(`4/4: Préparation des données d'analyse...`)
+  addLog(`[AUTO-FLOW] Analysis done. Returning structured data.`)
+
+  return {
+    urlToAnalyze,
+    globalCssVariables,
+    fontFaces,
+    isolatedComponents,
+    originalUserPrompt
+  }
+                                      }
+          
 
 
              // -----------------------------------------------------
@@ -2305,11 +2311,67 @@ const sendChat = async (promptOverride?: string) => {
 
     // -------- POST STREAM ----------
     if (urlArtifact) {
-  addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-  await handleInspirationUrl(urlArtifact.url, userPrompt);
-  return; // On interrompt ici le flux classique, car l’analyse automatique prend le relais
-          }
-                          
+  addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`)
+  const analysis = await runIsolationAndGeneration(
+    fullHTML, // que tu obtiens via ton analyse
+    fullCSS,
+    baseURL,
+    urlArtifact.url,
+    userPrompt
+  )
+
+  addLog(`[AUTO-FLOW] Injecting extracted data into AI generation context.`)
+
+  await sendChat({
+    type: "analyze_and_generate",
+    userPrompt,
+    analysis
+  })
+
+  return
+    }
+    
+
+
+
+    if (message.type === "analyze_and_generate") {
+  const { userPrompt, analysis } = message
+  const { isolatedComponents, fontFaces, globalCssVariables, urlToAnalyze } = analysis
+
+  const structuredContext = `
+🧠 CONTEXTE D’INSPIRATION — ${urlToAnalyze}
+
+Utilise ces données pour concevoir une application complète, moderne, très bien stylée, et inspirée du design du site analysé.
+
+1️⃣ Variables globales à appliquer dans \`globals.css\` :
+\`\`\`css
+:root {
+  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}
+}
+\`\`\`
+
+2️⃣ Font Faces détectées :
+\`\`\`css
+${fontFaces}
+\`\`\`
+
+3️⃣ Composants isolés à réutiliser (adapter le style avec Tailwind si nécessaire) :
+${isolatedComponents.map(c => `// ${c.name}\n${c.html}`).join("\n\n")}
+
+4️⃣ Requête utilisateur :
+"${userPrompt}"
+
+---
+
+Ta mission : Construis l’application complète en React/Next.js/Typescript en reprenant à l'exactitude les mêmes composants, styles et éléments html avec les mêmes styles, des éléments lister ci-dessus (selon le contexte),
+en tirant pleinement parti de ces éléments visuels pour un rendu **ultra designé, fluide et cohérent**.
+`
+  
+  addLog(`[AUTO-FLOW] Sending structured design context to Gemini...`)
+  await sendChat(structuredContext)
+  return
+    }
+    
 
 
 const isAnalysisMode = promptOverride?.includes("Analysis data from");
