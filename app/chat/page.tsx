@@ -2318,31 +2318,37 @@ const sendChat = async (promptOverride?: string) => {
   try {
     addLog(`[AUTO-FLOW] Fetching full HTML & CSS from ${urlArtifact.url}...`);
 
-    // 🔹 Étape 1 : Appel à ton API d’analyse interne
-    const response = await fetch(`/api/analyze?url=${encodeURIComponent(urlArtifact.url)}`);
+    // 🔹 Étape 1 : On envoie un POST vers /api/analyze
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url: urlArtifact.url }), // ✅ on passe l'URL dans le body
+    });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status} - ${errorText || "Erreur inconnue"}`);
+      const text = await response.text();
+      throw new Error(`HTTP ${response.status} - ${text}`);
     }
 
     // 🔹 Étape 2 : Récupération du contenu complet
-    const { fullHTML, fullCSS, isolatedComponents, meta } = await response.json();
+    const { fullHTML, fullCSS, isolatedComponents } = await response.json();
 
     if (!fullHTML || !fullCSS) {
-      throw new Error("❌ Aucun HTML ou CSS complet détecté. Analyse impossible.");
+      throw new Error("❌ Aucun HTML ou CSS complet détecté lors de l'analyse.");
     }
 
-    addLog("✅ Contenu complet récupéré depuis /api/analyze");
-    addLog(`📄 HTML length: ${fullHTML.length} | 🎨 CSS length: ${fullCSS.length}`);
+    addLog("✅ Analyse complète réussie depuis /api/analyze");
+    addLog(`📄 HTML length: ${fullHTML.length}, 🎨 CSS length: ${fullCSS.length}`);
 
-    // 🔹 Étape 3 : Création du prompt complet pour Gemini
+    // 🔹 Étape 3 : Construction du prompt IA
     const combinedPrompt = `
 Tu es un assistant expert en reconstruction front-end à partir de sites web existants.
 
 L’utilisateur souhaite s’inspirer du site suivant : ${urlArtifact.url}
 
-Voici les données extraites par analyse automatique :
+Voici les données extraites automatiquement :
 
 ---
 🧩 **HTML complet :**
@@ -2368,7 +2374,7 @@ Prompt utilisateur initial :
 
     addLog("🧠 Envoi du prompt complet à Gemini via /api/gemini...");
 
-    // 🔹 Étape 4 : Appel à ton endpoint IA (Gemini)
+    // 🔹 Étape 4 : Appel à ton IA (Gemini)
     const streamResponse = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2382,7 +2388,7 @@ Prompt utilisateur initial :
       throw new Error(`Erreur API Gemini: HTTP ${streamResponse.status}`);
     }
 
-    // 🔹 Étape 5 : Gestion du flux de réponse (stream)
+    // 🔹 Étape 5 : Lecture du flux de réponse
     const reader = streamResponse.body?.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -2392,17 +2398,16 @@ Prompt utilisateur initial :
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        // tu peux ajouter ici ta logique d'affichage progressif ou parsing en direct
       }
     }
 
     addLog("💬 Réponse complète reçue de Gemini (analyse terminée).");
-    return; // ✅ On interrompt ici le flux classique, l’analyse a pris le relais
+    return; // ✅ on stop ici le flux normal
   } catch (err: any) {
     addLog(`❌ Erreur pendant l’analyse automatique: ${err.message}`);
-    // On laisse le flux normal continuer si erreur
   }
       }
+                      
       
 
     // 🔹 Lancement de l’isolation et génération
