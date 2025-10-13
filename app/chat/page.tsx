@@ -1672,74 +1672,101 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
   
            
              
-             
-                                                       
-const runAutomatedAnalysis = async (urlToAnalyze: string, originalUserPrompt: string, isCloning: boolean = false) => {
-    // 1. VÉRIFICATION DE LA SANDBOX
-    if (!sandboxId) { 
-        addLog("Please create a sandbox first.")
-        return
+
+
+  const runAutomatedAnalysis = async (
+  urlToAnalyze: string,
+  originalUserPrompt: string,
+  isCloning: boolean = false
+) => {
+  if (!sandboxId) { 
+    addLog("⚠️ Please create a sandbox first.");
+    return;
+  }
+
+  setLoading(true);
+  setIsCloning(false);
+  setCloneUrl("");
+
+  let fullCSS = '';
+  let fullHTML = '';
+  let fullJS = '';
+  let baseURL = '';
+
+  try {
+    setAnalysisStatus(`1/2: Analyse de ${urlToAnalyze} (Récupération des données)...`);
+    addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`);
+
+    // --- Étape 1 : Récupération des données via ton API analyse ---
+    const analysisRes = await fetch("/api/analyse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: urlToAnalyze }),
+    });
+
+    const analysisData = await analysisRes.json();
+
+    if (!analysisRes.ok || !analysisData.success) {
+      addLog(`❌ Analysis API responded with error: ${analysisData.error || analysisRes.statusText}`);
+      throw new Error(`Analysis API failed: ${analysisData.error || analysisRes.statusText}`);
     }
 
-    setLoading(true)
-    setIsCloning(false) 
-    setCloneUrl("")
+    // --- Étape 2 : Extraction du contenu ---
+    fullCSS = analysisData.fullCSS || '';
+    fullHTML = analysisData.fullHTML || '';
+    fullJS = analysisData.fullJS || '';
 
-    let fullCSS = '';
-    let fullHTML = '';
-    let fullJS = '';
-    let baseURL = '';
+    addLog(`[DEBUG] HTML size: ${fullHTML.length}, CSS size: ${fullCSS.length}, JS size: ${fullJS.length}`);
 
-    try {
-      setAnalysisStatus(`1/2: Analyse de ${urlToAnalyze} (Récupération des données)...`)
-      addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`)
-      
-      const analysisRes = await fetch("/api/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToAnalyze }),
-      })
-      const analysisData = await analysisRes.json()
-      
-      if (!analysisRes.ok || !analysisData.success) {
-          // Affichage de l'erreur dans les logs si l'API a échoué
-          addLog(`❌ Analysis API responded with error: ${analysisData.error || analysisRes.statusText}`);
-          throw new Error(`Analysis API failed: ${analysisData.error || analysisRes.statusText}`)
-      }
+    baseURL = new URL(urlToAnalyze).origin;
 
-      // 2. Extraction des données et VÉRIFICATION DES TAILLES DANS LES LOGS
-      fullCSS = analysisData.fullCSS || ''
-      fullHTML = analysisData.fullHTML || ''
-      fullJS = analysisData.fullJS || ''
-      
-      addLog(`[DEBUG - API Content Check] HTML size: ${fullHTML.length}, CSS size: ${fullCSS.length}, JS size: ${fullJS.length}`);
-
-      baseURL = new URL(urlToAnalyze).origin 
-
-      if (!fullHTML) {
-          throw new Error("Analysis failed: API did not return 'fullHTML' content.")
-      }
-      
-      // --- ÉTAPE 3: DISPATCHING DE LA LOGIQUE ---
-      if (isCloning) {
-          // Mode CLONAGE (écriture locale)
-          await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze,);
-      } else {
-          // Mode ISOLATION (prompt riche)
-          await runIsolationAndGeneration(fullHTML, fullCSS, baseURL, urlToAnalyze, originalUserPrompt);
-      }
-
-    } catch (err: any) {
-      const errorMessage = err.message || "Une erreur inconnue est survenue."
-      // Le log d'erreur final est toujours important
-      addLog(`ERROR during automated analysis: ${errorMessage}`)
-      setAnalysisStatus(`Erreur durant l'analyse: ${errorMessage}`)
-      
-    } finally {
-      setLoading(false)
-      setAnalysisStatus(null)
+    if (!fullHTML) {
+      throw new Error("Analysis failed: API did not return 'fullHTML' content.");
     }
-        }
+
+    // --- Étape 3 : DISPATCH logique selon mode ---
+    if (isCloning) {
+      await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze);
+    } else {
+      // 🧠 Étape spéciale : création du pont vers sendChat()
+      const analysisContext = `
+        Voici les fichiers extraits depuis ${urlToAnalyze} :
+        - fullHTML (structure complète du site)
+        - fullCSS (styles globaux et variables)
+        - fullJS (scripts analysés)
+        
+        Ces fichiers représentent la base d’inspiration. 
+        L’IA doit les utiliser pour reconstruire la structure complète du site 
+        et placer tous les styles copiés dans "app/globals.css".
+        Elle doit s’inspirer du fullHTML pour recréer les composants React, 
+        en important les classes correspondantes depuis globals.css.
+
+        --- FULL HTML START ---
+        ${fullHTML}
+        --- FULL HTML END ---
+
+        --- FULL CSS START ---
+        ${fullCSS}
+        --- FULL CSS END ---
+      `;
+
+      addLog("[AUTO-FLOW] Sending fullHTML + fullCSS to Gemini for design generation...");
+      
+      // 🚀 Envoi à ton système IA (api/gemini)
+      await sendChat(`${originalUserPrompt}\n\n${analysisContext}`);
+    }
+
+  } catch (err: any) {
+    const errorMessage = err.message || "Une erreur inconnue est survenue.";
+    addLog(`❌ ERROR during automated analysis: ${errorMessage}`);
+    setAnalysisStatus(`Erreur durant l'analyse: ${errorMessage}`);
+  } finally {
+    setLoading(false);
+    setAnalysisStatus(null);
+  }
+};
+  
+
                                                   
       
 
@@ -2314,99 +2341,10 @@ const sendChat = async (promptOverride?: string) => {
 
   if (urlArtifact) {
   addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-
-  try {
-    addLog(`[AUTO-FLOW] Fetching full HTML & CSS from ${urlArtifact.url}...`);
-
-    // 🔹 Étape 1 : On envoie un POST vers /api/analyze
-    const response = await fetch("/api/analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url: urlArtifact.url }), // ✅ on passe l'URL dans le body
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status} - ${text}`);
-    }
-
-    // 🔹 Étape 2 : Récupération du contenu complet
-    const { fullHTML, fullCSS, isolatedComponents } = await response.json();
-
-    if (!fullHTML || !fullCSS) {
-      throw new Error("❌ Aucun HTML ou CSS complet détecté lors de l'analyse.");
-    }
-
-    addLog("✅ Analyse complète réussie depuis /api/analyze");
-    addLog(`📄 HTML length: ${fullHTML.length}, 🎨 CSS length: ${fullCSS.length}`);
-
-    // 🔹 Étape 3 : Construction du prompt IA
-    const combinedPrompt = `
-Tu es un assistant expert en reconstruction front-end à partir de sites web existants.
-
-L’utilisateur souhaite s’inspirer du site suivant : ${urlArtifact.url}
-
-Voici les données extraites automatiquement :
-
----
-🧩 **HTML complet :**
-${fullHTML}
-
-🎨 **CSS global :**
-${fullCSS}
-
-🧱 **Composants isolés :**
-${isolatedComponents?.join("\n\n") ?? "Aucun composant isolé détecté"}
-
----
-
-Objectif :
-- Reproduis la structure du site sous forme d’application React/Next.js.
-- Crée un fichier \`app/globals.css\` contenant **toutes les classes et variables CSS utiles**.
-- Recrée les composants React correspondants en **réutilisant les classes** trouvées.
-- Inspire-toi fidèlement du HTML et du CSS fournis pour comprendre les relations entre classes et structure.
-
-Prompt utilisateur initial :
-"${userPrompt}"
-`;
-
-    addLog("🧠 Envoi du prompt complet à Gemini via /api/gemini...");
-
-    // 🔹 Étape 4 : Appel à ton IA (Gemini)
-    const streamResponse = await fetch("/api/gemini", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: combinedPrompt,
-        files: [],
-      }),
-    });
-
-    if (!streamResponse.ok) {
-      throw new Error(`Erreur API Gemini: HTTP ${streamResponse.status}`);
-    }
-
-    // 🔹 Étape 5 : Lecture du flux de réponse
-    const reader = streamResponse.body?.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-      }
-    }
-
-    addLog("💬 Réponse complète reçue de Gemini (analyse terminée).");
-    return; // ✅ on stop ici le flux normal
-  } catch (err: any) {
-    addLog(`❌ Erreur pendant l’analyse automatique: ${err.message}`);
+  await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
+  return;
   }
-      }
+    
                       
       
 
