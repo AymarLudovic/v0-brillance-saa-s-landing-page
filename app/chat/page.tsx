@@ -2312,65 +2312,74 @@ const sendChat = async (promptOverride?: string) => {
     // -------- POST STREAM ----------
     if (urlArtifact) {
   addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`)
-  const analysis = await runIsolationAndGeneration(
-    fullHTML, // que tu obtiens via ton analyse
-    fullCSS,
-    baseURL,
-    urlArtifact.url,
-    userPrompt
-  )
 
-  addLog(`[AUTO-FLOW] Injecting extracted data into AI generation context.`)
+  try {
+    setAnalysisStatus("1/4: Récupération du contenu du site source...")
+    addLog(`[AUTO-FLOW] Fetching HTML/CSS from ${urlArtifact.url}`)
 
-  await sendChat({
-    type: "analyze_and_generate",
-    userPrompt,
-    analysis
-  })
+    // 🔹 On interroge ton API ou proxy pour obtenir HTML/CSS
+    const res = await fetch(`/api/analyze?url=${encodeURIComponent(urlArtifact.url)}`)
+    const data = await res.json()
 
-  return
+    const fullHTML = data.html || ""
+    const fullCSS = data.css || ""
+    const baseURL = urlArtifact.url
+
+    if (!fullHTML || !fullCSS) {
+      addLog(`❌ Impossible d'obtenir le contenu HTML/CSS du site ${urlArtifact.url}`)
+      return
     }
-    
 
+    // 🔹 Lancement de l’isolation et génération
+    const analysis = await runIsolationAndGeneration(
+      fullHTML,
+      fullCSS,
+      baseURL,
+      urlArtifact.url,
+      userPrompt
+    )
 
+    addLog(`[AUTO-FLOW] Injecting extracted design data into AI generation context.`)
 
-    if (message.type === "analyze_and_generate") {
-  const { userPrompt, analysis } = message
-  const { isolatedComponents, fontFaces, globalCssVariables, urlToAnalyze } = analysis
-
-  const structuredContext = `
-🧠 CONTEXTE D’INSPIRATION — ${urlToAnalyze}
+    // 🔹 Transmission du contexte d’analyse à Gemini
+    const structuredContext = `
+🧠 CONTEXTE D’INSPIRATION — ${urlArtifact.url}
 
 Utilise ces données pour concevoir une application complète, moderne, très bien stylée, et inspirée du design du site analysé.
 
 1️⃣ Variables globales à appliquer dans \`globals.css\` :
 \`\`\`css
 :root {
-  ${globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}
+  ${analysis.globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}
 }
 \`\`\`
 
 2️⃣ Font Faces détectées :
 \`\`\`css
-${fontFaces}
+${analysis.fontFaces}
 \`\`\`
 
 3️⃣ Composants isolés à réutiliser (adapter le style avec Tailwind si nécessaire) :
-${isolatedComponents.map(c => `// ${c.name}\n${c.html}`).join("\n\n")}
+${analysis.isolatedComponents.map(c => `// ${c.name}\n${c.html}`).join("\n\n")}
 
 4️⃣ Requête utilisateur :
 "${userPrompt}"
 
 ---
 
-Ta mission : Construis l’application complète en React/Next.js/Typescript en reprenant à l'exactitude les mêmes composants, styles et éléments html avec les mêmes styles, des éléments lister ci-dessus (selon le contexte),
-en tirant pleinement parti de ces éléments visuels pour un rendu **ultra designé, fluide et cohérent**.
+Ta mission : Construis une application inspirée de ce site, avec un design soigné, moderne et cohérent.
 `
-  
-  addLog(`[AUTO-FLOW] Sending structured design context to Gemini...`)
-  await sendChat(structuredContext)
+
+    addLog(`[AUTO-FLOW] Sending structured context to Gemini...`)
+    await sendChat(structuredContext)
+  } catch (error) {
+    console.error("CLIENT-SIDE ERROR:", error)
+    addLog(`❌ Erreur pendant l'analyse automatique: ${error}`)
+  }
+
   return
-    }
+        }
+    
     
 
 
