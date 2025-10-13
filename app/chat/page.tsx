@@ -2314,30 +2314,39 @@ const sendChat = async (promptOverride?: string) => {
   addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`)
 
   try {
-    setAnalysisStatus("1/4: Récupération du contenu du site source...")
-    addLog(`[AUTO-FLOW] Fetching HTML/CSS from ${urlArtifact.url}`)
+  setAnalysisStatus("1/4: Récupération du contenu du site source...")
+  addLog(`[AUTO-FLOW] Fetching HTML/CSS from ${urlArtifact.url}`)
 
-    // 🔹 On interroge ton API ou proxy pour obtenir HTML/CSS
-    const res = await fetch(`/api/analyze?url=${encodeURIComponent(urlArtifact.url)}`)
-    const data = await res.json()
+  const res = await fetch(`/api/analyze?url=${encodeURIComponent(urlArtifact.url)}`)
 
-    const fullHTML = data.html || ""
-    const fullCSS = data.css || ""
-    const baseURL = urlArtifact.url
+  // 🔹 Vérifie d’abord le type de réponse
+  const contentType = res.headers.get("content-type") || ""
+  let data: any
 
-    if (!fullHTML || !fullCSS) {
-      addLog(`❌ Impossible d'obtenir le contenu HTML/CSS du site ${urlArtifact.url}`)
-      return
-    }
+  if (contentType.includes("application/json")) {
+    data = await res.json()
+  } else {
+    const rawText = await res.text()
+    // Peut-être ton proxy renvoie directement le HTML
+    data = { html: rawText, css: "", js: "" }
+  }
 
-    // 🔹 Lancement de l’isolation et génération
-    const analysis = await runIsolationAndGeneration(
-      fullHTML,
-      fullCSS,
-      baseURL,
-      urlArtifact.url,
-      userPrompt
-    )
+  const fullHTML = data.html || data.fullHTML || ""
+  const fullCSS = data.css || data.fullCSS || ""
+  const baseURL = urlArtifact.url
+
+  if (!fullHTML) {
+    addLog(`❌ Impossible d'obtenir le contenu HTML du site ${urlArtifact.url}`)
+    return
+  }
+
+  const analysis = await runIsolationAndGeneration(
+    fullHTML,
+    fullCSS,
+    baseURL,
+    urlArtifact.url,
+    userPrompt
+  )
 
     addLog(`[AUTO-FLOW] Injecting extracted design data into AI generation context.`)
 
@@ -2372,10 +2381,16 @@ Ta mission : Construis une application inspirée de ce site, avec un design soig
 
     addLog(`[AUTO-FLOW] Sending structured context to Gemini...`)
     await sendChat(structuredContext)
-  } catch (error) {
-    console.error("CLIENT-SIDE ERROR:", error)
-    addLog(`❌ Erreur pendant l'analyse automatique: ${error}`)
-  }
+
+  // suite du flux...
+} catch (error) {
+  console.error("CLIENT-SIDE ERROR:", error)
+  addLog(`❌ Erreur pendant l'analyse automatique: ${error}`)
+}
+
+
+    // 🔹 Lancement de l’isolation et génération
+    
 
   return
         }
