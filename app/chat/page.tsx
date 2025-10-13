@@ -2310,84 +2310,81 @@ const sendChat = async (promptOverride?: string) => {
     } // FIN STREAMING
 
     // -------- POST STREAM ----------
-    if (urlArtifact) {
-  addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`)
+    
+if (urlArtifact) {
+  addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
 
   try {
-  setAnalysisStatus("1/4: Récupération du contenu du site source...")
-  addLog(`[AUTO-FLOW] Fetching HTML/CSS from ${urlArtifact.url}`)
+    addLog(`[AUTO-FLOW] Fetching full HTML & CSS from ${urlArtifact.url}...`);
 
-  const res = await fetch(`/api/analyze?url=${encodeURIComponent(urlArtifact.url)}`)
+    // Étape 1 : Appel à ton API d’analyse
+    const response = await fetch(`/api/analyze?url=${encodeURIComponent(urlArtifact.url)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
-  // 🔹 Vérifie d’abord le type de réponse
-  const contentType = res.headers.get("content-type") || ""
-  let data: any
+    // Étape 2 : Récupération du contenu complet (HTML, CSS, composants isolés)
+    const { fullHTML, fullCSS, isolatedComponents, meta } = await response.json();
 
-  if (contentType.includes("application/json")) {
-    data = await res.json()
-  } else {
-    const rawText = await res.text()
-    // Peut-être ton proxy renvoie directement le HTML
-    data = { html: rawText, css: "", js: "" }
-  }
+    if (!fullHTML || !fullCSS) {
+      throw new Error("❌ Le site n’a pas retourné de HTML ou CSS complet.");
+    }
 
-  const fullHTML = data.html || data.fullHTML || ""
-  const fullCSS = data.css || data.fullCSS || ""
-  const baseURL = urlArtifact.url
+    addLog("✅ Contenu complet récupéré depuis /api/analyze");
+    addLog(`📄 HTML length: ${fullHTML.length} | 🎨 CSS length: ${fullCSS.length}`);
 
-  if (!fullHTML) {
-    addLog(`❌ Impossible d'obtenir le contenu HTML du site ${urlArtifact.url}`)
-    return
-  }
+    // Étape 3 : Construction du prompt complet pour Gemini
+    const combinedPrompt = `
+L’utilisateur souhaite s’inspirer du site suivant : ${urlArtifact.url}
 
-  const analysis = await runIsolationAndGeneration(
-    fullHTML,
-    fullCSS,
-    baseURL,
-    urlArtifact.url,
-    userPrompt
-  )
+Voici le contenu complet du site analysé :
+---
+🧩 **HTML Complet :**
+${fullHTML}
 
-    addLog(`[AUTO-FLOW] Injecting extracted design data into AI generation context.`)
+🎨 **CSS Global :**
+${fullCSS}
 
-    // 🔹 Transmission du contexte d’analyse à Gemini
-    const structuredContext = `
-🧠 CONTEXTE D’INSPIRATION — ${urlArtifact.url}
-
-Utilise ces données pour concevoir une application complète, moderne, très bien stylée, et inspirée du design du site analysé.
-
-1️⃣ Variables globales à appliquer dans \`globals.css\` :
-\`\`\`css
-:root {
-  ${analysis.globalCssVariables.map(v => `${v.name}: ${v.value};`).join("\n  ")}
-}
-\`\`\`
-
-2️⃣ Font Faces détectées :
-\`\`\`css
-${analysis.fontFaces}
-\`\`\`
-
-3️⃣ Composants isolés à réutiliser (adapter le style avec Tailwind si nécessaire) :
-${analysis.isolatedComponents.map(c => `// ${c.name}\n${c.html}`).join("\n\n")}
-
-4️⃣ Requête utilisateur :
-"${userPrompt}"
+🧱 **Composants isolés (si présents) :**
+${isolatedComponents?.join("\n\n") ?? "Aucun"}
 
 ---
 
-Ta mission : Construis une application inspirée de ce site, avec un design soigné, moderne et cohérent.
-`
+Analyse tout ce contenu pour :
+- Reproduire le style global du site.
+- Créer un fichier \`app/globals.css\` contenant **toutes les classes et variables CSS utiles** extraites du site.
+- Générer les composants React correspondants, en **réutilisant ces classes** pour garder la cohérence visuelle.
+- Recréer la structure logique du site dans des fichiers \`page.tsx\` et \`components/*\`.
+- Tu dois comprendre la relation entre les classes CSS et leur usage dans le HTML et reprendre tout les styles css ici fourni.
 
-    addLog(`[AUTO-FLOW] Sending structured context to Gemini...`)
-    await sendChat(structuredContext)
+Voici le prompt utilisateur original :
+"${userPrompt}"
+`;
 
-  // suite du flux...
-} catch (error) {
-  console.error("CLIENT-SIDE ERROR:", error)
-  addLog(`❌ Erreur pendant l'analyse automatique: ${error}`)
+    addLog("🧠 Envoi du prompt complet à Gemini...");
+    
+    // Étape 4 : Appel normal à Gemini (même flux que le reste de sendChat)
+    const streamResponse = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: combinedPrompt,
+        files: [],
+      }),
+    });
+
+    if (!streamResponse.ok) {
+      throw new Error(`Erreur API Gemini: ${streamResponse.status}`);
+    }
+
+    addLog("💬 Réponse de Gemini reçue, traitement en cours...");
+    return; // Stop ici : l’analyse automatique a pris le relais
+  } catch (err: any) {
+    addLog(`❌ Erreur pendant l’analyse automatique: ${err.message}`);
+    // Revenir au flux classique si l’analyse échoue
+  }
 }
-
+  
 
     // 🔹 Lancement de l’isolation et génération
     
