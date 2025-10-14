@@ -1740,6 +1740,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         et placer tous les styles quelle souhaiterais utiliser (ne génère pas tout le css et HTML, jusque 45% de ces fullHTML et fullCSS) copiés dans "app/globals.css".
         Elle doit s’inspirer du fullHTML pour recréer les composants React, 
         en important les classes correspondantes depuis globals.css.
+        Le fullhtml doit être aussi pleinement utiliser pour construire les pages des applications du projet de l'utilisateur. surtout que ce soit une landing page ou des pages de plateforme et autres pour le projet de l'utilisateur même si cela contient des sidebar et autres.
 
         --- FULL HTML START ---
         ${fullHTML}
