@@ -1175,88 +1175,93 @@ const parseMessageContent = (content: string) => {
   }
   
 
-  const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
-    setLoading(true)
-    try {
-      addLog(`Running action: ${action}...`)
-      const body: any = { action, sandboxId: sandboxId || undefined }
+  
 
-      if (action === "addFiles") {
-        // 🛑 CORRECTION: Utiliser currentProject.files comme source, car il contient les fichiers clonés
-        const filesToSend = currentProject?.files || [];
-        
-        if (!filesToSend.length || filesToSend.some((f) => !f.filePath)) {
-          // L'erreur est maintenant plus précise car elle vérifie la bonne liste
-          addLog("ERROR: Missing file path for one or more files.")
-          setLoading(false)
-          return
-        }
-        // Envoie les fichiers du projet actif
-        body.files = filesToSend
-      }
+  
+const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
+  setLoading(true)
+  try {
+    addLog(`Running action: ${action}...`)
+    const body: any = { action, sandboxId: sandboxId || undefined }
 
-      const res = await fetch("/api/sandbox", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
+    if (action === "addFiles") {
+      const filesToSend = currentProject?.files || []
 
-      if (data.error) {
-        addLog(`API ERROR: ${data.error}`)
-        if (data.details) addLog(`Details: ${data.details}`)
+      if (!filesToSend.length || filesToSend.some((f) => !f.filePath)) {
+        addLog("ERROR: Missing file path for one or more files.")
         setLoading(false)
         return
       }
-
-      if (data.logs) data.logs.split("\n").forEach((l: string) => addLog(l))
-      if (data.sandboxId) setSandboxId(data.sandboxId)
-      if (data.url) setPreviewUrl(data.url)
-
-      if (data.action === "install" || data.action === "build") {
-        const result: CommandResult = data.result
-        if (result) {
-          addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
-          if (result.stdout) {
-            addLog("--- STDOUT ---")
-            result.stdout.split("\n").forEach((l) => addLog(l))
-            addLog("--------------")
-          }
-          if (result.stderr) {
-            addLog("--- STDERR ---")
-            result.stderr.split("\n").forEach((l) => addLog(l))
-            addLog("--------------")
-          }
-          if (result.error) addLog(`E2B Command Error: ${result.error}`)
-          if (result.exitCode !== 0) addLog(`ERROR: Commande '${data.action}' échouée.`)
-          else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
-        }
-      } else if (data.success && action === "addFiles") {
-        // Utilise la longueur de la liste envoyée pour le log
-        addLog(`${currentProject?.files.length || 0} files written successfully.`)
-        if (currentProject) saveProject()
-      } else if (data.success && action === "create") {
-        addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
-        if (currentProject && currentProject.files.length > 0) {
-          addLog("Writing current project files to the new sandbox...")
-          await runAction("addFiles")
-        }
-      } else if (data.success && action === "start") {
-        addLog(`Serveur démarré. Aperçu: ${data.url}`)
-      } else if (!data.success) {
-        addLog(`ERROR: Action '${action}' échouée.`)
-      }
-    } catch (err: any) {
-      addLog(`CLIENT-SIDE ERROR: ${err.message}`)
-    } finally {
-      setLoading(false)
+      body.files = filesToSend
     }
+
+    const res = await fetch("/api/sandbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+
+    if (data.error) {
+      addLog(`API ERROR: ${data.error}`)
+      if (data.details) addLog(`Details: ${data.details}`)
+      setLoading(false)
+      return
+    }
+
+    if (data.logs) data.logs.split("\n").forEach((l: string) => addLog(l))
+    if (data.sandboxId) setSandboxId(data.sandboxId)
+    if (data.url) setPreviewUrl(data.url)
+
+    if (data.action === "install" || data.action === "build") {
+      const result: CommandResult = data.result
+      if (result) {
+        addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
+        if (result.stdout) {
+          addLog("--- STDOUT ---")
+          result.stdout.split("\n").forEach((l) => addLog(l))
+          addLog("--------------")
         }
-            
-  
+        if (result.stderr) {
+          addLog("--- STDERR ---")
+          result.stderr.split("\n").forEach((l) => addLog(l))
+          addLog("--------------")
 
-  
+          // 🔥 NOUVEAUTÉ : envoyer le stderr à l’IA pour correction
+          const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n${result.stderr}`
+          try {
+            await sendChat(prompt)
+            addLog("🧠 Erreur transmise à l'IA pour correction.")
+          } catch (chatErr: any) {
+            addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
+          }
+        }
 
+        if (result.error) addLog(`E2B Command Error: ${result.error}`)
+        if (result.exitCode !== 0) addLog(`ERROR: Commande '${data.action}' échouée.`)
+        else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
+      }
+    } else if (data.success && action === "addFiles") {
+      addLog(`${currentProject?.files.length || 0} files written successfully.`)
+      if (currentProject) saveProject()
+    } else if (data.success && action === "create") {
+      addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
+      if (currentProject && currentProject.files.length > 0) {
+        addLog("Writing current project files to the new sandbox...")
+        await runAction("addFiles")
+      }
+    } else if (data.success && action === "start") {
+      addLog(`Serveur démarré. Aperçu: ${data.url}`)
+    } else if (!data.success) {
+      addLog(`ERROR: Action '${action}' échouée.`)
+    }
+  } catch (err: any) {
+    addLog(`CLIENT-SIDE ERROR: ${err.message}`)
+  } finally {
+    setLoading(false)
+  }
+      }
+        
 
 
 
