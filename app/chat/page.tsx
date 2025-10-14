@@ -1737,7 +1737,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         
         Ces fichiers représentent la base d’inspiration. 
         L’IA doit les utiliser pour reconstruire la structure complète du site 
-        et placer tous les styles quelle souhaiterais utiliser (ne génère pas tout le css et HTML, jusque 30% de ces fullHTML et fullCSS) copiés dans "app/globals.css".
+        et placer tous les styles quelle souhaiterais utiliser (ne génère pas tout le css et HTML, jusque 45% de ces fullHTML et fullCSS) copiés dans "app/globals.css".
         Elle doit s’inspirer du fullHTML pour recréer les composants React, 
         en important les classes correspondantes depuis globals.css.
 
@@ -1751,6 +1751,8 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
 
 
         génère des fichiers complet et sans donner d'instructions ou explications sur le code que tu as généré. Génère au bon format comme il t'a été instruit dans tes instructions.
+        et surtout ne lance plus une autre InspirationUrl car celle-ci est largement suffisant vu qu'elle ta fourni le fullhtml et fullcss c'est complètement sur eux que tu vas t'appuyer pour générer le site que veux L'utilisateur avec 
+        un ultra design complètement appuyez sur ces fullhtml et fullcss comme je t'ai mentionné de comment les utiliser.
       `;
 
       addLog("[AUTO-FLOW] Sending fullHTML + fullCSS to Gemini for design generation...");
