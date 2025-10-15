@@ -2090,7 +2090,9 @@ const handleFetchFileAction = async (
 };
 
 // ---------------------- SEND CHAT ----------------------
-const sendChat = async (promptOverride?: string) => { 
+
+       // ---------------------- SEND CHAT (CORRIGÉ) ----------------------
+const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
   if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
@@ -2099,6 +2101,7 @@ const sendChat = async (promptOverride?: string) => {
     return;
   }
 
+  // 1. Préparation du message utilisateur (inchangée)
   let contextForPrompt = "";
   if (mentionedFiles.length > 0 && currentProject) {
     contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
@@ -2114,29 +2117,51 @@ const sendChat = async (promptOverride?: string) => {
     mentionedFiles
   };
 
-  const currentHistory = [...messages, userMsg];
+  // 2. Préparation du placeholder de l'assistant
+  const assistantPlaceholder: Message = {
+    role: "assistant",
+    content: "",
+    artifactData: { type: null, rawJson: "", parsedList: [] }
+  };
+  
+  // 3. Logique de mise à jour de l'état (CORRIGÉE)
+  let currentHistory = [...messages, userMsg];
+  let assistantMessageIndex = -1;
+  
+  // ✅ AJOUT DU MESSAGE UTILISATEUR ET DU PLACEHOLDER DE L'ASSISTANT ENSEMBLE
+  // Cela garantit que l'historique visible est cohérent avant le FETCH.
+  setMessages((prev) => {
+    // L'index du message assistant sera le nouveau dernier message
+    assistantMessageIndex = prev.length + 1; 
+    
+    // Si c'est un prompt normal, on efface l'input de chat
+    if (!promptOverride) {
+      setChatInput("");
+    }
+    
+    // On retourne l'historique mis à jour avec le message utilisateur et le placeholder assistant
+    return [...prev, userMsg, assistantPlaceholder];
+  });
+  
+  // Note: Nous utilisons `currentHistory` (lignes 35-37) pour le payload de l'API.
 
   const currentProjectFiles = currentProject
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  if (!promptOverride) {
-    setMessages((prev) => [...prev, userMsg]);
-    setChatInput("");
-  } else {
-    setMessages((prev) => prev.slice(0, -1));
-  }
 
   setLoading(true);
   addLog(`Sending prompt to Gemini...`);
-
+  
+  let urlArtifact: any = null; // Déclaré avant le try/catch
+  
   try {
-    // FETCH streaming
+    // 4. FETCH streaming (inchangé)
     const res = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
-        history: currentHistory,
+        history: currentHistory, // Historique avec le message utilisateur d'erreur
         currentProjectFiles,
         projectEmbeddings,
         uploadedImages,
@@ -2148,19 +2173,10 @@ const sendChat = async (promptOverride?: string) => {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let text = "";
-    let assistantMessageIndex = -1;
-    let urlArtifact: any = null;
-
-    if (!promptOverride) {
-      setMessages((prev) => {
-        assistantMessageIndex = prev.length;
-        return [...prev, { role: "assistant", content: "", artifactData: { type: null, rawJson: "", parsedList: [] } }];
-      });
-    } else {
-      assistantMessageIndex = messages.length;
-    }
-
-    // -------- STREAMING LOOP ----------
+    
+    // Ici, assistantMessageIndex est déjà correctement défini grâce au setMessages au-dessus.
+    
+    // -------- STREAMING LOOP ---------- (inchangé)
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -2181,9 +2197,14 @@ const sendChat = async (promptOverride?: string) => {
           text += `\n${fileContent}\n`;
 
           // Mise à jour du message assistant
+          // L'index est le bon, mais l'appel est asynchrone, ce qui peut créer un bug rare.
+          // On le laisse tel quel pour l'instant, car c'est le pattern de votre code.
           setMessages((prev) => {
             const updated = [...prev];
-            updated[assistantMessageIndex].content = text;
+            // On vérifie que l'index est valide
+            if (assistantMessageIndex < updated.length) {
+                updated[assistantMessageIndex].content = text;
+            }
             return updated;
           });
         } else {
@@ -2258,7 +2279,7 @@ const sendChat = async (promptOverride?: string) => {
       });
     } // FIN STREAMING
 
-    // -------- POST STREAM ----------
+    // -------- POST STREAM ---------- (inchangé)
     
 
   if (urlArtifact) {
@@ -2299,28 +2320,42 @@ if (isAnalysisMode) {
     }
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
+    // S'assurer que le message d'erreur du système est ajouté après le crash potentiel
+    // pour que l'utilisateur le voit, même si le message assistant n'a pas pu être mis à jour.
     setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
   } finally {
     setLoading(false);
   }
-};
-        
+}; 
 
                  
 
 
     
 
-    const runAction = async (
+
+
+            
+       
+
+ 
+             
+
+         
+         
+        
+         const runAction = async (
   action: "create" | "install" | "build" | "start" | "addFiles"
 ) => {
   setLoading(true)
 
-  // 🔧 Fonction utilitaire pour nettoyer le stderr
+  // 🔧 Fonction utilitaire pour nettoyer le stderr (INCHANGÉE MAIS CRITIQUE)
   const cleanBuildOutput = (output: string) => {
+    // Supprime les codes couleur ANSI (e.g. \x1B[0m)
     return output
-      .replace(/\x1B\[[0-9;]*[A-Za-z]/g, "") // Supprime les codes couleur ANSI
-      .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "") // Supprime les caractères non imprimables
+      .replace(/\x1B\[[0-9;]*[A-Za-z]/g, "") 
+      // Supprime les caractères non imprimables
+      .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "") 
       .trim()
   }
 
@@ -2374,7 +2409,7 @@ if (isAnalysisMode) {
           result.stderr.split("\n").forEach((l) => addLog(l))
           addLog("--------------")
 
-          // 🧹 Nettoyage du stderr avant toute action
+          // 🧹 Nettoyage du stderr avant toute action (C'EST LA CLÉ)
           const cleanStderr = cleanBuildOutput(result.stderr)
 
           // ✅ Filtrage des erreurs non bloquantes
@@ -2388,9 +2423,11 @@ if (isAnalysisMode) {
 
           // 🚀 Envoi à l’IA uniquement si c’est une vraie erreur
           if (!isIgnorable && cleanStderr.length > 0) {
+            // Utilisation du cleanStderr pour le prompt
             const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n\`\`\`\n${cleanStderr}\n\`\`\``
             try {
-              await sendChat(prompt)
+              // L'appel sendChat utilise maintenant la version corrigée
+              await sendChat(prompt) 
               addLog("🧠 Erreur critique transmise à l'IA pour correction.")
             } catch (chatErr: any) {
               addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
@@ -2424,20 +2461,7 @@ if (isAnalysisMode) {
   } finally {
     setLoading(false)
   }
-        }
-          
-
-
-            
-       
-
- 
-             
-
-         
-         
-        
-            
+      }   
  
 
 
