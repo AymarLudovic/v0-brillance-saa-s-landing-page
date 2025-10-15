@@ -1488,12 +1488,15 @@ ${file.content}
 
     // 🛑 NOUVEAU: On combine le contexte d'injection avec la demande originale. 
     // Cela force l'IA à considérer TOUT ce bloc comme son dernier message utilisateur.
-    const finalInjectionPrompt = injectionContext;
+    const finalInjectionPrompt = `
+    Le code du site ${urlToAnalyze} a été cloné et écrit dans les fichiers suivants. Vous avez maintenant ce code pour référence dans ce tour de conversation.
+     Lis les fichiers en questions.
+    `;
 
     addLog("[CLONE-FLOW] ✅ Notifying Gemini with full file content...");
     
     // Appel de la fonction sendChat (qui est maintenant stable sans useCallback)
-    await sendChat(escapedHTML) 
+    await sendChat(finalInjectionPrompt) 
   }
           
 
@@ -1650,13 +1653,16 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         - fullHTML (structure complète du site)
         - fullCSS (styles globaux et variables)
         - fullJS (scripts analysés)
+
+        NB: tu dois fidèlement créé faire ce que l'utilisateur t'a demandé de build dans sa requête : ${originalUserPrompt}. En effet, ces fullhtml et fullcss que tu va recevoir si sont des codes pour des landing pages de base. Oui en effet ce sont des codes de landing page.
+            pour donc construire les landing page du projet de l'utilisateur selon sa requête ${originalUserPrompt} . Maus si il s'agit de générer les autres pages un peut plus techniques telsque des pages de dashboard, tu ne dois pas reprendre les codes landing pages. En effet, le seul code que tu 
         
         Ces fichiers représentent la base d’inspiration. 
         L’IA doit les utiliser pour reconstruire la structure complète du site 
         et placer tous les styles quelle souhaiterais utiliser (ne génère pas tout le css et HTML, jusque 45% de ces fullHTML et fullCSS) copiés dans "app/globals.css".
         Elle doit s’inspirer du fullHTML pour recréer les composants React, 
         en important les classes correspondantes depuis globals.css.
-        Le fullhtml doit être aussi pleinement utiliser pour construire les pages des applications du projet de l'utilisateur. surtout que ce soit une landing page ou des pages de plateforme et autres pour le projet de l'utilisateur même si cela contient des sidebar et autres.
+        Le fullhtml doit être aussi pleinement utiliser pour construire les pages des applications du projet de l'utilisateur. surtout que ce soit une landing page ou des pages de plateforme et autres pour le projet de l'utilisateur. tu devras uniquement te basé sur les styles du fullcss, mais ne pas importer le footer ou les navbar que tu builderas qui sont pour la landing page pour des pages comme le dashboard, etc ou tout autres pages techniques. 
 
         --- FULL HTML START ---
         ${fullHTML}
