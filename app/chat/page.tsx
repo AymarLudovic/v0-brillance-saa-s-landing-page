@@ -1178,7 +1178,7 @@ const parseMessageContent = (content: string) => {
   
 
   
-const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
+        const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
   setLoading(true)
   try {
     addLog(`Running action: ${action}...`)
@@ -1217,23 +1217,38 @@ const runAction = async (action: "create" | "install" | "build" | "start" | "add
       const result: CommandResult = data.result
       if (result) {
         addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
+
         if (result.stdout) {
           addLog("--- STDOUT ---")
           result.stdout.split("\n").forEach((l) => addLog(l))
           addLog("--------------")
         }
+
         if (result.stderr) {
           addLog("--- STDERR ---")
           result.stderr.split("\n").forEach((l) => addLog(l))
           addLog("--------------")
 
-          // 🔥 NOUVEAUTÉ : envoyer le stderr à l’IA pour correction
-          const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n${result.stderr}`
-          try {
-            await sendChat(prompt)
-            addLog("🧠 Erreur transmise à l'IA pour correction.")
-          } catch (chatErr: any) {
-            addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
+          // ✅ Analyse du stderr pour filtrer les warnings bénins
+          const lowerErr = result.stderr.toLowerCase()
+          const isIgnorable =
+            lowerErr.includes("npm warn") ||
+            lowerErr.includes("npm notice") ||
+            lowerErr.includes("deprecated") ||
+            lowerErr.includes("audit") ||
+            lowerErr.includes("funding")
+
+          // ✅ Envoi à l’IA uniquement si c’est une erreur critique
+          if (!isIgnorable) {
+            const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n${result.stderr}`
+            try {
+              await sendChat(prompt)
+              addLog("🧠 Erreur critique transmise à l'IA pour correction.")
+            } catch (chatErr: any) {
+              addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
+            }
+          } else {
+            addLog("ℹ️ Avertissement ignoré (non bloquant).")
           }
         }
 
@@ -1260,8 +1275,8 @@ const runAction = async (action: "create" | "install" | "build" | "start" | "add
   } finally {
     setLoading(false)
   }
-      }
-        
+  }
+    
 
 
 
