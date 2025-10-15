@@ -1175,94 +1175,6 @@ const parseMessageContent = (content: string) => {
   }
   
 
-  
-
-  
-const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
-  setLoading(true)
-  try {
-    addLog(`Running action: ${action}...`)
-    const body: any = { action, sandboxId: sandboxId || undefined }
-
-    if (action === "addFiles") {
-      const filesToSend = currentProject?.files || []
-
-      if (!filesToSend.length || filesToSend.some((f) => !f.filePath)) {
-        addLog("ERROR: Missing file path for one or more files.")
-        setLoading(false)
-        return
-      }
-      body.files = filesToSend
-    }
-
-    const res = await fetch("/api/sandbox", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json()
-
-    if (data.error) {
-      addLog(`API ERROR: ${data.error}`)
-      if (data.details) addLog(`Details: ${data.details}`)
-      setLoading(false)
-      return
-    }
-
-    if (data.logs) data.logs.split("\n").forEach((l: string) => addLog(l))
-    if (data.sandboxId) setSandboxId(data.sandboxId)
-    if (data.url) setPreviewUrl(data.url)
-
-    if (data.action === "install" || data.action === "build") {
-      const result: CommandResult = data.result
-      if (result) {
-        addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
-        if (result.stdout) {
-          addLog("--- STDOUT ---")
-          result.stdout.split("\n").forEach((l) => addLog(l))
-          addLog("--------------")
-        }
-        if (result.stderr) {
-          addLog("--- STDERR ---")
-          result.stderr.split("\n").forEach((l) => addLog(l))
-          addLog("--------------")
-
-          // 🔥 NOUVEAUTÉ : envoyer le stderr à l’IA pour correction
-          const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n${result.stderr} . Attention pour si l'erreur dans l'action est du type \npm notice\` ou \`npm warn\` ne fait aucune correction et répond seulement simplement à l'utilisateur. Surtout en cas d'erreur quelque soit l'action, ne relance pas d'inspirationUrl mais juste lis le fichier qui fait l'erreur et corrige de la meilleure des manières.`
-          try {
-            await sendChat(prompt)
-            addLog("🧠 Erreur transmise à l'IA pour correction.")
-          } catch (chatErr: any) {
-            addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
-          }
-        }
-
-        if (result.error) addLog(`E2B Command Error: ${result.error}`)
-        if (result.exitCode !== 0) addLog(`ERROR: Commande '${data.action}' échouée.`)
-        else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
-      }
-    } else if (data.success && action === "addFiles") {
-      addLog(`${currentProject?.files.length || 0} files written successfully.`)
-      if (currentProject) saveProject()
-    } else if (data.success && action === "create") {
-      addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
-      if (currentProject && currentProject.files.length > 0) {
-        addLog("Writing current project files to the new sandbox...")
-        await runAction("addFiles")
-      }
-    } else if (data.success && action === "start") {
-      addLog(`Serveur démarré. Aperçu: ${data.url}`)
-    } else if (!data.success) {
-      addLog(`ERROR: Action '${action}' échouée.`)
-    }
-  } catch (err: any) {
-    addLog(`CLIENT-SIDE ERROR: ${err.message}`)
-  } finally {
-    setLoading(false)
-  }
-      }
-    
-
 
 
 
@@ -2407,7 +2319,117 @@ if (isAnalysisMode) {
 
  
              
-            
+            const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
+  setLoading(true)
+  try {
+    addLog(`Running action: ${action}...`)
+    const body: any = { action, sandboxId: sandboxId || undefined }
+
+    if (action === "addFiles") {
+      const filesToSend = currentProject?.files || []
+
+      if (!filesToSend.length || filesToSend.some((f) => !f.filePath)) {
+        addLog("ERROR: Missing file path for one or more files.")
+        setLoading(false)
+        return
+      }
+      body.files = filesToSend
+    }
+
+    const res = await fetch("/api/sandbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+
+    if (data.error) {
+      addLog(`API ERROR: ${data.error}`)
+      if (data.details) addLog(`Details: ${data.details}`)
+      setLoading(false)
+      return
+    }
+
+    if (data.logs) data.logs.split("\n").forEach((l: string) => addLog(l))
+    if (data.sandboxId) setSandboxId(data.sandboxId)
+    if (data.url) setPreviewUrl(data.url)
+
+    if (data.action === "install" || data.action === "build") {
+      const result: CommandResult = data.result
+      if (result) {
+        addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
+        
+        // --- LOG STDOUT ---
+        if (result.stdout) {
+          addLog("--- STDOUT ---")
+          result.stdout.split("\n").forEach((l) => addLog(l))
+          addLog("--------------")
+        }
+
+        // --- LOG STDERR ---
+        if (result.stderr) {
+          addLog("--- STDERR ---")
+          result.stderr.split("\n").forEach((l) => addLog(l))
+          addLog("--------------")
+
+          // 🧠 Nouveau comportement : 
+          // n'envoyer le stderr à l'IA que si l'action est un "build"
+          // (pour éviter les npm WARN / NOTICE de install)
+          if (data.action === "build") {
+            const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Peux-tu analyser et corriger cette erreur de build ?\n\n${result.stderr}`
+            try {
+              await sendChat(prompt)
+              addLog("🧠 Erreur de build transmise à l'IA pour correction.")
+            } catch (chatErr: any) {
+              addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
+            }
+          } else {
+            // Filtrage pour install
+            const lower = result.stderr.toLowerCase()
+            const ignorable =
+              lower.includes("npm warn") ||
+              lower.includes("npm notice") ||
+              lower.includes("deprecated") ||
+              lower.includes("audit") ||
+              lower.includes("funding")
+
+            if (!ignorable) {
+              addLog("⚠️ Erreur d’installation détectée, mais non envoyée à l’IA (stderr standard).")
+            } else {
+              addLog("ℹ️ Avertissements npm ignorés (non bloquants).")
+            }
+          }
+        }
+
+        if (result.error) addLog(`E2B Command Error: ${result.error}`)
+        if (result.exitCode !== 0) addLog(`ERROR: Commande '${data.action}' échouée.`)
+        else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
+      }
+    } 
+    else if (data.success && action === "addFiles") {
+      addLog(`${currentProject?.files.length || 0} files written successfully.`)
+      if (currentProject) saveProject()
+    } 
+    else if (data.success && action === "create") {
+      addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
+      if (currentProject && currentProject.files.length > 0) {
+        addLog("Writing current project files to the new sandbox...")
+        await runAction("addFiles")
+      }
+    } 
+    else if (data.success && action === "start") {
+      addLog(`Serveur démarré. Aperçu: ${data.url}`)
+    } 
+    else if (!data.success) {
+      addLog(`ERROR: Action '${action}' échouée.`)
+    }
+  } catch (err: any) {
+    addLog(`CLIENT-SIDE ERROR: ${err.message}`)
+  } finally {
+    setLoading(false)
+  }
+      }
+
          
          
         
