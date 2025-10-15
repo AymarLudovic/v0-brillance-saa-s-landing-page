@@ -2779,8 +2779,9 @@ useEffect(() => {
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
 
         
-          
-           {messages.map((msg, index) => {
+
+              
+             {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   
   return (
@@ -2814,27 +2815,27 @@ useEffect(() => {
       >
         {(() => {
           
-          const rawTextContent = msg.content; // Le contenu brut du stream (y compris '---' et le code)
+          const rawTextContent = msg.content; // Le contenu brut du stream (y compris les balises d'artefact)
           const isFileArtifact = artifact && (artifact.type === 'files');
           const isUrlArtifact = artifact && (artifact.type === 'url');
           const displayElements = [];
           
-          // 🛑 1. LOGIQUE DE COUPE ET DE NETTOYAGE DANS LE RENDU 🛑
+          // 🛑 1. LOGIQUE DE NETTOYAGE DU CONTENU TEXTUEL (CORRIGÉE) 🛑
           
-          let finalContentToDisplay = rawTextContent;
-          let codeMarkerIndex = finalContentToDisplay.indexOf('---'); // Détection du marqueur
-          
-          // Si le marqueur est trouvé, on coupe immédiatement l'affichage du texte (masquage)
-          if (codeMarkerIndex !== -1) {
-              // Couper le texte juste avant le marqueur.
-              finalContentToDisplay = finalContentToDisplay.substring(0, codeMarkerIndex).trim();
-          }
-
-          // Nettoyage final pour s'assurer que les fragments non désirés sont retirés de l'affichage
-          finalContentToDisplay = finalContentToDisplay
-              .replace(/```json[\s\S]*?```/g, '')
-              .replace(/<[^>]*>/g, '') 
+          // Regex pour cibler toutes les balises d'artefact et leur contenu, y compris les sauts de ligne.
+          // Le drapeau 's' (. ) permet au point de correspondre aux sauts de ligne.
+          let finalContentToDisplay = rawTextContent
+              // 1. Supprime les balises <create_file>...</create_file> et <file_changes>...</file_changes> et leur contenu
+              .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+              .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+              // 2. Supprime l'artefact URL JSON
+              .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
+              // 3. Supprime les marqueurs de début/fin de contenu des actions (e.g., FETCH_FILE)
+              .replace(/---[\s\S]*?---/g, '')
               .trim();
+          
+          // L'ancienne logique .replace(/<[^>]*>/g, '') a été retirée pour éviter de supprimer
+          // des balises HTML légitimes ou des fragments de code incomplets.
           
           const hasTextContent = finalContentToDisplay.length > 0;
           
@@ -2852,12 +2853,8 @@ useEffect(() => {
               
               const totalPaths = artifact.parsedList.length;
 
-              // Progression basée sur la longueur du contenu BRUT (msg.content)
-              const progressUnit = 100; 
-              const progressCount = Math.min(
-                  totalPaths, 
-                  Math.floor(msg.content.length / progressUnit) + 1 
-              );
+              // On base la logique d'affichage sur le nombre d'artefacts parsés
+              const pathsToDisplay = artifact.parsedList.length;
               
               const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
 
@@ -2867,9 +2864,8 @@ useEffect(() => {
                           Building code
                       </p>
                       <ul className="list-disc pl-5 w-[100%] space-y-1">
-                          {/* Rendu progressif des chemins de fichiers */}
+                          {/* Rendu des chemins de fichiers basés sur les artefacts COMPLETS parsés */}
                           {artifact.parsedList
-                              .slice(0, progressCount) 
                               .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
                               <li key={i} className="text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80">
                                 <span>
@@ -2880,19 +2876,20 @@ useEffect(() => {
                                 
                               </li>
                           ))}
-                          {/* Indication qu'il reste du contenu à streamer */}
-                          {/* Ceci utilise rawTextContent, qui contient encore le code */}
-                          {rawTextContent.includes('<') && !rawTextContent.endsWith('</create_file>') && !rawTextContent.endsWith('</file_changes>') && (
+                          {/* Indication qu'il reste du contenu à streamer (basé sur la présence de balises d'ouverture sans balises de fermeture) */}
+                          {rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>') ||
+                           rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>')
+                          ? (
                                <li className="text-xs text-[#37322F]/60 italic">
-                                 Building... ({progressCount} chemins trouvés)
+                                 Building... ({pathsToDisplay} chemins trouvés)
                                </li>
-                          )}
+                          ) : null}
                       </ul>
                   </div>
               );
           }
 
-          // 4. AFFICHAGE DE L'ARTEFACT URL
+          // 4. AFFICHAGE DE L'ARTEFACT URL (inchangé)
           if (isUrlArtifact) {
               const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
               displayElements.push(
@@ -2906,6 +2903,7 @@ useEffect(() => {
           }
           
           // Si rien n'a été affiché, on affiche le contenu brut (cas d'erreur ou message sans artefat)
+          // Ceci affiche également les messages système et les erreurs non traitées
           return displayElements.length > 0 
                  ? displayElements 
                  : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>;
@@ -2951,13 +2949,9 @@ useEffect(() => {
               ))}
           </div>
       )}
-      
-    </div>
+      </div>
   );
 })}
-
-              
-
                                   
 
       
