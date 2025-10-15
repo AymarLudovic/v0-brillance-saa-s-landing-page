@@ -1665,7 +1665,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         Le fullhtml doit être aussi pleinement utiliser pour construire les pages des applications du projet de l'utilisateur. surtout que ce soit une landing page ou des pages de plateforme et autres pour le projet de l'utilisateur. tu devras uniquement te basé sur les styles du fullcss, mais ne pas importer le footer ou les navbar que tu builderas qui sont pour la landing page pour des pages comme le dashboard, etc ou tout autres pages techniques. 
 
         --- FULL HTML START ---
-        ${fullHTML}
+        Je ne t'envoie pas le fullhtml car tu dois être créatif, et bien comprendre la requête de l'utilisateur et construire ce qu'il te demande. Je t'ai juste envoyé le fullcss pour que tu comprends sur qu'elles styles CSS ton jsx/html va devoir s'appuyer. Mais, tu vas devoir ajouter à ces styles tes propres styles pour build tes propres composant ( du style sidebar, nav, etc...) tout rn suivant la même façon que les ${fullCSS}
         --- FULL HTML END ---
 
         --- FULL CSS START ---
