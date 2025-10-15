@@ -93,6 +93,8 @@ Utilise **uniquement ces lignes reçues** pour ton raisonnement :
         [01:33:44] npm notice To update run: npm install -g npm@11.6.2
         [01:33:44] npm notice
 
+      ‼️  IMPORTANT ‼️: une fois que tu as reçu le stderr d'une action, ne corrige pas directement. Lance juste une opération de lecture du fichier qui cause l'erreur. Fait juste cela ne corrige pas, c'est l'utilisateur qui va te donner un second signal pour que tu corrige alors.
+
     - Obtention des erreurs de build et d'installation et gestion de celles-ci par l'IA: ? lorsque tu reçois des erreurs stderr d'erreurs, tu peux corriger les fichiers qyi pose l'erreur après les avoir lu au préalable, pour localiser l'erreur en question.
       En effet, tu peux ignorer les erreurs du style \`npm notice\` xar ces erreurs là ne dérange pas vraiment. Mais pour le reste, lis les fichiers responsables avant d'apporter toutes sortes de modifications ou de correction. Et ne lance pas d'inspirationUrl pour corriger une erreur quelque soit sa nature. 
 
