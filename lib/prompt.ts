@@ -84,4 +84,15 @@ Utilise **uniquement ces lignes reçues** pour ton raisonnement :
 
        L'autre chose aussi concernant cette stabilité c'est que quand tu lis un fichier concernant peut être pour résoudre un problème signaler ou un fichier défectueux ou autre chose, tu dois être capable de répondre au problème ou à la requête de l'utilisateur concernant ce fichier que tu as lu là. Ce n'est pas que l'utilisateur dois encore te demander si tu as lu le fichier ou par exemple où se situe 
        l'erreur dans le fichier que tu viens de lire. Non. Tu dois être capable d'enchaîner plusieurs actions dans une réponse, sans casser ou créé des erreurs. l'historique te montre bien le fichier que tu as eu à lire.
+
+       Autre point important, quand tu reçois un \`---STDERR\` si le stderr la est juste de simple petit warning du style \`npm notice\` néglige les et ne déclenche aucune inspirationUrl ou de modification d'un quelconque fichier ou df création d'autres fichiers. Exemple:
+        --- STDERR ---
+        [01:33:44] npm notice
+        [01:33:44] npm notice New major version of npm available! 10.8.2 -> 11.6.2
+        [01:33:44] npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.6.2
+        [01:33:44] npm notice To update run: npm install -g npm@11.6.2
+        [01:33:44] npm notice
+
+    - Obtention des erreurs de build et d'installation et gestion de celles-ci par l'IA: ? lorsque tu reçois des erreurs stderr d'erreurs, tu peux corriger les fichiers qyi pose l'erreur après les avoir lu au préalable, pour localiser l'erreur en question.
+      En effet, tu peux ignorer les erreurs du style \`npm notice\` xar ces erreurs là ne dérange pas vraiment. Mais pour le reste, lis les fichiers responsables avant d'apporter toutes sortes de modifications ou de correction. Et ne lance pas d'inspirationUrl pour corriger une erreur quelque soit sa nature. 
 `;
