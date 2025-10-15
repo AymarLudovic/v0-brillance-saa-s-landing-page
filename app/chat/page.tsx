@@ -2311,16 +2311,19 @@ if (isAnalysisMode) {
 
     
 
-                                    
-
-
-            
-       
-
- 
-             
-            const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
+    const runAction = async (
+  action: "create" | "install" | "build" | "start" | "addFiles"
+) => {
   setLoading(true)
+
+  // 🔧 Fonction utilitaire pour nettoyer le stderr
+  const cleanBuildOutput = (output: string) => {
+    return output
+      .replace(/\x1B\[[0-9;]*[A-Za-z]/g, "") // Supprime les codes couleur ANSI
+      .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "") // Supprime les caractères non imprimables
+      .trim()
+  }
+
   try {
     addLog(`Running action: ${action}...`)
     const body: any = { action, sandboxId: sandboxId || undefined }
@@ -2354,73 +2357,66 @@ if (isAnalysisMode) {
     if (data.sandboxId) setSandboxId(data.sandboxId)
     if (data.url) setPreviewUrl(data.url)
 
+    // 🧠 Traitement des commandes build/install
     if (data.action === "install" || data.action === "build") {
       const result: CommandResult = data.result
       if (result) {
         addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
-        
-        // --- LOG STDOUT ---
+
         if (result.stdout) {
           addLog("--- STDOUT ---")
           result.stdout.split("\n").forEach((l) => addLog(l))
           addLog("--------------")
         }
 
-        // --- LOG STDERR ---
         if (result.stderr) {
           addLog("--- STDERR ---")
           result.stderr.split("\n").forEach((l) => addLog(l))
           addLog("--------------")
 
-          // 🧠 Nouveau comportement : 
-          // n'envoyer le stderr à l'IA que si l'action est un "build"
-          // (pour éviter les npm WARN / NOTICE de install)
-          if (data.action === "build") {
-            const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Peux-tu analyser et corriger cette erreur de build ?\n\n${result.stderr}`
+          // 🧹 Nettoyage du stderr avant toute action
+          const cleanStderr = cleanBuildOutput(result.stderr)
+
+          // ✅ Filtrage des erreurs non bloquantes
+          const lowerErr = cleanStderr.toLowerCase()
+          const isIgnorable =
+            lowerErr.includes("npm warn") ||
+            lowerErr.includes("npm notice") ||
+            lowerErr.includes("deprecated") ||
+            lowerErr.includes("audit") ||
+            lowerErr.includes("funding")
+
+          // 🚀 Envoi à l’IA uniquement si c’est une vraie erreur
+          if (!isIgnorable && cleanStderr.length > 0) {
+            const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n\`\`\`\n${cleanStderr}\n\`\`\``
             try {
               await sendChat(prompt)
-              addLog("🧠 Erreur de build transmise à l'IA pour correction.")
+              addLog("🧠 Erreur critique transmise à l'IA pour correction.")
             } catch (chatErr: any) {
               addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
             }
           } else {
-            // Filtrage pour install
-            const lower = result.stderr.toLowerCase()
-            const ignorable =
-              lower.includes("npm warn") ||
-              lower.includes("npm notice") ||
-              lower.includes("deprecated") ||
-              lower.includes("audit") ||
-              lower.includes("funding")
-
-            if (!ignorable) {
-              addLog("⚠️ Erreur d’installation détectée, mais non envoyée à l’IA (stderr standard).")
-            } else {
-              addLog("ℹ️ Avertissements npm ignorés (non bloquants).")
-            }
+            addLog("ℹ️ Avertissement ignoré (non bloquant).")
           }
         }
 
         if (result.error) addLog(`E2B Command Error: ${result.error}`)
-        if (result.exitCode !== 0) addLog(`ERROR: Commande '${data.action}' échouée.`)
+        if (result.exitCode !== 0)
+          addLog(`ERROR: Commande '${data.action}' échouée.`)
         else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
       }
-    } 
-    else if (data.success && action === "addFiles") {
+    } else if (data.success && action === "addFiles") {
       addLog(`${currentProject?.files.length || 0} files written successfully.`)
       if (currentProject) saveProject()
-    } 
-    else if (data.success && action === "create") {
+    } else if (data.success && action === "create") {
       addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
       if (currentProject && currentProject.files.length > 0) {
         addLog("Writing current project files to the new sandbox...")
         await runAction("addFiles")
       }
-    } 
-    else if (data.success && action === "start") {
+    } else if (data.success && action === "start") {
       addLog(`Serveur démarré. Aperçu: ${data.url}`)
-    } 
-    else if (!data.success) {
+    } else if (!data.success) {
       addLog(`ERROR: Action '${action}' échouée.`)
     }
   } catch (err: any) {
@@ -2428,7 +2424,15 @@ if (isAnalysisMode) {
   } finally {
     setLoading(false)
   }
-      }
+        }
+          
+
+
+            
+       
+
+ 
+             
 
          
          
