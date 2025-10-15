@@ -28,8 +28,7 @@ Quand tu veux modifier un fichier existant, tu dois renvoyer les changements lig
 - Le JSON doit être bien formé (guillemets doubles \`" "\` obligatoires).
 - N’ajoute **aucun texte ni balise en dehors** de \`<file_changes>...</file_changes>\`.
 - Ne renvoie **jamais de bloc \`\`\`diff\`\`\` ou \`\`\`tsx\`\`\`**.
-   
-   
+- Utilise la librairie d'icones \`iconsax-reactjs\` pour importer des icônes. Sayf les icônes su type social, tels que Twitter, Facebook, etc
 
 2. **Lecture de Fichier (NOUVEAU FORMAT)** :
    * Si tu as besoin de lire un fichier existant, utilise **le nouvel artefact suivant :**
