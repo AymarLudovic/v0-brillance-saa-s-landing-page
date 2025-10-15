@@ -1176,9 +1176,7 @@ const parseMessageContent = (content: string) => {
   
 
   
-
-  
-        const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
+const runAction = async (action: "create" | "install" | "build" | "start" | "addFiles") => {
   setLoading(true)
   try {
     addLog(`Running action: ${action}...`)
@@ -1217,38 +1215,46 @@ const parseMessageContent = (content: string) => {
       const result: CommandResult = data.result
       if (result) {
         addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
-
+        
+        // --- LOG STDOUT ---
         if (result.stdout) {
           addLog("--- STDOUT ---")
           result.stdout.split("\n").forEach((l) => addLog(l))
           addLog("--------------")
         }
 
+        // --- LOG STDERR ---
         if (result.stderr) {
           addLog("--- STDERR ---")
           result.stderr.split("\n").forEach((l) => addLog(l))
           addLog("--------------")
 
-          // ✅ Analyse du stderr pour filtrer les warnings bénins
-          const lowerErr = result.stderr.toLowerCase()
-          const isIgnorable =
-            lowerErr.includes("npm warn") ||
-            lowerErr.includes("npm notice") ||
-            lowerErr.includes("deprecated") ||
-            lowerErr.includes("audit") ||
-            lowerErr.includes("funding")
-
-          // ✅ Envoi à l’IA uniquement si c’est une erreur critique
-          if (!isIgnorable) {
-            const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n${result.stderr}`
+          // 🧠 Nouveau comportement : 
+          // n'envoyer le stderr à l'IA que si l'action est un "build"
+          // (pour éviter les npm WARN / NOTICE de install)
+          if (data.action === "build") {
+            const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Peux-tu analyser et corriger cette erreur de build ?\n\n${result.stderr}`
             try {
               await sendChat(prompt)
-              addLog("🧠 Erreur critique transmise à l'IA pour correction.")
+              addLog("🧠 Erreur de build transmise à l'IA pour correction.")
             } catch (chatErr: any) {
               addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
             }
           } else {
-            addLog("ℹ️ Avertissement ignoré (non bloquant).")
+            // Filtrage pour install
+            const lower = result.stderr.toLowerCase()
+            const ignorable =
+              lower.includes("npm warn") ||
+              lower.includes("npm notice") ||
+              lower.includes("deprecated") ||
+              lower.includes("audit") ||
+              lower.includes("funding")
+
+            if (!ignorable) {
+              addLog("⚠️ Erreur d’installation détectée, mais non envoyée à l’IA (stderr standard).")
+            } else {
+              addLog("ℹ️ Avertissements npm ignorés (non bloquants).")
+            }
           }
         }
 
@@ -1256,18 +1262,22 @@ const parseMessageContent = (content: string) => {
         if (result.exitCode !== 0) addLog(`ERROR: Commande '${data.action}' échouée.`)
         else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
       }
-    } else if (data.success && action === "addFiles") {
+    } 
+    else if (data.success && action === "addFiles") {
       addLog(`${currentProject?.files.length || 0} files written successfully.`)
       if (currentProject) saveProject()
-    } else if (data.success && action === "create") {
+    } 
+    else if (data.success && action === "create") {
       addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
       if (currentProject && currentProject.files.length > 0) {
         addLog("Writing current project files to the new sandbox...")
         await runAction("addFiles")
       }
-    } else if (data.success && action === "start") {
+    } 
+    else if (data.success && action === "start") {
       addLog(`Serveur démarré. Aperçu: ${data.url}`)
-    } else if (!data.success) {
+    } 
+    else if (!data.success) {
       addLog(`ERROR: Action '${action}' échouée.`)
     }
   } catch (err: any) {
@@ -1275,8 +1285,8 @@ const parseMessageContent = (content: string) => {
   } finally {
     setLoading(false)
   }
-  }
-    
+}
+  
 
 
 
