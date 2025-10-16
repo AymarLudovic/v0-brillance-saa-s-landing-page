@@ -860,6 +860,8 @@ export default function SandboxPage() {
 const [isCloning, setIsCloning] = useState(false)
 const [cloneUrl, setCloneUrl] = useState("")
 // Assurez-vous d'importer les icônes nécessaires de Lucide React
+  // Dans votre composant principal (e.g., SandboxPage)
+const [copiedFileIndex, setCopiedFileIndex] = useState(null);
 
 
 // ... et d'ajouter ces états dans votre composant principal (e.g., SandboxPage)
@@ -2482,6 +2484,63 @@ if (isAnalysisMode) {
         
   const copyLogs = () => navigator.clipboard.writeText(logs.join("\n"))
 
+
+  // Fonction pour copier le contenu du fichier actif
+const handleCopyFileContent = () => {
+    if (!currentProject || activeFile === null) return;
+
+    const fileContent = currentProject.files[activeFile]?.content || "";
+
+    if (fileContent) {
+        navigator.clipboard.writeText(fileContent)
+            .then(() => {
+                setCopiedFileIndex(activeFile); // Active l'icône Check
+                setTimeout(() => setCopiedFileIndex(null), 2000); // Réinitialise après 2s
+            })
+            .catch(err => {
+                console.error("Erreur de copie:", err);
+            });
+    }
+};
+
+
+  // Fonction pour télécharger le fichier actif
+const handleDownloadFile = () => {
+    if (!currentProject || activeFile === null) return;
+
+    const file = currentProject.files[activeFile];
+    if (!file || !file.filePath) return;
+
+    const fileContent = file.content || "";
+    const fileName = file.filePath.split('/').pop() || 'download.txt'; // Utilise le nom de fichier
+
+    try {
+        // 1. Crée un Blob à partir du contenu
+        const blob = new Blob([fileContent], { type: 'text/plain' });
+        
+        // 2. Crée un lien de téléchargement temporaire
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName; // Nom du fichier lors du téléchargement
+
+        // 3. Déclenche le téléchargement
+        document.body.appendChild(link);
+        link.click();
+        
+        // 4. Nettoyage
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // Ajoutez un log ou une notification de succès ici si nécessaire
+        // addLog(`File downloaded: ${fileName}`); 
+        
+    } catch (e) {
+        console.error("Erreur lors du téléchargement du fichier:", e);
+        // addLog("ERROR: Failed to download file.");
+    }
+};
+
   const handleNavigate = () => {
     if (iframeRef.current && previewUrl) {
       const targetUrl = new URL(previewUrl)
@@ -3629,11 +3688,44 @@ useEffect(() => {
                 {/* 🆕 1. LE BREADCRUMB HEADER (Header de l'éditeur) */}
                 <div className="h-10 flex items-center px-4 border-b border-[rgba(55,50,47,0.12)] bg-[#FFFAF0] flex-shrink-0">
                   {/* Affiche le chemin complet du fichier actif */}
-                  {currentProject && files.length > 0 && activeFile !== null && (
-                    <FileBreadcrumb 
-                      filePath={files[activeFile]?.filePath || ""} 
-                    />
-                  )}
+                  // Remplacer l'ancienne structure par celle-ci
+
+<div className="flex items-center justify-between p-2 border-b border-[rgba(55,50,47,0.1)] h-10">
+    <div className="flex items-center gap-2"> {/* Conteneur pour le Breadcrumb */}
+        {currentProject && files.length > 0 && activeFile !== null && (
+            <FileBreadcrumb 
+                filePath={files[activeFile]?.filePath || ""} 
+            />
+        )}
+    </div>
+
+    {/* NOUVEAU: Conteneur des Boutons d'Action (uniquement si un fichier est ouvert) */}
+    {currentProject && activeFile !== null && (
+        <div className="flex items-center gap-2">
+            {/* Bouton Copier */}
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleCopyFileContent}
+                className={`h-8 w-8 ${copiedFileIndex === activeFile ? "text-green-600" : "text-[#37322F]"}`}
+                title="Copier le contenu du fichier"
+            >
+                {copiedFileIndex === activeFile ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </Button>
+
+            {/* Bouton Télécharger */}
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleDownloadFile}
+                className="h-8 w-auto p-1 rounded-[10px] text-[#fff]"
+                title="Télécharger le fichier"
+            >
+                Download 
+            </Button>
+        </div>
+    )}
+</div>
                 </div>
 
                 {/* 2. L'ÉDITEUR MONACO */}
