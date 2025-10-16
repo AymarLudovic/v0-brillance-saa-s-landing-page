@@ -47,7 +47,8 @@ import {
   Sidebar,
   ChevronRight,
   Monitor,
-  Check
+  Check,
+  Download
 } from "lucide-react"
 
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
@@ -3688,7 +3689,7 @@ useEffect(() => {
                 {/* 🆕 1. LE BREADCRUMB HEADER (Header de l'éditeur) */}
                 <div className="h-10 flex items-center px-4 border-b border-[rgba(55,50,47,0.12)] bg-[#FFFAF0] flex-shrink-0">
                   {/* Affiche le chemin complet du fichier actif */}
-                  // Remplacer l'ancienne structure par celle-ci
+                  
 
 <div className="flex items-center justify-between p-2 border-b border-[rgba(55,50,47,0.1)] h-10">
     <div className="flex items-center gap-2"> {/* Conteneur pour le Breadcrumb */}
@@ -3707,7 +3708,7 @@ useEffect(() => {
                 variant="ghost" 
                 size="icon" 
                 onClick={handleCopyFileContent}
-                className={`h-8 w-8 ${copiedFileIndex === activeFile ? "text-green-600" : "text-[#37322F]"}`}
+                className={`h-8 w-8 ${copiedFileIndex === activeFile ? "text-black" : "text-black"}`}
                 title="Copier le contenu du fichier"
             >
                 {copiedFileIndex === activeFile ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -3721,7 +3722,7 @@ useEffect(() => {
                 className="h-8 w-auto p-1 rounded-[10px] text-[#fff]"
                 title="Télécharger le fichier"
             >
-                Download 
+                <Download />
             </Button>
         </div>
     )}
