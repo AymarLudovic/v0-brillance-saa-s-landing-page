@@ -1,165 +1,88 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { Buffer } from "buffer" // Assurez-vous d'avoir node:buffer ou un polyfill si vous n'êtes pas dans un environnement Node strict
+import { NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    // 1. Extraction des données de la requête
-    const { files, projectName, token, sandboxId } = await request.json()
+    const { projectName, token, sandboxId } = await request.json();
 
-    console.log("[v0] Starting Vercel deployment for project:", projectName)
-    console.log("[v0] Sandbox ID:", sandboxId)
+    if (!projectName || !token || !sandboxId) {
+      return NextResponse.json(
+        { success: false, error: "Paramètres manquants (projectName, token, ou sandboxId)" },
+        { status: 400 }
+      );
+    }
 
-    let deployFiles = files
+    // 1. Récupérer les fichiers du sandbox via la route /api/sandbox
+    console.log("[Vercel Deploy] Récupération des fichiers depuis le sandbox:", sandboxId);
     
-    // 2. Logique d'extraction des fichiers si non fournis (via l'API sandbox existante)
-    if (sandboxId && (!files || Object.keys(files).length === 0)) {
-      console.log("[v0] No files provided, extracting and processing from sandbox:", sandboxId)
+    const extractResponse = await fetch(`${request.nextUrl.origin}/api/sandbox`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "getFiles", // 🟢 APPEL DE LA NOUVELLE ACTION CORRIGÉE
+        sandboxId: sandboxId,
+      }),
+    });
 
-      // NOTE: Assurez-vous que votre route /api/sandbox existe et traite les fichiers correctement
-      const extractResponse = await fetch(`${request.nextUrl.origin}/api/sandbox`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "processFiles",
-          sandboxId: sandboxId,
-        }),
-      })
+    const extractData: { success: boolean; error?: string; files?: Record<string, string> } = await extractResponse.json();
 
-      const extractData = await extractResponse.json()
-
-      if (!extractData.success) {
-        throw new Error(`Failed to process files from sandbox: ${extractData.error}`)
-      }
-
-      deployFiles = extractData.files
-      console.log("[v0] Processed", extractData.fileCount, "files from sandbox")
+    if (!extractData.success || !extractData.files) {
+      const errorMsg = extractData.error || "Réponse non réussie ou fichiers manquants de /api/sandbox";
+      console.error("[Vercel Deploy] Échec de la récupération des fichiers:", errorMsg);
+      return NextResponse.json(
+        { success: false, error: `Failed to process files from sandbox: ${errorMsg}` },
+        { status: 500 }
+      );
     }
 
-    console.log("[v0] Files to deploy:", Object.keys(deployFiles || {}))
+    const files = extractData.files;
 
-    // 3. Vérifications préliminaires
-    if (!deployFiles || Object.keys(deployFiles).length === 0) {
-      throw new Error("No files available for deployment")
-    }
+    // 2. Créer le déploiement Vercel (API Vercel)
+    const deploymentPayload = {
+      name: projectName,
+      gitSource: {
+        type: "github",
+        repo: "user-provided-code", 
+      },
+      files: Object.entries(files).map(([filePath, content]) => ({
+        file: filePath,
+        data: content,
+      })),
+    };
 
-    if (!token) {
-      throw new Error("Vercel access token is required")
-    }
-
-    const requiredFiles = ["package.json"]
-    const missingFiles = requiredFiles.filter((file) => !deployFiles[file])
-    if (missingFiles.length > 0) {
-      console.warn("[v0] Missing required files:", missingFiles)
-    }
-    
-    // 4. Lancement du déploiement Vercel
-    const deploymentResponse = await fetch("https://api.vercel.com/v13/deployments", {
+    const vercelResponse = await fetch("https://api.vercel.com/v13/deployments", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        name: projectName,
-        files: Object.entries(deployFiles).map(([path, fileData]) => {
-          let fileContent: string
+      body: JSON.stringify(deploymentPayload),
+    });
 
-          if (typeof fileData === "object" && fileData !== null && "content" in fileData) {
-            const processedFile = fileData as { content: string; encoding: string }
-            // Utilise le contenu brut directement, en décodant le base64 si nécessaire
-            if (processedFile.encoding === "base64") {
-              fileContent = Buffer.from(processedFile.content, "base64").toString("utf8")
-            } else {
-              fileContent = processedFile.content
-            }
-          } else {
-            // Contenu de fichier direct (string)
-            fileContent = fileData as string
-          }
+    const vercelData = await vercelResponse.json();
 
-          // Validation et fallback pour package.json
-          if (path === "package.json") {
-            try {
-              JSON.parse(fileContent)
-            } catch (e) {
-              console.error("[v0] Invalid package.json detected, using fallback")
-              fileContent = JSON.stringify(
-                {
-                  name: projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-                  version: "1.0.0",
-                  private: true,
-                  scripts: {
-                    dev: "next dev",
-                    build: "next build",
-                    start: "next start",
-                    lint: "next lint",
-                  },
-                  dependencies: {
-                    next: "14.0.0",
-                    react: "^18",
-                    "react-dom": "^18",
-                  },
-                  devDependencies: {
-                    "@types/node": "^20",
-                    "@types/react": "^18",
-                    "@types/react-dom": "^18",
-                    eslint: "^8",
-                    "eslint-config-next": "14.0.0",
-                    typescript: "^5",
-                  },
-                },
-                null,
-                2,
-              )
-            }
-          }
-
-          return {
-            file: path,
-            data: fileContent, // Le contenu doit être le contenu brut décodé
-          }
-        }),
-        projectSettings: {
-          framework: "nextjs",
+    if (!vercelResponse.ok) {
+      console.error("[Vercel Deploy] Erreur API Vercel:", vercelData);
+      return NextResponse.json(
+        {
+          success: false,
+          error: vercelData.error?.message || "Erreur inconnue lors du déploiement Vercel.",
         },
-      }),
-    })
-
-    const deploymentData = await deploymentResponse.json()
-    // console.log("[v0] Vercel API response:", deploymentData) // Retiré pour éviter l'encombrement des logs
-
-    // 5. Gestion des erreurs de l'API Vercel
-    if (!deploymentResponse.ok) {
-      const errorMessage = deploymentData.error?.message || deploymentData.message || "Unknown Vercel API error"
-      console.error("[v0] Vercel deployment failed:", errorMessage)
-      throw new Error(`Vercel API Error: ${errorMessage}`)
+        { status: vercelResponse.status }
+      );
     }
 
-    // 6. Vérification des données de retour
-    if (!deploymentData.url || !deploymentData.id) {
-      console.error("[v0] Missing URL or ID in deployment response:", deploymentData)
-      throw new Error("Deployment completed but required data was missing (URL or ID)")
-    }
-
-    console.log("[v0] Deployment successful, returning ID:", deploymentData.id)
-
-    // 7. Retour de succès (avec l'ID du déploiement pour le suivi)
+    // 3. Succès
+    console.log("[Vercel Deploy] Déploiement lancé:", vercelData.url);
     return NextResponse.json({
       success: true,
-      url: `https://${deploymentData.url}`,
-      deploymentId: deploymentData.id, // <-- C'EST LA CLÉ POUR LE FRONTEND
-      projectId: deploymentData.projectId,
-      filesDeployed: Object.keys(deployFiles).length,
-    })
+      deploymentId: vercelData.id,
+      url: `https://${vercelData.url}`,
+    });
   } catch (error: any) {
-    console.error("[v0] Deployment error:", error)
+    console.error("[Vercel Deploy] Erreur critique:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Deployment failed",
-        details: error.toString(),
-      },
-      { status: 400 },
-    )
+      { success: false, error: error.message || "Erreur interne du serveur lors du déploiement." },
+      { status: 500 }
+    );
   }
-        }
+      }
