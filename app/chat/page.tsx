@@ -2792,7 +2792,10 @@ useEffect(() => {
 
         
 
-              {messages.map((msg, index) => {
+              
+
+              
+          {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
   const isCopied = copiedMessageIndex === index;
@@ -2847,19 +2850,18 @@ useEffect(() => {
           const hasTextContent = finalContentToDisplay.length > 0;
           
           // ----------------------------------------------------
-          // RENDU DU MESSAGE UTILISATEUR (AVEC EXPANSION OPTIMISÉE)
+          // RENDU DU MESSAGE UTILISATEUR (EXPANSION SIMPLIFIÉE)
           // ----------------------------------------------------
           
           if (msg.role === "user") {
               const MAX_HEIGHT = 150; 
-              // Seuil de déclenchement : entre 10 000 et 20 000 caractères, ou plus de 20 lignes
+              // DÉCLENCHEUR : Message de plus de 10 000 caractères (ou 20 lignes pour les logs)
               const isLongMessage = msg.content.length > 10000 || rawTextContent.split('\n').length > 20; 
               
               const userContent = (
                   <pre 
                       className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
                       style={{
-                          // Retire la limite de hauteur si le message est étendu
                           maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`,
                           overflow: 'hidden',
                       }}
@@ -2872,22 +2874,21 @@ useEffect(() => {
                   <div key="user-content-wrapper" className="relative">
                       {userContent}
                       
-                      {/* Overlay et bouton Expand */}
+                      {/* Overlay et bouton Expand (Visible et Cliquable) */}
                       {!isExpanded && isLongMessage && (
                           <div 
                               className="absolute inset-x-0 bottom-0 h-[60px] 
                                          flex flex-col justify-end items-center 
-                                         p-2 rounded-b-xl cursor-pointer" // Rendre la zone cliquable
+                                         p-2 rounded-b-xl cursor-pointer z-10" // AJOUT z-10 pour garantir le clic
                               style={{ 
-                                  // Dégradé pour le masquage léger
                                   background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' 
                               }}
-                              onClick={() => setExpandedMessageIndex(index)} // Clic sur l'overlay
+                              onClick={() => setExpandedMessageIndex(index)} 
                               title="Afficher le message complet"
                           >
                               <button
                                   className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80"
-                                  // Le onClick est sur le div parent, mais le bouton est là pour le visuel
+                                  // Le clic est géré par le DIV parent (l'overlay entier)
                               >
                                   <ArrowUp className="h-3 w-3 inline-block mr-1 rotate-180" />
                                   Expand
@@ -2895,7 +2896,7 @@ useEffect(() => {
                           </div>
                       )}
                       
-                      {/* Bouton Collapse si le message est étendu */}
+                      {/* Bouton Collapse */}
                       {isExpanded && isLongMessage && (
                           <div className="flex justify-center mt-2">
                               <button
@@ -2976,13 +2977,11 @@ useEffect(() => {
               );
           }
           
-          
-// 5. AFFICHAGE DU BOUTON COPIER (OPTIMISÉ)
-          // Condition: C'est l'assistant ET il y a du contenu (texte OU artefact)
+          // 5. AFFICHAGE DU BOUTON COPIER (FORCÉMENT VISIBLE)
           if (msg.role === "assistant" && (hasTextContent || isFileArtifact || isUrlArtifact)) {
               
               // Définir la source du texte à copier: uniquement le texte explicatif nettoyé.
-              const textToCopy = finalContentToDisplay.length > 0 ? finalContentToDisplay : "Assistant message contained artifacts but no final text to copy."; 
+              const textToCopy = finalContentToDisplay.length > 0 ? finalContentToDisplay : "Assistant response generated code artifacts."; 
               
               const Icon = isCopied ? Check : Copy; 
 
@@ -3003,8 +3002,8 @@ useEffect(() => {
                           p-1 rounded-full 
                           bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] 
                           cursor-pointer 
-                          opacity-100 group-hover:opacity-100 transition-opacity 
-                          ${isCopied ? 'opacity-100' : 'opacity-30 hover:opacity-100'} 
+                          opacity-100 transition-opacity 
+                          ${isCopied ? 'opacity-100' : 'opacity-100'} 
                       `}
                       onClick={handleCopy}
                       title="Copier le texte explicatif"
@@ -3012,7 +3011,8 @@ useEffect(() => {
                       <Icon className={`h-4 w-4 ${isCopied ? 'text-green-600' : 'text-[#37322F]'}`} />
                   </div>
               );
-  }
+          }
+
 
           // LOGIQUE DE RETOUR FINAL
           return displayElements.length > 0 
@@ -3063,9 +3063,6 @@ useEffect(() => {
       </div>
   );
 })}
-
-
-                  
                 
 
           
