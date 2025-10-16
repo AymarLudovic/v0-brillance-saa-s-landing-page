@@ -18,12 +18,19 @@ interface CurrentProject {
     files: ProjectFile[];
 }
 
+// Dans VercelDeployModal.tsx
+
+// ... (vos autres types et imports) ...
+
 interface VercelDeployModalProps {
     currentProject: CurrentProject | null;
-    sandboxId: string;
+    sandboxId: string | null; // <--- MODIFIÉ POUR ACCEPTER NULL
     onClose: () => void;
     isOpen: boolean;
 }
+
+// ... (Reste du composant VercelDeployModal) ...
+// (La logique interne du composant gère déjà le cas où sandboxId ou currentProject est null)
 
 interface LogEntry {
     timestamp: string;
