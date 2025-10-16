@@ -1,54 +1,53 @@
 import { NextResponse } from "next/server";
 
+// Définir le type pour les fichiers du projet
+type FileMap = { [key: string]: string };
+
 export async function POST(request: Request) {
   try {
-    const { projectName, token, sandboxId } = await request.json();
+    const { 
+      projectName, 
+      token, 
+      sandboxId, // Conservé pour le contexte si nécessaire, mais non utilisé pour la logique de fichier
+      files 
+    }: {
+        projectName: string;
+        token: string;
+        sandboxId: string;
+        files: FileMap; // Les fichiers sont maintenant attendus ici
+    } = await request.json();
 
-    if (!projectName || !token || !sandboxId) {
+    if (!projectName || !token || !files || Object.keys(files).length === 0) {
       return NextResponse.json(
-        { success: false, error: "Paramètres manquants (projectName, token, ou sandboxId)" },
+        { success: false, error: "Paramètres manquants (projectName, token, ou fichiers du projet)" },
         { status: 400 }
       );
     }
 
-    // 1. Récupérer les fichiers du sandbox via la route /api/sandbox
-    console.log("[Vercel Deploy] Récupération des fichiers depuis le sandbox:", sandboxId);
-    
-    const extractResponse = await fetch(`${request.nextUrl.origin}/api/sandbox`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "getFiles", // 🟢 APPEL DE LA NOUVELLE ACTION CORRIGÉE
-        sandboxId: sandboxId,
-      }),
-    });
+    // 🛑 L'appel à l'API /api/sandbox/route.ts est retiré.
+    // Les fichiers sont directement dans la variable `files`.
 
-    const extractData: { success: boolean; error?: string; files?: Record<string, string> } = await extractResponse.json();
-
-    if (!extractData.success || !extractData.files) {
-      const errorMsg = extractData.error || "Réponse non réussie ou fichiers manquants de /api/sandbox";
-      console.error("[Vercel Deploy] Échec de la récupération des fichiers:", errorMsg);
-      return NextResponse.json(
-        { success: false, error: `Failed to process files from sandbox: ${errorMsg}` },
-        { status: 500 }
-      );
-    }
-
-    const files = extractData.files;
-
-    // 2. Créer le déploiement Vercel (API Vercel)
+    // 1. Créer le payload pour le déploiement Vercel
     const deploymentPayload = {
       name: projectName,
       gitSource: {
         type: "github",
-        repo: "user-provided-code", 
+        repo: "user-provided-code", // Ceci permet le déploiement de code non lié à un repo Git
       },
+      // Transformer la map de fichiers en tableau au format Vercel
       files: Object.entries(files).map(([filePath, content]) => ({
-        file: filePath,
+        file: filePath, // e.g., "app/page.tsx"
         data: content,
       })),
+      // Assurer un environnement compatible pour Next.js (si nécessaire)
+      environment: [
+        { key: "NODE_VERSION", value: "18" }
+      ]
     };
 
+    console.log("[Vercel Deploy] Début du déploiement avec les fichiers du client.");
+
+    // 2. Appel à l'API Vercel
     const vercelResponse = await fetch("https://api.vercel.com/v13/deployments", {
       method: "POST",
       headers: {
@@ -66,6 +65,7 @@ export async function POST(request: Request) {
         {
           success: false,
           error: vercelData.error?.message || "Erreur inconnue lors du déploiement Vercel.",
+          details: vercelData.error?.code 
         },
         { status: vercelResponse.status }
       );
