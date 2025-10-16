@@ -3555,12 +3555,17 @@ useEffect(() => {
     Deploy 
 </button>
               {/* Rendu de la Modal Vercel (Doit être affiché par-dessus le reste) */}
-{isVercelModalOpen && currentProject && sandboxId && (
+{/* ---------------------------------------------------- */}
+{/* Affichage du Composant Modal */}
+{/* ---------------------------------------------------- */}
+
+{/* On ne vérifie que l'état d'ouverture. La modal gérera l'absence de projet/sandboxId. */}
+{isVercelModalOpen && (
     <VercelDeployModal 
-        // currentProject doit être un objet non nul contenant le nom et la structure des fichiers
+        // currentProject est passé tel quel (Project | null)
         currentProject={currentProject} 
         
-        // Utilise votre état sandboxId existant (assuré d'être string par la condition ci-dessus)
+        // sandboxId est passé tel quel (string | null)
         sandboxId={sandboxId} 
         
         isOpen={isVercelModalOpen}
