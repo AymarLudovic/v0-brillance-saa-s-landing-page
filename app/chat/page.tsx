@@ -1068,7 +1068,7 @@ const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 };
 
 const saveToken = () => {
-    if (vercelToken.length > 50) { 
+    if (vercelToken) { 
         localStorage.setItem(VERCEL_TOKEN_KEY, vercelToken);
         setDeployState(DEPLOYMENT_STATES.TOKEN_VALIDATED);
         setShowTokenInput(false);
