@@ -2792,13 +2792,8 @@ useEffect(() => {
 
         
 
-              
-                                  
-
-      
-           {messages.map((msg, index) => {
+              {messages.map((msg, index) => {
   const artifact = msg.artifactData;
-  // États locaux
   const isExpanded = expandedMessageIndex === index;
   const isCopied = copiedMessageIndex === index;
   
@@ -2825,7 +2820,7 @@ useEffect(() => {
       
       {/* Conteneur du message (bulle) */}
       <div
-        className={`p-2 rounded-xl max-w-xl group relative ${ // AJOUT: 'group relative' pour le bouton Copier
+        className={`p-2 rounded-xl max-w-xl group relative ${
           msg.role === "user"
             ? "bg-[#37322F] text-white self-end border-[#37322F]"
             : "bg-none text-[#37322F] self-start"
@@ -2843,30 +2838,28 @@ useEffect(() => {
           // ----------------------------------------------------
           
           let finalContentToDisplay = rawTextContent
-              // 1. Supprime les balises <create_file>...</create_file> et leur contenu
               .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
               .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-              // 2. Supprime l'artefact URL JSON
               .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
-              // 3. Supprime les marqueurs de contenu d'action (e.g., FETCH_FILE)
               .replace(/---[\s\S]*?---/g, '')
               .trim();
           
           const hasTextContent = finalContentToDisplay.length > 0;
           
           // ----------------------------------------------------
-          // RENDU DU MESSAGE UTILISATEUR (AVEC EXPANSION)
+          // RENDU DU MESSAGE UTILISATEUR (AVEC EXPANSION OPTIMISÉE)
           // ----------------------------------------------------
           
           if (msg.role === "user") {
-              const MAX_HEIGHT = 150; // Hauteur maximale avant masquage (en pixels)
-              // Estimation: plus de 500 chars est considéré long
-              const isLongMessage = msg.content.length > 500 || rawTextContent.split('\n').length > 8; 
+              const MAX_HEIGHT = 150; 
+              // Seuil de déclenchement : entre 10 000 et 20 000 caractères, ou plus de 20 lignes
+              const isLongMessage = msg.content.length > 10000 || rawTextContent.split('\n').length > 20; 
               
               const userContent = (
                   <pre 
                       className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
                       style={{
+                          // Retire la limite de hauteur si le message est étendu
                           maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`,
                           overflow: 'hidden',
                       }}
@@ -2883,17 +2876,18 @@ useEffect(() => {
                       {!isExpanded && isLongMessage && (
                           <div 
                               className="absolute inset-x-0 bottom-0 h-[60px] 
-                                         flex justify-center items-end pb-1 
-                                         rounded-b-xl"
+                                         flex flex-col justify-end items-center 
+                                         p-2 rounded-b-xl cursor-pointer" // Rendre la zone cliquable
                               style={{ 
-                                  // Couleur de la bulle utilisateur
-                                  background: 'linear-gradient(to top, rgba(55,50,47,1) 30%, rgba(55,50,47,0))' 
+                                  // Dégradé pour le masquage léger
+                                  background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' 
                               }}
+                              onClick={() => setExpandedMessageIndex(index)} // Clic sur l'overlay
+                              title="Afficher le message complet"
                           >
                               <button
-                                  onClick={() => setExpandedMessageIndex(index)}
-                                  className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50"
-                                  title="Afficher le message complet"
+                                  className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80"
+                                  // Le onClick est sur le div parent, mais le bouton est là pour le visuel
                               >
                                   <ArrowUp className="h-3 w-3 inline-block mr-1 rotate-180" />
                                   Expand
@@ -2906,7 +2900,7 @@ useEffect(() => {
                           <div className="flex justify-center mt-2">
                               <button
                                   onClick={() => setExpandedMessageIndex(null)}
-                                  className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50"
+                                  className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80"
                                   title="Masquer le message"
                               >
                                   <ArrowUp className="h-3 w-3 inline-block mr-1" />
@@ -2917,7 +2911,6 @@ useEffect(() => {
                   </div>
               );
               
-              // Si c'est un message utilisateur, on ne continue pas la logique d'artefact/copie de l'assistant
               return displayElements; 
           }
           
@@ -2983,7 +2976,7 @@ useEffect(() => {
               );
           }
           
-          // 5. AFFICHAGE DU BOUTON COPIER (NOUVEAU)
+          // 5. AFFICHAGE DU BOUTON COPIER (OPTIMISÉ)
           if (msg.role === "assistant" && hasTextContent) {
               const Icon = isCopied ? Check : Copy; 
 
@@ -3004,8 +2997,8 @@ useEffect(() => {
                           p-1 rounded-full 
                           bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] 
                           cursor-pointer 
-                          opacity-0 group-hover:opacity-100 transition-opacity 
-                          ${isCopied ? 'opacity-100' : ''} 
+                          opacity-100 group-hover:opacity-100 transition-opacity 
+                          ${isCopied ? 'opacity-100' : 'opacity-30 hover:opacity-100'} 
                       `}
                       onClick={handleCopy}
                       title="Copier le texte explicatif"
@@ -3025,8 +3018,6 @@ useEffect(() => {
       </div>
 
       {/* 🛑 LOGIQUE D'AFFICHAGE DES IMAGES, FICHIERS EXTERNES ET MENTIONS (INCHANGÉE) 🛑 */}
-      {/* ... (votre code pour msg.images, msg.externalFiles, msg.mentionedFiles reste ici) ... */}
-
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
           <div className="flex gap-1 mt-1">
               {msg.images.map((base64Src, imgIndex) => (
@@ -3066,7 +3057,10 @@ useEffect(() => {
       )}
       </div>
   );
-})}            
+})}
+
+
+                  
                 
 
           
