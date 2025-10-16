@@ -10,7 +10,7 @@ import { xcodeLight } from "@uiw/codemirror-theme-xcode"
 import { EditorView } from "@codemirror/view"
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { tags } from "@lezer/highlight" 
-
+import { VercelDeployModal } from "@/components/VercelDeployModal"
 
 // Imports à ajouter dans votre liste d'imports existante
 import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
@@ -868,7 +868,12 @@ const [copiedFileIndex, setCopiedFileIndex] = useState(null);
 // ... et d'ajouter ces états dans votre composant principal (e.g., SandboxPage)
 const [copiedMessageIndex, setCopiedMessageIndex] = useState(null);
 const [expandedMessageIndex, setExpandedMessageIndex] = useState(null);
+// Dans votre composant parent (e.g. SandboxPage)
 
+// Assurez-vous d'importer Check, Copy, Download (pour les boutons de fichier) si ce n'est pas déjà fait.
+
+// État pour contrôler l'ouverture de la modal
+const [isVercelModalOpen, setIsVercelModalOpen] = useState<boolean>(false);
 
 
 
@@ -3542,9 +3547,26 @@ useEffect(() => {
 </svg>
                 
               </button>
-              <button className="rounded-[10px] w-[150px] text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]">
-                Deploy site
-              </button>
+              
+<button 
+    className="rounded-[10px] w-[150px] text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]"
+    onClick={() => setIsVercelModalOpen(true)} // <-- Ouvre la modal
+>
+    Deploy 
+</button>
+              {/* Rendu de la Modal Vercel (Doit être affiché par-dessus le reste) */}
+{isVercelModalOpen && currentProject && sandboxId && (
+    <VercelDeployModal 
+        // currentProject doit être un objet non nul contenant le nom et la structure des fichiers
+        currentProject={currentProject} 
+        
+        // Utilise votre état sandboxId existant (assuré d'être string par la condition ci-dessus)
+        sandboxId={sandboxId} 
+        
+        isOpen={isVercelModalOpen}
+        onClose={() => setIsVercelModalOpen(false)}
+    />
+)}
             </div>
           </div>
         </div>
