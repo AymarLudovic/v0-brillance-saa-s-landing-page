@@ -904,6 +904,12 @@ const logIntervalRef = useRef<NodeJS.Timeout | null>(null);
 const VERCEL_TOKEN_KEY = 'vercel_access_token';
 const VERCEL_TOKEN_URL = 'https://vercel.com/account/tokens'; 
 
+// NOUVEAUX ÉTATS POUR LE DÉPLOIEMENT SIMPLIFIÉ
+const VERCEL_TOKEN_KEY = 'vercel_access_token';
+const [deploying, setDeploying] = useState(false); // État de chargement du bouton
+const [deployStatus, setDeployStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR' | 'LOADING'>('IDLE');
+const [deployResult, setDeployResult] = useState<string | null>(null); // URL ou message d'erreur
+
 // Référence pour le scroll des logs
 const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -1092,6 +1098,66 @@ const removeToken = () => {
     addDeployLog('Jeton Vercel supprimé. Veuillez en fournir un nouveau.', 'info');
 };
 
+
+      // AJOUTEZ CETTE FONCTION DANS VOTRE COMPOSANT PRINCIPAL
+const handleSimpleDeploy = useCallback(async () => {
+    // 1. Validation et préparation
+    const token = localStorage.getItem(VERCEL_TOKEN_KEY);
+
+    if (!token || !currentProject || !sandboxId || !currentProject.files) {
+        setDeployResult("Erreur: Jeton, projet, fichiers, ou Sandbox ID manquant.");
+        setDeployStatus('ERROR');
+        return;
+    }
+    
+    setDeploying(true);
+    setDeployStatus('LOADING');
+    setDeployResult(null);
+
+    // 2. Préparation du payload
+    const projectFilesMap: Record<string, string> = {};
+    currentProject.files.forEach(file => {
+        // Assurez-vous que le chemin est relatif (ex: app/page.tsx)
+        const relativePath = file.filePath.startsWith('/') ? file.filePath.substring(1) : file.filePath;
+        projectFilesMap[relativePath] = file.content;
+    });
+
+    const deploymentPayload = {
+        projectName: currentProject.name,
+        token: token,
+        sandboxId: sandboxId,
+        files: projectFilesMap,
+    };
+
+    // 3. Appel de l'API
+    try {
+        const response = await fetch('/api/deploy/vercel', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(deploymentPayload),
+        });
+
+        const data: { success: boolean; error?: string; url?: string } = await response.json();
+
+        if (response.ok && data.success && data.url) {
+            setDeployStatus('SUCCESS');
+            setDeployResult(data.url);
+            alert(`Déploiement lancé avec succès! Suivez l'évolution ici: ${data.url}`);
+        } else {
+            const errorMsg = data.error || 'Échec inconnu lors du déploiement.';
+            setDeployStatus('ERROR');
+            setDeployResult(errorMsg);
+            console.error(errorMsg);
+            alert(`Échec du déploiement: ${errorMsg}`);
+        }
+    } catch (error: any) {
+        setDeployStatus('ERROR');
+        setDeployResult(`Erreur critique: ${error.message}`);
+        console.error("Erreur critique:", error);
+    } finally {
+        setDeploying(false);
+    }
+}, [currentProject, sandboxId]);
 
 
 // ... (Vos autres états)
@@ -3764,6 +3830,46 @@ useEffect(() => {
 </svg>
                 
               </button>
+
+{/* ⚠️ Assurez-vous d'importer l'icône Zap et Loader de Lucide React */}
+<Button
+    onClick={handleSimpleDeploy}
+    // Condition de désactivation :
+    // 1. En cours de déploiement
+    // 2. Jeton Vercel manquant dans le localStorage
+    // 3. Projet ou Sandbox ID manquant
+    disabled={
+        deploying || 
+        !localStorage.getItem(VERCEL_TOKEN_KEY) || 
+        !currentProject || 
+        !sandboxId
+    }
+    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+>
+    {deploying ? (
+        <>
+            <Loader className="h-4 w-4 animate-spin" />
+            Déploiement...
+        </>
+    ) : (
+        <>
+            <Zap className="h-4 w-4" />
+            Déployer sur Vercel
+        </>
+    )}
+</Button>
+
+{/* Affichage rapide du statut (facultatif) */}
+{deployStatus === 'SUCCESS' && deployResult && (
+    <p className="text-sm text-green-600 mt-2">
+        ✅ Succès! <a href={deployResult} target="_blank" rel="noopener noreferrer" className="underline">Voir le déploiement</a>
+    </p>
+)}
+{deployStatus === 'ERROR' && deployResult && (
+    <p className="text-sm text-red-600 mt-2">
+        ❌ Erreur: {deployResult}
+    </p>
+)}
               
 <button 
     className="rounded-[10px] w-[150px] text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]"
