@@ -2976,12 +2976,18 @@ useEffect(() => {
               );
           }
           
-          // 5. AFFICHAGE DU BOUTON COPIER (OPTIMISÉ)
-          if (msg.role === "assistant" && hasTextContent) {
+          
+// 5. AFFICHAGE DU BOUTON COPIER (OPTIMISÉ)
+          // Condition: C'est l'assistant ET il y a du contenu (texte OU artefact)
+          if (msg.role === "assistant" && (hasTextContent || isFileArtifact || isUrlArtifact)) {
+              
+              // Définir la source du texte à copier: uniquement le texte explicatif nettoyé.
+              const textToCopy = finalContentToDisplay.length > 0 ? finalContentToDisplay : "Assistant message contained artifacts but no final text to copy."; 
+              
               const Icon = isCopied ? Check : Copy; 
 
               const handleCopy = () => {
-                  navigator.clipboard.writeText(finalContentToDisplay).then(() => {
+                  navigator.clipboard.writeText(textToCopy).then(() => {
                       setCopiedMessageIndex(index); 
                       setTimeout(() => setCopiedMessageIndex(null), 2000); 
                   }).catch(err => {
@@ -3006,8 +3012,7 @@ useEffect(() => {
                       <Icon className={`h-4 w-4 ${isCopied ? 'text-green-600' : 'text-[#37322F]'}`} />
                   </div>
               );
-          }
-
+  }
 
           // LOGIQUE DE RETOUR FINAL
           return displayElements.length > 0 
