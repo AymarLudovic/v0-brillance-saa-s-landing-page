@@ -7,7 +7,7 @@ export async function POST(req: Request) {
       throw new Error("Invalid JSON in request body");
     });
 
-    const { action, sandboxId: bodySandboxId, plan } = body || {};
+    const { action, sandboxId: bodySandboxId, files: requestFiles } = body || {};
     const apiKey = process.env.E2B_API_KEY;
 
     if (!apiKey) {
@@ -113,6 +113,35 @@ div {
         return NextResponse.json({ success: true, sandboxId: sandbox.sandboxId });
       }
 
+      case "getFiles": {
+        // 🛑 NOUVELLE ACTION POUR RÉCUPÉRER LES FICHIERS DE DÉPLOIEMENT 🛑
+        if (!bodySandboxId) throw new Error("sandboxId manquant");
+
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
+        
+        // Liste des chemins de fichiers à récupérer (ajustez si votre projet en a plus)
+        const filePaths = [
+          "/home/user/package.json",
+          "/home/user/tsconfig.json",
+          "/home/user/app/layout.tsx",
+          "/home/user/app/page.tsx",
+          "/home/user/app/globals.css",
+        ];
+
+        const files = await sandbox.files.readBatch(filePaths);
+
+        const filesMap: Record<string, string> = {};
+        files.forEach((file, index) => {
+            // Utilise le chemin relatif (e.g., app/page.tsx) comme clé pour Vercel
+            const relativePath = filePaths[index].replace("/home/user/", "");
+            filesMap[relativePath] = file.content;
+        });
+
+        console.log(`Récupération de ${files.length} fichiers pour le sandbox ${bodySandboxId}`);
+
+        return NextResponse.json({ success: true, fileCount: files.length, files: filesMap });
+      }
+
       case "addFile": {
         if (!bodySandboxId || !body.filePath || !body.content)
           throw new Error("Paramètres manquants (sandboxId, filePath, content)");
@@ -124,19 +153,19 @@ div {
       }
 
       case "addFiles": {
-        if (!bodySandboxId || !body.files || !Array.isArray(body.files)) {
+        if (!bodySandboxId || !requestFiles || !Array.isArray(requestFiles)) {
           throw new Error("Paramètres manquants (sandboxId ou files[])");
         }
 
         const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
 
-        for (const f of body.files) {
+        for (const f of requestFiles) {
           if (!f.filePath || !f.content) continue;
           await sandbox.files.write(`/home/user/${f.filePath}`, f.content);
           console.log(`Fichier ${f.filePath} écrit dans le sandbox ${bodySandboxId}`);
         }
 
-        return NextResponse.json({ success: true, message: `${body.files.length} files written` });
+        return NextResponse.json({ success: true, message: `${requestFiles.length} files written` });
       }
         
       case "install":
@@ -204,4 +233,4 @@ div {
     console.error("Erreur dans l'API route /api/sandbox:", e);
     return NextResponse.json({ error: e.message || "Erreur inconnue", details: e.toString() }, { status: 500 });
   }
-            }
+          }
