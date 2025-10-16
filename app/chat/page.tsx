@@ -981,6 +981,10 @@ const startLogPolling = useCallback((id: string, currentUrl: string) => {
     }, 3000); 
 }, [fetchVercelLogs, stopLogPolling]);
 
+// DANS VOTRE COMPOSANT REACT PRINCIPAL (SandboxPage ou autre)
+
+// ... vos autres fonctions et états
+
 const startDeployment = useCallback(async () => {
     if (deployState === DEPLOYMENT_STATES.DEPLOYING || deployState === DEPLOYMENT_STATES.MONITORING) return;
     
@@ -992,8 +996,8 @@ const startDeployment = useCallback(async () => {
     }
     
     // Vérification des dépendances critiques
-    if (!currentProject || !sandboxId) {
-        addDeployLog('Erreur: Projet ou Sandbox ID manquant.', 'error');
+    if (!currentProject || !currentProject.files || currentProject.files.length === 0 || !sandboxId) {
+        addDeployLog('Erreur: Projet, fichiers ou Sandbox ID manquant.', 'error');
         return;
     }
 
@@ -1003,10 +1007,21 @@ const startDeployment = useCallback(async () => {
     setDeployUrl('');
     stopLogPolling();
 
+    // 🛑 CONVERSION ET INCLUSION DES FICHIERS DU PROJET
+    // Convertir l'array de fichiers du projet ({filePath, content}) en un objet (map)
+    // où la clé est le path et la valeur est le contenu. (Format attendu par la route API)
+    const projectFilesMap: Record<string, string> = {};
+    currentProject.files.forEach(file => {
+        // Assurez-vous que le chemin est relatif (ex: app/page.tsx)
+        const relativePath = file.filePath.startsWith('/') ? file.filePath.substring(1) : file.filePath;
+        projectFilesMap[relativePath] = file.content;
+    });
+
     const deploymentPayload = {
         projectName: currentProject.name,
         token: token,
         sandboxId: sandboxId,
+        files: projectFilesMap, // 🟢 PASSAGE DIRECT DES FICHIERS
     };
 
     try {
@@ -1040,18 +1055,7 @@ const startDeployment = useCallback(async () => {
     }
 }, [deployState, currentProject, sandboxId, startLogPolling, stopLogPolling, addDeployLog]);
 
-// Effet pour le chargement initial du token (comme dans la modal)
-useEffect(() => {
-    const storedToken = localStorage.getItem(VERCEL_TOKEN_KEY);
-    if (storedToken) {
-        setVercelToken(storedToken);
-        setDeployState(DEPLOYMENT_STATES.TOKEN_VALIDATED);
-    } else {
-        setShowTokenInput(true);
-    }
-    // Nettoyage lors du démontage du composant
-    return () => stopLogPolling(); 
-}, []); // S'exécute une seule fois au montage
+// ... le reste du code JSX de votre modal
 
 // Effet pour le scroll des logs
 useEffect(() => {
