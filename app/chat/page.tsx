@@ -46,7 +46,8 @@ import {
   X,
   Sidebar,
   ChevronRight,
-  Monitor
+  Monitor,
+  Check
 } from "lucide-react"
 
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
@@ -858,7 +859,12 @@ export default function SandboxPage() {
   // ⚠️ À placer au début de votre composant SandboxPage
 const [isCloning, setIsCloning] = useState(false)
 const [cloneUrl, setCloneUrl] = useState("")
+// Assurez-vous d'importer les icônes nécessaires de Lucide React
 
+
+// ... et d'ajouter ces états dans votre composant principal (e.g., SandboxPage)
+const [copiedMessageIndex, setCopiedMessageIndex] = useState(null);
+const [expandedMessageIndex, setExpandedMessageIndex] = useState(null);
 
 
 
@@ -2787,8 +2793,14 @@ useEffect(() => {
         
 
               
-             {messages.map((msg, index) => {
+                                  
+
+      
+           {messages.map((msg, index) => {
   const artifact = msg.artifactData;
+  // États locaux
+  const isExpanded = expandedMessageIndex === index;
+  const isCopied = copiedMessageIndex === index;
   
   return (
     <div
@@ -2813,7 +2825,7 @@ useEffect(() => {
       
       {/* Conteneur du message (bulle) */}
       <div
-        className={`p-2 rounded-xl max-w-xl ${
+        className={`p-2 rounded-xl max-w-xl group relative ${ // AJOUT: 'group relative' pour le bouton Copier
           msg.role === "user"
             ? "bg-[#37322F] text-white self-end border-[#37322F]"
             : "bg-none text-[#37322F] self-start"
@@ -2821,31 +2833,99 @@ useEffect(() => {
       >
         {(() => {
           
-          const rawTextContent = msg.content; // Le contenu brut du stream (y compris les balises d'artefact)
+          const rawTextContent = msg.content; 
           const isFileArtifact = artifact && (artifact.type === 'files');
           const isUrlArtifact = artifact && (artifact.type === 'url');
           const displayElements = [];
           
-          // 🛑 1. LOGIQUE DE NETTOYAGE DU CONTENU TEXTUEL (CORRIGÉE) 🛑
+          // ----------------------------------------------------
+          // LOGIQUE DE NETTOYAGE DU CONTENU TEXTUEL (POUR L'IA ET LA COPIE)
+          // ----------------------------------------------------
           
-          // Regex pour cibler toutes les balises d'artefact et leur contenu, y compris les sauts de ligne.
-          // Le drapeau 's' (. ) permet au point de correspondre aux sauts de ligne.
           let finalContentToDisplay = rawTextContent
-              // 1. Supprime les balises <create_file>...</create_file> et <file_changes>...</file_changes> et leur contenu
+              // 1. Supprime les balises <create_file>...</create_file> et leur contenu
               .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
               .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
               // 2. Supprime l'artefact URL JSON
               .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
-              // 3. Supprime les marqueurs de début/fin de contenu des actions (e.g., FETCH_FILE)
+              // 3. Supprime les marqueurs de contenu d'action (e.g., FETCH_FILE)
               .replace(/---[\s\S]*?---/g, '')
               .trim();
           
-          // L'ancienne logique .replace(/<[^>]*>/g, '') a été retirée pour éviter de supprimer
-          // des balises HTML légitimes ou des fragments de code incomplets.
-          
           const hasTextContent = finalContentToDisplay.length > 0;
           
-          // 🛑 2. AFFICHAGE DU TEXTE EXPLICATIF
+          // ----------------------------------------------------
+          // RENDU DU MESSAGE UTILISATEUR (AVEC EXPANSION)
+          // ----------------------------------------------------
+          
+          if (msg.role === "user") {
+              const MAX_HEIGHT = 150; // Hauteur maximale avant masquage (en pixels)
+              // Estimation: plus de 500 chars est considéré long
+              const isLongMessage = msg.content.length > 500 || rawTextContent.split('\n').length > 8; 
+              
+              const userContent = (
+                  <pre 
+                      className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
+                      style={{
+                          maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`,
+                          overflow: 'hidden',
+                      }}
+                  >
+                      {msg.content}
+                  </pre>
+              );
+
+              displayElements.push(
+                  <div key="user-content-wrapper" className="relative">
+                      {userContent}
+                      
+                      {/* Overlay et bouton Expand */}
+                      {!isExpanded && isLongMessage && (
+                          <div 
+                              className="absolute inset-x-0 bottom-0 h-[60px] 
+                                         flex justify-center items-end pb-1 
+                                         rounded-b-xl"
+                              style={{ 
+                                  // Couleur de la bulle utilisateur
+                                  background: 'linear-gradient(to top, rgba(55,50,47,1) 30%, rgba(55,50,47,0))' 
+                              }}
+                          >
+                              <button
+                                  onClick={() => setExpandedMessageIndex(index)}
+                                  className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50"
+                                  title="Afficher le message complet"
+                              >
+                                  <ArrowUp className="h-3 w-3 inline-block mr-1 rotate-180" />
+                                  Expand
+                              </button>
+                          </div>
+                      )}
+                      
+                      {/* Bouton Collapse si le message est étendu */}
+                      {isExpanded && isLongMessage && (
+                          <div className="flex justify-center mt-2">
+                              <button
+                                  onClick={() => setExpandedMessageIndex(null)}
+                                  className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50"
+                                  title="Masquer le message"
+                              >
+                                  <ArrowUp className="h-3 w-3 inline-block mr-1" />
+                                  Collapse
+                              </button>
+                          </div>
+                      )}
+                  </div>
+              );
+              
+              // Si c'est un message utilisateur, on ne continue pas la logique d'artefact/copie de l'assistant
+              return displayElements; 
+          }
+          
+          // ----------------------------------------------------
+          // RENDU DU MESSAGE ASSISTANT
+          // ----------------------------------------------------
+          
+          // 2. AFFICHAGE DU TEXTE EXPLICATIF (Nettoyé)
           if (hasTextContent) {
               displayElements.push(
                   <pre key="text" className="whitespace-pre-wrap font-sans text-sm leading-relaxed mb-1">
@@ -2854,14 +2934,10 @@ useEffect(() => {
               );
           }
 
-          // 🛑 3. AFFICHAGE DE L'ARTEFACT DE CODE (en temps réel)
+          // 3. AFFICHAGE DE L'ARTEFACT DE CODE (en temps réel)
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
               
-              const totalPaths = artifact.parsedList.length;
-
-              // On base la logique d'affichage sur le nombre d'artefacts parsés
               const pathsToDisplay = artifact.parsedList.length;
-              
               const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
 
               displayElements.push(
@@ -2870,7 +2946,6 @@ useEffect(() => {
                           Building code
                       </p>
                       <ul className="list-disc pl-5 w-[100%] space-y-1">
-                          {/* Rendu des chemins de fichiers basés sur les artefacts COMPLETS parsés */}
                           {artifact.parsedList
                               .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
                               <li key={i} className="text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80">
@@ -2882,7 +2957,7 @@ useEffect(() => {
                                 
                               </li>
                           ))}
-                          {/* Indication qu'il reste du contenu à streamer (basé sur la présence de balises d'ouverture sans balises de fermeture) */}
+                          {/* Indication qu'il reste du contenu à streamer */}
                           {rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>') ||
                            rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>')
                           ? (
@@ -2895,7 +2970,7 @@ useEffect(() => {
               );
           }
 
-          // 4. AFFICHAGE DE L'ARTEFACT URL (inchangé)
+          // 4. AFFICHAGE DE L'ARTEFACT URL
           if (isUrlArtifact) {
               const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
               displayElements.push(
@@ -2908,8 +2983,40 @@ useEffect(() => {
               );
           }
           
-          // Si rien n'a été affiché, on affiche le contenu brut (cas d'erreur ou message sans artefat)
-          // Ceci affiche également les messages système et les erreurs non traitées
+          // 5. AFFICHAGE DU BOUTON COPIER (NOUVEAU)
+          if (msg.role === "assistant" && hasTextContent) {
+              const Icon = isCopied ? Check : Copy; 
+
+              const handleCopy = () => {
+                  navigator.clipboard.writeText(finalContentToDisplay).then(() => {
+                      setCopiedMessageIndex(index); 
+                      setTimeout(() => setCopiedMessageIndex(null), 2000); 
+                  }).catch(err => {
+                      console.error("Erreur de copie:", err);
+                  });
+              };
+              
+              displayElements.push(
+                  <div 
+                      key="copy-button" 
+                      className={`
+                          absolute bottom-[-10px] right-[-32px] 
+                          p-1 rounded-full 
+                          bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] 
+                          cursor-pointer 
+                          opacity-0 group-hover:opacity-100 transition-opacity 
+                          ${isCopied ? 'opacity-100' : ''} 
+                      `}
+                      onClick={handleCopy}
+                      title="Copier le texte explicatif"
+                  >
+                      <Icon className={`h-4 w-4 ${isCopied ? 'text-green-600' : 'text-[#37322F]'}`} />
+                  </div>
+              );
+          }
+
+
+          // LOGIQUE DE RETOUR FINAL
           return displayElements.length > 0 
                  ? displayElements 
                  : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>;
@@ -2918,6 +3025,8 @@ useEffect(() => {
       </div>
 
       {/* 🛑 LOGIQUE D'AFFICHAGE DES IMAGES, FICHIERS EXTERNES ET MENTIONS (INCHANGÉE) 🛑 */}
+      {/* ... (votre code pour msg.images, msg.externalFiles, msg.mentionedFiles reste ici) ... */}
+
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
           <div className="flex gap-1 mt-1">
               {msg.images.map((base64Src, imgIndex) => (
@@ -2957,11 +3066,7 @@ useEffect(() => {
       )}
       </div>
   );
-})}
-                                  
-
-      
-            
+})}            
                 
 
           
