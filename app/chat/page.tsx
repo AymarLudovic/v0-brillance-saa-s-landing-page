@@ -1099,13 +1099,26 @@ const removeToken = () => {
 };
 
 
-      // AJOUTEZ CETTE FONCTION DANS VOTRE COMPOSANT PRINCIPAL
+      
+
+        // DANS VOTRE COMPOSANT REACT PRINCIPAL
+
+
+// ... autres états (deploying, deployStatus, deployResult)
+
 const handleSimpleDeploy = useCallback(async () => {
     // 1. Validation et préparation
-    const token = localStorage.getItem(VERCEL_TOKEN_KEY);
+    
+    // 🛑 CORRECTION ICI : PROTÉGER L'ACCÈS À localStorage 🛑
+    let token: string | null = null;
+    if (typeof window !== 'undefined') {
+        token = localStorage.getItem(VERCEL_TOKEN_KEY);
+    }
+    // 🛑 FIN DE LA CORRECTION 🛑
 
     if (!token || !currentProject || !sandboxId || !currentProject.files) {
-        setDeployResult("Erreur: Jeton, projet, fichiers, ou Sandbox ID manquant.");
+        // Cette alerte ne s'affiche que côté client, après le build.
+        setDeployResult("Erreur: Jeton Vercel (ou autre donnée critique) manquant.");
         setDeployStatus('ERROR');
         return;
     }
@@ -1117,14 +1130,13 @@ const handleSimpleDeploy = useCallback(async () => {
     // 2. Préparation du payload
     const projectFilesMap: Record<string, string> = {};
     currentProject.files.forEach(file => {
-        // Assurez-vous que le chemin est relatif (ex: app/page.tsx)
         const relativePath = file.filePath.startsWith('/') ? file.filePath.substring(1) : file.filePath;
         projectFilesMap[relativePath] = file.content;
     });
 
     const deploymentPayload = {
         projectName: currentProject.name,
-        token: token,
+        token: token, // Le jeton est maintenant garanti d'être non-null ici
         sandboxId: sandboxId,
         files: projectFilesMap,
     };
@@ -1152,12 +1164,12 @@ const handleSimpleDeploy = useCallback(async () => {
         }
     } catch (error: any) {
         setDeployStatus('ERROR');
-        setDeployResult(`Erreur critique: ${error.message}`);
+        setDeployResult(`Erreur critique de la requête: ${error.message}`);
         console.error("Erreur critique:", error);
     } finally {
         setDeploying(false);
     }
-}, [currentProject, sandboxId]);
+}, [currentProject, sandboxId]); // Assurez-vous d'avoir les dépendances correctes.
 
 
 // ... (Vos autres états)
