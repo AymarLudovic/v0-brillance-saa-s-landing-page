@@ -10,7 +10,7 @@ import { xcodeLight } from "@uiw/codemirror-theme-xcode"
 import { EditorView } from "@codemirror/view"
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { tags } from "@lezer/highlight" 
-import { VercelDeployModal } from "@/components/VercelDeployModal"
+
 
 // Imports à ajouter dans votre liste d'imports existante
 import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
@@ -48,7 +48,9 @@ import {
   ChevronRight,
   Monitor,
   Check,
-  Download
+  Download,
+  Loader,
+  LogOut
 } from "lucide-react"
 
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
@@ -873,7 +875,218 @@ const [expandedMessageIndex, setExpandedMessageIndex] = useState(null);
 // Assurez-vous d'importer Check, Copy, Download (pour les boutons de fichier) si ce n'est pas déjà fait.
 
 // État pour contrôler l'ouverture de la modal
+// ==============================================================================
+// 🛑 ÉTATS ET LOGIQUE DE DÉPLOIEMENT VERCEL (Intégrés)
+// ==============================================================================
+
+// État du Token (à côté de vos autres useState)
+const [vercelToken, setVercelToken] = useState<string>('');
+const [tokenError, setTokenError] = useState<string>('');
+const [showTokenInput, setShowTokenInput] = useState<boolean>(false);
 const [isVercelModalOpen, setIsVercelModalOpen] = useState<boolean>(false);
+
+// État du Déploiement
+type DeployState = 'IDLE' | 'TOKEN_VALIDATED' | 'DEPLOYING' | 'MONITORING' | 'SUCCESS' | 'ERROR';
+const DEPLOYMENT_STATES: Record<DeployState, DeployState> = {
+    IDLE: 'IDLE',
+    TOKEN_VALIDATED: 'TOKEN_VALIDATED',
+    DEPLOYING: 'DEPLOYING',
+    MONITORING: 'MONITORING',
+    SUCCESS: 'SUCCESS',
+    ERROR: 'ERROR',
+};
+interface LogEntry { timestamp: string; message: string; type: 'info' | 'error' | 'success' | 'start' | 'status'; }
+
+const [deployState, setDeployState] = useState<DeployState>(DEPLOYMENT_STATES.IDLE);
+const [deployLogs, setDeployLogs] = useState<LogEntry[]>([]); // Renommés pour ne pas confondre avec 'logs'
+const [deployUrl, setDeployUrl] = useState<string>('');
+const logIntervalRef = useRef<NodeJS.Timeout | null>(null); 
+const VERCEL_TOKEN_KEY = 'vercel_access_token';
+const VERCEL_TOKEN_URL = 'https://vercel.com/account/tokens'; 
+
+// Référence pour le scroll des logs
+const logsEndRef = useRef<HTMLDivElement>(null);
+
+// ----------------------
+// Fonctions de la Modal
+// ----------------------
+
+const addDeployLog = useCallback((message: string, type: LogEntry['type']) => {
+    const timestamp = new Date().toLocaleTimeString('fr-FR', { hour12: false });
+    setDeployLogs(prev => [...prev, { timestamp, message, type }]);
+}, []);
+
+const stopLogPolling = useCallback(() => {
+    if (logIntervalRef.current) {
+        clearInterval(logIntervalRef.current);
+        logIntervalRef.current = null;
+    }
+}, []);
+
+const fetchVercelLogs = useCallback(async (id: string, currentUrl: string) => {
+    const statusUrl = `https://api.vercel.com/v13/deployments/${id}`;
+    const token = localStorage.getItem(VERCEL_TOKEN_KEY);
+    if (!token) {
+        addDeployLog('Erreur: Jeton Vercel manquant pour le suivi.', 'error');
+        stopLogPolling();
+        setDeployState(DEPLOYMENT_STATES.ERROR);
+        return;
+    }
+
+    try {
+        const response = await fetch(statusUrl, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            addDeployLog(`Erreur de l'API Vercel pendant le suivi: ${data.error?.message || 'Erreur inconnue'}`, 'error');
+            stopLogPolling();
+            setDeployState(DEPLOYMENT_STATES.ERROR);
+            return;
+        }
+
+        const currentState = data.state as string; 
+        
+        if (!deployLogs.find(log => log.message.includes(`Statut: ${currentState}`))) {
+             addDeployLog(`Statut: ${currentState}`, 'status');
+        }
+        
+        if (currentState === 'READY' || currentState === 'CANCELED' || currentState === 'ERROR') {
+            stopLogPolling();
+        }
+
+        if (currentState === 'READY') {
+            addDeployLog(`✅ Déploiement terminé avec succès! URL: ${currentUrl}`, 'success');
+            setDeployState(DEPLOYMENT_STATES.SUCCESS);
+        } else if (currentState === 'ERROR') {
+            addDeployLog('❌ Déploiement ÉCHOUÉ. Veuillez consulter le tableau de bord Vercel.', 'error');
+            setDeployState(DEPLOYMENT_STATES.ERROR);
+        } 
+    } catch (error) {
+        addDeployLog(`Erreur de Polling: ${(error as Error).message}`, 'error');
+        stopLogPolling();
+        setDeployState(DEPLOYMENT_STATES.ERROR);
+    }
+}, [addDeployLog, stopLogPolling, deployLogs]); // Attention aux dépendances pour éviter les boucles
+
+const startLogPolling = useCallback((id: string, currentUrl: string) => {
+    stopLogPolling();
+    logIntervalRef.current = setInterval(() => {
+        fetchVercelLogs(id, currentUrl);
+    }, 3000); 
+}, [fetchVercelLogs, stopLogPolling]);
+
+const startDeployment = useCallback(async () => {
+    if (deployState === DEPLOYMENT_STATES.DEPLOYING || deployState === DEPLOYMENT_STATES.MONITORING) return;
+    
+    const token = localStorage.getItem(VERCEL_TOKEN_KEY);
+
+    if (!token) {
+        setTokenError('Jeton manquant. Veuillez l\'enregistrer.');
+        return;
+    }
+    
+    // Vérification des dépendances critiques
+    if (!currentProject || !sandboxId) {
+        addDeployLog('Erreur: Projet ou Sandbox ID manquant.', 'error');
+        return;
+    }
+
+    addDeployLog(`Début du déploiement pour '${currentProject.name}'...`, 'start');
+    setDeployState(DEPLOYMENT_STATES.DEPLOYING);
+    setDeployLogs([]);
+    setDeployUrl('');
+    stopLogPolling();
+
+    const deploymentPayload = {
+        projectName: currentProject.name,
+        token: token,
+        sandboxId: sandboxId,
+    };
+
+    try {
+        const response = await fetch('/api/deploy/vercel', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(deploymentPayload),
+        });
+
+        const data: { success: boolean; error?: string; deploymentId?: string; url?: string } = await response.json();
+
+        if (!response.ok || !data.success || !data.deploymentId || !data.url) {
+            const errorMsg = data.error || 'Erreur inconnue lors du lancement du déploiement.';
+            addDeployLog(`ÉCHEC: ${errorMsg}`, 'error');
+            setDeployState(DEPLOYMENT_STATES.ERROR);
+            setTokenError(errorMsg); 
+            return;
+        }
+
+        // Succès du lancement
+        addDeployLog(`Déploiement lancé avec succès! ID: ${data.deploymentId}`, 'success');
+        setDeployUrl(data.url);
+        setDeployState(DEPLOYMENT_STATES.MONITORING);
+
+        // Commence le Polling des Logs Vercel
+        startLogPolling(data.deploymentId, data.url);
+
+    } catch (error) {
+        addDeployLog(`Erreur critique de la requête API: ${(error as Error).message}`, 'error');
+        setDeployState(DEPLOYMENT_STATES.ERROR);
+    }
+}, [deployState, currentProject, sandboxId, startLogPolling, stopLogPolling, addDeployLog]);
+
+// Effet pour le chargement initial du token (comme dans la modal)
+useEffect(() => {
+    const storedToken = localStorage.getItem(VERCEL_TOKEN_KEY);
+    if (storedToken) {
+        setVercelToken(storedToken);
+        setDeployState(DEPLOYMENT_STATES.TOKEN_VALIDATED);
+    } else {
+        setShowTokenInput(true);
+    }
+    // Nettoyage lors du démontage du composant
+    return () => stopLogPolling(); 
+}, []); // S'exécute une seule fois au montage
+
+// Effet pour le scroll des logs
+useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+}, [deployLogs]);
+
+
+// ----------------------
+// Fonctions utilitaires du Token (à appeler dans le JSX)
+// ----------------------
+const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setVercelToken(e.target.value.trim());
+    setTokenError('');
+};
+
+const saveToken = () => {
+    if (vercelToken.length > 50) { 
+        localStorage.setItem(VERCEL_TOKEN_KEY, vercelToken);
+        setDeployState(DEPLOYMENT_STATES.TOKEN_VALIDATED);
+        setShowTokenInput(false);
+        setTokenError('');
+    } else {
+        setTokenError('Veuillez entrer un jeton d\'accès Vercel valide (trop court).');
+    }
+};
+
+const removeToken = () => {
+    localStorage.removeItem(VERCEL_TOKEN_KEY);
+    setVercelToken('');
+    setDeployState(DEPLOYMENT_STATES.IDLE);
+    setShowTokenInput(true);
+    setDeployLogs([]);
+    stopLogPolling();
+    addDeployLog('Jeton Vercel supprimé. Veuillez en fournir un nouveau.', 'info');
+};
 
 
 
@@ -3560,17 +3773,143 @@ useEffect(() => {
 {/* ---------------------------------------------------- */}
 
 {/* On ne vérifie que l'état d'ouverture. La modal gérera l'absence de projet/sandboxId. */}
+// ==============================================================================
+// 🛑 RENDU DE LA MODAL VERCEL (À placer à la fin du RETURN)
+// ==============================================================================
+
 {isVercelModalOpen && (
-    <VercelDeployModal 
-        // currentProject est passé tel quel (Project | null)
-        currentProject={currentProject} 
-        
-        // sandboxId est passé tel quel (string | null)
-        sandboxId={sandboxId} 
-        
-        isOpen={isVercelModalOpen}
-        onClose={() => setIsVercelModalOpen(false)}
-    />
+    <div className="fixed inset-0 w-full h-full bg-black/50 flex justify-end items-start z-[9999] p-5">
+        {/* Conteneur de la modal, ajusté à 80px du haut et 2px de la droite */}
+        <div className="absolute top-[80px] right-2 max-w-lg w-full bg-white p-5 rounded-xl shadow-2xl flex flex-col gap-4">
+            
+            {/* En-tête de la Modal */}
+            <div className="flex justify-between items-center border-b pb-3 border-[rgba(55,50,47,0.1)]">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Zap className="h-6 w-6 text-[#37322F]" />
+                    Déploiement Vercel
+                </h2>
+                <button 
+                    onClick={() => setIsVercelModalOpen(false)} 
+                    className="p-1 rounded-full hover:bg-[#F7F5F3] transition-colors" 
+                    aria-label="Fermer"
+                >
+                    <X className="h-5 w-5 text-[#37322F]" />
+                </button>
+            </div>
+
+            {/* Section du Token */}
+            <div className="p-3 border border-[rgba(55,50,47,0.1)] rounded-lg bg-[#F7F5F3] flex flex-col gap-2">
+                <h3 className="font-semibold text-sm flex justify-between items-center">
+                    Jeton d'Accès Vercel
+                    {vercelToken && !showTokenInput && (
+                        <button onClick={() => setShowTokenInput(true)} className="text-xs text-[#37322F]/60 hover:text-[#37322F] underline transition-colors">
+                            Modifier le jeton
+                        </button>
+                    )}
+                </h3>
+                
+                <a 
+                    href={VERCEL_TOKEN_URL} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:text-blue-800 underline transition-colors"
+                >
+                    Générer ou trouver votre jeton personnel ici
+                </a>
+
+                {showTokenInput ? (
+                    <>
+                        <input
+                            type="password"
+                            value={vercelToken}
+                            onChange={handleTokenChange}
+                            placeholder="Collez votre jeton Vercel ici..."
+                            className={`w-full p-2 border rounded-md text-sm font-mono ${tokenError ? 'border-red-500' : 'border-[rgba(55,50,47,0.1)]'}`}
+                        />
+                        <div className="flex justify-between items-center">
+                             <button 
+                                onClick={saveToken} 
+                                className="text-xs text-white px-3 py-1 bg-green-600 rounded-md hover:bg-green-700 transition-colors"
+                                disabled={vercelToken.length < 50}
+                            >
+                                Enregistrer le jeton
+                            </button>
+                            {vercelToken && (
+                               <button 
+                                    onClick={removeToken} 
+                                    className="flex items-center gap-1 text-xs text-red-600 hover:text-red-700 transition-colors"
+                                >
+                                    <LogOut className="h-3 w-3" /> Supprimer
+                                </button>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <div className="text-sm font-mono truncate py-1.5 border border-green-500 bg-green-50/50 rounded-md px-2 flex justify-between items-center">
+                        Jeton enregistré.
+                        <Check className="h-4 w-4 text-green-600" />
+                    </div>
+                )}
+                {tokenError && <p className="text-xs text-red-500 mt-1">{tokenError}</p>}
+            </div>
+
+            {/* Section des Logs */}
+            <div className="flex flex-col gap-2 flex-grow min-h-0">
+                <h3 className="font-semibold text-sm">Logs de Déploiement ({deployState})</h3>
+                <div className="flex-grow bg-black text-white text-xs p-3 rounded-lg overflow-y-scroll font-mono min-h-[150px] max-h-[300px] border border-gray-700">
+                    {deployLogs.length === 0 && <p className="text-gray-500">En attente de lancement du déploiement...</p>}
+                    {deployLogs.map((log, i) => (
+                        <div key={i} className={`flex gap-2 ${
+                            log.type === 'error' ? 'text-red-400' : 
+                            log.type === 'success' ? 'text-green-400 font-bold' : 
+                            log.type === 'start' ? 'text-yellow-300' : 
+                            'text-gray-300'
+                        }`}>
+                            <span className="text-gray-500 flex-shrink-0">[{log.timestamp}]</span>
+                            <span className="whitespace-pre-wrap">{log.message}</span>
+                        </div>
+                    ))}
+                    <div ref={logsEndRef} />
+                </div>
+            </div>
+
+            {/* Pied de page et Bouton Deploy */}
+            <div className="flex justify-between items-center pt-3 border-t border-[rgba(55,50,47,0.1)]">
+                <div className="text-sm">
+                    {deployUrl && (deployState === DEPLOYMENT_STATES.SUCCESS || deployState === DEPLOYMENT_STATES.MONITORING) ? (
+                        <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">
+                            Voir le site (URL: {new URL(deployUrl).hostname})
+                        </a>
+                    ) : (
+                        <p className="text-[#37322F]/60">Projet: {currentProject?.name || 'Inconnu'}</p>
+                    )}
+                </div>
+                
+                {/* Bouton Deploy on Vercel */}
+                <button
+                    onClick={startDeployment}
+                    disabled={
+                        deployState === DEPLOYMENT_STATES.DEPLOYING || 
+                        deployState === DEPLOYMENT_STATES.MONITORING || 
+                        !vercelToken || 
+                        !currentProject || 
+                        !sandboxId
+                    }
+                    className={`rounded-[10px] w-[200px] text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 
+                        ${(deployState === DEPLOYMENT_STATES.DEPLOYING || deployState === DEPLOYMENT_STATES.MONITORING || !vercelToken || !currentProject || !sandboxId) ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]'}`}
+                >
+                    {(deployState === DEPLOYMENT_STATES.DEPLOYING || deployState === DEPLOYMENT_STATES.MONITORING) ? (
+                        <>
+                            <Loader className="h-4 w-4 mr-2 animate-spin" />
+                            {deployState === DEPLOYMENT_STATES.DEPLOYING ? 'Lancement...' : 'Suivi du déploiement...'}
+                        </>
+                    ) : (
+                        'Deployer sur Vercel'
+                    )}
+                </button>
+            </div>
+        </div>
+    </div>
 )}
             </div>
           </div>
