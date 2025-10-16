@@ -2978,10 +2978,13 @@ useEffect(() => {
           }
           
           // 5. AFFICHAGE DU BOUTON COPIER (FORCÉMENT VISIBLE)
-          if (msg.role === "assistant" && (hasTextContent || isFileArtifact || isUrlArtifact)) {
+          // 5. AFFICHAGE DU BOUTON COPIER (CONDITION ULTRA SIMPLIFIÉE)
+          // La seule condition est que ce soit l'assistant.
+          if (msg.role === "assistant") {
               
               // Définir la source du texte à copier: uniquement le texte explicatif nettoyé.
-              const textToCopy = finalContentToDisplay.length > 0 ? finalContentToDisplay : "Assistant response generated code artifacts."; 
+              // On utilise le texte nettoyé s'il existe, sinon un message par défaut.
+              const textToCopy = finalContentToDisplay.length > 0 ? finalContentToDisplay : "Assistant response generated artifacts or is loading."; 
               
               const Icon = isCopied ? Check : Copy; 
 
@@ -3003,7 +3006,7 @@ useEffect(() => {
                           bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] 
                           cursor-pointer 
                           opacity-100 transition-opacity 
-                          ${isCopied ? 'opacity-100' : 'opacity-100'} 
+                          ${isCopied ? 'opacity-100' : 'opacity-100'} // Toujours visible (opacity-100)
                       `}
                       onClick={handleCopy}
                       title="Copier le texte explicatif"
@@ -3011,7 +3014,7 @@ useEffect(() => {
                       <Icon className={`h-4 w-4 ${isCopied ? 'text-green-600' : 'text-[#37322F]'}`} />
                   </div>
               );
-          }
+    }
 
 
           // LOGIQUE DE RETOUR FINAL
