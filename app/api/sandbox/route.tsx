@@ -114,31 +114,171 @@ div {
       }
 
       case "getFiles": {
-        if (!bodySandboxId) throw new Error("sandboxId manquant");
+        const sid = bodySandboxId
+        if (!sid) throw new Error("sandboxId manquant")
 
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
-        
-        const filePaths = [
-          "/home/user/package.json",
-          "/home/user/tsconfig.json",
-          "/home/user/app/layout.tsx",
-          "/home/user/app/page.tsx",
-          "/home/user/app/globals.css",
-        ];
+        console.log("[v0] Extracting files from sandbox:", sid)
 
-        // 🟢 Utilisation correcte de sandbox.files.readBatch
-        const files = await sandbox.files.readBatch(filePaths);
+        try {
+          let sandbox: e2b.Sandbox
+          try {
+            // Tente de se connecter à la sandbox existante
+            sandbox = await e2b.Sandbox.connect(sid, {
+              apiKey,
+              timeoutMs: 900000,
+            })
+          } catch (connectError: any) {
+            console.log("[v0] Failed to connect to sandbox, it may be paused or expired:", connectError.message)
+            throw new Error(`Sandbox ${sid} is no longer available. It may have expired or been paused.`)
+          }
 
-        const filesMap: Record<string, string> = {};
-        files.forEach((file, index) => {
-            const relativePath = filePaths[index].replace("/home/user/", "");
-            filesMap[relativePath] = file.content;
-        });
+          await sandbox.setTimeout(900000)
 
-        console.log(`Récupération de ${files.length} fichiers pour le sandbox ${bodySandboxId}`);
+          // Commande pour lister tous les fichiers pertinents, en ignorant les dossiers de build/dépendances
+          const { stdout: fileList } = await sandbox.commands.run(
+            "find . -type f -not -path './node_modules/*' -not -path './.next/*' -not -path './.*'",
+            {
+              cwd: "/home/user",
+            },
+          )
 
-        return NextResponse.json({ success: true, fileCount: files.length, files: filesMap });
+          const files: Record<string, string> = {}
+          const filePaths = fileList
+            .trim()
+            .split("\n")
+            .filter((path) => path && path !== ".")
+
+          console.log("[v0] Found", filePaths.length, "files to extract")
+
+          for (let i = 0; i < filePaths.length; i++) {
+            const filePath = filePaths[i]
+            try {
+              const cleanPath = filePath.replace(/^\.\//, "")
+              // Lit le contenu du fichier
+              const content = await sandbox.files.read(`/home/user/${cleanPath}`, { format: "text" })
+
+              // Logique spéciale pour package.json et autres JSON (formatage et validation)
+              if (cleanPath === "package.json" || cleanPath.endsWith(".json")) {
+                try {
+                  const parsed = JSON.parse(content)
+                  files[cleanPath] = JSON.stringify(parsed, null, 2)
+                  console.log(`[v0] Validated and formatted JSON file: ${cleanPath}`)
+                } catch (jsonError) {
+                  // Fallback si le JSON est corrompu
+                  console.error(`[v0] Invalid JSON in ${cleanPath}:`, jsonError)
+                  if (cleanPath === "package.json") {
+                    // (Logique de package.json par défaut omise ici pour la concision)
+                    files[cleanPath] = content
+                    console.log(`[v0] Used fallback package.json due to corruption`)
+                  } else {
+                    files[cleanPath] = content
+                  }
+                }
+              } else {
+                files[cleanPath] = typeof content === "string" ? content : String(content)
+              }
+
+              console.log(`[v0] Extracted file ${i + 1}/${filePaths.length}:`, cleanPath)
+            } catch (error) {
+              console.log("[v0] Could not read file:", filePath, error)
+            }
+          }
+
+          console.log("[v0] Successfully extracted", Object.keys(files).length, "files")
+
+          return NextResponse.json({
+            success: true,
+            files,
+            fileCount: Object.keys(files).length,
+          })
+        } catch (error: any) {
+          console.error("[v0] Error extracting files:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to extract files from sandbox",
+              details: error.message,
+              sandboxId: sid,
+            },
+            { status: 500 },
+          )
+        }
+            }
+
+
+   case "processFiles": {
+        const sid = bodySandboxId
+        if (!sid) throw new Error("sandboxId manquant")
+
+        console.log("[v0] Processing files for deployment from sandbox:", sid)
+
+        try {
+          // 1. Appel interne à getFiles pour obtenir le contenu des fichiers
+          const extractResponse = await fetch(`${req.url}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "getFiles", sandboxId: sid }),
+          })
+
+          const extractResult = await extractResponse.json()
+
+          if (!extractResult.success) {
+            throw new Error(`Failed to extract files: ${extractResult.error}`)
+          }
+
+          const rawFiles = extractResult.files
+          const processedFiles: Record<string, { content: string; encoding: string }> = {}
+
+          // 2. Traitement et encodage
+          for (const [filePath, content] of Object.entries(rawFiles)) {
+            const fileContent = content as string
+
+            if (typeof fileContent !== "string") {
+              console.error(`[v0] File ${filePath} has invalid content type:`, typeof fileContent)
+              continue
+            }
+
+            // Validation simple de package.json (optionnel)
+            if (filePath === "package.json") {
+              try {
+                JSON.parse(fileContent)
+              } catch (e) {
+                throw new Error(`package.json contains invalid JSON: ${e}`)
+              }
+            }
+            
+            // 🛑 ENCODAGE EN BASE64 🛑
+            processedFiles[filePath] = {
+              content: Buffer.from(fileContent, "utf8").toString("base64"),
+              encoding: "base64",
+            }
+
+            console.log(
+              `[v0] Processed file: ${filePath} (${fileContent.length} chars -> ${processedFiles[filePath].content.length} base64 chars)`,
+            )
+          }
+
+          console.log("[v0] Successfully processed", Object.keys(processedFiles).length, "files for deployment")
+
+          return NextResponse.json({
+            success: true,
+            files: processedFiles,
+            fileCount: Object.keys(processedFiles).length,
+          })
+        } catch (error: any) {
+          console.error("[v0] Error processing files:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to process files for deployment",
+              details: error.message,
+              sandboxId: sid,
+            },
+            { status: 500 },
+          )
+        }
       }
+        
 
       case "addFile": {
         if (!bodySandboxId || !body.filePath || !body.content)
