@@ -3892,13 +3892,7 @@ useEffect(() => {
                 {/* Bouton Deploy on Vercel */}
                 <button
                     onClick={startDeployment}
-                    disabled={
-                        deployState === DEPLOYMENT_STATES.DEPLOYING || 
-                        deployState === DEPLOYMENT_STATES.MONITORING || 
-                        !vercelToken || 
-                        !currentProject || 
-                        !sandboxId
-                    }
+                    
                     className={`rounded-[10px] w-[200px] text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 
                         ${(deployState === DEPLOYMENT_STATES.DEPLOYING || deployState === DEPLOYMENT_STATES.MONITORING || !vercelToken || !currentProject || !sandboxId) ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]'}`}
                 >
