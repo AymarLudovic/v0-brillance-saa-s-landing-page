@@ -3830,7 +3830,7 @@ useEffect(() => {
                              <button 
                                 onClick={saveToken} 
                                 className="text-xs text-white px-3 py-1 bg-green-600 rounded-md hover:bg-green-700 transition-colors"
-                                disabled={vercelToken.length < 50}
+                                
                             >
                                 Enregistrer le jeton
                             </button>
