@@ -114,12 +114,10 @@ div {
       }
 
       case "getFiles": {
-        // 🛑 NOUVELLE ACTION POUR RÉCUPÉRER LES FICHIERS DE DÉPLOIEMENT 🛑
         if (!bodySandboxId) throw new Error("sandboxId manquant");
 
         const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
         
-        // Liste des chemins de fichiers à récupérer (ajustez si votre projet en a plus)
         const filePaths = [
           "/home/user/package.json",
           "/home/user/tsconfig.json",
@@ -128,11 +126,11 @@ div {
           "/home/user/app/globals.css",
         ];
 
+        // 🟢 Utilisation correcte de sandbox.files.readBatch
         const files = await sandbox.files.readBatch(filePaths);
 
         const filesMap: Record<string, string> = {};
         files.forEach((file, index) => {
-            // Utilise le chemin relatif (e.g., app/page.tsx) comme clé pour Vercel
             const relativePath = filePaths[index].replace("/home/user/", "");
             filesMap[relativePath] = file.content;
         });
