@@ -3691,7 +3691,7 @@ useEffect(() => {
                   {/* Affiche le chemin complet du fichier actif */}
                   
 
-<div className="flex items-center justify-between p-2 border-b border-[rgba(55,50,47,0.1)] h-10">
+<div className="flex items-center w-full h-full justify-between p-2 border-b border-[rgba(55,50,47,0.1)] h-10">
     <div className="flex items-center gap-2"> {/* Conteneur pour le Breadcrumb */}
         {currentProject && files.length > 0 && activeFile !== null && (
             <FileBreadcrumb 
@@ -3719,7 +3719,7 @@ useEffect(() => {
                 variant="ghost" 
                 size="icon" 
                 onClick={handleDownloadFile}
-                className="h-8 w-auto p-1 rounded-[10px] text-[#fff]"
+                className="h-8 w-8 p-1  text-black"
                 title="Télécharger le fichier"
             >
                 <Download />
