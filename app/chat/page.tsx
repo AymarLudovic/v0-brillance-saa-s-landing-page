@@ -884,6 +884,14 @@ const [vercelToken, setVercelToken] = useState<string>('');
 const [tokenError, setTokenError] = useState<string>('');
 const [showTokenInput, setShowTokenInput] = useState<boolean>(false);
 const [isVercelModalOpen, setIsVercelModalOpen] = useState<boolean>(false);
+  const [isConnecting, setIsConnecting] = useState<Record<string, boolean>>({})
+
+    const [deploymentDetails, setDeploymentDetails] = useState<{
+    status: "idle" | "deploying" | "success" | "error"
+    message: string
+    url?: string
+    error?: string
+  } | null>(null)
 
 // État du Déploiement
 type DeployState = 'IDLE' | 'TOKEN_VALIDATED' | 'DEPLOYING' | 'MONITORING' | 'SUCCESS' | 'ERROR';
@@ -1067,6 +1075,82 @@ const startDeployment = useCallback(async () => {
 useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
 }, [deployLogs]);
+
+
+const handleDeploy = async () => {
+    if (!connections.vercel) {
+      setShowTokenModal("vercel")
+      return
+    }
+
+    if (!sandboxId) {
+      setDeploymentDetails({
+        status: "error",
+        message: "No active sandbox to deploy",
+        error: "Please create and build a project first",
+      })
+      return
+    }
+
+    setIsConnecting((prev) => ({ ...prev, deploy: true }))
+    setDeploymentDetails({ status: "deploying", message: "Extracting files from sandbox..." })
+
+    try {
+      // First, extract files from the sandbox
+      console.log("[v0] Extracting files from sandbox:", sandboxId)
+      const filesResponse = await fetch("/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "getFiles",
+          sandboxId: currentSandboxId,
+        }),
+      })
+
+      const filesData = await filesResponse.json()
+      if (!filesData.success) {
+        throw new Error(filesData.error || "Failed to extract files from sandbox")
+      }
+
+      console.log("[v0] Extracted", filesData.fileCount, "files")
+      setDeploymentDetails({ status: "deploying", message: "Deploying to Vercel..." })
+
+      // Now deploy to Vercel
+      const response = await fetch("/api/deploy/vercel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: filesData.files,
+          projectName,
+          token: connections.vercel.token,
+        }),
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        setDeploymentDetails({
+          status: "success",
+          message: "Deployment successful!",
+          url: data.url,
+        })
+      } else {
+        setDeploymentDetails({
+          status: "error",
+          message: "Deployment failed",
+          error: data.error || "Unknown error occurred",
+        })
+      }
+    } catch (error: any) {
+      console.error("[v0] Deployment failed:", error)
+      setDeploymentDetails({
+        status: "error",
+        message: "Deployment failed",
+        error: error.message || "Network error occurred",
+      })
+    } finally {
+      setIsConnecting((prev) => ({ ...prev, deploy: false }))
+    }
+                  }
 
 
 // ----------------------
@@ -3676,7 +3760,50 @@ useEffect(() => {
 
 
 
+{deploymentDetails && (
+        <div className="mb-4 p-4 rounded-lg border border-[#333] bg-[#0a0a0a]">
+          <h3 className="text-white font-semibold mb-2">Deployment Status</h3>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              {deploymentDetails.status === "deploying" && (
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              )}
+              {deploymentDetails.status === "success" && <div className="w-4 h-4 bg-green-500 rounded-full" />}
+              {deploymentDetails.status === "error" && <div className="w-4 h-4 bg-red-500 rounded-full" />}
+              <span
+                className={`text-sm ${
+                  deploymentDetails.status === "success"
+                    ? "text-green-400"
+                    : deploymentDetails.status === "error"
+                      ? "text-red-400"
+                      : "text-blue-400"
+                }`}
+              >
+                {deploymentDetails.message}
+              </span>
+            </div>
 
+            {deploymentDetails.url && (
+              <a
+                href={deploymentDetails.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm"
+              >
+                <ExternalLink className="w-4 h-4" />
+                {deploymentDetails.url}
+              </a>
+            )}
+
+            {deploymentDetails.error && (
+              <div className="bg-red-900/20 border border-red-500/30 rounded p-3 mt-2">
+                <p className="text-red-400 text-sm font-medium">Error Details:</p>
+                <p className="text-red-300 text-xs mt-1 font-mono">{deploymentDetails.error}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
 
 
@@ -3780,32 +3907,13 @@ useEffect(() => {
               </button>
 
 {/* ⚠️ Assurez-vous d'importer l'icône Zap et Loader de Lucide React */}
-<Button
-    onClick={handleSimpleDeploy}
-    // Condition de désactivation :
-    // 1. En cours de déploiement
-    // 2. Jeton Vercel manquant dans le localStorage
-    // 3. Projet ou Sandbox ID manquant
-    disabled={
-        deploying || 
-        !localStorage.getItem(VERCEL_TOKEN_KEY) || 
-        !currentProject || 
-        !sandboxId
-    }
-    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
->
-    {deploying ? (
-        <>
-            <Loader className="h-4 w-4 animate-spin" />
-            Déploiement...
-        </>
-    ) : (
-        <>
-            <Zap className="h-4 w-4" />
-            Déployer sur Vercel
-        </>
-    )}
-</Button>
+<button
+            onClick={handleDeploy}
+            disabled={isConnecting.deploy}
+            className="h-[29px] w-[150px] bg-white text-black font-semibold rounded-[12px] hover:bg-gray-100 transition-colors disabled:opacity-50"
+          >
+            {isConnecting.deploy ? "Deploying..." : "Deploy Site"}
+          </button>
 
 {/* Affichage rapide du statut (facultatif) */}
 {deployStatus === 'SUCCESS' && deployResult && (
