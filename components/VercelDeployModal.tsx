@@ -1,3 +1,5 @@
+"use client" // Obligatoire pour utiliser les hooks comme useState et useEffect
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Zap, Loader, Check, LogOut } from 'lucide-react'; 
 
@@ -8,14 +10,12 @@ import { X, Zap, Loader, Check, LogOut } from 'lucide-react';
 interface ProjectFile {
     filePath: string;
     content: string;
-    // Ajoutez d'autres propriétés si nécessaire (e.g., id, language)
 }
 
 interface CurrentProject {
     id: string;
     name: string;
     files: ProjectFile[];
-    // Ajoutez d'autres propriétés
 }
 
 interface VercelDeployModalProps {
@@ -47,10 +47,10 @@ const VERCEL_TOKEN_KEY = 'vercel_access_token';
 const VERCEL_TOKEN_URL = 'https://vercel.com/account/tokens'; 
 
 // ==============================================================================
-// 2. COMPOSANT VercelDeployModal
+// 2. COMPOSANT VercelDeployModal (Export Default Function)
 // ==============================================================================
 
-const VercelDeployModal: React.FC<VercelDeployModalProps> = ({ currentProject, sandboxId, onClose, isOpen }) => {
+export default function VercelDeployModal({ currentProject, sandboxId, onClose, isOpen }: VercelDeployModalProps) {
     // État du Token
     const [vercelToken, setVercelToken] = useState<string>('');
     const [tokenError, setTokenError] = useState<string>('');
@@ -113,10 +113,10 @@ const VercelDeployModal: React.FC<VercelDeployModalProps> = ({ currentProject, s
     // LOGIQUE DE DÉPLOIEMENT & LOGS
     // ----------------------
 
-    const addLog = (message: string, type: LogEntry['type']) => {
+    const addLog = useCallback((message: string, type: LogEntry['type']) => {
         const timestamp = new Date().toLocaleTimeString('fr-FR', { hour12: false });
         setLogs(prev => [...prev, { timestamp, message, type }]);
-    };
+    }, []);
     
     // Fonction pour arrêter le polling
     const stopLogPolling = useCallback(() => {
@@ -147,7 +147,7 @@ const VercelDeployModal: React.FC<VercelDeployModalProps> = ({ currentProject, s
                 return;
             }
 
-            const currentState = data.state as string; // Vercel state is a string
+            const currentState = data.state as string; 
             
             // Afficher le statut s'il change
             // Utilise les logs actuels pour éviter les doublons
@@ -194,7 +194,6 @@ const VercelDeployModal: React.FC<VercelDeployModalProps> = ({ currentProject, s
         setDeployState(DEPLOYMENT_STATES.DEPLOYING);
         setLogs([]);
         setDeployUrl('');
-        // setDeploymentId(null); // Pas strictement nécessaire ici car utilisé dans le callback
         stopLogPolling();
 
         const deploymentPayload = {
@@ -384,6 +383,4 @@ const VercelDeployModal: React.FC<VercelDeployModalProps> = ({ currentProject, s
             </div>
         </div>
     );
-};
-
-export default VercelDeployModal;
+              }
