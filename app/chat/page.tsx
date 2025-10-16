@@ -905,7 +905,7 @@ const VERCEL_TOKEN_KEY = 'vercel_access_token';
 const VERCEL_TOKEN_URL = 'https://vercel.com/account/tokens'; 
 
 // NOUVEAUX ÉTATS POUR LE DÉPLOIEMENT SIMPLIFIÉ
-const VERCEL_TOKEN_KEY = 'vercel_access_token';
+
 const [deploying, setDeploying] = useState(false); // État de chargement du bouton
 const [deployStatus, setDeployStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR' | 'LOADING'>('IDLE');
 const [deployResult, setDeployResult] = useState<string | null>(null); // URL ou message d'erreur
