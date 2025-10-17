@@ -1333,13 +1333,16 @@ const createNewProject = () => {
 
 // DANS VOTRE COMPOSANT PRINCIPAL (utilisant useCallback)
 
-const handleDeploy = useCallback(async () => {
-    // 0. Initialisation et vérification des états
+
+      const handleDeploy = useCallback(async () => {
+    // 0. Initialisation
     setShowDeploymentStatus(true);
     setDeploymentDetails({ status: 'idle', message: 'Démarrage du processus de déploiement...', url: null, error: null });
 
-    // 1. Validation des prérequis (jeton, sandbox, projet)
-    if (!connections.vercel || !connections.vercel.token) {
+    // === VÉRIFICATIONS (LÉGÈREMENT RENFORCÉES POUR ÉVITER LES ERREURS SYNC.) ===
+
+    // Vérification Vercel
+    if (!connections?.vercel?.token) {
       setDeploymentDetails({ status: "error", message: "Jeton Vercel manquant.", error: "Veuillez l'enregistrer d'abord." });
       setShowTokenModal("vercel");
       return; 
@@ -1347,29 +1350,22 @@ const handleDeploy = useCallback(async () => {
 
     const activeSandboxId = sandboxId; 
     
+    // Vérification Projet
     if (!activeSandboxId || !currentProject || !currentProject.files || currentProject.files.length === 0) {
       setDeploymentDetails({ status: "error", message: "Déploiement échoué.", error: "Projet ou Sandbox invalide." });
       return;
     }
 
-    // --- LOGIQUE DE DÉTERMINATION ET DE NORMALISATION DU NOM VERCEL (OBLIGATOIREMENT LOCALE) ---
+    // --- LOGIQUE DE NORMALISATION DU NOM (INTÉGRÉE ET LOCALE) ---
     
-    // Nom brut (avec fallback si currentProject.name est null)
-    let rawName = currentProject.name || `v0-e2b-app-${activeSandboxId.substring(0, 4)}`;
+    // Nom brut ou fallback sécurisé
+    let rawName = `v0-e2b-app-${activeSandboxId.substring(0, 4)}`;
     
-    // 1. Conversion en minuscules et nettoyage des espaces
+    // Nettoyage du nom pour respecter les contraintes Vercel (minuscule, tirets, pas de caractères spéciaux)
     let vercelProjectName = rawName.toLowerCase().trim();
-    
-    // 2. Remplacer les caractères non autorisés par des tirets
     vercelProjectName = vercelProjectName.replace(/[^a-z0-9._-]/g, '-');
-    
-    // 3. Réduire les séquences de tirets (--) en un seul tiret
     vercelProjectName = vercelProjectName.replace(/-{2,}/g, '-');
-    
-    // 4. Supprimer les tirets/points/underscores au début et à la fin.
     vercelProjectName = vercelProjectName.replace(/^[._-]+|[._-]+$/g, '');
-    
-    // 5. Limitation à 100 caractères et fallback
     vercelProjectName = vercelProjectName.substring(0, 100);
 
     if (vercelProjectName.length === 0) {
@@ -1380,7 +1376,7 @@ const handleDeploy = useCallback(async () => {
 
     // Mise à jour des états de chargement
     setIsConnecting(prev => ({ ...prev, deploy: true }));
-    setDeploymentDetails(prev => ({ ...prev, status: "deploying", message: "Préparation des fichiers pour Vercel..." }));
+    setDeploymentDetails(prev => ({ ...prev, status: "deploying", message: `Préparation et déploiement de "${vercelProjectName}"...` }));
 
     try {
       // 3. Préparer les fichiers
@@ -1396,7 +1392,6 @@ const handleDeploy = useCallback(async () => {
         throw new Error("Aucun fichier valide à déployer n'a été trouvé dans le projet.");
       }
 
-      setDeploymentDetails(prev => ({ ...prev, message: `Déploiement de "${vercelProjectName}" vers Vercel...` }));
 
       // 4. Appel au déploiement Vercel
       const response = await fetch("/api/deploy/vercel", {
@@ -1404,7 +1399,7 @@ const handleDeploy = useCallback(async () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           files: projectFilesMap,
-          projectName: vercelProjectName, // Nom du projet nettoyé localement
+          projectName: rawName, // Nom du projet nettoyé localement
           token: connections.vercel.token,
           sandboxId: activeSandboxId, 
         }),
@@ -1435,7 +1430,6 @@ const handleDeploy = useCallback(async () => {
       setIsConnecting(prev => ({ ...prev, deploy: false }));
     }
 }, [connections, sandboxId, currentProject]);
-      
 
 
   const saveProject = () => {
