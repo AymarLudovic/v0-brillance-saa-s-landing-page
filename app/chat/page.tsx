@@ -896,12 +896,29 @@ const [deploymentDetails, setDeploymentDetails] = useState({
 });
 
 // État 'connections' qui contient le jeton Vercel (à adapter à votre structure)
+// ANCIENNE VERSION FRAGILE (à remplacer)
+// const [connections, setConnections] = useState({ vercel: typeof window !== 'undefined' && localStorage.getItem('vercel_access_token') ? { token: localStorage.getItem('vercel_access_token') } : null });
+
+// 🟢 NOUVELLE VERSION SÛRE : Initialisation simple et sans dépendance
 const [connections, setConnections] = useState({ 
-    vercel: typeof window !== 'undefined' && localStorage.getItem('vercel_access_token') 
-        ? { token: localStorage.getItem('vercel_access_token') } 
-        : null 
+    vercel: null,
+    github: null // Ajoutez d'autres plateformes si nécessaire
 });
 
+
+  // DANS VOTRE COMPOSANT PRINCIPAL
+useEffect(() => {
+    // Exécuté uniquement côté client (après le premier rendu)
+    if (typeof window !== 'undefined') {
+        const vercelToken = localStorage.getItem('vercel_access_token');
+        if (vercelToken) {
+            setConnections(prev => ({
+                ...prev,
+                vercel: { token: vercelToken }
+            }));
+        }
+    }
+}, []);
 
   const [showDeploymentStatus, setShowDeploymentStatus] = useState(false);
 
@@ -1333,22 +1350,24 @@ const createNewProject = () => {
 
 // DANS VOTRE COMPOSANT PRINCIPAL (utilisant useCallback)
 
-// DANS VOTRE COMPOSANT PRINCIPAL, SANS useCallBack
 const handleDeploy = async () => {
     // 0. Initialisation
     setShowDeploymentStatus(true);
     setDeploymentDetails({ status: 'idle', message: 'Démarrage du processus de déploiement...', url: null, error: null });
 
-    // === VÉRIFICATIONS DÉFENSIVES EXTRÊMES (Nécessaires pour éviter les erreurs sync.) ===
+    // === VÉRIFICATIONS DÉFENSIVES EXTRÊMES ===
+    // Vérification sûre avec chaînage optionnel
     if (!sandboxId || !currentProject || !connections?.vercel?.token) {
         setDeploymentDetails({ status: "error", message: "Vérification des prérequis échouée.", error: "Assurez-vous d'avoir un jeton Vercel, un projet chargé et une sandbox active." });
         
         if (!connections?.vercel?.token) {
-             setShowTokenModal("vercel");
+             // Ouvre la modal si le jeton manque
+             setShowTokenModal("vercel"); 
         }
         return; 
     }
     
+    // Vérification sûre des propriétés du projet
     if (!currentProject.name || !currentProject.files || currentProject.files.length === 0) {
         setDeploymentDetails({ status: "error", message: "Déploiement échoué.", error: "Le projet chargé est incomplet." });
         return;
@@ -1356,11 +1375,10 @@ const handleDeploy = async () => {
     // ===========================================
 
     const activeSandboxId = sandboxId; 
+    const vercelToken = connections.vercel.token;
 
     // --- LOGIQUE DE NORMALISATION DU NOM (INTÉGRÉE ET LOCALE) ---
-    // Cette logique est nécessaire pour que l'API Vercel fonctionne.
     let rawName = currentProject.name; 
-    
     let vercelProjectName = rawName.toLowerCase().trim();
     vercelProjectName = vercelProjectName.replace(/[^a-z0-9._-]/g, '-');
     vercelProjectName = vercelProjectName.replace(/-{2,}/g, '-');
@@ -1398,7 +1416,7 @@ const handleDeploy = async () => {
         body: JSON.stringify({
           files: projectFilesMap,
           projectName: vercelProjectName,
-          token: connections.vercel.token,
+          token: vercelToken,
           sandboxId: activeSandboxId, 
         }),
       });
