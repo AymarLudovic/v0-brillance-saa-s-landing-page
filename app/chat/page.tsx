@@ -870,12 +870,15 @@ const [copiedFileIndex, setCopiedFileIndex] = useState(null);
 
 
   // === États de déploiement Vercel ===
+
+// === États de déploiement Vercel ===
 const [deploying, setDeploying] = useState(false);
 const [deployLogs, setDeployLogs] = useState<string[]>([]);
 const [deployUrl, setDeployUrl] = useState<string | null>(null);
 const [vercelToken, setVercelToken] = useState<string | null>(
   typeof window !== "undefined" ? localStorage.getItem("vercel_access_token") : null
 );
+  
   
 
 
@@ -957,17 +960,13 @@ const DEPLOYMENT_STATES: Record<DeployState, DeployState> = {
 interface LogEntry { timestamp: string; message: string; type: 'info' | 'error' | 'success' | 'start' | 'status'; }
 
 const [deployState, setDeployState] = useState<DeployState>(DEPLOYMENT_STATES.IDLE);
-const [deployLogs, setDeployLogs] = useState<LogEntry[]>([]); // Renommés pour ne pas confondre avec 'logs'
-const [deployUrl, setDeployUrl] = useState<string>('');
+
 const logIntervalRef = useRef<NodeJS.Timeout | null>(null); 
 const VERCEL_TOKEN_KEY = 'vercel_access_token';
 const VERCEL_TOKEN_URL = 'https://vercel.com/account/tokens'; 
 
 // NOUVEAUX ÉTATS POUR LE DÉPLOIEMENT SIMPLIFIÉ
 
-const [deploying, setDeploying] = useState(false); // État de chargement du bouton
-const [deployStatus, setDeployStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR' | 'LOADING'>('IDLE');
-const [deployResult, setDeployResult] = useState<string | null>(null); // URL ou message d'erreur
 
 // Référence pour le scroll des logs
 const logsEndRef = useRef<HTMLDivElement>(null);
