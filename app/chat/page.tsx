@@ -2955,18 +2955,16 @@ pollVercelBuildLogs(data.deploymentId, token);
     setDeploying(false);
   }
 };
-           
 
-              const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
+
+
+      const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
   setDeployLogs(prev => [...prev, "⏳ Suivi du déploiement et lecture des logs..."]);
 
   try {
-    // 1️⃣ Lancement de la requête en streaming
     const response = await fetch(
       `https://api.vercel.com/v3/deployments/${deploymentId}/events?follow=1`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
     if (!response.body) {
@@ -2978,14 +2976,12 @@ pollVercelBuildLogs(data.deploymentId, token);
     const decoder = new TextDecoder();
     let partial = "";
 
-    // 2️⃣ Lecture continue du flux NDJSON
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
       partial += decoder.decode(value, { stream: true });
 
-      // chaque événement est séparé par un retour à la ligne
       const lines = partial.split("\n");
       partial = lines.pop() || "";
 
@@ -2994,26 +2990,34 @@ pollVercelBuildLogs(data.deploymentId, token);
 
         try {
           const event = JSON.parse(line);
-          const text =
-            event?.payload?.text ||
-            event?.payload?.message ||
-            event?.payload?.output ||
-            event?.payload?.command ||
-            event?.type ||
-            "";
 
-          if (text) {
-            setDeployLogs(prev => [...prev, text]);
+          let text = "";
+
+          if (event.type === "stdout" || event.type === "stderr") {
+            // Vérification de plusieurs champs pour obtenir le texte
+            text = Array.isArray(event.payload?.text)
+              ? event.payload.text.join("")
+              : event.payload?.text || event.payload?.message || event.payload?.output || "";
+          } else {
+            text =
+              event?.payload?.text ||
+              event?.payload?.message ||
+              event?.payload?.output ||
+              event?.payload?.command ||
+              "";
           }
 
-          // On vérifie si le build est terminé
-          if (event.type === "state" && event.payload?.state === "READY") {
-            setDeployLogs(prev => [...prev, `✅ Déploiement terminé : ${url}`]);
-            return;
-          }
-          if (event.type === "state" && event.payload?.state === "ERROR") {
-            setDeployLogs(prev => [...prev, `❌ Déploiement échoué (ERROR)`]);
-            return;
+          if (text) setDeployLogs(prev => [...prev, text]);
+
+          if (event.type === "state") {
+            if (event.payload?.state === "READY") {
+              setDeployLogs(prev => [...prev, `✅ Déploiement terminé : ${url}`]);
+              return;
+            }
+            if (event.payload?.state === "ERROR") {
+              setDeployLogs(prev => [...prev, `❌ Déploiement échoué (ERROR)`]);
+              return;
+            }
           }
         } catch {
           // ligne incomplète, on continue
@@ -3024,9 +3028,9 @@ pollVercelBuildLogs(data.deploymentId, token);
     setDeployLogs(prev => [...prev, `⚠️ Erreur lecture flux: ${e.message}`]);
   }
 };
-  
+                           
 
-
+              
                       const pollVercelBuildLogs = async (deploymentId: string, token: string) => {
   let lastEventTime = 0; // pour éviter les doublons
   setDeployLogs(prev => [...prev, "🪵 Lecture des logs de build en direct..."]);
