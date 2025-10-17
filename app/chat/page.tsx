@@ -1175,9 +1175,7 @@ const handleDeploy = useCallback(async () => {
           url: data.url,
         });
         // Ouvrir l'URL de déploiement dans un nouvel onglet
-        if (typeof window !== 'undefined' && data.url) {
-            window.open(data.url, "_blank"); 
-        }
+        
       } else {
         // Gérer les erreurs Vercel spécifiques (y compris les noms de projet)
         setDeploymentDetails({
