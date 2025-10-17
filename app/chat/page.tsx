@@ -902,6 +902,15 @@ const [connections, setConnections] = useState({
         : null 
 });
 
+
+  const [showDeploymentStatus, setShowDeploymentStatus] = useState(false);
+
+// Fonction placeholder (à adapter si vous avez une modale dédiée pour l'entrée du jeton)
+const setShowTokenModal = (platform) => { 
+    alert(`Veuillez d'abord enregistrer votre jeton d'accès Vercel.`);
+    // Vous pouvez ici implémenter la logique pour ouvrir la modal de jeton
+};
+
 // État de chargement global pour le déploiement (utilisé pour désactiver le bouton)
 const [isConnecting, setIsConnecting] = useState({ deploy: false });
 
