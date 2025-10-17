@@ -884,15 +884,28 @@ const [vercelToken, setVercelToken] = useState<string>('');
 const [tokenError, setTokenError] = useState<string>('');
 const [showTokenInput, setShowTokenInput] = useState<boolean>(false);
 const [isVercelModalOpen, setIsVercelModalOpen] = useState<boolean>(false);
-  const [isConnecting, setIsConnecting] = useState<Record<string, boolean>>({})
+  // DANS VOTRE COMPOSANT PRINCIPAL (où vous avez déjà vos autres useState)
 
-    const [deploymentDetails, setDeploymentDetails] = useState<{
-    status: "idle" | "deploying" | "success" | "error"
-    message: string
-    url?: string
-    error?: string
-  } | null>(null)
+// Nouveaux états de contrôle de l'UI
+const [isDeploymentModalOpen, setIsDeploymentModalOpen] = useState(false);
+const [deploymentDetails, setDeploymentDetails] = useState({ 
+    status: 'idle', // 'idle', 'deploying', 'success', 'error'
+    message: '', 
+    url: null, 
+    error: null 
+});
 
+// État 'connections' qui contient le jeton Vercel (à adapter à votre structure)
+const [connections, setConnections] = useState({ 
+    vercel: typeof window !== 'undefined' && localStorage.getItem('vercel_access_token') 
+        ? { token: localStorage.getItem('vercel_access_token') } 
+        : null 
+});
+
+// État de chargement global pour le déploiement (utilisé pour désactiver le bouton)
+const [isConnecting, setIsConnecting] = useState({ deploy: false });
+
+// ... (vos autres états existants : sandboxId, currentProject, etc.)
 // État du Déploiement
 type DeployState = 'IDLE' | 'TOKEN_VALIDATED' | 'DEPLOYING' | 'MONITORING' | 'SUCCESS' | 'ERROR';
 const DEPLOYMENT_STATES: Record<DeployState, DeployState> = {
@@ -1076,83 +1089,95 @@ useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
 }, [deployLogs]);
 
-
+// Assurez-vous que cette fonction fait partie de votre composant principal
+// où les états connections, currentSandboxId, currentProject, projectName,
+// setDeploymentDetails, et setIsConnecting sont disponibles.
 const handleDeploy = async () => {
-    if (!connections.vercel) {
-      setShowTokenModal("vercel")
-      return
+    // ⚠️ Assurez-vous que cette fonction fait partie d'un hook useCallback ou est bien définie.
+
+    // 0. Réinitialiser la modale et l'ouvrir
+    setDeploymentDetails({ status: 'idle', message: '', url: null, error: null });
+    setIsDeploymentModalOpen(true); 
+
+    // 1. Validation du jeton Vercel
+    if (!connections.vercel || !connections.vercel.token) {
+      setDeploymentDetails({ status: "error", message: "Jeton Vercel manquant. Veuillez l'enregistrer d'abord.", error: "Jeton non trouvé." });
+      // ⚠️ Vous pouvez appeler ici votre modal d'entrée de jeton (setShowTokenModal("vercel"))
+      return; 
     }
 
-    if (!sandboxId) {
-      setDeploymentDetails({
-        status: "error",
-        message: "No active sandbox to deploy",
-        error: "Please create and build a project first",
-      })
-      return
+    const activeSandboxId = sandboxId; 
+    
+    // 2. Validation de l'existence du projet et de la sandbox
+    if (!activeSandboxId) {
+      setDeploymentDetails({ status: "error", message: "Aucune Sandbox active.", error: "Veuillez créer et démarrer un projet d'abord." });
+      return;
     }
 
-    setIsConnecting((prev) => ({ ...prev, deploy: true }))
-    setDeploymentDetails({ status: "deploying", message: "Extracting files from sandbox..." })
+    const projectName = currentProject && currentProject.name ? currentProject.name : `v0-e2b-app-${activeSandboxId.substring(0, 4)}`;
+
+    if (!currentProject || !currentProject.files || currentProject.files.length === 0) {
+      setDeploymentDetails({ status: "error", message: "Fichiers de projet introuvables.", error: "Assurez-vous que le projet est chargé et non vide." });
+      return;
+    }
+
+    // Mise à jour des états de chargement
+    setIsConnecting(prev => ({ ...prev, deploy: true }));
+    setDeploymentDetails(prev => ({ ...prev, status: "deploying", message: "Préparation des fichiers pour Vercel..." }));
 
     try {
-      // First, extract files from the sandbox
-      console.log("[v0] Extracting files from sandbox:", sandboxId)
-      const filesResponse = await fetch("/api/sandbox", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "getFiles",
-          sandboxId: currentSandboxId,
-        }),
-      })
-
-      const filesData = await filesResponse.json()
-      if (!filesData.success) {
-        throw new Error(filesData.error || "Failed to extract files from sandbox")
+      // 3. Préparer les fichiers directement depuis l'état 'currentProject.files'
+      const projectFilesMap = {};
+      currentProject.files.forEach(file => {
+          const relativePath = file.filePath.startsWith('/') ? file.filePath.substring(1) : file.filePath;
+          if (file.content) {
+            projectFilesMap[relativePath] = file.content;
+          }
+      });
+      
+      if (Object.keys(projectFilesMap).length === 0) {
+        throw new Error("Aucun fichier valide à déployer n'a été trouvé dans le projet.");
       }
 
-      console.log("[v0] Extracted", filesData.fileCount, "files")
-      setDeploymentDetails({ status: "deploying", message: "Deploying to Vercel..." })
+      setDeploymentDetails(prev => ({ ...prev, message: `Déploiement de "${projectName}" vers Vercel...` }));
 
-      // Now deploy to Vercel
+      // 4. Appel au déploiement Vercel
       const response = await fetch("/api/deploy/vercel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          files: filesData.files,
-          projectName,
+          files: projectFilesMap,
+          projectName: projectName,
           token: connections.vercel.token,
+          sandboxId: activeSandboxId, 
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
       if (data.success) {
         setDeploymentDetails({
           status: "success",
-          message: "Deployment successful!",
+          message: "Déploiement lancé avec succès !",
           url: data.url,
-        })
+        });
       } else {
         setDeploymentDetails({
           status: "error",
-          message: "Deployment failed",
-          error: data.error || "Unknown error occurred",
-        })
+          message: `Déploiement échoué : ${data.error || "Erreur inconnue"}`,
+          error: data.details || data.error || "Erreur inconnue sur Vercel",
+        });
       }
-    } catch (error: any) {
-      console.error("[v0] Deployment failed:", error)
+    } catch (error) {
+      console.error("[v0] Échec du déploiement:", error);
       setDeploymentDetails({
         status: "error",
-        message: "Deployment failed",
-        error: error.message || "Network error occurred",
-      })
+        message: "Échec du déploiement",
+        error: error.message || "Erreur réseau ou interne",
+      });
     } finally {
-      setIsConnecting((prev) => ({ ...prev, deploy: false }))
+      setIsConnecting(prev => ({ ...prev, deploy: false }));
     }
-                  }
-
-
+                              }
 // ----------------------
 // Fonctions utilitaires du Token (à appeler dans le JSX)
 // ----------------------
@@ -3907,170 +3932,78 @@ useEffect(() => {
               </button>
 
 {/* ⚠️ Assurez-vous d'importer l'icône Zap et Loader de Lucide React */}
-<button
-            onClick={handleDeploy}
-            disabled={isConnecting.deploy}
-            className="h-[29px] w-[150px] bg-white text-black font-semibold rounded-[12px] hover:bg-gray-100 transition-colors disabled:opacity-50"
-          >
-            {isConnecting.deploy ? "Deploying..." : "Deploy Site"}
-          </button>
 
-{/* Affichage rapide du statut (facultatif) */}
-{deployStatus === 'SUCCESS' && deployResult && (
-    <p className="text-sm text-green-600 mt-2">
-        ✅ Succès! <a href={deployResult} target="_blank" rel="noopener noreferrer" className="underline">Voir le déploiement</a>
-    </p>
-)}
-{deployStatus === 'ERROR' && deployResult && (
-    <p className="text-sm text-red-600 mt-2">
-        ❌ Erreur: {deployResult}
-    </p>
-)}
-              
-<button 
-    className="rounded-[10px] w-[150px] text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]"
-    onClick={() => setIsVercelModalOpen(true)} // <-- Ouvre la modal
+<Button
+    onClick={handleDeploy}
+    disabled={isConnecting.deploy || !connections.vercel || !currentProject || !sandboxId}
+    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
 >
-    Deploy 
-</button>
+    {isConnecting.deploy ? (
+        <>
+            <Loader className="h-4 w-4 animate-spin" />
+            Déploiement...
+        </>
+    ) : (
+        <>
+            <Zap className="h-4 w-4" />
+            Déployer sur Vercel
+        </>
+    )}
+</Button>
               {/* Rendu de la Modal Vercel (Doit être affiché par-dessus le reste) */}
 {/* ---------------------------------------------------- */}
 {/* Affichage du Composant Modal */}
 {/* ---------------------------------------------------- */}
 
-{/* On ne vérifie que l'état d'ouverture. La modal gérera l'absence de projet/sandboxId. */}
-// ==============================================================================
-// 🛑 RENDU DE LA MODAL VERCEL (À placer à la fin du RETURN)
-// ==============================================================================
 
-{isVercelModalOpen && (
-    <div className="fixed inset-0 w-full h-full bg-black/50 flex justify-end items-start z-[9999] p-5">
-        {/* Conteneur de la modal, ajusté à 80px du haut et 2px de la droite */}
-        <div className="absolute top-[80px] right-2 max-w-lg w-full bg-white p-5 rounded-xl shadow-2xl flex flex-col gap-4">
-            
-            {/* En-tête de la Modal */}
-            <div className="flex justify-between items-center border-b pb-3 border-[rgba(55,50,47,0.1)]">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Zap className="h-6 w-6 text-[#37322F]" />
-                    Déploiement Vercel
-                </h2>
-                <button 
-                    onClick={() => setIsVercelModalOpen(false)} 
-                    className="p-1 rounded-full hover:bg-[#F7F5F3] transition-colors" 
-                    aria-label="Fermer"
-                >
-                    <X className="h-5 w-5 text-[#37322F]" />
-                </button>
-            </div>
-
-            {/* Section du Token */}
-            <div className="p-3 border border-[rgba(55,50,47,0.1)] rounded-lg bg-[#F7F5F3] flex flex-col gap-2">
-                <h3 className="font-semibold text-sm flex justify-between items-center">
-                    Jeton d'Accès Vercel
-                    {vercelToken && !showTokenInput && (
-                        <button onClick={() => setShowTokenInput(true)} className="text-xs text-[#37322F]/60 hover:text-[#37322F] underline transition-colors">
-                            Modifier le jeton
-                        </button>
-                    )}
-                </h3>
+{showDeploymentStatus && deploymentDetails.status !== 'idle' && (
+    <div 
+        className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-2xl z-50 max-w-sm w-full 
+            ${deploymentDetails.status === 'success' ? 'bg-green-50 border border-green-300' : 
+              deploymentDetails.status === 'error' ? 'bg-red-50 border border-red-300' : 
+              'bg-blue-50 border border-blue-300'}`
+        }
+    >
+        <div className="flex justify-between items-start">
+            <div className="flex items-center space-x-3">
+                {deploymentDetails.status === 'deploying' && <Loader className="h-5 w-5 text-blue-600 animate-spin" />}
+                {deploymentDetails.status === 'success' && <Check className="h-5 w-5 text-green-600" />}
+                {deploymentDetails.status === 'error' && <X className="h-5 w-5 text-red-600" />}
                 
-                <a 
-                    href={VERCEL_TOKEN_URL} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-600 hover:text-blue-800 underline transition-colors"
-                >
-                    Générer ou trouver votre jeton personnel ici
-                </a>
-
-                {showTokenInput ? (
-                    <>
-                        <input
-                            type="password"
-                            value={vercelToken}
-                            onChange={handleTokenChange}
-                            placeholder="Collez votre jeton Vercel ici..."
-                            className={`w-full p-2 border rounded-md text-sm font-mono ${tokenError ? 'border-red-500' : 'border-[rgba(55,50,47,0.1)]'}`}
-                        />
-                        <div className="flex justify-between items-center">
-                             <button 
-                                onClick={saveToken} 
-                                className="text-xs text-white px-3 py-1 bg-green-600 rounded-md hover:bg-green-700 transition-colors"
-                                
-                            >
-                                Enregistrer le jeton
-                            </button>
-                            {vercelToken && (
-                               <button 
-                                    onClick={removeToken} 
-                                    className="flex items-center gap-1 text-xs text-red-600 hover:text-red-700 transition-colors"
-                                >
-                                    <LogOut className="h-3 w-3" /> Supprimer
-                                </button>
-                            )}
-                        </div>
-                    </>
-                ) : (
-                    <div className="text-sm font-mono truncate py-1.5 border border-green-500 bg-green-50/50 rounded-md px-2 flex justify-between items-center">
-                        Jeton enregistré.
-                        <Check className="h-4 w-4 text-green-600" />
-                    </div>
-                )}
-                {tokenError && <p className="text-xs text-red-500 mt-1">{tokenError}</p>}
+                <h4 className={`text-sm font-semibold ${
+                    deploymentDetails.status === 'success' ? 'text-green-800' : 
+                    deploymentDetails.status === 'error' ? 'text-red-800' : 
+                    'text-blue-800'}`
+                }>
+                    {deploymentDetails.status === 'deploying' ? 'Déploiement en cours' : 
+                     deploymentDetails.status === 'success' ? 'Déploiement Terminé' : 
+                     'Échec du Déploiement'}
+                </h4>
             </div>
-
-            {/* Section des Logs */}
-            <div className="flex flex-col gap-2 flex-grow min-h-0">
-                <h3 className="font-semibold text-sm">Logs de Déploiement ({deployState})</h3>
-                <div className="flex-grow bg-black text-white text-xs p-3 rounded-lg overflow-y-scroll font-mono min-h-[150px] max-h-[300px] border border-gray-700">
-                    {deployLogs.length === 0 && <p className="text-gray-500">En attente de lancement du déploiement...</p>}
-                    {deployLogs.map((log, i) => (
-                        <div key={i} className={`flex gap-2 ${
-                            log.type === 'error' ? 'text-red-400' : 
-                            log.type === 'success' ? 'text-green-400 font-bold' : 
-                            log.type === 'start' ? 'text-yellow-300' : 
-                            'text-gray-300'
-                        }`}>
-                            <span className="text-gray-500 flex-shrink-0">[{log.timestamp}]</span>
-                            <span className="whitespace-pre-wrap">{log.message}</span>
-                        </div>
-                    ))}
-                    <div ref={logsEndRef} />
-                </div>
-            </div>
-
-            {/* Pied de page et Bouton Deploy */}
-            <div className="flex justify-between items-center pt-3 border-t border-[rgba(55,50,47,0.1)]">
-                <div className="text-sm">
-                    {deployUrl && (deployState === DEPLOYMENT_STATES.SUCCESS || deployState === DEPLOYMENT_STATES.MONITORING) ? (
-                        <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">
-                            Voir le site (URL: {new URL(deployUrl).hostname})
-                        </a>
-                    ) : (
-                        <p className="text-[#37322F]/60">Projet: {currentProject?.name || 'Inconnu'}</p>
-                    )}
-                </div>
-                
-                {/* Bouton Deploy on Vercel */}
-                <button
-                    onClick={startDeployment}
-                    
-                    className={`rounded-[10px] w-[200px] text-white flex items-center justify-center transition hover:brightness-90 h-8 px-6 
-                        ${(deployState === DEPLOYMENT_STATES.DEPLOYING || deployState === DEPLOYMENT_STATES.MONITORING || !vercelToken || !currentProject || !sandboxId) ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)]'}`}
-                >
-                    {(deployState === DEPLOYMENT_STATES.DEPLOYING || deployState === DEPLOYMENT_STATES.MONITORING) ? (
-                        <>
-                            <Loader className="h-4 w-4 mr-2 animate-spin" />
-                            {deployState === DEPLOYMENT_STATES.DEPLOYING ? 'Lancement...' : 'Suivi du déploiement...'}
-                        </>
-                    ) : (
-                        'Deployer sur Vercel'
-                    )}
-                </button>
-            </div>
+            <button onClick={() => setShowDeploymentStatus(false)} className="text-gray-400 hover:text-gray-600">
+                <CloseIcon className="h-4 w-4" />
+            </button>
         </div>
+
+        <p className="text-sm mt-2 text-gray-700">{deploymentDetails.message}</p>
+
+        {deploymentDetails.url && (
+            <a href={deploymentDetails.url} target="_blank" rel="noopener noreferrer">
+                <Button variant="link" className="h-8 p-0 mt-1 text-sm text-blue-600">
+                    {deploymentDetails.status === 'success' ? 'Voir le Déploiement' : 'Suivre le Statut'}
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                </Button>
+            </a>
+        )}
+
+        {deploymentDetails.error && deploymentDetails.status === 'error' && (
+            <div className="mt-2 p-2 bg-red-100 rounded text-xs text-red-700">
+                **Erreur :** <span className="font-mono">{deploymentDetails.error.substring(0, 100)}...</span>
+            </div>
+        )}
     </div>
 )}
+
             </div>
           </div>
         </div>
