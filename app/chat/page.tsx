@@ -2944,7 +2944,7 @@ const handleVercelDeploy = async () => {
     setDeployUrl(data.url);
 
     pollVercelLogs(data.deploymentId, token, data.url);
-pollVercelBuildLogs(data.deploymentId, token);
+
                   
 
     // Suivi automatique des logs
@@ -2958,13 +2958,15 @@ pollVercelBuildLogs(data.deploymentId, token);
 
 
 
-      const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
+const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
   setDeployLogs(prev => [...prev, "⏳ Suivi du déploiement et lecture des logs..."]);
 
   try {
     const response = await fetch(
       `https://api.vercel.com/v3/deployments/${deploymentId}/events?follow=1`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
     );
 
     if (!response.body) {
@@ -2975,6 +2977,10 @@ pollVercelBuildLogs(data.deploymentId, token);
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let partial = "";
+
+    // Buffers pour stdout et stderr
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
 
     while (true) {
       const { done, value } = await reader.read();
@@ -2993,21 +2999,39 @@ pollVercelBuildLogs(data.deploymentId, token);
 
           let text = "";
 
-          if (event.type === "stdout" || event.type === "stderr") {
-            // Vérification de plusieurs champs pour obtenir le texte
-            text = Array.isArray(event.payload?.text)
-              ? event.payload.text.join("")
-              : event.payload?.text || event.payload?.message || event.payload?.output || "";
-          } else {
-            text =
-              event?.payload?.text ||
-              event?.payload?.message ||
-              event?.payload?.output ||
-              event?.payload?.command ||
-              "";
+          // ✅ Gestion stdout/stderr avec buffering
+          if (event.type === "stdout") {
+            text = event.payload?.text || event.payload?.message || "";
+            stdoutBuffer += text;
+            if (text.includes("\n")) {
+              setDeployLogs(prev => [...prev, stdoutBuffer.trim()]);
+              stdoutBuffer = "";
+            }
+            continue; // passe au prochain événement
           }
 
-          if (text) setDeployLogs(prev => [...prev, text]);
+          if (event.type === "stderr") {
+            text = event.payload?.text || event.payload?.message || "";
+            stderrBuffer += text;
+            if (text.includes("\n")) {
+              setDeployLogs(prev => [...prev, `[stderr] ${stderrBuffer.trim()}`]);
+              stderrBuffer = "";
+            }
+            continue;
+          }
+
+          // 🔹 Reste de ta logique inchangée
+          text =
+            event?.payload?.text ||
+            event?.payload?.message ||
+            event?.payload?.output ||
+            event?.payload?.command ||
+            event?.type ||
+            "";
+
+          if (text) {
+            setDeployLogs(prev => [...prev, text]);
+          }
 
           if (event.type === "state") {
             if (event.payload?.state === "READY") {
@@ -3024,68 +3048,19 @@ pollVercelBuildLogs(data.deploymentId, token);
         }
       }
     }
+
+    // flush buffers restant à la fin du flux
+    if (stdoutBuffer) setDeployLogs(prev => [...prev, stdoutBuffer.trim()]);
+    if (stderrBuffer) setDeployLogs(prev => [...prev, `[stderr] ${stderrBuffer.trim()}`]);
+
   } catch (e: any) {
     setDeployLogs(prev => [...prev, `⚠️ Erreur lecture flux: ${e.message}`]);
   }
 };
+            
                            
 
               
-                      const pollVercelBuildLogs = async (deploymentId: string, token: string) => {
-  let lastEventTime = 0; // pour éviter les doublons
-  setDeployLogs(prev => [...prev, "🪵 Lecture des logs de build en direct..."]);
-
-  const interval = setInterval(async () => {
-    try {
-      const res = await fetch(
-        `https://api.vercel.com/v13/deployments/${deploymentId}/events`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await res.json();
-
-      if (!Array.isArray(data)) {
-        console.warn("Unexpected logs format:", data);
-        return;
-      }
-
-      const newLogs = data
-        .filter((event) => {
-          // garde seulement les nouveaux logs
-          const t = new Date(event.createdAt || event.timestamp).getTime();
-          if (t > lastEventTime) {
-            lastEventTime = t;
-            return true;
-          }
-          return false;
-        })
-        .map((event) => {
-          const text =
-            event.payload?.text ||
-            event.payload?.message ||
-            event.payload?.output ||
-            event.type ||
-            "";
-          return text.trim();
-        })
-        .filter(Boolean);
-
-      if (newLogs.length > 0) {
-        setDeployLogs((prev) => [...prev, ...newLogs]);
-      }
-    } catch (e: any) {
-      setDeployLogs((prev) => [
-        ...prev,
-        `⚠️ Erreur récupération logs build: ${e.message}`,
-      ]);
-      clearInterval(interval);
-    }
-  }, 3000); // toutes les 3 secondes
-};
   
   
 
