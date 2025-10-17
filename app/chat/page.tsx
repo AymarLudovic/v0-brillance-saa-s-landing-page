@@ -1313,35 +1313,21 @@ useEffect(() => {
 // DANS VOTRE COMPOSANT PRINCIPAL
 
 const createNewProject = () => {
-    const rawProjectName = prompt("Enter project name:", `Project ${projects.length + 1}`)
-    if (!rawProjectName) return
-    
-    // --- LOGIQUE DE NORMALISATION DU NOM VERCEL (LOCALISÉE) ---
-    let vercelProjectName = rawProjectName.toLowerCase().trim();
-    vercelProjectName = vercelProjectName.replace(/[^a-z0-9._-]/g, '-');
-    vercelProjectName = vercelProjectName.replace(/-{2,}/g, '-');
-    vercelProjectName = vercelProjectName.replace(/^[._-]+|[._-]+$/g, '');
-    vercelProjectName = vercelProjectName.substring(0, 100);
-    if (vercelProjectName.length === 0) {
-        vercelProjectName = 'default-app-fallback';
-    }
-    // -----------------------------------------------------------
-    
-    const newProject = {
-      id: generateUUID(), // Utilisation du helper sécurisé
-      name: rawProjectName, // Conserver le nom original pour l'affichage
-      vercelName: vercelProjectName, // 🟢 Le nom normalisé
+    const projectName = prompt("Enter project name:", `Project ${projects.length + 1}`)
+    if (!projectName) return
+    const newProject = { // Note: Suppression de ': Project' pour éviter les erreurs de syntaxe TypeScript dans un contexte JS pur
+      id: crypto.randomUUID(),
+      name: projectName,
       createdAt: new Date().toISOString(),
       files: [],
-      messages: [{ role: "assistant", content: `Project "${rawProjectName}" is ready. What should we build?` }],
+      messages: [{ role: "assistant", content: `Project "${projectName}" is ready. What should we build?` }],
     }
     const updatedProjects = [...projects, newProject]
     setProjects(updatedProjects)
     saveProjectsToLocalStorage(updatedProjects)
     loadProject(newProject.id)
-    addLog(`Project "${rawProjectName}" created with Vercel name: "${vercelProjectName}".`)
-                                                  }
-
+    addLog(`Project "${projectName}" created.`)
+      }
   
   
 
@@ -1366,26 +1352,28 @@ const handleDeploy = useCallback(async () => {
       return;
     }
 
-    // --- LOGIQUE DE DÉTERMINATION DU NOM VERCEL (LOCALISÉE) ---
+    // --- LOGIQUE DE DÉTERMINATION ET DE NORMALISATION DU NOM VERCEL (OBLIGATOIREMENT LOCALE) ---
     
-    // Tente d'utiliser la propriété pre-calculée "vercelName"
-    let vercelProjectName = currentProject.vercelName;
+    // Nom brut (avec fallback si currentProject.name est null)
+    let rawName = currentProject.name || `v0-e2b-app-${activeSandboxId.substring(0, 4)}`;
+    
+    // 1. Conversion en minuscules et nettoyage des espaces
+    let vercelProjectName = rawName.toLowerCase().trim();
+    
+    // 2. Remplacer les caractères non autorisés par des tirets
+    vercelProjectName = vercelProjectName.replace(/[^a-z0-9._-]/g, '-');
+    
+    // 3. Réduire les séquences de tirets (--) en un seul tiret
+    vercelProjectName = vercelProjectName.replace(/-{2,}/g, '-');
+    
+    // 4. Supprimer les tirets/points/underscores au début et à la fin.
+    vercelProjectName = vercelProjectName.replace(/^[._-]+|[._-]+$/g, '');
+    
+    // 5. Limitation à 100 caractères et fallback
+    vercelProjectName = vercelProjectName.substring(0, 100);
 
-    if (!vercelProjectName) {
-        // Fallback si la propriété n'existe pas (anciens projets)
-        let rawName = currentProject.name || `v0-e2b-app-${activeSandboxId.substring(0, 4)}`;
-        
-        // Logique de normalisation intégrée (Sécurisation maximale)
-        let normalizedName = rawName.toLowerCase().trim();
-        normalizedName = normalizedName.replace(/[^a-z0-9._-]/g, '-');
-        normalizedName = normalizedName.replace(/-{2,}/g, '-');
-        normalizedName = normalizedName.replace(/^[._-]+|[._-]+$/g, '');
-        normalizedName = normalizedName.substring(0, 100);
-
-        if (normalizedName.length === 0) {
-            normalizedName = 'default-app-fallback';
-        }
-        vercelProjectName = normalizedName;
+    if (vercelProjectName.length === 0) {
+        vercelProjectName = 'default-app-fallback';
     }
     // -----------------------------------------------------------
 
@@ -1416,7 +1404,7 @@ const handleDeploy = useCallback(async () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           files: projectFilesMap,
-          projectName: vercelProjectName, // Nom du projet nettoyé
+          projectName: vercelProjectName, // Nom du projet nettoyé localement
           token: connections.vercel.token,
           sandboxId: activeSandboxId, 
         }),
