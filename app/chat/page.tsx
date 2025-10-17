@@ -3997,12 +3997,7 @@ useEffect(() => {
 <Button
     onClick={handleDeploy}
 
-disabled={
-    isConnecting.deploy || 
-    !connections?.vercel?.token || 
-    !currentProject ||             
-    !sandboxId                     
-}
+
     className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
 >
     {isConnecting.deploy ? (
