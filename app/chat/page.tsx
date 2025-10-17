@@ -875,6 +875,9 @@ const [copiedFileIndex, setCopiedFileIndex] = useState(null);
 const [deploying, setDeploying] = useState(false);
 const [deployLogs, setDeployLogs] = useState<string[]>([]);
 const [deployUrl, setDeployUrl] = useState<string | null>(null);
+
+
+  
 const [vercelToken, setVercelToken] = useState<string | null>(
   typeof window !== "undefined" ? localStorage.getItem("vercel_access_token") : null
 );
@@ -2940,8 +2943,12 @@ const handleVercelDeploy = async () => {
     setDeployLogs(prev => [...prev, `✅ Déploiement lancé : ${data.url}`]);
     setDeployUrl(data.url);
 
-    // Suivi automatique des logs
     pollVercelLogs(data.deploymentId, token, data.url);
+pollVercelBuildLogs(data.deploymentId, token);
+                  
+
+    // Suivi automatique des logs
+    
   } catch (err: any) {
     setDeployLogs(prev => [...prev, `❌ ${err.message}`]);
   } finally {
@@ -2986,6 +2993,63 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       clearInterval(interval);
     }
   }, 5000);
+};
+
+
+                      const pollVercelBuildLogs = async (deploymentId: string, token: string) => {
+  let lastEventTime = 0; // pour éviter les doublons
+  setDeployLogs(prev => [...prev, "🪵 Lecture des logs de build en direct..."]);
+
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(
+        `https://api.vercel.com/v13/deployments/${deploymentId}/events`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (!Array.isArray(data)) {
+        console.warn("Unexpected logs format:", data);
+        return;
+      }
+
+      const newLogs = data
+        .filter((event) => {
+          // garde seulement les nouveaux logs
+          const t = new Date(event.createdAt || event.timestamp).getTime();
+          if (t > lastEventTime) {
+            lastEventTime = t;
+            return true;
+          }
+          return false;
+        })
+        .map((event) => {
+          const text =
+            event.payload?.text ||
+            event.payload?.message ||
+            event.payload?.output ||
+            event.type ||
+            "";
+          return text.trim();
+        })
+        .filter(Boolean);
+
+      if (newLogs.length > 0) {
+        setDeployLogs((prev) => [...prev, ...newLogs]);
+      }
+    } catch (e: any) {
+      setDeployLogs((prev) => [
+        ...prev,
+        `⚠️ Erreur récupération logs build: ${e.message}`,
+      ]);
+      clearInterval(interval);
+    }
+  }, 3000); // toutes les 3 secondes
 };
   
   
