@@ -1351,73 +1351,82 @@ const createNewProject = () => {
 // DANS VOTRE COMPOSANT PRINCIPAL (utilisant useCallback)
 
 const handleDeploy = async () => {
-    // 0. Initialisation
+    // 0. Démarrage initial et configuration de l'état de chargement
     setShowDeploymentStatus(true);
     setDeploymentDetails({ status: 'idle', message: 'Démarrage du processus de déploiement...', url: null, error: null });
+    setIsConnecting(prev => ({ ...prev, deploy: true })); // Début du chargement
 
-    // === VÉRIFICATIONS DÉFENSIVES EXTRÊMES ===
-    // Vérification sûre avec chaînage optionnel
-    if (!sandboxId || !currentProject || !connections?.vercel?.token) {
-        setDeploymentDetails({ status: "error", message: "Vérification des prérequis échouée.", error: "Assurez-vous d'avoir un jeton Vercel, un projet chargé et une sandbox active." });
-        
-        if (!connections?.vercel?.token) {
-             // Ouvre la modal si le jeton manque
-             setShowTokenModal("vercel"); 
-        }
+    // === 1. COLLECTE ET VÉRIFICATION SÛRE DES DONNÉES ESSENTIELLES ===
+    
+    // Extraction sûre des valeurs nécessaires
+    const token = connections?.vercel?.token;
+    const project = currentProject;
+    const sandbox = sandboxId; // Récupère la valeur du scope
+    
+    // Conditions de garde strictes
+    if (!token) {
+        setDeploymentDetails({ status: "error", message: "Jeton Vercel manquant.", error: "Veuillez enregistrer votre jeton d'accès." });
+        setShowTokenModal("vercel"); 
+        setIsConnecting(prev => ({ ...prev, deploy: false }));
         return; 
     }
     
-    // Vérification sûre des propriétés du projet
-    if (!currentProject.name || !currentProject.files || currentProject.files.length === 0) {
-        setDeploymentDetails({ status: "error", message: "Déploiement échoué.", error: "Le projet chargé est incomplet." });
+    if (!sandbox) {
+        setDeploymentDetails({ status: "error", message: "Sandbox ID manquant.", error: "Impossible de déployer sans une sandbox active." });
+        setIsConnecting(prev => ({ ...prev, deploy: false }));
         return;
     }
-    // ===========================================
+    
+    if (!project || !project.name || !project.files || project.files.length === 0) {
+        setDeploymentDetails({ status: "error", message: "Projet incomplet.", error: "Nom du projet ou fichiers manquants." });
+        setIsConnecting(prev => ({ ...prev, deploy: false }));
+        return;
+    }
 
-    const activeSandboxId = sandboxId; 
-    const vercelToken = connections.vercel.token;
-
-    // --- LOGIQUE DE NORMALISATION DU NOM (INTÉGRÉE ET LOCALE) ---
-    let rawName = currentProject.name; 
-    let vercelProjectName = rawName.toLowerCase().trim();
+    // === 2. NORMALISATION DU NOM VERCEL (OBLIGATOIRE POUR L'API) ===
+    let vercelProjectName = project.name.toLowerCase().trim();
+    
+    // Nettoyage pour respecter Vercel (minuscules, tirets)
     vercelProjectName = vercelProjectName.replace(/[^a-z0-9._-]/g, '-');
     vercelProjectName = vercelProjectName.replace(/-{2,}/g, '-');
     vercelProjectName = vercelProjectName.replace(/^[._-]+|[._-]+$/g, '');
     vercelProjectName = vercelProjectName.substring(0, 100);
 
     if (vercelProjectName.length === 0) {
-        vercelProjectName = 'default-app-fallback';
+        vercelProjectName = `default-app-${sandbox.substring(0, 4)}`;
     }
-    // -----------------------------------------------------------
-
-
-    // Mise à jour des états de chargement
-    setIsConnecting(prev => ({ ...prev, deploy: true }));
-    setDeploymentDetails(prev => ({ ...prev, status: "deploying", message: `Préparation et déploiement de "${vercelProjectName}"...` }));
-
+    
+    // === 3. PRÉPARATION DES FICHIERS ===
+    let projectFilesMap = {};
     try {
-      // 3. Préparer les fichiers
-      const projectFilesMap = {};
-      currentProject.files.forEach(file => {
-          const relativePath = file.filePath.startsWith('/') ? file.filePath.substring(1) : file.filePath;
-          if (file.content) {
-            projectFilesMap[relativePath] = file.content;
-          }
-      });
-      
-      if (Object.keys(projectFilesMap).length === 0) {
-        throw new Error("Aucun fichier valide à déployer n'a été trouvé dans le projet.");
-      }
+        project.files.forEach(file => {
+            const relativePath = file.filePath.startsWith('/') ? file.filePath.substring(1) : file.filePath;
+            if (file.content) {
+              projectFilesMap[relativePath] = file.content;
+            }
+        });
+        
+        if (Object.keys(projectFilesMap).length === 0) {
+            throw new Error("Aucun fichier valide à déployer n'a été trouvé dans le projet.");
+        }
+    } catch (e) {
+        setDeploymentDetails({ status: "error", message: "Erreur de préparation des fichiers.", error: e.message || "Problème avec la structure de 'project.files'." });
+        setIsConnecting(prev => ({ ...prev, deploy: false }));
+        return; 
+    }
+    
+    setDeploymentDetails(prev => ({ ...prev, status: "deploying", message: `Déploiement de "${vercelProjectName}" en cours...` }));
 
-      // 4. Appel au déploiement Vercel
+    // === 4. APPEL À L'API ===
+    try {
       const response = await fetch("/api/deploy/vercel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           files: projectFilesMap,
           projectName: vercelProjectName,
-          token: vercelToken,
-          sandboxId: activeSandboxId, 
+          token: token,
+          sandboxId: sandbox, 
         }),
       });
 
@@ -1425,7 +1434,7 @@ const handleDeploy = async () => {
       if (data.success) {
         setDeploymentDetails({
           status: "success",
-          message: "Déploiement lancé avec succès ! Le statut est surveillé sur Vercel.",
+          message: "Déploiement lancé avec succès ! L'URL est en ligne.",
           url: data.url,
         });
       } else {
@@ -3987,7 +3996,13 @@ useEffect(() => {
 
 <Button
     onClick={handleDeploy}
-    disabled={isConnecting.deploy || !connections.vercel || !currentProject || !sandboxId}
+
+disabled={
+    isConnecting.deploy || 
+    !connections?.vercel?.token || 
+    !currentProject ||             
+    !sandboxId                     
+}
     className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
 >
     {isConnecting.deploy ? (
