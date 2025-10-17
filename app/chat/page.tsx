@@ -3339,7 +3339,7 @@ useEffect(() => {
 
   {/* Affichage console */}
   {deployLogs.length > 0 && (
-    <div className="bg-[#0a0a0a] text-[#00ff99] font-mono text-xs rounded-lg p-3 h-48 overflow-y-auto border border-gray-700">
+    <div className="bg-[#0a0a0a] fixed bottom-[12px] left-[40%] text-[#00ff99] font-mono text-xs rounded-lg p-3 h-[200px] w-[259px] overflow-y-auto border border-gray-700">
       {deployLogs.map((line, i) => (
         <div key={i}>{line}</div>
       ))}
