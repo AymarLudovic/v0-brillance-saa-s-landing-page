@@ -1333,35 +1333,34 @@ const createNewProject = () => {
 
 // DANS VOTRE COMPOSANT PRINCIPAL (utilisant useCallback)
 
-
-      const handleDeploy = useCallback(async () => {
+// DANS VOTRE COMPOSANT PRINCIPAL, SANS useCallBack
+const handleDeploy = async () => {
     // 0. Initialisation
     setShowDeploymentStatus(true);
     setDeploymentDetails({ status: 'idle', message: 'Démarrage du processus de déploiement...', url: null, error: null });
 
-    // === VÉRIFICATIONS (LÉGÈREMENT RENFORCÉES POUR ÉVITER LES ERREURS SYNC.) ===
-
-    // Vérification Vercel
-    if (!connections?.vercel?.token) {
-      setDeploymentDetails({ status: "error", message: "Jeton Vercel manquant.", error: "Veuillez l'enregistrer d'abord." });
-      setShowTokenModal("vercel");
-      return; 
+    // === VÉRIFICATIONS DÉFENSIVES EXTRÊMES (Nécessaires pour éviter les erreurs sync.) ===
+    if (!sandboxId || !currentProject || !connections?.vercel?.token) {
+        setDeploymentDetails({ status: "error", message: "Vérification des prérequis échouée.", error: "Assurez-vous d'avoir un jeton Vercel, un projet chargé et une sandbox active." });
+        
+        if (!connections?.vercel?.token) {
+             setShowTokenModal("vercel");
+        }
+        return; 
     }
+    
+    if (!currentProject.name || !currentProject.files || currentProject.files.length === 0) {
+        setDeploymentDetails({ status: "error", message: "Déploiement échoué.", error: "Le projet chargé est incomplet." });
+        return;
+    }
+    // ===========================================
 
     const activeSandboxId = sandboxId; 
-    
-    // Vérification Projet
-    if (!activeSandboxId || !currentProject || !currentProject.files || currentProject.files.length === 0) {
-      setDeploymentDetails({ status: "error", message: "Déploiement échoué.", error: "Projet ou Sandbox invalide." });
-      return;
-    }
 
     // --- LOGIQUE DE NORMALISATION DU NOM (INTÉGRÉE ET LOCALE) ---
+    // Cette logique est nécessaire pour que l'API Vercel fonctionne.
+    let rawName = currentProject.name; 
     
-    // Nom brut ou fallback sécurisé
-    let rawName = `v0-e2b-app-${activeSandboxId.substring(0, 4)}`;
-    
-    // Nettoyage du nom pour respecter les contraintes Vercel (minuscule, tirets, pas de caractères spéciaux)
     let vercelProjectName = rawName.toLowerCase().trim();
     vercelProjectName = vercelProjectName.replace(/[^a-z0-9._-]/g, '-');
     vercelProjectName = vercelProjectName.replace(/-{2,}/g, '-');
@@ -1392,14 +1391,13 @@ const createNewProject = () => {
         throw new Error("Aucun fichier valide à déployer n'a été trouvé dans le projet.");
       }
 
-
       // 4. Appel au déploiement Vercel
       const response = await fetch("/api/deploy/vercel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           files: projectFilesMap,
-          projectName: rawName, // Nom du projet nettoyé localement
+          projectName: vercelProjectName,
           token: connections.vercel.token,
           sandboxId: activeSandboxId, 
         }),
@@ -1429,7 +1427,8 @@ const createNewProject = () => {
     } finally {
       setIsConnecting(prev => ({ ...prev, deploy: false }));
     }
-}, [connections, sandboxId, currentProject]);
+};
+      
 
 
   const saveProject = () => {
