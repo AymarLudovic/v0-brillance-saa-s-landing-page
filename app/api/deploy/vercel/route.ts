@@ -1,88 +1,168 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server"
 
-// Définir le type pour les fichiers du projet
-type FileMap = { [key: string]: string };
-
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { 
-      projectName, 
-      token, 
-      sandboxId, // Conservé pour le contexte si nécessaire, mais non utilisé pour la logique de fichier
-      files 
-    }: {
-        projectName: string;
-        token: string;
-        sandboxId: string;
-        files: FileMap; // Les fichiers sont maintenant attendus ici
-    } = await request.json();
+    const { files, projectName, token, sandboxId } = await request.json()
 
-    if (!projectName || !token || !files || Object.keys(files).length === 0) {
-      return NextResponse.json(
-        { success: false, error: "Paramètres manquants (projectName, token, ou fichiers du projet)" },
-        { status: 400 }
-      );
+    console.log("[v0] Starting Vercel deployment for project:", projectName)
+    console.log("[v0] Sandbox ID:", sandboxId)
+
+    let deployFiles = files
+    if (sandboxId && (!files || Object.keys(files).length === 0)) {
+      console.log("[v0] No files provided, extracting and processing from sandbox:", sandboxId)
+
+      const extractResponse = await fetch(`${request.nextUrl.origin}/api/sandbox`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "processFiles",
+          sandboxId: sandboxId,
+        }),
+      })
+
+      const extractData = await extractResponse.json()
+
+      if (!extractData.success) {
+        throw new Error(`Failed to process files from sandbox: ${extractData.error}`)
+      }
+
+      deployFiles = extractData.files
+      console.log("[v0] Processed", extractData.fileCount, "files from sandbox")
     }
 
-    // 🛑 L'appel à l'API /api/sandbox/route.ts est retiré.
-    // Les fichiers sont directement dans la variable `files`.
+    console.log("[v0] Files to deploy:", Object.keys(deployFiles || {}))
 
-    // 1. Créer le payload pour le déploiement Vercel
-    const deploymentPayload = {
-      name: projectName,
-      gitSource: {
-        type: "github",
-        repo: "user-provided-code", // Ceci permet le déploiement de code non lié à un repo Git
-      },
-      // Transformer la map de fichiers en tableau au format Vercel
-      files: Object.entries(files).map(([filePath, content]) => ({
-        file: filePath, // e.g., "app/page.tsx"
-        data: content,
-      })),
-      // Assurer un environnement compatible pour Next.js (si nécessaire)
-      environment: [
-        { key: "NODE_VERSION", value: "18" }
-      ]
-    };
+    if (!deployFiles || Object.keys(deployFiles).length === 0) {
+      throw new Error("No files available for deployment")
+    }
 
-    console.log("[Vercel Deploy] Début du déploiement avec les fichiers du client.");
+    if (!token) {
+      throw new Error("Vercel access token is required")
+    }
 
-    // 2. Appel à l'API Vercel
-    const vercelResponse = await fetch("https://api.vercel.com/v13/deployments", {
+    const requiredFiles = ["package.json"]
+    const missingFiles = requiredFiles.filter((file) => !deployFiles[file])
+    if (missingFiles.length > 0) {
+      console.warn("[v0] Missing required files:", missingFiles)
+    }
+
+    const deploymentResponse = await fetch("https://api.vercel.com/v13/deployments", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(deploymentPayload),
-    });
+      body: JSON.stringify({
+        name: projectName,
+        files: Object.entries(deployFiles).map(([path, fileData]) => {
+          let fileContent: string
 
-    const vercelData = await vercelResponse.json();
+          if (typeof fileData === "object" && fileData !== null && "content" in fileData) {
+            const processedFile = fileData as { content: string; encoding: string }
+            console.log("[v0] Using pre-processed file", path, "with encoding:", processedFile.encoding)
 
-    if (!vercelResponse.ok) {
-      console.error("[Vercel Deploy] Erreur API Vercel:", vercelData);
-      return NextResponse.json(
-        {
-          success: false,
-          error: vercelData.error?.message || "Erreur inconnue lors du déploiement Vercel.",
-          details: vercelData.error?.code 
+            // Use raw content directly, not base64
+            if (processedFile.encoding === "base64") {
+              // If it's already base64, decode it first
+              fileContent = Buffer.from(processedFile.content, "base64").toString("utf8")
+            } else {
+              fileContent = processedFile.content
+            }
+          } else {
+            // Direct file content
+            fileContent = fileData as string
+          }
+
+          // Special validation for package.json
+          if (path === "package.json") {
+            try {
+              JSON.parse(fileContent)
+              console.log("[v0] package.json is valid JSON")
+            } catch (e) {
+              console.error("[v0] Invalid package.json detected, using fallback")
+              fileContent = JSON.stringify(
+                {
+                  name: projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+                  version: "1.0.0",
+                  private: true,
+                  scripts: {
+                    dev: "next dev",
+                    build: "next build",
+                    start: "next start",
+                    lint: "next lint",
+                  },
+                  dependencies: {
+                    next: "14.0.0",
+                    react: "^18",
+                    "react-dom": "^18",
+                  },
+                  devDependencies: {
+                    "@types/node": "^20",
+                    "@types/react": "^18",
+                    "@types/react-dom": "^18",
+                    eslint: "^8",
+                    "eslint-config-next": "14.0.0",
+                    typescript: "^5",
+                  },
+                },
+                null,
+                2,
+              )
+            }
+          }
+
+          console.log(
+            "[v0] File",
+            path,
+            "content length:",
+            fileContent.length,
+            "first 50 chars:",
+            fileContent.substring(0, 50),
+          )
+
+          return {
+            file: path,
+            data: fileContent, // Raw content, not base64
+          }
+        }),
+        projectSettings: {
+          framework: "nextjs",
         },
-        { status: vercelResponse.status }
-      );
+      }),
+    })
+
+    const deploymentData = await deploymentResponse.json()
+    console.log("[v0] Vercel API response:", deploymentData)
+
+    if (!deploymentResponse.ok) {
+      const errorMessage = deploymentData.error?.message || deploymentData.message || "Unknown Vercel API error"
+      console.error("[v0] Vercel deployment failed:", errorMessage)
+      throw new Error(`Vercel API Error: ${errorMessage}`)
     }
 
-    // 3. Succès
-    console.log("[Vercel Deploy] Déploiement lancé:", vercelData.url);
+    if (!deploymentData.url) {
+      console.error("[v0] No URL in deployment response:", deploymentData)
+      throw new Error("Deployment completed but no URL was returned")
+    }
+
+    console.log("[v0] Deployment successful:", deploymentData.url)
+
     return NextResponse.json({
       success: true,
-      deploymentId: vercelData.id,
-      url: `https://${vercelData.url}`,
-    });
+      url: `https://${deploymentData.url}`,
+      deploymentId: deploymentData.id,
+      projectId: deploymentData.projectId,
+      filesDeployed: Object.keys(deployFiles).length,
+    })
   } catch (error: any) {
-    console.error("[Vercel Deploy] Erreur critique:", error);
+    console.error("[v0] Deployment error:", error)
     return NextResponse.json(
-      { success: false, error: error.message || "Erreur interne du serveur lors du déploiement." },
-      { status: 500 }
-    );
+      {
+        success: false,
+        error: error.message || "Deployment failed",
+        details: error.toString(),
+      },
+      { status: 400 },
+    )
   }
       }
