@@ -2957,28 +2957,58 @@ pollVercelBuildLogs(data.deploymentId, token);
 };
            
 const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
-  setDeployLogs(prev => [...prev, "⏳ Suivi des logs du déploiement..."]);
+  setDeployLogs(prev => [...prev, "⏳ Suivi du déploiement et lecture des logs..."]);
 
+  let lastEventTime = 0;
   const interval = setInterval(async () => {
     try {
-      const res = await fetch(`https://api.vercel.com/v13/deployments/${deploymentId}`, {
+      // 1️⃣ Récupération de l'état global du déploiement
+      const deploymentRes = await fetch(`https://api.vercel.com/v13/deployments/${deploymentId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
+      const deploymentData = await deploymentRes.json();
 
-      // Vérifie toutes les possibilités de champ de statut
       const state =
-        data?.state ||
-        data?.readyState ||
-        data?.deployment?.state ||
-        data?.deployment?.readyState;
+        deploymentData?.state ||
+        deploymentData?.readyState ||
+        deploymentData?.deployment?.state ||
+        deploymentData?.deployment?.readyState;
 
-      if (!state) {
-        setDeployLogs(prev => [...prev, "⚠️ Impossible de lire le statut du déploiement."]);
-        console.warn("Vercel deployment response:", data);
-        return;
+      // 2️⃣ Lecture des logs de build (événements)
+      const eventsRes = await fetch(
+        `https://api.vercel.com/v13/deployments/${deploymentId}/events`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const eventsData = await eventsRes.json();
+
+      if (Array.isArray(eventsData)) {
+        const newLogs = eventsData
+          .filter((event) => {
+            const t = new Date(event.createdAt || event.timestamp).getTime();
+            if (t > lastEventTime) {
+              lastEventTime = t;
+              return true;
+            }
+            return false;
+          })
+          .map((event) => {
+            const text =
+              event.payload?.text ||
+              event.payload?.message ||
+              event.payload?.output ||
+              event.type ||
+              "";
+            return text.trim();
+          })
+          .filter(Boolean);
+
+        if (newLogs.length > 0) {
+          setDeployLogs((prev) => [...prev, ...newLogs]);
+        }
       }
 
+      // 3️⃣ Suivi du statut du build
       if (state === "READY") {
         setDeployLogs(prev => [...prev, `✅ Déploiement terminé : ${url}`]);
         clearInterval(interval);
@@ -2992,8 +3022,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       setDeployLogs(prev => [...prev, `⚠️ Erreur récupération logs: ${e.message}`]);
       clearInterval(interval);
     }
-  }, 5000);
+  }, 4000);
 };
+              
 
 
                       const pollVercelBuildLogs = async (deploymentId: string, token: string) => {
