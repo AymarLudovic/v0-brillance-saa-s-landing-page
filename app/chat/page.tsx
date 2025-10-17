@@ -839,24 +839,7 @@ const READ_FILE_REGEX = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
 const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["']\s*\/>/;
 
 
-                                      // HELPER FUNCTION - En dehors de votre composant principal
-const normalizeVercelName = (name) => {
-  // 1. Convertit en minuscules.
-  // 2. Remplace les caractères non autorisés par des tirets (-).
-  // 3. Réduit les séquences de tirets (--) à un seul tiret.
-  // 4. Supprime les tirets/points/underscores au début et à la fin.
-  if (typeof name !== 'string' || name.length === 0) return 'default-app'; // Fallback
-    
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9._-]/g, '-')
-    .replace(/--+/g, '-') 
-    .replace(/^-+|-+$/g, '')
-    .replace(/^\.+|\.+$/g, '')
-    .replace(/^_|_$/g, '')
-    .substring(0, 100);
-};
+
 
 
 
@@ -1327,17 +1310,27 @@ useEffect(() => {
 // Fonction utilitaire pour normaliser le nom Vercel
 
 
+// DANS VOTRE COMPOSANT PRINCIPAL
+
 const createNewProject = () => {
     const rawProjectName = prompt("Enter project name:", `Project ${projects.length + 1}`)
     if (!rawProjectName) return
     
-    // 🟢 NORMALISATION DU NOM POUR VERCEL
-    const normalizedName = normalizeVercelName(rawProjectName);
+    // --- LOGIQUE DE NORMALISATION DU NOM VERCEL (LOCALISÉE) ---
+    let vercelProjectName = rawProjectName.toLowerCase().trim();
+    vercelProjectName = vercelProjectName.replace(/[^a-z0-9._-]/g, '-');
+    vercelProjectName = vercelProjectName.replace(/-{2,}/g, '-');
+    vercelProjectName = vercelProjectName.replace(/^[._-]+|[._-]+$/g, '');
+    vercelProjectName = vercelProjectName.substring(0, 100);
+    if (vercelProjectName.length === 0) {
+        vercelProjectName = 'default-app-fallback';
+    }
+    // -----------------------------------------------------------
     
     const newProject = {
-      id: crypto.randomUUID(),
-      name: rawProjectName, // Conserver le nom original pour l'affichage dans l'UI
-      vercelName: normalizedName, // 🟢 NOUVEAU: Le nom normalisé pour Vercel
+      id: generateUUID(), // Utilisation du helper sécurisé
+      name: rawProjectName, // Conserver le nom original pour l'affichage
+      vercelName: vercelProjectName, // 🟢 Le nom normalisé
       createdAt: new Date().toISOString(),
       files: [],
       messages: [{ role: "assistant", content: `Project "${rawProjectName}" is ready. What should we build?` }],
@@ -1346,58 +1339,65 @@ const createNewProject = () => {
     setProjects(updatedProjects)
     saveProjectsToLocalStorage(updatedProjects)
     loadProject(newProject.id)
-    addLog(`Project "${rawProjectName}" created with Vercel name: "${normalizedName}".`)
-}
+    addLog(`Project "${rawProjectName}" created with Vercel name: "${vercelProjectName}".`)
+                                                  }
 
   
   
 
-  
-// DANS VOTRE COMPOSANT PRINCIPAL, EN UTILISANT useCallback
+// DANS VOTRE COMPOSANT PRINCIPAL (utilisant useCallback)
 
 const handleDeploy = useCallback(async () => {
-    // 0. Réinitialiser la vue de statut et l'ouvrir
+    // 0. Initialisation et vérification des états
     setShowDeploymentStatus(true);
     setDeploymentDetails({ status: 'idle', message: 'Démarrage du processus de déploiement...', url: null, error: null });
 
-    // 1. Validation du jeton Vercel
+    // 1. Validation des prérequis (jeton, sandbox, projet)
     if (!connections.vercel || !connections.vercel.token) {
       setDeploymentDetails({ status: "error", message: "Jeton Vercel manquant.", error: "Veuillez l'enregistrer d'abord." });
-      // Assurez-vous que setShowTokenModal existe et ne cause pas d'erreur.
-      // S'il ne fait qu'afficher une alerte, c'est OK, mais vérifiez l'import.
-      setShowTokenModal("vercel"); 
+      setShowTokenModal("vercel");
       return; 
     }
 
     const activeSandboxId = sandboxId; 
     
-    // 2. Validation de l'existence du projet et de la sandbox
-    if (!activeSandboxId) {
-      setDeploymentDetails({ status: "error", message: "Déploiement échoué.", error: "Aucune Sandbox active. Veuillez créer un projet." });
-      return;
-    }
-    
-    // Vérification stricte du projet et des fichiers avant toute tentative d'accès à ses propriétés
-    if (!currentProject || !currentProject.files || currentProject.files.length === 0) {
-      setDeploymentDetails({ status: "error", message: "Déploiement échoué.", error: "Fichiers de projet introuvables. Chargez le projet et assurez-vous qu'il contient des fichiers." });
+    if (!activeSandboxId || !currentProject || !currentProject.files || currentProject.files.length === 0) {
+      setDeploymentDetails({ status: "error", message: "Déploiement échoué.", error: "Projet ou Sandbox invalide." });
       return;
     }
 
-    // 🟢 DÉTERMINATION DU NOM VERCEL NORMALISÉ (Sécurisé)
-    const rawProjectName = currentProject.name || 'unnamed-project';
-    const vercelProjectName = currentProject.vercelName 
-        ? currentProject.vercelName 
-        : normalizeVercelName(rawProjectName);
+    // --- LOGIQUE DE DÉTERMINATION DU NOM VERCEL (LOCALISÉE) ---
+    
+    // Tente d'utiliser la propriété pre-calculée "vercelName"
+    let vercelProjectName = currentProject.vercelName;
+
+    if (!vercelProjectName) {
+        // Fallback si la propriété n'existe pas (anciens projets)
+        let rawName = currentProject.name || `v0-e2b-app-${activeSandboxId.substring(0, 4)}`;
+        
+        // Logique de normalisation intégrée (Sécurisation maximale)
+        let normalizedName = rawName.toLowerCase().trim();
+        normalizedName = normalizedName.replace(/[^a-z0-9._-]/g, '-');
+        normalizedName = normalizedName.replace(/-{2,}/g, '-');
+        normalizedName = normalizedName.replace(/^[._-]+|[._-]+$/g, '');
+        normalizedName = normalizedName.substring(0, 100);
+
+        if (normalizedName.length === 0) {
+            normalizedName = 'default-app-fallback';
+        }
+        vercelProjectName = normalizedName;
+    }
+    // -----------------------------------------------------------
+
 
     // Mise à jour des états de chargement
     setIsConnecting(prev => ({ ...prev, deploy: true }));
     setDeploymentDetails(prev => ({ ...prev, status: "deploying", message: "Préparation des fichiers pour Vercel..." }));
 
     try {
-      // 3. Préparer les fichiers directement depuis l'état 'currentProject.files'
+      // 3. Préparer les fichiers
       const projectFilesMap = {};
       currentProject.files.forEach(file => {
-          // Utilise le chemin relatif (ex: app/page.tsx)
           const relativePath = file.filePath.startsWith('/') ? file.filePath.substring(1) : file.filePath;
           if (file.content) {
             projectFilesMap[relativePath] = file.content;
@@ -1416,7 +1416,7 @@ const handleDeploy = useCallback(async () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           files: projectFilesMap,
-          projectName: vercelProjectName, // ENVOI DU NOM NORMALISÉ
+          projectName: vercelProjectName, // Nom du projet nettoyé
           token: connections.vercel.token,
           sandboxId: activeSandboxId, 
         }),
@@ -1429,12 +1429,11 @@ const handleDeploy = useCallback(async () => {
           message: "Déploiement lancé avec succès ! Le statut est surveillé sur Vercel.",
           url: data.url,
         });
-        // 🛑 AUCUNE REDIRECTION AUTOMATIQUE ICI
       } else {
         setDeploymentDetails({
           status: "error",
           message: `Déploiement échoué : ${data.error || "Erreur inconnue"}`,
-          error: data.details || data.error || "Erreur Vercel. Vérifiez la console serveur pour les logs d'API.",
+          error: data.details || data.error || "Erreur Vercel. Vérifiez les logs.",
         });
       }
     } catch (error) {
@@ -1447,8 +1446,7 @@ const handleDeploy = useCallback(async () => {
     } finally {
       setIsConnecting(prev => ({ ...prev, deploy: false }));
     }
-}, [connections, sandboxId, currentProject]); // Dépendances strictes
-
+}, [connections, sandboxId, currentProject]);
       
 
 
