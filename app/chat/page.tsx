@@ -2949,7 +2949,6 @@ const handleVercelDeploy = async () => {
   }
 };
            
-
 const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
   setDeployLogs(prev => [...prev, "⏳ Suivi des logs du déploiement..."]);
 
@@ -2960,12 +2959,24 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       });
       const data = await res.json();
 
-      const state = data.state;
+      // Vérifie toutes les possibilités de champ de statut
+      const state =
+        data?.state ||
+        data?.readyState ||
+        data?.deployment?.state ||
+        data?.deployment?.readyState;
+
+      if (!state) {
+        setDeployLogs(prev => [...prev, "⚠️ Impossible de lire le statut du déploiement."]);
+        console.warn("Vercel deployment response:", data);
+        return;
+      }
+
       if (state === "READY") {
         setDeployLogs(prev => [...prev, `✅ Déploiement terminé : ${url}`]);
         clearInterval(interval);
       } else if (state === "ERROR" || state === "CANCELED") {
-        setDeployLogs(prev => [...prev, `❌ Déploiement échoué`]);
+        setDeployLogs(prev => [...prev, `❌ Déploiement échoué (${state})`]);
         clearInterval(interval);
       } else {
         setDeployLogs(prev => [...prev, `🌀 Statut actuel : ${state}`]);
@@ -2974,8 +2985,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       setDeployLogs(prev => [...prev, `⚠️ Erreur récupération logs: ${e.message}`]);
       clearInterval(interval);
     }
-  }, 4000);
+  }, 5000);
 };
+  
   
 
         
