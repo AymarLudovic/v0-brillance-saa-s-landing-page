@@ -867,6 +867,18 @@ const [cloneUrl, setCloneUrl] = useState("")
 const [copiedFileIndex, setCopiedFileIndex] = useState(null);
 
 
+
+
+  // === États de déploiement Vercel ===
+const [deploying, setDeploying] = useState(false);
+const [deployLogs, setDeployLogs] = useState<string[]>([]);
+const [deployUrl, setDeployUrl] = useState<string | null>(null);
+const [vercelToken, setVercelToken] = useState<string | null>(
+  typeof window !== "undefined" ? localStorage.getItem("vercel_access_token") : null
+);
+  
+
+
 // ... et d'ajouter ces états dans votre composant principal (e.g., SandboxPage)
 const [copiedMessageIndex, setCopiedMessageIndex] = useState(null);
 const [expandedMessageIndex, setExpandedMessageIndex] = useState(null);
@@ -880,7 +892,7 @@ const [expandedMessageIndex, setExpandedMessageIndex] = useState(null);
 // ==============================================================================
 
 // État du Token (à côté de vos autres useState)
-const [vercelToken, setVercelToken] = useState<string>('');
+
 const [tokenError, setTokenError] = useState<string>('');
 const [showTokenInput, setShowTokenInput] = useState<boolean>(false);
 const [isVercelModalOpen, setIsVercelModalOpen] = useState<boolean>(false);
@@ -2884,9 +2896,88 @@ if (isAnalysisMode) {
   }
       }   
  
+const handleVercelDeploy = async () => {
+  if (!currentProject || !currentProject.files.length) {
+    setDeployLogs(prev => [...prev, "❌ Aucun projet chargé ou vide."]);
+    return;
+  }
 
+  if (!vercelToken) {
+    const token = prompt("Entrez votre Vercel Access Token (https://vercel.com/account/tokens)");
+    if (!token) return;
+    localStorage.setItem("vercel_access_token", token);
+    setVercelToken(token);
+  }
 
+  const token = vercelToken || localStorage.getItem("vercel_access_token");
+  if (!token) return;
 
+  setDeploying(true);
+  setDeployLogs(["🚀 Lancement du déploiement sur Vercel..."]);
+
+  try {
+    // Prépare les fichiers à envoyer
+    const projectFiles = currentProject.files.reduce((acc, f) => {
+      acc[f.filePath] = f.content;
+      return acc;
+    }, {} as Record<string, string>);
+
+    const res = await fetch("/api/deploy/vercel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
+        projectName: currentProject.name,
+        files: projectFiles,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Erreur lors du déploiement");
+    }
+
+    setDeployLogs(prev => [...prev, `✅ Déploiement lancé : ${data.url}`]);
+    setDeployUrl(data.url);
+
+    // Suivi automatique des logs
+    pollVercelLogs(data.deploymentId, token, data.url);
+  } catch (err: any) {
+    setDeployLogs(prev => [...prev, `❌ ${err.message}`]);
+  } finally {
+    setDeploying(false);
+  }
+};
+           
+
+const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
+  setDeployLogs(prev => [...prev, "⏳ Suivi des logs du déploiement..."]);
+
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`https://api.vercel.com/v13/deployments/${deploymentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      const state = data.state;
+      if (state === "READY") {
+        setDeployLogs(prev => [...prev, `✅ Déploiement terminé : ${url}`]);
+        clearInterval(interval);
+      } else if (state === "ERROR" || state === "CANCELED") {
+        setDeployLogs(prev => [...prev, `❌ Déploiement échoué`]);
+        clearInterval(interval);
+      } else {
+        setDeployLogs(prev => [...prev, `🌀 Statut actuel : ${state}`]);
+      }
+    } catch (e: any) {
+      setDeployLogs(prev => [...prev, `⚠️ Erreur récupération logs: ${e.message}`]);
+      clearInterval(interval);
+    }
+  }, 4000);
+};
+  
 
         
   const copyLogs = () => navigator.clipboard.writeText(logs.join("\n"))
@@ -3237,6 +3328,37 @@ useEffect(() => {
             </Button>
           </div>
           <div className="flex items-center gap-2">
+            <div className="mt-4 flex flex-col gap-3">
+  <Button
+    onClick={handleVercelDeploy}
+    disabled={deploying}
+    className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2"
+  >
+    <Zap className="w-4 h-4" />
+    {deploying ? "Déploiement en cours..." : "Deploy to Vercel"}
+  </Button>
+
+  {/* Affichage console */}
+  {deployLogs.length > 0 && (
+    <div className="bg-[#0a0a0a] text-[#00ff99] font-mono text-xs rounded-lg p-3 h-48 overflow-y-auto border border-gray-700">
+      {deployLogs.map((line, i) => (
+        <div key={i}>{line}</div>
+      ))}
+    </div>
+  )}
+
+  {deployUrl && (
+    <a
+      href={deployUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-500 underline text-sm mt-2"
+    >
+      🔗 Ouvrir le site déployé
+    </a>
+  )}
+</div>
+            
             <Button
               onClick={saveProject}
               disabled={!currentProject || loading}
