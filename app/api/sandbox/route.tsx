@@ -148,6 +148,77 @@ export default function Page() {
         })
       }
 
+case "addFile": {
+        if (!bodySandboxId || !body.filePath || !body.content)
+          throw new Error("Paramètres manquants (sandboxId, filePath, content)");
+
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
+        await sandbox.files.write(`/home/user/${body.filePath}`, body.content);
+        console.log(`Fichier ${body.filePath} écrit dans le sandbox ${bodySandboxId}`);
+        return NextResponse.json({ success: true, message: `File ${body.filePath} written` });
+      }
+
+      case "addFiles": {
+        if (!bodySandboxId || !requestFiles || !Array.isArray(requestFiles)) {
+          throw new Error("Paramètres manquants (sandboxId ou files[])");
+        }
+
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
+
+        for (const f of requestFiles) {
+          if (!f.filePath || !f.content) continue;
+          await sandbox.files.write(`/home/user/${f.filePath}`, f.content);
+          console.log(`Fichier ${f.filePath} écrit dans le sandbox ${bodySandboxId}`);
+        }
+
+        return NextResponse.json({ success: true, message: `${requestFiles.length} files written` });
+      }
+        
+      case "install":
+      case "build": {
+        if (!bodySandboxId) throw new Error("sandboxId manquant");
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
+        await sandbox.setTimeout(900_000);
+
+        let commandResult: e2b.CommandResult = {
+          stdout: "",
+          stderr: "",
+          exitCode: -1,
+        };
+        let commandSuccess = false;
+
+        try {
+          if (action === "install") {
+            commandResult = await sandbox.commands.run("npm install --no-audit --loglevel warn", {
+              cwd: "/home/user",
+              timeoutMs: 600_000,
+            });
+          } else { // action === "build"
+            commandResult = await sandbox.commands.run("npm run build", { cwd: "/home/user", timeoutMs: 300_000 });
+          }
+          commandSuccess = commandResult.exitCode === 0;
+        } catch (e: any) {
+          if (e instanceof e2b.CommandExitError) {
+            commandResult = {
+              stdout: e.stdout || "",
+              stderr: e.stderr || e.message || "",
+              exitCode: e.exitCode,
+              error: e.message,
+            };
+            console.warn(`E2B CommandExitError capturée pour l'action '${action}':`, e);
+          } else {
+            console.error(`Erreur inattendue lors de l'exécution de la commande E2B pour l'action '${action}':`, e);
+            commandResult.error = e.message || "Erreur inconnue lors de l'exécution de la commande";
+            commandResult.stderr += `\nUnexpected API error: ${e.message || e.toString()}`;
+          }
+          commandSuccess = false;
+        }
+        
+        console.log(`Commande '${action}' exécutée dans le sandbox ${bodySandboxId}. Résultat complet:`, commandResult);
+
+        return NextResponse.json({ success: commandSuccess, action, result: commandResult });
+      }
+
       case "install": {
         const sid = bodySandboxId
         if (!sid) throw new Error("sandboxId manquant")
