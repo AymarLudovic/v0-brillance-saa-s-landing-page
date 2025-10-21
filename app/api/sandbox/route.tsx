@@ -18,8 +18,8 @@ export async function POST(req: Request) {
       case "create": {
         const sandbox = await e2b.Sandbox.betaCreate({
           apiKey,
-          timeoutMs: 3_600_000,
-          autoPause: true,
+          timeoutMs: 0,
+          
         });
 
         // Fichiers Next.js par défaut pour le sandbox
