@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       case "create": {
         const sandbox = await e2b.Sandbox.betaCreate({
           apiKey,
-          timeoutMs: 7_600_000,
+          timeoutMs: 3_600_000,
           autoPause: true,
         });
 
