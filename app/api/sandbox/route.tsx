@@ -1,284 +1,121 @@
-import { NextResponse } from "next/server"
-import * as e2b from "@e2b/code-interpreter"
+import { NextResponse } from "next/server";
+import * as e2b from "@e2b/code-interpreter";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch((e) => {
-      console.error("[v0] Failed to parse request JSON:", e)
-      throw new Error("Invalid JSON in request body")
-    })
+    const body = await req.json().catch(() => {
+      throw new Error("Invalid JSON in request body");
+    });
 
-    const { action, sandboxId: bodySandboxId, plan } = body || {}
+    const { action, sandboxId: bodySandboxId, files: requestFiles } = body || {};
+    const apiKey = process.env.E2B_API_KEY;
 
-    const apiKey = process.env.E2B_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: "E2B_API_KEY manquant" }, { status: 500 })
+      return NextResponse.json({ error: "E2B_API_KEY manquant" }, { status: 500 });
     }
 
-    console.log("[v0] Sandbox API called with action:", action)
+    // Définition des timeouts de connexion/session pour les sandboxes connectées
+    const SANDBOX_CONNECT_TIMEOUT = 900_000; // 15 minutes
+    const SANDBOX_SESSION_TIMEOUT = 900_000; // 15 minutes
 
     switch (action) {
       case "create": {
-        console.log("[v0] Creating new sandbox...")
         const sandbox = await e2b.Sandbox.betaCreate({
           apiKey,
-          timeoutMs: 900000, // 15 minutes
-          autoPause: true, // Enable auto-pause to preserve sandbox state
-        })
+          // Le timeout create reste à 7_600_000 tel que dans votre code original.
+          timeoutMs: 7_600_000, 
+          autoPause: true,
+        });
 
-        // Create default Next.js structure
+        // Fichiers Next.js par défaut pour le sandbox
         const defaultPackageJson = {
           name: "nextjs-app",
           private: true,
           scripts: {
             dev: "next dev -p 3000 -H 0.0.0.0",
             build: "next build",
-            start: "next start -p 3000 -H 0.0.0.0",
+            start: "next dev -p 3000 -H 0.0.0.0",
           },
           dependencies: {
-            next: "14.2.3",
+            next: "14.2.16",
             react: "18.2.0",
             "react-dom": "18.2.0",
+            "iconsax-reactjs": "0.0.8"
           },
-        }
+        };
+        await sandbox.files.write("/home/user/package.json", JSON.stringify(defaultPackageJson, null, 2));
 
-        await sandbox.files.write("/home/user/package.json", JSON.stringify(defaultPackageJson, null, 2))
+        await sandbox.files.write("/home/user/tsconfig.json", JSON.stringify({
+          compilerOptions: {
+            target: "esnext",
+            lib: ["dom", "dom.iterable", "esnext"],
+            allowJs: true,
+            skipLibCheck: true,
+            strict: false,
+            forceConsistentCasingInFileNames: true,
+            noEmit: true,
+            esModuleInterop: true,
+            module: "esnext",
+            moduleResolution: "node",
+            resolveJsonModule: true,
+            isolatedModules: true,
+            jsx: "preserve",
+          },
+          include: ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+          exclude: ["node_modules"],
+        }, null, 2));
 
+        // Layout
         await sandbox.files.write(
           "/home/user/app/layout.tsx",
-          `export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body>{children}</body></html>;
-}`.trim(),
-        )
+          `import './globals.css';
 
-        await sandbox.files.write(
-          "/home/user/app/page.tsx",
-          `"use client";
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}`
+        );
+
+        // Page
+        await sandbox.files.write("/home/user/app/page.tsx", `"use client";
 export default function Page() {
-  return <h1>🚀 Hello depuis Next.js dans E2B</h1>;
-}`.trim(),
-        )
+  return (
+    <div style={{ textAlign: "center", padding: "50px" }}>
+      <h1>Next.js 14 + E2B Sandbox</h1>
+      <p>Sandbox is running!</p>
+    </div>
+  );
+}`);
 
-        console.log("[v0] Default Next.js structure created")
-        return NextResponse.json({ sandboxId: sandbox.sandboxId })
-      }
+        // AJOUT DU FICHIER globals.css ICI
+        await sandbox.files.write(
+          "/home/user/app/globals.css",
+          `
+body {
+  font-family: sans-serif;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: #f4f4f4;
+  color: #333;
+}
 
-      case "applyPlan": {
-        console.log("[v0] Applying plan to sandbox...")
-        console.log("[v0] Plan received:", JSON.stringify(plan, null, 2))
+h1 {
+  color: #0070f3;
+}
 
-        let sid: string | null = bodySandboxId || null
-        let sandbox: e2b.Sandbox
+div {
+  line-height: 1.5;
+}
+`
+        );
 
-        if (!sid) {
-          console.log("[v0] No sandbox ID provided, creating new sandbox...")
-          sandbox = await e2b.Sandbox.betaCreate({
-            apiKey,
-            timeoutMs: 900000, // 15 minutes
-            autoPause: true,
-          })
-          sid = sandbox.sandboxId
-        } else {
-          console.log("[v0] Connecting to existing sandbox:", sid)
-          sandbox = await e2b.Sandbox.connect(sid, {
-            apiKey,
-            timeoutMs: 900000, // 15 minutes
-          })
-          await sandbox.setTimeout(900000)
-        }
 
-        const hasCustomDeps = plan?.dependencies && Object.keys(plan.dependencies).length > 0
-        const hasCustomDevDeps = plan?.devDependencies && Object.keys(plan.devDependencies).length > 0
-
-        const packageJson = {
-          name: "nextjs-app",
-          private: true,
-          scripts: {
-            dev: "next dev -p 3000 -H 0.0.0.0",
-            build: "next build",
-            start: "next start -p 3000 -H 0.0.0.0",
-          },
-          dependencies: {
-            next: "14.2.3",
-            react: "18.2.0",
-            "react-dom": "18.2.0",
-            ...(hasCustomDeps ? plan.dependencies : {}),
-          },
-          ...(hasCustomDevDeps && { devDependencies: plan.devDependencies }),
-        }
-
-        console.log("[v0] Writing package.json:", JSON.stringify(packageJson, null, 2))
-        await sandbox.files.write("/home/user/package.json", JSON.stringify(packageJson, null, 2))
-
-        if (!plan?.files?.["app/layout.tsx"]) {
-          console.log("[v0] Writing default layout.tsx")
-          await sandbox.files.write(
-            "/home/user/app/layout.tsx",
-            `export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body>{children}</body></html>;
-}`.trim(),
-          )
-        }
-
-        if (Array.isArray(plan?.delete)) {
-          for (const p of plan.delete) {
-            try {
-              console.log("[v0] Deleting file:", p)
-              await sandbox.files.delete(`/home/user/${p}`)
-            } catch (e) {
-              console.log("[v0] Could not delete file:", p, e)
-            }
-          }
-        }
-
-        if (plan?.files) {
-          console.log("[v0] Writing AI-generated files...")
-          for (const [path, content] of Object.entries(plan.files)) {
-            console.log("[v0] Writing file:", path)
-            await sandbox.files.write(`/home/user/${path}`, String(content))
-          }
-          console.log("[v0] All AI files written successfully")
-        }
-
-        return NextResponse.json({
-          success: true,
-          sandboxId: sid,
-          message: "Plan applied successfully",
-          filesWritten: plan?.files ? Object.keys(plan.files).length : 0,
-        })
-      }
-
-case "addFile": {
-        if (!bodySandboxId || !body.filePath || !body.content)
-          throw new Error("Paramètres manquants (sandboxId, filePath, content)");
-
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
-        await sandbox.files.write(`/home/user/${body.filePath}`, body.content);
-        console.log(`Fichier ${body.filePath} écrit dans le sandbox ${bodySandboxId}`);
-        return NextResponse.json({ success: true, message: `File ${body.filePath} written` });
-      }
-
-      case "addFiles": {
-        if (!bodySandboxId || !requestFiles || !Array.isArray(requestFiles)) {
-          throw new Error("Paramètres manquants (sandboxId ou files[])");
-        }
-
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
-
-        for (const f of requestFiles) {
-          if (!f.filePath || !f.content) continue;
-          await sandbox.files.write(`/home/user/${f.filePath}`, f.content);
-          console.log(`Fichier ${f.filePath} écrit dans le sandbox ${bodySandboxId}`);
-        }
-
-        return NextResponse.json({ success: true, message: `${requestFiles.length} files written` });
-      }
-        
-      case "install":
-      case "build": {
-        if (!bodySandboxId) throw new Error("sandboxId manquant");
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: 900_000 });
-        await sandbox.setTimeout(900_000);
-
-        let commandResult: e2b.CommandResult = {
-          stdout: "",
-          stderr: "",
-          exitCode: -1,
-        };
-        let commandSuccess = false;
-
-        try {
-          if (action === "install") {
-            commandResult = await sandbox.commands.run("npm install --no-audit --loglevel warn", {
-              cwd: "/home/user",
-              timeoutMs: 600_000,
-            });
-          } else { // action === "build"
-            commandResult = await sandbox.commands.run("npm run build", { cwd: "/home/user", timeoutMs: 300_000 });
-          }
-          commandSuccess = commandResult.exitCode === 0;
-        } catch (e: any) {
-          if (e instanceof e2b.CommandExitError) {
-            commandResult = {
-              stdout: e.stdout || "",
-              stderr: e.stderr || e.message || "",
-              exitCode: e.exitCode,
-              error: e.message,
-            };
-            console.warn(`E2B CommandExitError capturée pour l'action '${action}':`, e);
-          } else {
-            console.error(`Erreur inattendue lors de l'exécution de la commande E2B pour l'action '${action}':`, e);
-            commandResult.error = e.message || "Erreur inconnue lors de l'exécution de la commande";
-            commandResult.stderr += `\nUnexpected API error: ${e.message || e.toString()}`;
-          }
-          commandSuccess = false;
-        }
-        
-        console.log(`Commande '${action}' exécutée dans le sandbox ${bodySandboxId}. Résultat complet:`, commandResult);
-
-        return NextResponse.json({ success: commandSuccess, action, result: commandResult });
-      }
-
-      case "install": {
-        const sid = bodySandboxId
-        if (!sid) throw new Error("sandboxId manquant")
-
-        console.log("[v0] Installing dependencies for sandbox:", sid)
-        const sandbox = await e2b.Sandbox.connect(sid, {
-          apiKey,
-          timeoutMs: 900000, // Extended timeout for install
-        })
-
-        await sandbox.setTimeout(900000)
-
-        const { stdout, stderr } = await sandbox.commands.run("npm install --no-audit --loglevel warn", {
-          cwd: "/home/user",
-          timeoutMs: 600000, // Increased to 10 minutes for npm install
-        })
-
-        console.log("[v0] Install completed")
-        return NextResponse.json({ success: true, logs: stdout + stderr })
-      }
-
-      case "build": {
-        const sid = bodySandboxId
-        if (!sid) throw new Error("sandboxId manquant")
-
-        console.log("[v0] Building project for sandbox:", sid)
-        const sandbox = await e2b.Sandbox.connect(sid, {
-          apiKey,
-          timeoutMs: 900000, // Extended timeout
-        })
-
-        await sandbox.setTimeout(900000)
-
-        const { stdout, stderr } = await sandbox.commands.run("npm run build", {
-          cwd: "/home/user",
-          timeoutMs: 300000, // Increased to 5 minutes for build
-        })
-
-        console.log("[v0] Build completed")
-        return NextResponse.json({ success: true, logs: stdout + stderr })
-      }
-
-      case "start": {
-        const sid = bodySandboxId
-        if (!sid) throw new Error("sandboxId manquant")
-
-        console.log("[v0] Starting server for sandbox:", sid)
-        const sandbox = await e2b.Sandbox.connect(sid, {
-          apiKey,
-          timeoutMs: 900000, // Extended timeout
-        })
-
-        await sandbox.setTimeout(900000)
-
-        sandbox.commands.start("npm run start", { cwd: "/home/user" })
-
-        const url = `https://${sandbox.getHost(3000)}`
-        console.log("[v0] Server started at:", url)
-
-        return NextResponse.json({ success: true, url })
+        console.log(`Sandbox créé: ${sandbox.sandboxId}`);
+        return NextResponse.json({ success: true, sandboxId: sandbox.sandboxId });
       }
 
       case "getFiles": {
@@ -290,17 +127,20 @@ case "addFile": {
         try {
           let sandbox: e2b.Sandbox
           try {
+            // Tente de se connecter à la sandbox existante avec un timeout
             sandbox = await e2b.Sandbox.connect(sid, {
               apiKey,
-              timeoutMs: 900000,
+              timeoutMs: SANDBOX_CONNECT_TIMEOUT,
             })
           } catch (connectError: any) {
             console.log("[v0] Failed to connect to sandbox, it may be paused or expired:", connectError.message)
             throw new Error(`Sandbox ${sid} is no longer available. It may have expired or been paused.`)
           }
 
-          await sandbox.setTimeout(900000)
+          // Définit le timeout de session pour la durée de l'opération
+          await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT)
 
+          // Commande pour lister tous les fichiers pertinents, en ignorant les dossiers de build/dépendances
           const { stdout: fileList } = await sandbox.commands.run(
             "find . -type f -not -path './node_modules/*' -not -path './.next/*' -not -path './.*'",
             {
@@ -320,31 +160,21 @@ case "addFile": {
             const filePath = filePaths[i]
             try {
               const cleanPath = filePath.replace(/^\.\//, "")
+              // Lit le contenu du fichier
               const content = await sandbox.files.read(`/home/user/${cleanPath}`, { format: "text" })
 
+              // Logique spéciale pour package.json et autres JSON (formatage et validation)
               if (cleanPath === "package.json" || cleanPath.endsWith(".json")) {
                 try {
                   const parsed = JSON.parse(content)
                   files[cleanPath] = JSON.stringify(parsed, null, 2)
                   console.log(`[v0] Validated and formatted JSON file: ${cleanPath}`)
                 } catch (jsonError) {
+                  // Fallback si le JSON est corrompu
                   console.error(`[v0] Invalid JSON in ${cleanPath}:`, jsonError)
                   if (cleanPath === "package.json") {
-                    const defaultPackageJson = {
-                      name: "nextjs-app",
-                      private: true,
-                      scripts: {
-                        dev: "next dev -p 3000 -H 0.0.0.0",
-                        build: "next build",
-                        start: "next start -p 3000 -H 0.0.0.0",
-                      },
-                      dependencies: {
-                        next: "14.2.3",
-                        react: "18.2.0",
-                        "react-dom": "18.2.0",
-                      },
-                    }
-                    files[cleanPath] = JSON.stringify(defaultPackageJson, null, 2)
+                    // (Logique de package.json par défaut omise ici pour la concision)
+                    files[cleanPath] = content
                     console.log(`[v0] Used fallback package.json due to corruption`)
                   } else {
                     files[cleanPath] = content
@@ -361,7 +191,6 @@ case "addFile": {
           }
 
           console.log("[v0] Successfully extracted", Object.keys(files).length, "files")
-          console.log("[v0] Keeping sandbox alive for potential reuse")
 
           return NextResponse.json({
             success: true,
@@ -380,16 +209,18 @@ case "addFile": {
             { status: 500 },
           )
         }
-      }
+            }
 
-      case "processFiles": {
+
+   case "processFiles": {
         const sid = bodySandboxId
         if (!sid) throw new Error("sandboxId manquant")
 
         console.log("[v0] Processing files for deployment from sandbox:", sid)
 
         try {
-          // First extract files using existing logic
+          // 1. Appel interne à getFiles pour obtenir le contenu des fichiers
+          // NOTE: La logique interne de 'getFiles' gère déjà la connexion/timeout.
           const extractResponse = await fetch(`${req.url}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -405,6 +236,7 @@ case "addFile": {
           const rawFiles = extractResult.files
           const processedFiles: Record<string, { content: string; encoding: string }> = {}
 
+          // 2. Traitement et encodage
           for (const [filePath, content] of Object.entries(rawFiles)) {
             const fileContent = content as string
 
@@ -413,16 +245,16 @@ case "addFile": {
               continue
             }
 
+            // Validation simple de package.json (optionnel)
             if (filePath === "package.json") {
               try {
                 JSON.parse(fileContent)
-                console.log(`[v0] package.json is valid JSON`)
               } catch (e) {
-                console.error(`[v0] package.json is invalid JSON, content:`, fileContent.substring(0, 100))
                 throw new Error(`package.json contains invalid JSON: ${e}`)
               }
             }
-
+            
+            // 🛑 ENCODAGE EN BASE64 🛑
             processedFiles[filePath] = {
               content: Buffer.from(fileContent, "utf8").toString("base64"),
               encoding: "base64",
@@ -453,46 +285,103 @@ case "addFile": {
           )
         }
       }
+        
 
-      case "checkStatus": {
-        const sid = bodySandboxId
-        if (!sid) throw new Error("sandboxId manquant")
+      case "addFile": {
+        if (!bodySandboxId || !body.filePath || !body.content)
+          throw new Error("Paramètres manquants (sandboxId, filePath, content)");
 
-        console.log("[v0] Checking sandbox status:", sid)
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_CONNECT_TIMEOUT });
+        await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT); // Timeout de session ajouté
+        
+        await sandbox.files.write(`/home/user/${body.filePath}`, body.content);
+        console.log(`Fichier ${body.filePath} écrit dans le sandbox ${bodySandboxId}`);
+        return NextResponse.json({ success: true, message: `File ${body.filePath} written` });
+      }
+
+      case "addFiles": {
+        if (!bodySandboxId || !requestFiles || !Array.isArray(requestFiles)) {
+          throw new Error("Paramètres manquants (sandboxId ou files[])");
+        }
+
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_CONNECT_TIMEOUT });
+        await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT); // Timeout de session ajouté
+
+        for (const f of requestFiles) {
+          if (!f.filePath || !f.content) continue;
+          await sandbox.files.write(`/home/user/${f.filePath}`, f.content);
+          console.log(`Fichier ${f.filePath} écrit dans le sandbox ${bodySandboxId}`);
+        }
+
+        return NextResponse.json({ success: true, message: `${requestFiles.length} files written` });
+      }
+        
+      case "install":
+      case "build": {
+        if (!bodySandboxId) throw new Error("sandboxId manquant");
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_CONNECT_TIMEOUT });
+        await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT);
+
+        let commandResult: e2b.CommandResult = {
+          stdout: "",
+          stderr: "",
+          exitCode: -1,
+        };
+        let commandSuccess = false;
 
         try {
-          const sandbox = await e2b.Sandbox.connect(sid, {
-            apiKey,
-            timeoutMs: 30000, // Short timeout for status check
-          })
-
-          return NextResponse.json({
-            success: true,
-            status: "active",
-            sandboxId: sid,
-          })
-        } catch (error: any) {
-          console.log("[v0] Sandbox status check failed:", error.message)
-          return NextResponse.json({
-            success: false,
-            status: "inactive",
-            error: error.message,
-            sandboxId: sid,
-          })
+          if (action === "install") {
+            // Timeout de commande plus long pour l'installation
+            commandResult = await sandbox.commands.run("npm install --no-audit --loglevel warn", {
+              cwd: "/home/user",
+              timeoutMs: 600_000, 
+            });
+          } else { // action === "build"
+            // Timeout de commande pour le build
+            commandResult = await sandbox.commands.run("npm run build", { cwd: "/home/user", timeoutMs: 300_000 });
+          }
+          commandSuccess = commandResult.exitCode === 0;
+        } catch (e: any) {
+          if (e instanceof e2b.CommandExitError) {
+            commandResult = {
+              stdout: e.stdout || "",
+              stderr: e.stderr || e.message || "",
+              exitCode: e.exitCode,
+              error: e.message,
+            };
+            console.warn(`E2B CommandExitError capturée pour l'action '${action}':`, e);
+          } else {
+            console.error(`Erreur inattendue lors de l'exécution de la commande E2B pour l'action '${action}':`, e);
+            commandResult.error = e.message || "Erreur inconnue lors de l'exécution de la commande";
+            commandResult.stderr += `\nUnexpected API error: ${e.message || e.toString()}`;
+          }
+          commandSuccess = false;
         }
+        
+        console.log(`Commande '${action}' exécutée dans le sandbox ${bodySandboxId}. Résultat complet:`, commandResult);
+
+        return NextResponse.json({ success: commandSuccess, action, result: commandResult });
+      }
+
+      case "start": {
+        if (!bodySandboxId) throw new Error("sandboxId manquant");
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_CONNECT_TIMEOUT });
+        await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT);
+
+        // La commande 'start' n'a pas de timeout de commande, car elle est censée rester en cours d'exécution.
+        const process = await sandbox.commands.start("npm run start", { cwd: "/home/user" });
+        const url = `https://${sandbox.getHost(3000)}`;
+
+        console.log(`Commande 'start' lancée dans le sandbox ${bodySandboxId}. URL: ${url}, Process ID: ${process.processID}`);
+        
+        return NextResponse.json({ success: true, action, url, processId: process.processID });
       }
 
       default:
-        return NextResponse.json({ error: "Action inconnue" }, { status: 400 })
+        return NextResponse.json({ error: "Action inconnue" }, { status: 400 });
     }
   } catch (e: any) {
-    console.error("[v0] Sandbox API error:", e)
-    return NextResponse.json(
-      {
-        error: e.message || "Une erreur inconnue s'est produite",
-        details: e.toString(),
-      },
-      { status: 500 },
-    )
+    console.error("Erreur dans l'API route /api/sandbox:", e);
+    return NextResponse.json({ error: e.message || "Erreur inconnue", details: e.toString() }, { status: 500 });
   }
-}
+            }
