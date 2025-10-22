@@ -4098,50 +4098,6 @@ useEffect(() => {
 
 
 
-{deploymentDetails && (
-        <div className="mb-4 p-4 rounded-lg border border-[#333] bg-[#0a0a0a]">
-          <h3 className="text-white font-semibold mb-2">Deployment Status</h3>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              {deploymentDetails.status === "deploying" && (
-                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              )}
-              {deploymentDetails.status === "success" && <div className="w-4 h-4 bg-green-500 rounded-full" />}
-              {deploymentDetails.status === "error" && <div className="w-4 h-4 bg-red-500 rounded-full" />}
-              <span
-                className={`text-sm ${
-                  deploymentDetails.status === "success"
-                    ? "text-green-400"
-                    : deploymentDetails.status === "error"
-                      ? "text-red-400"
-                      : "text-blue-400"
-                }`}
-              >
-                {deploymentDetails.message}
-              </span>
-            </div>
-
-            {deploymentDetails.url && (
-              <a
-                href={deploymentDetails.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm"
-              >
-                <ExternalLink className="w-4 h-4" />
-                {deploymentDetails.url}
-              </a>
-            )}
-
-            {deploymentDetails.error && (
-              <div className="bg-red-900/20 border border-red-500/30 rounded p-3 mt-2">
-                <p className="text-red-400 text-sm font-medium">Error Details:</p>
-                <p className="text-red-300 text-xs mt-1 font-mono">{deploymentDetails.error}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
 
 
@@ -4551,6 +4507,31 @@ useEffect(() => {
             </div>
           )}
         </div>
+
+
+            
+<div className="flex  w-full rounded-[12px] mb-1 bg-[#fffcf6] ">
+    <button
+        onClick={() => toggleViewMode("chat")}
+        className={`px-4 py-2 border-r rounded-l-lg transition-colors duration-200 ${
+            viewMode === "chat" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : "bg-transparent text-gray-700"
+        }`}
+    >
+        Chat
+    </button>
+    <button
+        onClick={() => toggleViewMode("preview")}
+        className={`px-4 py-2 rounded-r-lg transition-colors duration-200 ${
+            viewMode === "preview" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : " text-gray-700"
+        }`}
+    >
+        Preview
+    </button>
+</div>
       </div>
 
 
