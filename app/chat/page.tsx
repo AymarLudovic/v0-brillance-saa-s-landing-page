@@ -4051,10 +4051,10 @@ useEffect(() => {
   </div>
 
     
-<div className="flex md:hidden  w-full rounded-[12px] mb-1 bg-[#fffcf6] ">
+<div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
     <button
         onClick={() => toggleViewMode("chat")}
-        className={`px-4 py-2 border-r rounded-l-lg transition-colors duration-200 ${
+        className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
             viewMode === "chat" 
                 ? "bg-[#37322F] text-white font-semibold" 
                 : "bg-transparent text-gray-700"
@@ -4064,7 +4064,7 @@ useEffect(() => {
     </button>
     <button
         onClick={() => toggleViewMode("preview")}
-        className={`px-4 py-2 rounded-r-lg transition-colors duration-200 ${
+        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
             viewMode === "preview" 
                 ? "bg-[#37322F] text-white font-semibold" 
                 : " text-gray-700"
@@ -4148,7 +4148,7 @@ useEffect(() => {
       onKeyDown={(e) => {
         if (e.key === "Enter") handleNavigate()
       }}
-      className="flex-grow bg-transparent outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
+      className="flex-grow bg-transparent w-[60%] outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
       placeholder="/route"
     />
     <Button
@@ -4157,7 +4157,7 @@ useEffect(() => {
       className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
       onClick={handleNavigate}
     >
-      <ArrowRight size={17} className="h-4 w-4" />
+      <ArrowRight size={17} className="h-1 w-1" />
     </Button>
     <Button
       variant="ghost"
@@ -4165,7 +4165,7 @@ useEffect(() => {
       className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
       onClick={handleReload}
     >
-      <RefreshCw className="h-4 w-4" />
+      <RefreshCw className="h-1 w-1" />
     </Button>
     <Button
       variant="ghost"
@@ -4487,10 +4487,10 @@ useEffect(() => {
 
 
             
-<div className="flex md:hidden  w-full rounded-[12px] mb-1 bg-[#fffcf6] ">
+<div className="flex md:hidden border border-[rgba(55,50,47,0.12)] justify-center items-center w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
     <button
         onClick={() => toggleViewMode("chat")}
-        className={`px-4 py-2 border-r rounded-l-lg transition-colors duration-200 ${
+        className={`px-1 w-1/2 py-1 border-r rounded-l-lg transition-colors duration-200 ${
             viewMode === "chat" 
                 ? "bg-[#37322F] text-white font-semibold" 
                 : "bg-transparent text-gray-700"
@@ -4500,7 +4500,7 @@ useEffect(() => {
     </button>
     <button
         onClick={() => toggleViewMode("preview")}
-        className={`px-4 py-2 rounded-r-lg transition-colors duration-200 ${
+        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
             viewMode === "preview" 
                 ? "bg-[#37322F] text-white font-semibold" 
                 : " text-gray-700"
