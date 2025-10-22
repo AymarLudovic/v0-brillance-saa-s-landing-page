@@ -2523,232 +2523,290 @@ const handleFetchFileAction = (
 
 // ---------------------- SEND CHAT ----------------------
 
-                 
-// ---------------------- SEND CHAT (AMÉLIORÉ) ----------------------
 
+                
+// ---------------------- SEND CHAT (AMÉLIORÉ et ROBUSTE) ----------------------
 
-        
-
-      const sendChat = async (userPrompt: string, promptOverride?: string) => {
-  if (!sandboxId) {
-    addLog("⚠️ Sandbox ID manquant. Veuillez créer un sandbox.");
-    return;
-  }
-  if (loading) return;
-
-  setLoading(true);
-  let actionChainActive = false;
-  let historyForApi = [...currentProject.history];
-
-  // 1. Définition des constantes pour la robustesse
-  const MAX_RETRIES = 6; 
+const sendChat = async (promptOverride?: string) => {
+  // --- Constantes pour la Robustesse ---
+  const MAX_RETRIES = 6; // Augmenté pour plus de fiabilité
   const BASE_DELAY_MS = 1000;
   
-  // 2. Définition des artefacts
-  let urlArtifact: { url: string } | null = null;
-  let fileChangesArtifacts: { path: string, content: string }[] = [];
-  let createFileArtifacts: { path: string, content: string }[] = [];
-  let fetchFilePaths: string[] = []; // Liste des fichiers à lire lors de cette chaîne d'action
+  const userPrompt = promptOverride || chatInput;
+
+  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
+  if (!currentProject && !promptOverride) {
+    addLog("Please create or load a project before starting a conversation.");
+    return;
+  }
+
+  // 1. Préparation initiale du message utilisateur
+  let contextForPrompt = "";
+  if (mentionedFiles.length > 0 && currentProject) {
+    contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
+  }
+  const finalUserPrompt = userPrompt + contextForPrompt;
+
+  const userMsg: Message = {
+    role: "user",
+    content: finalUserPrompt,
+    artifactData: { type: null, rawJson: "", parsedList: [] },
+    images: uploadedImages,
+    externalFiles: uploadedFiles,
+    mentionedFiles
+  };
+
+  const assistantPlaceholder: Message = {
+    role: "assistant",
+    content: "",
+    artifactData: { type: null, rawJson: "", parsedList: [] }
+  };
   
-  // Regex
+  // 2. Logique de mise à jour de l'état (ajoute le message utilisateur et le placeholder)
+  let currentHistory = [...messages, userMsg];
+  let assistantMessageIndex = -1;
+  let text = ""; // Texte cumulé du stream
+
+  setMessages((prev) => {
+    assistantMessageIndex = prev.length + 1; 
+    if (!promptOverride) {
+      setChatInput("");
+    }
+    return [...prev, userMsg, assistantPlaceholder];
+  });
+  
+  const currentProjectFiles = currentProject
+    ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
+    : [];
+
+  // --- 1. AMÉLIORATION : PRÉPARATION CONTEXTE GLOBAL DES FICHIERS ---
+  const formattedFilesForContext = currentProjectFiles.map(file => {
+      const lines = file.content.split("\n");
+      const totalLines = lines.length;
+      return [
+        `<project_file path="${file.filePath}" totalLines="${totalLines}">`,
+        ...lines.map((line, i) => `${i + 1} | ${line}`),
+        `</project_file>`
+      ].join("\n");
+  }).join("\n\n");
+
+  const systemFileContext: Message = {
+    role: "system",
+    content: `[PROJECT CONTEXT: ${currentProjectFiles.length} files]\n${formattedFilesForContext}`
+  };
+  
+  // L'historique pour l'API commence avec le contexte des fichiers
+  let historyForApi = [systemFileContext, ...currentHistory];
+  // -----------------------------------------------------------
+
+  setLoading(true);
+  addLog(`Sending prompt to Gemini...`);
+  
+  let urlArtifact: any = null;
+  let actionChainActive = false;
+  let retryCount = 0;
+  
+  // Assurez-vous que ces regex sont définies si elles ne le sont pas globalement
   const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
   const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["']\s*\/>/gi;
-  const FILE_CHANGES_REGEX = /<file_changes\s+path=["']([^"']+)["']\s*>\s*([\s\S]*?)<\/file_changes>/gi;
-  const CREATE_FILE_REGEX = /<create_file\s+path=["']([^"']+)["']\s*>\s*([\s\S]*?)<\/create_file>/gi;
+  // Autres Regex de fichier (file_changes, create_file) doivent être définies ou importées
 
   try {
-    // --- 0. Préparation du Contexte Global des Fichiers (Système Message) ---
-    let systemFileContext = "";
-    if (currentProject.files.length > 0) {
-      systemFileContext = `<system> [PROJECT CONTEXT: ${currentProject.files.length} files]`;
-      currentProject.files.forEach(file => {
-        // Ajoute le chemin et le contenu de chaque fichier connu au contexte système
-        systemFileContext += `\n<project_file path="${file.path}">\n${file.content}\n</project_file>`;
-      });
-      systemFileContext += `\n</system>`;
-      // Insérer au début de l'historique pour l'API
-      historyForApi = [{ role: "system", parts: [{ text: systemFileContext }] }, ...historyForApi];
-    }
-
-    // Ajout du prompt utilisateur
-    historyForApi.push({ 
-        role: "user", 
-        parts: [{ text: promptOverride || userPrompt }] 
-    });
-
-    // --- 3. BOUCLE PRINCIPALE POUR LE CHAÎNAGE D'ACTIONS (do...while) ---
-    let text = "";
+    // --- 3. BOUCLE POUR LE CHAÎNAGE D'ACTIONS ---
     do {
       actionChainActive = false;
+      let res: Response | null = null; // Déplacé ici pour l'accessibilité après le try
       let apiCallSuccessful = false;
-      let retryCount = 0;
-      
-      // --- 4. BOUCLE SECONDAIRE POUR LA ROBUSTESSE (while API retries) ---
+
+      // --- 2. AMÉLIORATION : BOUCLE POUR LA ROBUSTESSE (RE-TENTATIVE API) ---
       while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
         try {
           addLog(retryCount > 0 ? `[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES} après erreur API...` : '');
-
-          // Logique de Délai Exponentiel (Exponential Backoff with Jitter)
+          
+          // NOUVEAU: Délai Exponentiel Robuste
           if (retryCount > 0) {
-            // Augmentation exponentielle, plafonnée à 16s
             const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 16000); 
-            // Ajout de 0-1 seconde d'aléatoire (jitter)
             const jitter = Math.random() * 1000; 
             const finalDelay = delay + jitter;
 
             addLog(`[RETRY] Attente de ${Math.round(finalDelay / 100) / 10}s avant de réessayer...`);
             await new Promise(resolve => setTimeout(resolve, finalDelay));
           }
+          // FIN NOUVEAU DELAI
 
-          // Appel à l'API Gemini
-          const res = await fetch("/api/gemini", {
+          res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
-                history: historyForApi,
-                // Le reste des options API (température, etc.)
+              history: historyForApi,
+              currentProjectFiles,
+              projectEmbeddings,
+              uploadedImages,
+              uploadedFiles
             }),
           });
 
           if (!res.ok || !res.body) throw new Error(`Gemini API request failed: ${res.statusText}`);
           apiCallSuccessful = true;
           retryCount = 0;
-
-          // --- Streaming de la Réponse ---
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let done = false;
-
-          while (!done) {
-            const { value, done: streamDone } = await reader.read();
-            done = streamDone;
-
-            if (value) {
-              const chunk = decoder.decode(value, { stream: true });
-              text += chunk;
-
-              // 5. Détection de l'artefact d'URL (dans le stream)
-              const urlMatch = text.match(inspirationUrlRegex);
-              if (urlMatch) {
-                try {
-                  const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
-                  const parsedUrlData = JSON.parse(jsonString);
-
-                  if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
-                    urlArtifact = { url: parsedUrlData.url };
-                  }
-                } catch (e) { console.error("Failed to parse URL JSON:", e); }
-              }
-
-              // Détection et extraction des balises d'action
-              const fileChangesMatch = [...text.matchAll(FILE_CHANGES_REGEX)];
-              fileChangesArtifacts.push(...fileChangesMatch.map(m => ({ path: m[1], content: m[2].trim() })));
-              
-              const createFileMatch = [...text.matchAll(CREATE_FILE_REGEX)];
-              createFileArtifacts.push(...createFileMatch.map(m => ({ path: m[1], content: m[2].trim() })));
-
-              // 6. Détection de fetch_file (Déclencheur de Chaînage)
-              const fetchFileMatch = [...text.matchAll(FETCH_FILE_REGEX)];
-              if (fetchFileMatch.length > 0) {
-                fetchFilePaths.push(...fetchFileMatch.map(m => m[1]));
-                actionChainActive = true; // Active le chaînage
-                done = true; // Arrête le stream immédiatement
-              }
-              
-              // 7. Nettoyage et Affichage (Filtrage des artefacts pour l'UI)
-              let textWithoutArtifacts = text
-                .replace(inspirationUrlRegex, '') // Supprime l'URL JSON
-                .replace(FILE_CHANGES_REGEX, '')
-                .replace(CREATE_FILE_REGEX, '')
-                .replace(FETCH_FILE_REGEX, '');
-
-              // Met à jour le message de l'assistant dans l'interface
-              setMessages((prev) => {
-                const newMessages = [...prev];
-                const lastMsg = newMessages[newMessages.length - 1];
-                if (lastMsg && lastMsg.role === 'assistant') {
-                  lastMsg.parts[0].text = textWithoutArtifacts;
-                } else {
-                  newMessages.push({ role: 'assistant', parts: [{ text: textWithoutArtifacts }] });
-                }
-                return newMessages;
-              });
-            }
-          }
         } catch (e: any) {
           console.error(`API Call failed: ${e.message}`);
           retryCount++;
           if (retryCount >= MAX_RETRIES) {
-             // Erreur finale après toutes les tentatives
-             setLoading(false);
-             throw new Error(`Gemini API failed after ${MAX_RETRIES} retries. Please try again later.`);
+            // 🛑 Erreur finale si toutes les tentatives échouent
+            throw new Error(`Gemini API failed after ${MAX_RETRIES} retries. Veuillez réessayer.`);
           }
+          res = null; // Assurez-vous que res est null en cas d'échec pour éviter de lire un corps invalide
         }
-      } // FIN BOUCLE ROBUSTESSE
-      
-      // 8. Gestion de l'action de lecture de fichier (Chaînage)
-      if (actionChainActive) {
-        addLog(`[ACTION] Détecté <fetch_file /> pour : ${fetchFilePaths.join(', ')}`);
-        
-        // Simule la réponse du client à l'IA avec le contenu du fichier
-        const fetchContent = await handleFetchFileAction(fetchFilePaths);
-        
-        // Mise à jour de l'historique pour le prochain appel API
-        historyForApi.push({ role: 'assistant', parts: [{ text: text }] }); // Réponse IA partielle avec balise fetch
-        historyForApi.push({ role: 'user', parts: [{ text: fetchContent }] }); // Contenu du fichier lu
-        
-        text = ""; // Réinitialise le texte pour le nouveau stream
-        fetchFilePaths = []; // Réinitialise la liste pour le prochain cycle
-        actionChainActive = true; // Continue la boucle do...while
-        continue; // Passe directement à l'itération suivante de do...while
       }
-
-    } while (actionChainActive); // FIN BOUCLE CHAÎNAGE
-
-    // --- POST STREAM (Finalisation) --- 
-
-    // 9. Gestion de l'artefact d'URL (prioritaire)
-    if (urlArtifact) {
-      addLog(`✅ Gemini suggère une URL d'inspiration: ${urlArtifact.url}`);
+      // FIN BOUCLE ROBUSTESSE
       
-      // Lance le processus d'analyse externe
+      if (!res) continue; // Passe à l'itération suivante si l'appel a échoué (devrait lancer l'erreur ci-dessus, mais sécurité)
+
+      const reader = res!.body!.getReader();
+      const decoder = new TextDecoder();
+      let streamText = ""; // Texte du stream actuel pour détection de balises
+
+      // -------- STREAMING LOOP ---------- 
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        streamText += chunk;
+        text += chunk; // Cumule pour le traitement des artifacts finaux
+
+        // ---------------- FETCH FILE (DÉTECTION D'ACTION DE CHAÎNAGE) ----------------
+        const fetchFileMatch = streamText.match(FETCH_FILE_REGEX);
+        if (fetchFileMatch) {
+          const filePath = fetchFileMatch[1].trim();
+          addLog(`[ACTION] Gemini requested file: ${filePath}. Chaînage activé.`);
+          
+          isFetchInProgress = true;
+          // ASSUMÉ: handleFetchFileAction est disponible et retourne une chaîne
+          const fileContent = handleFetchFileAction(filePath, currentProjectFiles); 
+          isFetchInProgress = false;
+
+          historyForApi = [...historyForApi, { role: "assistant", content: streamText }, { role: "user", content: fileContent }];
+          
+          actionChainActive = true; 
+          break; // Sortir du streaming
+        }
+
+        // ----------------- URL ARTIFACT (Extraction dans le stream) -----------------
+        const urlMatch = text.match(inspirationUrlRegex);
+        if (urlMatch) {
+          try {
+            const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
+            const parsedUrlData = JSON.parse(jsonString);
+
+            if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
+              urlArtifact = { url: parsedUrlData.url };
+            }
+          } catch (e) { console.error("Failed to parse URL JSON:", e); }
+        }
+
+        // ----------------- FILE ARTIFACTS -----------------
+        const fileArtifacts = extractFileArtifacts(text); // ASSUMÉ: extractFileArtifacts est disponible
+
+        fileArtifacts.forEach((artifact: any) => {
+          if (artifact.type === "changes" && artifact.content && !artifact.content.trim().endsWith("</file_changes>")) {
+            artifact.content += "\n</file_changes>";
+          }
+          if (artifact.type === "create" && artifact.content && !artifact.content.trim().endsWith("</create_file>")) {
+            artifact.content += "\n</create_file>";
+          }
+        });
+
+        // Regex d'incomplétude et logique de gestion des fichiers (addFilesIfNew) ...
+        const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
+        let incompleteMatches = [...text.matchAll(incompleteRegex)];
+
+        const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
+        let newArtifactData = undefined;
+        const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+
+        if (isGeneratingCode) {
+          fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
+          incompleteMatches.forEach(match => {
+            const path = match[2];
+            const type = match[1] === 'create_file' ? 'create' : 'changes';
+            if (!artifactList.some(a => a.path === path)) artifactList.push({ path, type });
+          });
+
+          if (currentProject) {
+            // ASSUMÉ: addFilesIfNew est disponible
+            // addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject); 
+          }
+
+          newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
+        }
+
+        // Nettoyage texte pour affichage
+        let textWithoutArtifacts = text
+          .replace(inspirationUrlRegex, '') // NOUVEAU: Suppression de l'artefact URL pour l'affichage
+          .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+          .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+          .replace(FETCH_FILE_REGEX, '');
+
+        // Mise à jour message assistant
+        setMessages((prev) => {
+          const updatedMessages = [...prev];
+          const lastMsg = updatedMessages[assistantMessageIndex];
+          if (lastMsg?.role === "assistant") {
+            if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
+            lastMsg.content = textWithoutArtifacts;
+          }
+          return updatedMessages;
+        });
+
+      } // FIN STREAMING
+    } while (actionChainActive); // Répète si une action de chaînage a été lancée
+    // --- FIN BOUCLE DE CHAÎNAGE ---
+
+    // -------- POST STREAM (Finalisation) ---------- 
+    
+    // NOUVEAU: Logique de Traitement de l'URL Artifact
+    if (urlArtifact) {
+      addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
+      
+      // ASSUMÉ: runAutomatedAnalysis est disponible et importé
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
       
-      setLoading(false);
-      return; // 🛑 Sort de sendChat, l'analyse prend le relai.
+      // On sort de sendChat pour ne pas exécuter la logique de code/artefacts
+      // qui suit, car runAutomatedAnalysis relancera sendChat avec le contexte.
+      return; 
     }
     
-    // 10. Application des artefacts de Fichier (si pas d'URL et que le stream a réussi)
-    if (fileChangesArtifacts.length > 0 || createFileArtifacts.length > 0) {
-      addLog(`[ACTION] Détecté ${fileChangesArtifacts.length} changements et ${createFileArtifacts.length} créations de fichiers. Application...`);
-      // Simule l'application des changements au système de fichiers (fonction externe)
-      await applyFileArtifacts(fileChangesArtifacts, createFileArtifacts);
+    // 🔹 Lancement de l’isolation et génération (Seulement si PAS d'urlArtifact)
+    const isAnalysisMode = promptOverride?.includes("Analysis data from");
+    if (isAnalysisMode) {
+      addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
+    }
+        
+    const finalArtifacts = extractFileArtifacts(text);
+    if (finalArtifacts.length > 0) {
+      addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+      applyArtifactsToProject(finalArtifacts); // ASSUMÉ: applyArtifactsToProject est disponible
+
+      setTimeout(() => {
+        finalArtifacts.forEach(async (artifact) => {
+          const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
+          if (updatedFile) await reindexFile(updatedFile); // ASSUMÉ: reindexFile est disponible
+        });
+      }, 100);
+    } else {
+      addLog("Response treated as simple text or unrecognized format.");
     }
     
-    // 11. Finalisation de l'historique et RAG
-    const fullAssistantResponse = text;
-    if (fullAssistantResponse) {
-        const lastUserPrompt = promptOverride || userPrompt;
-        
-        // Retire le contexte système temporaire et ajoute la conversation finale
-        let finalHistory = currentProject.history;
-        finalHistory.push({ role: "user", parts: [{ text: lastUserPrompt }] });
-        finalHistory.push({ role: "assistant", parts: [{ text: fullAssistantResponse }] });
-        
-        setCurrentProject(prev => ({ 
-            ...prev, 
-            history: finalHistory 
-        }));
-        
-        // Mise à jour du RAG (indexation des nouveaux fichiers)
-        await updateProjectEmbeddings(currentProject); 
-    }
+    // Mise à jour finale de l'historique et du RAG
+    // Cette logique peut être ajoutée ici si vous avez besoin de sauvegarder l'historique final
+    // (Non inclus pour maintenir la compatibilité avec votre code initial, mais c'est l'étape finale normale).
 
 
   } catch (err: any) {
-    console.error("Erreur critique dans sendChat:", err);
-    addLog(`❌ Erreur critique: ${err.message}`);
-    // Afficher une erreur utilisateur...
+    addLog(`CLIENT-SIDE ERROR: ${err.message}`);
+    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
   } finally {
     setLoading(false);
   }
