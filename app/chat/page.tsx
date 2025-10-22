@@ -4085,7 +4085,7 @@ useEffect(() => {
 
 
 </div>
-      </div>
+      
 
 
         
@@ -4216,7 +4216,7 @@ useEffect(() => {
          </span>     
     
   </Button>
-
+</div>
 {showDeploymentStatus && deploymentDetails.status !== 'idle' && (
     <div 
         className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-2xl z-50 max-w-sm w-full 
