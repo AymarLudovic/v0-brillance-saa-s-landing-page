@@ -2010,7 +2010,6 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
 };
   
            
-             
 const runAutomatedAnalysis = async (
   urlToAnalyze: string,
   originalUserPrompt: string,
@@ -2041,13 +2040,16 @@ const runAutomatedAnalysis = async (
       body: JSON.stringify({ url: urlToAnalyze }),
     });
 
-    // 🛑 CORRECTION : Gestion robuste de la réponse JSON
+    // 🛑 CORRECTION : Cloner la réponse avant la première lecture
+    const analysisResClone = analysisRes.clone(); 
+    
     let analysisData;
     try {
+        // Tente de lire en JSON sur la réponse originale
         analysisData = await analysisRes.json();
     } catch (e) {
-        // En cas d'échec du JSON, on lit le texte brut pour le diagnostic
-        const rawErrorText = await analysisRes.text();
+        // Si la lecture JSON échoue, utilise le CLONE pour lire le texte brut
+        const rawErrorText = await analysisResClone.text(); 
         addLog(`❌ [Analyse API] Réponse non-JSON reçue: ${rawErrorText}`);
         throw new Error(`Failed to parse Analysis API response. Check server logs. (Raw text start: ${rawErrorText.substring(0, 100)}...)`);
     }
@@ -2071,9 +2073,8 @@ const runAutomatedAnalysis = async (
       throw new Error("Analysis failed: API did not return 'fullHTML' content.");
     }
 
-    // --- Étape 3 : DISPATCH logique selon mode ---
+    // --- Étape 3 : DISPATCH logique selon mode (inchangé) ---
     if (isCloning) {
-      // NOTE: processAnalysisResult doit être défini ailleurs dans votre code.
       await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze);
     } else {
       // 🧠 Étape spéciale : création du pont vers sendChat()
