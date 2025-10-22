@@ -3161,6 +3161,172 @@ useEffect(() => {
 
   // ⚠️ Ne mets pas currentProject.files dans les deps sinon relance infinie
 }, [currentProject?.id, handleUpdateEmbeddings]);
+
+
+
+
+  
+ 
+const handleVercelDeploy = async () => {
+  if (!currentProject || !currentProject.files.length) {
+    setDeployLogs(prev => [...prev, "❌ Aucun projet chargé ou vide."]);
+    return;
+  }
+
+  if (!vercelToken) {
+    const token = prompt("Entrez votre Vercel Access Token (https://vercel.com/account/tokens)");
+    if (!token) return;
+    localStorage.setItem("vercel_access_token", token);
+    setVercelToken(token);
+  }
+
+  const token = vercelToken || localStorage.getItem("vercel_access_token");
+  if (!token) return;
+
+  setDeploying(true);
+  setDeployLogs(["🚀 Lancement du déploiement sur Vercel..."]);
+
+  try {
+    // Prépare les fichiers à envoyer
+    const projectFiles = currentProject.files.reduce((acc, f) => {
+      acc[f.filePath] = f.content;
+      return acc;
+    }, {} as Record<string, string>);
+
+    const res = await fetch("/api/deploy/vercel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
+        projectName: currentProject.name,
+        files: projectFiles,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Erreur lors du déploiement");
+    }
+
+    setDeployLogs(prev => [...prev, `✅ Déploiement lancé : ${data.url}`]);
+    setDeployUrl(data.url);
+
+    pollVercelLogs(data.deploymentId, token, data.url);
+
+                  
+
+    // Suivi automatique des logs
+    
+  } catch (err: any) {
+    setDeployLogs(prev => [...prev, `❌ ${err.message}`]);
+  } finally {
+    setDeploying(false);
+  }
+};
+
+
+
+const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
+  setDeployLogs(prev => [...prev, "⏳ Suivi du déploiement et lecture des logs..."]);
+
+  try {
+    const response = await fetch(
+      `https://api.vercel.com/v3/deployments/${deploymentId}/events?follow=1`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    if (!response.body) {
+      setDeployLogs(prev => [...prev, "❌ Pas de flux disponible depuis l'API Vercel"]);
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let partial = "";
+
+    // Buffers pour stdout et stderr
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      partial += decoder.decode(value, { stream: true });
+
+      const lines = partial.split("\n");
+      partial = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        try {
+          const event = JSON.parse(line);
+
+          let text = "";
+
+          // ✅ Gestion stdout/stderr avec buffering
+          if (event.type === "stdout") {
+            text = event.payload?.text || event.payload?.message || "";
+            stdoutBuffer += text;
+            if (text.includes("\n")) {
+              setDeployLogs(prev => [...prev, stdoutBuffer.trim()]);
+              stdoutBuffer = "";
+            }
+            continue; // passe au prochain événement
+          }
+
+          if (event.type === "stderr") {
+            text = event.payload?.text || event.payload?.message || "";
+            stderrBuffer += text;
+            if (text.includes("\n")) {
+              setDeployLogs(prev => [...prev, `[stderr] ${stderrBuffer.trim()}`]);
+              stderrBuffer = "";
+            }
+            continue;
+          }
+
+          // 🔹 Reste de ta logique inchangée
+          text =
+            event?.payload?.text ||
+            event?.payload?.message ||
+            event?.payload?.output ||
+            event?.payload?.command ||
+            event?.type ||
+            "";
+
+          if (text) {
+            setDeployLogs(prev => [...prev, text]);
+          }
+
+          if (event.type === "state") {
+            if (event.payload?.state === "READY") {
+              setDeployLogs(prev => [...prev, `✅ Déploiement terminé : ${url}`]);
+              return;
+            }
+            if (event.payload?.state === "ERROR") {
+              setDeployLogs(prev => [...prev, `❌ Déploiement échoué (ERROR)`]);
+              return;
+            }
+          }
+        } catch {
+          // ligne incomplète, on continue
+        }
+      }
+    }
+
+    // flush buffers restant à la fin du flux
+    if (stdoutBuffer) setDeployLogs(prev => [...prev, stdoutBuffer.trim()]);
+    if (stderrBuffer) setDeployLogs(prev => [...prev, `[stderr] ${stderrBuffer.trim()}`]);
+
+  } catch (e: any) {
+    setDeployLogs(prev => [...prev, `⚠️ Erreur lecture flux: ${e.message}`]);
+  }
+};
+            
                                
   
   
@@ -3981,7 +4147,55 @@ useEffect(() => {
             </Button>
           </div>
 
-
+<div 
+  // La div est masquée si activeTab n'est PAS "preview"
+  className={`
+    items-center rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1 
+    w-[60%] bg-[#F7F5F3]
+    ${activeTab === "preview" ? "flex" : "hidden"}
+  `}
+>
+    <div className="h-full w-auto hidden items-center justify-center ">
+      <Monitor size={17} color="#000" />
+    </div>
+    <input
+      type="text"
+      value={iframeRoute}
+      onChange={(e) => setIframeRoute(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") handleNavigate()
+      }}
+      className="flex-grow bg-transparent w-[60%] outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
+      placeholder="/route"
+    />
+    <div className="w-auto flex items-center gap-[2px]">
+      <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      onClick={handleNavigate}
+    >
+      <ArrowRight size={17} className="h-4 w-4" />
+    </Button>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      onClick={handleReload}
+    >
+      <RefreshCw size={17} className="h-4 w-4" />
+    </Button>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      disabled={!previewUrl}
+      onClick={() => window.open(previewUrl, "_blank")}
+    >
+      <svg className="h-[16px] w-[16px] flex-shrink-0 mx-1"  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M838-65 720-183v89h-80v-226h226v80h-90l118 118-56 57ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 20-2 40t-6 40h-82q5-20 7.5-40t2.5-40q0-20-2.5-40t-7.5-40H654q3 20 4.5 40t1.5 40q0 20-1.5 40t-4.5 40h-80q3-20 4.5-40t1.5-40q0-20-1.5-40t-4.5-40H386q-3 20-4.5 40t-1.5 40q0 20 1.5 40t4.5 40h134v80H404q12 43 31 82.5t45 75.5q20 0 40-2.5t40-4.5v82q-20 2-40 4.5T480-80ZM170-400h136q-3-20-4.5-40t-1.5-40q0-20 1.5-40t4.5-40H170q-5 20-7.5 40t-2.5 40q0 20 2.5 40t7.5 40Zm34-240h118q9-37 22.5-72.5T376-782q-55 18-99 54.5T204-640Zm172 462q-18-34-31.5-69.5T322-320H204q29 51 73 87.5t99 54.5Zm28-462h152q-12-43-31-82.5T480-798q-26 36-45 75.5T404-640Zm234 0h118q-29-51-73-87.5T584-782q18 34 31.5 69.5T638-640Z"/></svg>
+    </Button>
+    </div>
+</div>
 
        
         
