@@ -4335,28 +4335,7 @@ useEffect(() => {
           )}
         </div>
 
-            <div className="flex md:hidden border border-[rgba(55,50,47,0.12)] justify-center items-center w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
-    <button
-        onClick={() => toggleViewMode("chat")}
-        className={`px-1 w-1/2 py-1 border-r rounded-l-lg transition-colors duration-200 ${
-            viewMode === "chat" 
-                ? "bg-[#37322F] text-white font-semibold" 
-                : "bg-transparent text-gray-700"
-        }`}
-    >
-        Chat
-    </button>
-    <button
-        onClick={() => toggleViewMode("preview")}
-        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
-            viewMode === "preview" 
-                ? "bg-[#37322F] text-white font-semibold" 
-                : " text-gray-700"
-        }`}
-    >
-        Preview
-    </button>
-</div>
+            
       </div>
 
 
