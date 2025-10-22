@@ -3355,7 +3355,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   {/* Bouton AFFICHEUR/Déclencheur (Imite le champ select) */}
   <button
     onClick={() => setShowProjectSelect(!showProjectSelect)}
-    className="flex items-center gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium max-w-[150px] text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
+    className="flex items-center w-[80%] gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium max-w-[150px] text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
   >
     {/* Affiche le nom du projet actuel ou le texte par défaut */}
     <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px]">
@@ -3419,16 +3419,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={saveProject}
-              disabled={!currentProject || loading}
-              size="sm"
-              variant="ghost"
-              className="text-[#37322F] hover:bg-[rgba(55,50,47,0.08)]"
-            >
-              
-              Save Project
-            </Button>
+            
           </div>
         </div>
 
@@ -3733,9 +3724,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-<div className="p-1 h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+<div className="p-1 h-[200px] md:h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
-  <div className="relative p-2 flex flex-col h-[210px]">
+  <div className="relative p-2 flex flex-col h-[170px] md:h-[210px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
     <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
@@ -4052,50 +4043,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-{deploymentDetails && (
-        <div className="mb-4 p-4 rounded-lg border border-[#333] bg-[#0a0a0a]">
-          <h3 className="text-white font-semibold mb-2">Deployment Status</h3>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              {deploymentDetails.status === "deploying" && (
-                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              )}
-              {deploymentDetails.status === "success" && <div className="w-4 h-4 bg-green-500 rounded-full" />}
-              {deploymentDetails.status === "error" && <div className="w-4 h-4 bg-red-500 rounded-full" />}
-              <span
-                className={`text-sm ${
-                  deploymentDetails.status === "success"
-                    ? "text-green-400"
-                    : deploymentDetails.status === "error"
-                      ? "text-red-400"
-                      : "text-blue-400"
-                }`}
-              >
-                {deploymentDetails.message}
-              </span>
-            </div>
 
-            {deploymentDetails.url && (
-              <a
-                href={deploymentDetails.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm"
-              >
-                <ExternalLink className="w-4 h-4" />
-                {deploymentDetails.url}
-              </a>
-            )}
-
-            {deploymentDetails.error && (
-              <div className="bg-red-900/20 border border-red-500/30 rounded p-3 mt-2">
-                <p className="text-red-400 text-sm font-medium">Error Details:</p>
-                <p className="text-red-300 text-xs mt-1 font-mono">{deploymentDetails.error}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
 
 
@@ -4127,7 +4075,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     ${viewMode === "preview" ? "w-full flex" : "hidden"}
   `}
 >
-        <div className="flex items-center justify-between p-4 flex-shrink-0 h-12  border-[rgba(55,50,47,0.12)]">
+        <div className="flex items-center gap-1 justify-between p-4 flex-shrink-0 h-12  border-[rgba(55,50,47,0.12)]">
           <div className="bg-[#fffcf6] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
               variant={activeTab === "preview" ? "secondary" : "ghost"}
@@ -4155,9 +4103,6 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     ${activeTab === "preview" ? "flex" : "hidden"}
   `}
 >
-    <div className="h-full w-auto hidden items-center justify-center ">
-      <Monitor size={17} color="#000" />
-    </div>
     <input
       type="text"
       value={iframeRoute}
@@ -4203,7 +4148,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
               <button
                 className="flex items-center justify-center rounded-[8px] border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-8 w-8"
                 aria-label="GitHub"
@@ -4508,6 +4453,28 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         </div>
 
             
+  <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
+    <button
+        onClick={() => toggleViewMode("chat")}
+        className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
+            viewMode === "chat" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : "bg-transparent text-gray-700"
+        }`}
+    >
+        Chat
+    </button>
+    <button
+        onClick={() => toggleViewMode("preview")}
+        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
+            viewMode === "preview" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : " text-gray-700"
+        }`}
+    >
+        Preview
+    </button>
+</div>
       </div>
 
 
