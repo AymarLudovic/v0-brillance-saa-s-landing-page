@@ -3338,17 +3338,7 @@ useEffect(() => {
 
 
 
-useEffect(() => {
-  if (!currentProject || !currentProject.id) return;
 
-  const timeoutId = setTimeout(() => {
-    handleUpdateEmbeddings();
-  }, 2000);
-
-  return () => clearTimeout(timeoutId);
-
-  // ⚠️ Ne mets pas currentProject.files dans les deps sinon relance infinie
-}, [currentProject?.id, handleUpdateEmbeddings]);
                                
   
   
