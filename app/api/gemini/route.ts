@@ -51,13 +51,13 @@ const readFileDeclaration: FunctionDeclaration = {
 export async function POST(req: Request) {
   try {
     const { 
-        history, 
+        //history, 
         uploadedImages,
         uploadedFiles,
         // currentProjectFiles n'est pas utilisé dans le POST du serveur, mais on le garde en commentaire
         // pour montrer qu'il est bien ignoré ici.
     } = await req.json() as { 
-        history: Message[], 
+        //history: Message[], 
         currentProjectFiles: ProjectFile[], 
         uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
