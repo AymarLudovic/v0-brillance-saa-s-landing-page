@@ -2526,12 +2526,11 @@ const handleFetchFileAction = (
 
 
 
-          
-        // ---------------------- SEND CHAT (FINAL & ROBUSTE) ----------------------
+          // ---------------------- SEND CHAT (FINAL & ROBUSTE) ----------------------
 
 const sendChat = async (promptOverride?: string) => {
   // --- Constantes pour la Robustesse ---
-  const MAX_RETRIES = 6; 
+  const MAX_RETRIES = 6; // Augmenté pour plus de fiabilité
   const BASE_DELAY_MS = 1000;
   
   const userPrompt = promptOverride || chatInput;
@@ -2542,7 +2541,7 @@ const sendChat = async (promptOverride?: string) => {
     return;
   }
 
-  // Initialisation et Préparation... (inchangée)
+  // 1. Préparation initiale du message utilisateur
   let contextForPrompt = "";
   if (mentionedFiles.length > 0 && currentProject) {
     contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
@@ -2564,9 +2563,10 @@ const sendChat = async (promptOverride?: string) => {
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
+  // 2. Logique de mise à jour de l'état (ajoute le message utilisateur et le placeholder)
   let currentHistory = [...messages, userMsg];
   let assistantMessageIndex = -1;
-  let text = ""; 
+  let text = ""; // Texte cumulé du stream
 
   setMessages((prev) => {
     assistantMessageIndex = prev.length + 1; 
@@ -2580,17 +2580,22 @@ const sendChat = async (promptOverride?: string) => {
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  // --- 1. CORRECTION LATENCE : PRÉPARATION CONTEXTE GLOBAL DES FICHIERS ---
-  // On n'envoie plus le contenu intégral des fichiers dans le message système
+  // --- 1. PRÉPARATION CONTEXTE GLOBAL DES FICHIERS (LATENCE) ---
+  // Note: Si le problème de latence persiste, retirez le contenu des fichiers
+  // et ne laissez que les chemins pour le contexte système.
   const formattedFilesForContext = currentProjectFiles.map(file => {
-      const totalLines = file.content.split("\n").length;
-      const sizeInChars = file.content.length;
-      return `<project_file path="${file.filePath}" totalLines="${totalLines}" size="${sizeInChars} chars"/>`;
-  }).join("\n");
+      const lines = file.content.split("\n");
+      const totalLines = lines.length;
+      return [
+        `<project_file path="${file.filePath}" totalLines="${totalLines}">`,
+        ...lines.map((line, i) => `${i + 1} | ${line}`),
+        `</project_file>`
+      ].join("\n");
+  }).join("\n\n");
 
   const systemFileContext: Message = {
     role: "system",
-    content: `[PROJECT CONTEXT: ${currentProjectFiles.length} files exist. DO NOT output the content of these files unless requested via <fetch_file>.]\n${formattedFilesForContext}`
+    content: `[PROJECT CONTEXT: ${currentProjectFiles.length} files]\n${formattedFilesForContext}`
   };
   
   // L'historique pour l'API commence avec le contexte des fichiers
@@ -2604,19 +2609,17 @@ const sendChat = async (promptOverride?: string) => {
   let actionChainActive = false;
   let retryCount = 0;
   
-  // Regex mises à jour (y compris la correction de fetch_file)
+  // Assurez-vous que ces regex sont définies si elles ne le sont pas globalement
   const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-  // Regex corrigée pour être plus robuste
+  // REMARQUE: J'ai besoin que cette regex gère le cas où l'IA ne met pas d'espace avant '/>'
+  // et ne soit pas trop stricte sur ce qui suit le chemin.
   const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["'][^>]*\/>/gi; 
-  // Les autres regex de fichiers (assumées existantes)
-  // const FILE_CHANGES_REGEX = /<file_changes\s+path=["']([^"']+)["']\s*>\s*([\s\S]*?)<\/file_changes>/gi; 
-  // const CREATE_FILE_REGEX = /<create_file\s+path=["']([^"']+)["']\s*>\s*([\s\S]*?)<\/create_file>/gi;
 
   try {
     // --- 3. BOUCLE POUR LE CHAÎNAGE D'ACTIONS ---
     do {
       actionChainActive = false;
-      let res: Response | null = null;
+      let res: Response | null = null; 
       let apiCallSuccessful = false;
 
       // --- 2. BOUCLE POUR LA ROBUSTESSE (RE-TENTATIVE API) ---
@@ -2641,7 +2644,8 @@ const sendChat = async (promptOverride?: string) => {
             body: JSON.stringify({ 
               history: historyForApi,
               currentProjectFiles,
-              projectEmbeddings,
+              // 🛑 projectEmbeddings EST RETIRÉ ICI COMME DEMANDÉ
+              // projectEmbeddings, 
               uploadedImages,
               uploadedFiles
             }),
@@ -2654,6 +2658,7 @@ const sendChat = async (promptOverride?: string) => {
           console.error(`API Call failed: ${e.message}`);
           retryCount++;
           if (retryCount >= MAX_RETRIES) {
+            // 🛑 Erreur finale si toutes les tentatives échouent
             throw new Error(`Gemini API failed after ${MAX_RETRIES} retries. Veuillez réessayer.`);
           }
           res = null; 
@@ -2661,7 +2666,7 @@ const sendChat = async (promptOverride?: string) => {
       }
       // FIN BOUCLE ROBUSTESSE
       
-      if (!res) continue;
+      if (!res) continue; 
 
       const reader = res!.body!.getReader();
       const decoder = new TextDecoder();
@@ -2679,14 +2684,15 @@ const sendChat = async (promptOverride?: string) => {
         // ---------------- FETCH FILE (CORRECTION D'ERREUR DE PARSING) ----------------
         const fetchFileMatch = streamText.match(FETCH_FILE_REGEX);
         if (fetchFileMatch) {
+          // fetchFileMatch[1] est le chemin du fichier capturé
           const rawFilePath = fetchFileMatch[1]; 
           
-          // Vérification critique ajoutée
-          if (!rawFilePath) {
-              addLog("❌ ERREUR DE PARSING: Le chemin <fetch_file> est invalide.");
+          // NOUVEAU: Vérification critique pour éviter le crash .trim()
+          if (!rawFilePath || rawFilePath.trim().length === 0) {
+              addLog(`❌ ERREUR DE PARSING: La balise <fetch_file> a un chemin invalide. Texte brut: ${fetchFileMatch[0]}`);
               throw new Error("L'IA a généré une balise <fetch_file> avec un chemin invalide. Arrêt du chaînage.");
           }
-          
+
           const filePath = rawFilePath.trim(); // Trim est maintenant sûr
           addLog(`[ACTION] Gemini requested file: ${filePath}. Chaînage activé.`);
           
@@ -2697,10 +2703,9 @@ const sendChat = async (promptOverride?: string) => {
           historyForApi = [...historyForApi, { role: "assistant", content: streamText }, { role: "user", content: fileContent }];
           
           actionChainActive = true; 
-          break; 
+          break; // Sortir du streaming
         }
-
-        // ----------------- URL ARTIFACT -----------------
+        // ----------------- URL ARTIFACT (Extraction dans le stream) -----------------
         const urlMatch = text.match(inspirationUrlRegex);
         if (urlMatch) {
           try {
@@ -2713,7 +2718,7 @@ const sendChat = async (promptOverride?: string) => {
           } catch (e) { console.error("Failed to parse URL JSON:", e); }
         }
 
-        // ----------------- ARTIFACTS DE FICHIERS (LOGIQUE ORIGINALE) -----------------
+        // ----------------- FILE ARTIFACTS -----------------
         const fileArtifacts = extractFileArtifacts(text); // ASSUMÉ: extractFileArtifacts est disponible
 
         fileArtifacts.forEach((artifact: any) => {
@@ -2724,9 +2729,8 @@ const sendChat = async (promptOverride?: string) => {
             artifact.content += "\n</create_file>";
           }
         });
-        
-        // ... (Reste de la logique de gestion des artefacts et de l'UI)
-        
+
+        // Regex d'incomplétude et logique de gestion des fichiers (addFilesIfNew) ...
         const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
         let incompleteMatches = [...text.matchAll(incompleteRegex)];
 
@@ -2743,18 +2747,21 @@ const sendChat = async (promptOverride?: string) => {
           });
 
           if (currentProject) {
+            // ASSUMÉ: addFilesIfNew est disponible
             // addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject); 
           }
 
           newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
         }
 
+        // Nettoyage texte pour affichage
         let textWithoutArtifacts = text
-          .replace(inspirationUrlRegex, '')
+          .replace(inspirationUrlRegex, '') 
           .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
           .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
           .replace(FETCH_FILE_REGEX, '');
 
+        // Mise à jour message assistant
         setMessages((prev) => {
           const updatedMessages = [...prev];
           const lastMsg = updatedMessages[assistantMessageIndex];
@@ -2766,20 +2773,23 @@ const sendChat = async (promptOverride?: string) => {
         });
 
       } // FIN STREAMING
-    } while (actionChainActive); 
+    } while (actionChainActive); // Répète si une action de chaînage a été lancée
     // --- FIN BOUCLE DE CHAÎNAGE ---
 
     // -------- POST STREAM (Finalisation) ---------- 
     
-    // 🛑 GESTION DE L'URL ARTIFACT (PRIORITAIRE)
+    // NOUVEAU: Logique de Traitement de l'URL Artifact
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-      // ASSUMÉ: runAutomatedAnalysis est disponible
+      
+      // ASSUMÉ: runAutomatedAnalysis est disponible et importé
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      return; // Sort de sendChat, l'analyse prend le relai.
+      
+      // On sort de sendChat
+      return; 
     }
     
-    // 🔹 Lancement de l’isolation et génération (Logique de fichier normale)
+    // 🔹 Lancement de l’isolation et génération (Seulement si PAS d'urlArtifact)
     const isAnalysisMode = promptOverride?.includes("Analysis data from");
     if (isAnalysisMode) {
       addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
@@ -2799,6 +2809,7 @@ const sendChat = async (promptOverride?: string) => {
     } else {
       addLog("Response treated as simple text or unrecognized format.");
     }
+    
 
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
