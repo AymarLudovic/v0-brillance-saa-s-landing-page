@@ -697,33 +697,42 @@ const DatabaseConnector: React.FC<DatabaseConnectorProps> = ({ dbConfig, setDbCo
         return provider ? provider.icon : null;
     }, [dbConfig]);
     
-    // Logique de connexion et notification de l'IA
-    const handleConnect = async () => {
-        if (!selectedProviderId) return;
+    
 
-        const providerInfo = providersData.find(p => p.id === selectedProviderId);
-        if (!providerInfo) return;
-        
-        // 1. Mise à jour de la configuration
-        const newConfig: DatabaseConfig = {
-            provider: selectedProviderId,
-            credentials: tempCredentials,
-        };
-        
-        setDbConfig(newConfig); // Met à jour l'état et le localStorage
-        setIsSelectingProvider(false);
-        setSelectedProviderId(null);
-        setTempCredentials({});
 
-        // 2. Préparation et envoi du message à l'IA pour créer le .env
-        const envContent = Object.entries(tempCredentials)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('\n');
-            
-        const aiMessage = `[AUTOMATED ACTION] L'utilisateur a connecté la base de données ${providerInfo.name}. Veuillez créer un fichier d'environnement nommé .env à la racine du projet avec le contenu suivant pour configurer l'accès au backend :\n\n\`\`\`\n${envContent}\n\`\`\nAssurez-vous que les clés sont bien les variables d'environnement nécessaires pour ${providerInfo.name}.`;
+  // Remplace la fonction handleConnect dans DatabaseConnector par ce code
+const handleConnect = async () => {
+  if (!selectedProviderId) return;
 
-        await sendChat(aiMessage);
-    };
+  const providerInfo = providersData.find(p => p.id === selectedProviderId);
+  if (!providerInfo) return;
+  
+  // 1. Mise à jour de la configuration
+  const newConfig: DatabaseConfig = {
+    provider: selectedProviderId,
+    credentials: tempCredentials,
+  };
+  
+  setDbConfig(newConfig); // Met à jour l'état et le localStorage
+  setIsSelectingProvider(false);
+  setSelectedProviderId(null);
+  setTempCredentials({});
+
+  // 2. Préparation et envoi du message à l'IA pour créer le .env
+  const envContent = Object.entries(tempCredentials)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+
+  // Template string correctement fermée
+  const aiMessage = `[AUTOMATED ACTION] L'utilisateur a connecté la base de données ${providerInfo.name}.
+Veuillez créer un fichier d'environnement nommé .env à la racine du projet avec les variables suivantes :
+
+${envContent}
+
+Merci.`;
+
+  await sendChat(aiMessage);
+};
 
     // La modale/le panneau de configuration
     const ConfigurationPanel = () => {
