@@ -2525,8 +2525,7 @@ const handleFetchFileAction = (
 
 
 
-
-          // ---------------------- SEND CHAT (FINAL & ROBUSTE) ----------------------
+// ---------------------- SEND CHAT (FINAL & ROBUSTE + CONTEXTE INTELLIGENT) ----------------------
 
 const sendChat = async (promptOverride?: string) => {
   // --- Constantes pour la Robustesse ---
@@ -2580,17 +2579,40 @@ const sendChat = async (promptOverride?: string) => {
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  // --- 1. PRÉPARATION CONTEXTE GLOBAL DES FICHIERS (LATENCE) ---
-  // Note: Si le problème de latence persiste, retirez le contenu des fichiers
-  // et ne laissez que les chemins pour le contexte système.
+  // --- 1. CONTEXTE INTELLIGENT DES FICHIERS (HAUTE PERFORMANCE) ---
+  const MAX_PREVIEW_LINES = 50; // nombre de lignes max affichées par fichier
+  const CHUNK_SIZE = 200;       // taille logique d’un chunk (pour que l’IA sache qu’un fichier est grand)
+
   const formattedFilesForContext = currentProjectFiles.map(file => {
-      const lines = file.content.split("\n");
-      const totalLines = lines.length;
+    const lines = file.content.split("\n");
+    const totalLines = lines.length;
+
+    // Fichiers petits → tout le contenu envoyé directement
+    if (totalLines <= MAX_PREVIEW_LINES) {
       return [
-        `<project_file path="${file.filePath}" totalLines="${totalLines}">`,
-        ...lines.map((line, i) => `${i + 1} | ${line}`),
+        `<project_file path="${file.filePath}" totalLines="${totalLines}" full="true">`,
+        ...lines.map((l, i) => `${i + 1} | ${l}`),
         `</project_file>`
       ].join("\n");
+    }
+
+    // Fichiers volumineux → on n’envoie qu’un aperçu (début + fin)
+    const startPreview = lines.slice(0, MAX_PREVIEW_LINES / 2);
+    const endPreview = lines.slice(-MAX_PREVIEW_LINES / 2);
+
+    const preview = [
+      ...startPreview.map((l, i) => `${i + 1} | ${l}`),
+      `...`,
+      ...endPreview.map((l, i) => `${totalLines - (MAX_PREVIEW_LINES / 2) + i + 1} | ${l}`)
+    ];
+
+    const chunkCount = Math.ceil(totalLines / CHUNK_SIZE);
+
+    return [
+      `<project_file path="${file.filePath}" totalLines="${totalLines}" chunks="${chunkCount}" full="false">`,
+      ...preview,
+      `</project_file>`
+    ].join("\n");
   }).join("\n\n");
 
   const systemFileContext: Message = {
@@ -2609,10 +2631,7 @@ const sendChat = async (promptOverride?: string) => {
   let actionChainActive = false;
   let retryCount = 0;
   
-  // Assurez-vous que ces regex sont définies si elles ne le sont pas globalement
   const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-  // REMARQUE: J'ai besoin que cette regex gère le cas où l'IA ne met pas d'espace avant '/>'
-  // et ne soit pas trop stricte sur ce qui suit le chemin.
   const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["'][^>]*\/>/gi; 
 
   try {
@@ -2627,7 +2646,6 @@ const sendChat = async (promptOverride?: string) => {
         try {
           addLog(retryCount > 0 ? `[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES} après erreur API...` : '');
           
-          // NOUVEAU: Délai Exponentiel Robuste
           if (retryCount > 0) {
             const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 16000); 
             const jitter = Math.random() * 1000; 
@@ -2636,7 +2654,6 @@ const sendChat = async (promptOverride?: string) => {
             addLog(`[RETRY] Attente de ${Math.round(finalDelay / 100) / 10}s avant de réessayer...`);
             await new Promise(resolve => setTimeout(resolve, finalDelay));
           }
-          // FIN NOUVEAU DELAI
 
           res = await fetch("/api/gemini", {
             method: "POST",
@@ -2644,8 +2661,6 @@ const sendChat = async (promptOverride?: string) => {
             body: JSON.stringify({ 
               history: historyForApi,
               currentProjectFiles,
-              // 🛑 projectEmbeddings EST RETIRÉ ICI COMME DEMANDÉ
-              // projectEmbeddings, 
               uploadedImages,
               uploadedFiles
             }),
@@ -2658,13 +2673,11 @@ const sendChat = async (promptOverride?: string) => {
           console.error(`API Call failed: ${e.message}`);
           retryCount++;
           if (retryCount >= MAX_RETRIES) {
-            // 🛑 Erreur finale si toutes les tentatives échouent
             throw new Error(`Gemini API failed after ${MAX_RETRIES} retries. Veuillez réessayer.`);
           }
           res = null; 
         }
       }
-      // FIN BOUCLE ROBUSTESSE
       
       if (!res) continue; 
 
@@ -2681,31 +2694,26 @@ const sendChat = async (promptOverride?: string) => {
         streamText += chunk;
         text += chunk; 
 
-        // ---------------- FETCH FILE (CORRECTION D'ERREUR DE PARSING) ----------------
         const fetchFileMatch = streamText.match(FETCH_FILE_REGEX);
         if (fetchFileMatch) {
-          // fetchFileMatch[1] est le chemin du fichier capturé
           const rawFilePath = fetchFileMatch[1]; 
-          
-          // NOUVEAU: Vérification critique pour éviter le crash .trim()
           if (!rawFilePath || rawFilePath.trim().length === 0) {
               addLog(`❌ ERREUR DE PARSING: La balise <fetch_file> a un chemin invalide. Texte brut: ${fetchFileMatch[0]}`);
               throw new Error("L'IA a généré une balise <fetch_file> avec un chemin invalide. Arrêt du chaînage.");
           }
 
-          const filePath = rawFilePath.trim(); // Trim est maintenant sûr
+          const filePath = rawFilePath.trim(); 
           addLog(`[ACTION] Gemini requested file: ${filePath}. Chaînage activé.`);
           
           isFetchInProgress = true;
-          const fileContent = handleFetchFileAction(filePath, currentProjectFiles); // ASSUMÉ: handleFetchFileAction est disponible
+          const fileContent = handleFetchFileAction(filePath, currentProjectFiles);
           isFetchInProgress = false;
 
           historyForApi = [...historyForApi, { role: "assistant", content: streamText }, { role: "user", content: fileContent }];
-          
           actionChainActive = true; 
-          break; // Sortir du streaming
+          break;
         }
-        // ----------------- URL ARTIFACT (Extraction dans le stream) -----------------
+
         const urlMatch = text.match(inspirationUrlRegex);
         if (urlMatch) {
           try {
@@ -2718,9 +2726,7 @@ const sendChat = async (promptOverride?: string) => {
           } catch (e) { console.error("Failed to parse URL JSON:", e); }
         }
 
-        // ----------------- FILE ARTIFACTS -----------------
-        const fileArtifacts = extractFileArtifacts(text); // ASSUMÉ: extractFileArtifacts est disponible
-
+        const fileArtifacts = extractFileArtifacts(text);
         fileArtifacts.forEach((artifact: any) => {
           if (artifact.type === "changes" && artifact.content && !artifact.content.trim().endsWith("</file_changes>")) {
             artifact.content += "\n</file_changes>";
@@ -2730,7 +2736,6 @@ const sendChat = async (promptOverride?: string) => {
           }
         });
 
-        // Regex d'incomplétude et logique de gestion des fichiers (addFilesIfNew) ...
         const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
         let incompleteMatches = [...text.matchAll(incompleteRegex)];
 
@@ -2746,22 +2751,15 @@ const sendChat = async (promptOverride?: string) => {
             if (!artifactList.some(a => a.path === path)) artifactList.push({ path, type });
           });
 
-          if (currentProject) {
-            // ASSUMÉ: addFilesIfNew est disponible
-            // addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject); 
-          }
-
           newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
         }
 
-        // Nettoyage texte pour affichage
         let textWithoutArtifacts = text
           .replace(inspirationUrlRegex, '') 
           .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
           .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
           .replace(FETCH_FILE_REGEX, '');
 
-        // Mise à jour message assistant
         setMessages((prev) => {
           const updatedMessages = [...prev];
           const lastMsg = updatedMessages[assistantMessageIndex];
@@ -2773,23 +2771,14 @@ const sendChat = async (promptOverride?: string) => {
         });
 
       } // FIN STREAMING
-    } while (actionChainActive); // Répète si une action de chaînage a été lancée
-    // --- FIN BOUCLE DE CHAÎNAGE ---
+    } while (actionChainActive);
 
-    // -------- POST STREAM (Finalisation) ---------- 
-    
-    // NOUVEAU: Logique de Traitement de l'URL Artifact
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-      
-      // ASSUMÉ: runAutomatedAnalysis est disponible et importé
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      
-      // On sort de sendChat
       return; 
     }
     
-    // 🔹 Lancement de l’isolation et génération (Seulement si PAS d'urlArtifact)
     const isAnalysisMode = promptOverride?.includes("Analysis data from");
     if (isAnalysisMode) {
       addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
@@ -2798,18 +2787,17 @@ const sendChat = async (promptOverride?: string) => {
     const finalArtifacts = extractFileArtifacts(text);
     if (finalArtifacts.length > 0) {
       addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
-      applyArtifactsToProject(finalArtifacts); // ASSUMÉ: applyArtifactsToProject est disponible
+      applyArtifactsToProject(finalArtifacts);
 
       setTimeout(() => {
         finalArtifacts.forEach(async (artifact) => {
           const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
-          if (updatedFile) await reindexFile(updatedFile); // ASSUMÉ: reindexFile est disponible
+          if (updatedFile) await reindexFile(updatedFile);
         });
       }, 100);
     } else {
       addLog("Response treated as simple text or unrecognized format.");
     }
-    
 
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
@@ -2818,7 +2806,7 @@ const sendChat = async (promptOverride?: string) => {
     setLoading(false);
   }
 };
-
+  
     
 
 
