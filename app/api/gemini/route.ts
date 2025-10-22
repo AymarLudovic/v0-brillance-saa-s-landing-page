@@ -1,5 +1,3 @@
-// app/api/gemini/route.ts
-
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
@@ -34,7 +32,7 @@ function cleanBase64Data(dataUrl: string): string {
 
 const BATCH_SIZE = 256; 
 
-// 🛑 NOUVEAU: DÉCLARATION DE L'OUTIL readFile 🛑
+// 🛑 DÉCLARATION DE L'OUTIL readFile 🛑
 const readFileDeclaration: FunctionDeclaration = {
   name: "readFile",
   description: "Lit le contenu d'un fichier du projet par son chemin d'accès (e.g., app/page.tsx, components/button.tsx). Doit être appelé avant de modifier ou d'analyser le contenu d'un fichier. Retourne le contenu du fichier sous forme de chaîne.",
@@ -56,16 +54,22 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
+        // currentProjectFiles n'est pas utilisé dans le POST du serveur, mais on le garde en commentaire
+        // pour montrer qu'il est bien ignoré ici.
     } = await req.json() as { 
         history: Message[], 
-        currentProjectFiles: ProjectFile[], // Reçu mais non utilisé ici
+        currentProjectFiles: ProjectFile[], 
         uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
-        projectEmbeddings: any[],
+        // 🛑 projectEmbeddings EST RETIRÉ ICI 🛑
+        // projectEmbeddings: any[],
     }
 
     if (!history || history.length === 0) {
         return NextResponse.json({ error: "Historique de conversation manquant" }, { status: 400 })
+    }
+    if (!process.env.GEMINI_API_KEY) {
+        return NextResponse.json({ error: "Clé API Gemini non configurée" }, { status: 500 })
     }
 
     const ai = new GoogleGenAI({
@@ -93,8 +97,15 @@ export async function POST(req: Request) {
         } 
         // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT 🛑
         else {
+            // Le message système est le premier élément (rôle 'user' dans l'historique Gemini)
+            // L'injection de basePrompt est critique pour le premier message utilisateur
+            // ou un message utilisateur qui fait suite à une réponse d'outil.
+            
+            // Note: Si le premier message de l'historique est le contexte système,
+            // il a déjà le rôle 'user' dans votre structure `contents`.
+            
             if (msg === history[history.length - 1] && role === 'user') {
-                // INJECTION DE BASEPROMPT UNIQUEMENT pour le dernier message
+                // INJECTION DE BASEPROMPT UNIQUEMENT pour le dernier message (le prompt réel)
                 textContent = basePrompt + "\n\n" + textContent; 
                 
                 // Gestion des images/fichiers binaires
@@ -126,10 +137,11 @@ export async function POST(req: Request) {
         contents.push({ role, parts });
     }
     
+    // --- APPEL API (SANS TENTATIVES CÔTÉ SERVEUR) ---
+    // La gestion des tentatives est gérée côté client (sendChat)
     const response = await ai.models.generateContentStream({
       model,
       contents, 
-      // 🛑 NOUVEAU: ENREGISTREMENT DE L'OUTIL 🛑
       tools: [{ functionDeclarations: [readFileDeclaration] }],
     })
 
@@ -139,21 +151,18 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        let functionCall = false; // Flag pour détecter si l'IA appelle une fonction
+        let functionCall = false; 
 
         for await (const chunk of response) {
             
-            // 🛑 NOUVEAU: VÉRIFICATION DES APPELS DE FONCTIONS 🛑
+            // 🛑 VÉRIFICATION DES APPELS DE FONCTIONS 🛑
             if (chunk.functionCalls && chunk.functionCalls.length > 0) {
-                // L'IA a stoppé le texte pour demander un outil
                 functionCall = true; 
                 
-                // On met en queue l'appel de fonction sous forme JSON sérialisé
-                // Le client le lira, exécutera l'outil et renverra le résultat
                 controller.enqueue(encoder.encode(JSON.stringify({ 
                     functionCall: chunk.functionCalls[0]
                 })));
-                break; // Stoppe le stream immédiatement après l'appel d'outil
+                break; 
             }
 
             if (chunk.text) {
@@ -172,17 +181,25 @@ export async function POST(req: Request) {
 
         controller.close();
       },
+      async catch(error) {
+        console.error("[API Gemini] Erreur durant le streaming:", error);
+        // Vous pouvez envoyer l'erreur au client si vous le souhaitez, mais la connexion sera probablement coupée
+        // controller.error(error); 
+      }
     })
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8", // Utilise text/plain même si on envoie du JSON à la fin
+        "Content-Type": "text/plain; charset=utf-8", 
         "Transfer-Encoding": "chunked",
       },
     })
   } catch (err: any) {
-    console.error("[API Gemini] Erreur globale:", err)
-    return NextResponse.json({ error: err.message || "Erreur Gemini" }, { status: 500 })
+    // Gestion des erreurs d'initialisation (e.g., req.json, API Key)
+    console.error("[API Gemini] Erreur critique (pré-streaming):", err.message, err);
+    return NextResponse.json({ 
+        error: "Erreur serveur ou API Gemini: " + err.message,
+        details: err.message
+    }, { status: 500 })
   }
-            }
-                                      
+  }
