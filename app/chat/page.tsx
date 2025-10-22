@@ -3348,7 +3348,7 @@ useEffect(() => {
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#fffcf6] font-sans text-[#37322F]">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#fffcf6] font-sans text-sm md:text-[14mx] text-[#37322F]">
       
 
         <div 
@@ -3434,14 +3434,7 @@ useEffect(() => {
           </div>
           <div className="flex items-center gap-2">
             <div className="mt-4 flex flex-col gap-3">
-  <Button
-    onClick={handleVercelDeploy}
-    disabled={deploying}
-    className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2"
-  >
-    <Zap className="w-4 h-4" />
-    {deploying ? "Déploiement en cours..." : "Deploy to Vercel"}
-  </Button>
+  
 
   {/* Affichage console */}
   {deployLogs.length > 0 && (
@@ -3464,16 +3457,7 @@ useEffect(() => {
   )}
 </div>
             
-            <Button
-              onClick={saveProject}
-              disabled={!currentProject || loading}
-              size="sm"
-              variant="ghost"
-              className="text-[#37322F] hover:bg-[rgba(55,50,47,0.08)]"
-            >
-              
-              Save Project
-            </Button>
+            
           </div>
         </div>
 
@@ -4067,7 +4051,7 @@ useEffect(() => {
   </div>
 
     
-<div className="flex  w-full rounded-[12px] mb-1 bg-[#fffcf6] ">
+<div className="flex md:hidden  w-full rounded-[12px] mb-1 bg-[#fffcf6] ">
     <button
         onClick={() => toggleViewMode("chat")}
         className={`px-4 py-2 border-r rounded-l-lg transition-colors duration-200 ${
@@ -4212,29 +4196,22 @@ useEffect(() => {
 
 {/* ⚠️ Assurez-vous d'importer l'icône Zap et Loader de Lucide React */}
 
-<Button
-    onClick={handleDeploy}
-
-
-    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
->
-    {isConnecting.deploy ? (
-        <>
-            <Loader className="h-4 w-4 animate-spin" />
-            Déploiement...
-        </>
-    ) : (
-        <>
-            <Zap className="h-4 w-4" />
-            Déployer sur Vercel
-        </>
-    )}
-</Button>
               {/* Rendu de la Modal Vercel (Doit être affiché par-dessus le reste) */}
 {/* ---------------------------------------------------- */}
 {/* Affichage du Composant Modal */}
 {/* ---------------------------------------------------- */}
-
+<Button
+    onClick={handleVercelDeploy}
+    disabled={deploying}
+    className="bg-[#37322F] text-white px-1 py-1 rounded-[12px]  transition flex items-center "
+  >
+    
+              <svg className="h-[16px] fill-white flex md:hidden w-[16px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#fff"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
+         <span className="md:flex hidden">
+           {deploying ? "Deploying..." : "Deploy site"}
+         </span>     
+    
+  </Button>
 
 {showDeploymentStatus && deploymentDetails.status !== 'idle' && (
     <div 
@@ -4510,7 +4487,7 @@ useEffect(() => {
 
 
             
-<div className="flex  w-full rounded-[12px] mb-1 bg-[#fffcf6] ">
+<div className="flex md:hidden  w-full rounded-[12px] mb-1 bg-[#fffcf6] ">
     <button
         onClick={() => toggleViewMode("chat")}
         className={`px-4 py-2 border-r rounded-l-lg transition-colors duration-200 ${
