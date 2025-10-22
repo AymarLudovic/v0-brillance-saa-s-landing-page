@@ -2524,12 +2524,14 @@ const handleFetchFileAction = (
 // ---------------------- SEND CHAT ----------------------
 
 
-                
-// ---------------------- SEND CHAT (AMÉLIORÉ et ROBUSTE) ----------------------
+
+
+          
+        // ---------------------- SEND CHAT (FINAL & ROBUSTE) ----------------------
 
 const sendChat = async (promptOverride?: string) => {
   // --- Constantes pour la Robustesse ---
-  const MAX_RETRIES = 6; // Augmenté pour plus de fiabilité
+  const MAX_RETRIES = 6; 
   const BASE_DELAY_MS = 1000;
   
   const userPrompt = promptOverride || chatInput;
@@ -2540,7 +2542,7 @@ const sendChat = async (promptOverride?: string) => {
     return;
   }
 
-  // 1. Préparation initiale du message utilisateur
+  // Initialisation et Préparation... (inchangée)
   let contextForPrompt = "";
   if (mentionedFiles.length > 0 && currentProject) {
     contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
@@ -2562,10 +2564,9 @@ const sendChat = async (promptOverride?: string) => {
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  // 2. Logique de mise à jour de l'état (ajoute le message utilisateur et le placeholder)
   let currentHistory = [...messages, userMsg];
   let assistantMessageIndex = -1;
-  let text = ""; // Texte cumulé du stream
+  let text = ""; 
 
   setMessages((prev) => {
     assistantMessageIndex = prev.length + 1; 
@@ -2579,20 +2580,17 @@ const sendChat = async (promptOverride?: string) => {
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  // --- 1. AMÉLIORATION : PRÉPARATION CONTEXTE GLOBAL DES FICHIERS ---
+  // --- 1. CORRECTION LATENCE : PRÉPARATION CONTEXTE GLOBAL DES FICHIERS ---
+  // On n'envoie plus le contenu intégral des fichiers dans le message système
   const formattedFilesForContext = currentProjectFiles.map(file => {
-      const lines = file.content.split("\n");
-      const totalLines = lines.length;
-      return [
-        `<project_file path="${file.filePath}" totalLines="${totalLines}">`,
-        ...lines.map((line, i) => `${i + 1} | ${line}`),
-        `</project_file>`
-      ].join("\n");
-  }).join("\n\n");
+      const totalLines = file.content.split("\n").length;
+      const sizeInChars = file.content.length;
+      return `<project_file path="${file.filePath}" totalLines="${totalLines}" size="${sizeInChars} chars"/>`;
+  }).join("\n");
 
   const systemFileContext: Message = {
     role: "system",
-    content: `[PROJECT CONTEXT: ${currentProjectFiles.length} files]\n${formattedFilesForContext}`
+    content: `[PROJECT CONTEXT: ${currentProjectFiles.length} files exist. DO NOT output the content of these files unless requested via <fetch_file>.]\n${formattedFilesForContext}`
   };
   
   // L'historique pour l'API commence avec le contexte des fichiers
@@ -2606,19 +2604,22 @@ const sendChat = async (promptOverride?: string) => {
   let actionChainActive = false;
   let retryCount = 0;
   
-  // Assurez-vous que ces regex sont définies si elles ne le sont pas globalement
+  // Regex mises à jour (y compris la correction de fetch_file)
   const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-  const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["']\s*\/>/gi;
-  // Autres Regex de fichier (file_changes, create_file) doivent être définies ou importées
+  // Regex corrigée pour être plus robuste
+  const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["'][^>]*\/>/gi; 
+  // Les autres regex de fichiers (assumées existantes)
+  // const FILE_CHANGES_REGEX = /<file_changes\s+path=["']([^"']+)["']\s*>\s*([\s\S]*?)<\/file_changes>/gi; 
+  // const CREATE_FILE_REGEX = /<create_file\s+path=["']([^"']+)["']\s*>\s*([\s\S]*?)<\/create_file>/gi;
 
   try {
     // --- 3. BOUCLE POUR LE CHAÎNAGE D'ACTIONS ---
     do {
       actionChainActive = false;
-      let res: Response | null = null; // Déplacé ici pour l'accessibilité après le try
+      let res: Response | null = null;
       let apiCallSuccessful = false;
 
-      // --- 2. AMÉLIORATION : BOUCLE POUR LA ROBUSTESSE (RE-TENTATIVE API) ---
+      // --- 2. BOUCLE POUR LA ROBUSTESSE (RE-TENTATIVE API) ---
       while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
         try {
           addLog(retryCount > 0 ? `[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES} après erreur API...` : '');
@@ -2653,19 +2654,18 @@ const sendChat = async (promptOverride?: string) => {
           console.error(`API Call failed: ${e.message}`);
           retryCount++;
           if (retryCount >= MAX_RETRIES) {
-            // 🛑 Erreur finale si toutes les tentatives échouent
             throw new Error(`Gemini API failed after ${MAX_RETRIES} retries. Veuillez réessayer.`);
           }
-          res = null; // Assurez-vous que res est null en cas d'échec pour éviter de lire un corps invalide
+          res = null; 
         }
       }
       // FIN BOUCLE ROBUSTESSE
       
-      if (!res) continue; // Passe à l'itération suivante si l'appel a échoué (devrait lancer l'erreur ci-dessus, mais sécurité)
+      if (!res) continue;
 
       const reader = res!.body!.getReader();
       const decoder = new TextDecoder();
-      let streamText = ""; // Texte du stream actuel pour détection de balises
+      let streamText = ""; 
 
       // -------- STREAMING LOOP ---------- 
       while (true) {
@@ -2674,26 +2674,33 @@ const sendChat = async (promptOverride?: string) => {
 
         const chunk = decoder.decode(value, { stream: true });
         streamText += chunk;
-        text += chunk; // Cumule pour le traitement des artifacts finaux
+        text += chunk; 
 
-        // ---------------- FETCH FILE (DÉTECTION D'ACTION DE CHAÎNAGE) ----------------
+        // ---------------- FETCH FILE (CORRECTION D'ERREUR DE PARSING) ----------------
         const fetchFileMatch = streamText.match(FETCH_FILE_REGEX);
         if (fetchFileMatch) {
-          const filePath = fetchFileMatch[1].trim();
+          const rawFilePath = fetchFileMatch[1]; 
+          
+          // Vérification critique ajoutée
+          if (!rawFilePath) {
+              addLog("❌ ERREUR DE PARSING: Le chemin <fetch_file> est invalide.");
+              throw new Error("L'IA a généré une balise <fetch_file> avec un chemin invalide. Arrêt du chaînage.");
+          }
+          
+          const filePath = rawFilePath.trim(); // Trim est maintenant sûr
           addLog(`[ACTION] Gemini requested file: ${filePath}. Chaînage activé.`);
           
           isFetchInProgress = true;
-          // ASSUMÉ: handleFetchFileAction est disponible et retourne une chaîne
-          const fileContent = handleFetchFileAction(filePath, currentProjectFiles); 
+          const fileContent = handleFetchFileAction(filePath, currentProjectFiles); // ASSUMÉ: handleFetchFileAction est disponible
           isFetchInProgress = false;
 
           historyForApi = [...historyForApi, { role: "assistant", content: streamText }, { role: "user", content: fileContent }];
           
           actionChainActive = true; 
-          break; // Sortir du streaming
+          break; 
         }
 
-        // ----------------- URL ARTIFACT (Extraction dans le stream) -----------------
+        // ----------------- URL ARTIFACT -----------------
         const urlMatch = text.match(inspirationUrlRegex);
         if (urlMatch) {
           try {
@@ -2706,7 +2713,7 @@ const sendChat = async (promptOverride?: string) => {
           } catch (e) { console.error("Failed to parse URL JSON:", e); }
         }
 
-        // ----------------- FILE ARTIFACTS -----------------
+        // ----------------- ARTIFACTS DE FICHIERS (LOGIQUE ORIGINALE) -----------------
         const fileArtifacts = extractFileArtifacts(text); // ASSUMÉ: extractFileArtifacts est disponible
 
         fileArtifacts.forEach((artifact: any) => {
@@ -2717,8 +2724,9 @@ const sendChat = async (promptOverride?: string) => {
             artifact.content += "\n</create_file>";
           }
         });
-
-        // Regex d'incomplétude et logique de gestion des fichiers (addFilesIfNew) ...
+        
+        // ... (Reste de la logique de gestion des artefacts et de l'UI)
+        
         const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
         let incompleteMatches = [...text.matchAll(incompleteRegex)];
 
@@ -2735,21 +2743,18 @@ const sendChat = async (promptOverride?: string) => {
           });
 
           if (currentProject) {
-            // ASSUMÉ: addFilesIfNew est disponible
             // addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject); 
           }
 
           newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
         }
 
-        // Nettoyage texte pour affichage
         let textWithoutArtifacts = text
-          .replace(inspirationUrlRegex, '') // NOUVEAU: Suppression de l'artefact URL pour l'affichage
+          .replace(inspirationUrlRegex, '')
           .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
           .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
           .replace(FETCH_FILE_REGEX, '');
 
-        // Mise à jour message assistant
         setMessages((prev) => {
           const updatedMessages = [...prev];
           const lastMsg = updatedMessages[assistantMessageIndex];
@@ -2761,24 +2766,20 @@ const sendChat = async (promptOverride?: string) => {
         });
 
       } // FIN STREAMING
-    } while (actionChainActive); // Répète si une action de chaînage a été lancée
+    } while (actionChainActive); 
     // --- FIN BOUCLE DE CHAÎNAGE ---
 
     // -------- POST STREAM (Finalisation) ---------- 
     
-    // NOUVEAU: Logique de Traitement de l'URL Artifact
+    // 🛑 GESTION DE L'URL ARTIFACT (PRIORITAIRE)
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-      
-      // ASSUMÉ: runAutomatedAnalysis est disponible et importé
+      // ASSUMÉ: runAutomatedAnalysis est disponible
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      
-      // On sort de sendChat pour ne pas exécuter la logique de code/artefacts
-      // qui suit, car runAutomatedAnalysis relancera sendChat avec le contexte.
-      return; 
+      return; // Sort de sendChat, l'analyse prend le relai.
     }
     
-    // 🔹 Lancement de l’isolation et génération (Seulement si PAS d'urlArtifact)
+    // 🔹 Lancement de l’isolation et génération (Logique de fichier normale)
     const isAnalysisMode = promptOverride?.includes("Analysis data from");
     if (isAnalysisMode) {
       addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
@@ -2798,11 +2799,6 @@ const sendChat = async (promptOverride?: string) => {
     } else {
       addLog("Response treated as simple text or unrecognized format.");
     }
-    
-    // Mise à jour finale de l'historique et du RAG
-    // Cette logique peut être ajoutée ici si vous avez besoin de sauvegarder l'historique final
-    // (Non inclus pour maintenir la compatibilité avec votre code initial, mais c'est l'étape finale normale).
-
 
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
