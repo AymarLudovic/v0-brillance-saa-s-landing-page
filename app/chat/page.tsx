@@ -3574,10 +3574,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
 
               displayElements.push(
-                  <div key="code-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
-                      <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
-                          Building code
-                      </p>
+                  <div key="code-artifact" className={`  border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
+                      
                       <ul className="list-disc pl-5 w-[100%] space-y-1">
                           {artifact.parsedList
                               .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
@@ -3586,7 +3584,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
                                 </span>
                                 <p>{item.type === 'create' ? 'created' : 'edited'}</p>
-                                <span className="bg-[#E3DFDB] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
+                                <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
                                 
                               </li>
                           ))}
@@ -3594,8 +3592,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                           {rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>') ||
                            rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>')
                           ? (
-                               <li className="text-xs text-[#37322F]/60 italic">
-                                 Building... ({pathsToDisplay} chemins trouvés)
+                               <li className="text-xs text-[#37322F]/60 ">
+                                 Building... 
                                </li>
                           ) : null}
                       </ul>
@@ -3648,7 +3646,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                           ${isCopied ? 'opacity-100' : 'opacity-100'} // Toujours visible (opacity-100)
                       `}
                       onClick={handleCopy}
-                      title="Copier le texte explicatif"
+                      
                   >
                       <Icon className={`h-4 w-4 ${isCopied ? 'text-green-600' : 'text-[#37322F]'}`} />
                   </div>
@@ -3686,7 +3684,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {msg.role === "user" && msg.externalFiles && msg.externalFiles.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1">
               {msg.externalFiles.map((file, fileIndex) => (
-                   <div key={fileIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#F7F5F3] px-2 text-sm max-w-xs truncate">
+                   <div key={fileIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#FFFAF0] px-2 text-sm max-w-xs truncate">
                       {file.fileName}
                   </div>
               ))}
@@ -3696,7 +3694,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {msg.role === "user" && msg.mentionedFiles && msg.mentionedFiles.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1">
               {msg.mentionedFiles.map((filePath, mentionIndex) => (
-                  <div key={mentionIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
+                  <div key={mentionIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#FFFAF0] px-2 text-sm max-w-xs truncate">
                       @{filePath}
                   </div>
               ))}
