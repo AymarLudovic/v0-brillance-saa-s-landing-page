@@ -3778,9 +3778,9 @@ useEffect(() => {
 
 
 
-<div className="p-1 h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+<div className="p-1 h-[150px] md:h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
-  <div className="relative p-2 flex flex-col h-[210px]">
+  <div className="relative p-2 flex flex-col h-[110px] md:h-[210px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
     <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
