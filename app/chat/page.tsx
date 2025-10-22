@@ -3778,9 +3778,9 @@ useEffect(() => {
 
 
 
-<div className="p-1 h-[150px] md:h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+<div className="p-1 h-[200px] md:h-[300px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
-  <div className="relative p-2 flex flex-col h-[110px] md:h-[210px]">
+  <div className="relative p-2 flex flex-col h-[170px] md:h-[210px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
     <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
@@ -4065,6 +4065,31 @@ useEffect(() => {
       </div>
     </div>
   </div>
+
+    
+<div className="flex  w-full rounded-[12px] mb-1 bg-[#fffcf6] ">
+    <button
+        onClick={() => toggleViewMode("chat")}
+        className={`px-4 py-2 border-r rounded-l-lg transition-colors duration-200 ${
+            viewMode === "chat" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : "bg-transparent text-gray-700"
+        }`}
+    >
+        Chat
+    </button>
+    <button
+        onClick={() => toggleViewMode("preview")}
+        className={`px-4 py-2 rounded-r-lg transition-colors duration-200 ${
+            viewMode === "preview" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : " text-gray-700"
+        }`}
+    >
+        Preview
+    </button>
+</div>
+  
 </div>
 
 
@@ -4127,29 +4152,6 @@ useEffect(() => {
       
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
 
-  
-<div className="flex fixed top-1 left-[45%] w-full mb-4">
-    <button
-        onClick={() => toggleViewMode("chat")}
-        className={`px-4 py-2 border-r rounded-l-lg transition-colors duration-200 ${
-            viewMode === "chat" 
-                ? "bg-blue-500 text-white font-semibold" 
-                : "bg-gray-200 text-gray-700"
-        }`}
-    >
-        Chat
-    </button>
-    <button
-        onClick={() => toggleViewMode("preview")}
-        className={`px-4 py-2 rounded-r-lg transition-colors duration-200 ${
-            viewMode === "preview" 
-                ? "bg-blue-500 text-white font-semibold" 
-                : "bg-gray-200 text-gray-700"
-        }`}
-    >
-        Preview
-    </button>
-</div>
 
 {/* Vos deux DIVs de contenu vont suivre ici */}
 
