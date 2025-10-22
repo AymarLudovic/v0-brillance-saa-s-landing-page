@@ -2011,9 +2011,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
   
            
              
-
-
-  const runAutomatedAnalysis = async (
+const runAutomatedAnalysis = async (
   urlToAnalyze: string,
   originalUserPrompt: string,
   isCloning: boolean = false
@@ -2043,12 +2041,22 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
       body: JSON.stringify({ url: urlToAnalyze }),
     });
 
-    const analysisData = await analysisRes.json();
+    // 🛑 CORRECTION : Gestion robuste de la réponse JSON
+    let analysisData;
+    try {
+        analysisData = await analysisRes.json();
+    } catch (e) {
+        // En cas d'échec du JSON, on lit le texte brut pour le diagnostic
+        const rawErrorText = await analysisRes.text();
+        addLog(`❌ [Analyse API] Réponse non-JSON reçue: ${rawErrorText}`);
+        throw new Error(`Failed to parse Analysis API response. Check server logs. (Raw text start: ${rawErrorText.substring(0, 100)}...)`);
+    }
 
     if (!analysisRes.ok || !analysisData.success) {
       addLog(`❌ Analysis API responded with error: ${analysisData.error || analysisRes.statusText}`);
       throw new Error(`Analysis API failed: ${analysisData.error || analysisRes.statusText}`);
     }
+    // FIN CORRECTION
 
     // --- Étape 2 : Extraction du contenu ---
     fullCSS = analysisData.fullCSS || '';
@@ -2065,6 +2073,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
 
     // --- Étape 3 : DISPATCH logique selon mode ---
     if (isCloning) {
+      // NOTE: processAnalysisResult doit être défini ailleurs dans votre code.
       await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze);
     } else {
       // 🧠 Étape spéciale : création du pont vers sendChat()
@@ -2113,7 +2122,6 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
     setAnalysisStatus(null);
   }
 };
-  
 
                                                   
       
@@ -2668,18 +2676,37 @@ const sendChat = async (promptOverride?: string) => {
         // --- Le reste de la logique de traitement des artefacts reste ici pour l'affichage ---
         
         // ----------------- URL ARTIFACT -----------------
-        const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-        const urlMatch = text.match(inspirationUrlRegex);
-        if (urlMatch) {
-          try {
-            const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
-            const parsedUrlData = JSON.parse(jsonString);
+        // ----------------- URL ARTIFACT (À l'intérieur de la boucle de streaming) -----------------
+const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
+const urlMatch = text.match(inspirationUrlRegex);
+if (urlMatch) {
+  try {
+    // Extrait le JSON de l'artefact
+    const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
+    const parsedUrlData = JSON.parse(jsonString);
 
-            if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
-              urlArtifact = { url: parsedUrlData.url };
-            }
-          } catch (e) { console.error("Failed to parse URL JSON:", e); }
-        }
+    if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
+      // Stocke l'URL pour le traitement post-stream
+      urlArtifact = { url: parsedUrlData.url }; 
+    }
+  } catch (e) { console.error("Failed to parse URL JSON:", e); }
+}
+
+// ... [Logique de FILE ARTIFACTS et nettoyage texte suit immédiatement] ...
+// -------- POST STREAM (Finalisation) - Après la boucle do...while ---------- 
+if (urlArtifact) {
+  addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
+  
+  // L'appel à runAutomatedAnalysis est déclenché
+  await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
+  
+  // 🛑 Arrête sendChat ici. runAutomatedAnalysis relancera sendChat
+  // avec le nouveau contexte d'analyse.
+  return; 
+}
+
+// 🔹 Lancement de l’isolation et génération (Se produit si urlArtifact est null)
+// ... le reste de votre fonction pour les artefacts de fichiers
 
         // ----------------- FILE ARTIFACTS -----------------
         const fileArtifacts = extractFileArtifacts(text);
