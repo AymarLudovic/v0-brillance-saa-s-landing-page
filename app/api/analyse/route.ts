@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
 import { JSDOM } from "jsdom"
-// NOTE: Le cache analysisCache, generateUniqueId et le nettoyage sont supprimés.
 
 // --- Fonctions d'Analyse ---
 
+/**
+ * Récupère le contenu d'une URL de manière sécurisée.
+ */
 async function fetchUrlContent(url: string): Promise<{ success: boolean; content: string }> {
   try {
     const response = await fetch(url, {
@@ -17,6 +19,7 @@ async function fetchUrlContent(url: string): Promise<{ success: boolean; content
         Connection: "keep-alive",
         "Upgrade-Insecure-Requests": "1",
       },
+      // Ajout d'un timeout optionnel si nécessaire, non inclus ici pour la simplicité
     })
 
     if (!response.ok) {
@@ -31,6 +34,9 @@ async function fetchUrlContent(url: string): Promise<{ success: boolean; content
   }
 }
 
+/**
+ * Détecte les librairies d'animation dans le contenu JS.
+ */
 function detectAnimationLibrary(content: string): { isAnimation: boolean; library?: string; confidence: number } {
   const patterns = [
     { regex: /gsap|tweenmax|tweenlite|timelinemax|timelinelite/gi, library: "GSAP", confidence: 90 },
@@ -52,11 +58,15 @@ function detectAnimationLibrary(content: string): { isAnimation: boolean; librar
   return { isAnimation: false, confidence: 0 }
 }
 
+/**
+ * Analyse le HTML pour extraire les classes utilisées et nettoyer le contenu.
+ */
 function processHTML(html: string): { cleanHTML: string; usedClasses: Set<string> } {
   const usedClasses = new Set<string>()
   const dom = new JSDOM(html)
   const document = dom.window.document
 
+  // Note: Cette logique d'extraction de classes est maintenue telle quelle
   document.querySelectorAll("[class]").forEach((el) => {
     const classList = (el as HTMLElement).className
     if (typeof classList === "string") {
@@ -66,13 +76,13 @@ function processHTML(html: string): { cleanHTML: string; usedClasses: Set<string
     }
   })
 
-  return { cleanHTML: html, usedClasses }
+  // Le HTML complet du body est retourné (sans le <script> et <style> qui seront extraits)
+  return { cleanHTML: document.body.innerHTML, usedClasses }
 }
 
-// --- Route principale (MODIFIÉE) ---
+// --- Route principale (CORRIGÉE) ---
 
 export async function POST(request: Request) {
-    // 1. Suppression de la logique 'get_data' qui n'est plus nécessaire.
     
     try {
         const body = await request.json()
@@ -104,23 +114,28 @@ export async function POST(request: Request) {
           })
           .filter(Boolean) as string[]
 
-        const cssFetches = await Promise.all(
+        // Utilisation de Promise.allSettled : garantit que toutes les requêtes se terminent
+        const cssFetches = await Promise.allSettled(
           cssSources.map(async (href) => {
             const result = await fetchUrlContent(href)
+            // On lève une erreur si le fetch échoue pour marquer la promesse comme 'rejected'
+            if (!result.success) throw new Error(`Failed to fetch CSS: ${href}`); 
             return { href, ...result }
           }),
         )
 
+        // Traitement des résultats : on ne prend que les 'fulfilled' (réussis)
+        const cssContentFromFetches = cssFetches
+          .filter(c => c.status === 'fulfilled')
+          .map((c: any) => `/* From: ${c.value.href} */\n${c.value.content}`);
+        
         const inlineCss = Array.from(document.querySelectorAll("style"))
           .map((s) => s.textContent || "")
           .filter(Boolean)
+          .map((css, i) => `/* Inline style ${i + 1} */\n${css}`);
 
-        const rawCSS = [
-          ...cssFetches.filter((c) => c.success).map((c) => `/* From: ${c.href} */\n${c.content}`),
-          ...inlineCss.map((css, i) => `/* Inline style ${i + 1} */\n${css}`),
-        ].join("\n\n")
+        const fullCSS = [...cssContentFromFetches, ...inlineCss].join("\n\n");
 
-        const fullCSS = rawCSS
 
         // Extraction JS
         const scriptSources = Array.from(document.querySelectorAll("script[src]"))
@@ -129,35 +144,40 @@ export async function POST(request: Request) {
           })
           .filter(Boolean) as string[]
 
-        const scriptFetches = await Promise.all(
+        // Utilisation de Promise.allSettled pour les scripts
+        const scriptFetches = await Promise.allSettled(
           scriptSources.map(async (src) => {
             const result = await fetchUrlContent(src)
-            const animationInfo = result.success
-              ? detectAnimationLibrary(result.content)
-              : { isAnimation: false, confidence: 0 }
+            if (!result.success) throw new Error(`Failed to fetch JS: ${src}`); 
+
+            const animationInfo = detectAnimationLibrary(result.content)
             return { src, ...result, ...animationInfo }
           }),
         )
 
+        // Traitement des résultats JS : on ne prend que les 'fulfilled' (réussis)
+        const jsContentFromFetches = scriptFetches
+          .filter(s => s.status === 'fulfilled')
+          .map((s: any) => `/* From: ${s.value.src} */\n${s.value.content}`);
+
         const inlineJs = Array.from(document.querySelectorAll("script:not([src])"))
           .map((s) => s.textContent || "")
           .filter(Boolean)
+          .map((js, i) => `/* Inline script ${i + 1} */\n${js}`);
 
-        const fullJS = [
-          ...scriptFetches.filter((s) => s.success).map((s) => `/* From: ${s.src} */\n${s.content}`),
-          ...inlineJs.map((js, i) => `/* Inline script ${i + 1} */\n${js}`),
-        ].join("\n\n")
+        const fullJS = [...jsContentFromFetches, ...inlineJs].join("\n\n");
 
 
-        // 🛑 RETOUR IMMÉDIAT DU CONTENU COMPLET (plus de cache)
+        // RETOUR FINAL DU CONTENU COMPLET ET STRUCTURÉ
         return NextResponse.json({
           success: true,
-          fullHTML: cleanHTML, // AJOUTÉ
-          fullCSS: fullCSS,    // AJOUTÉ
-          fullJS: fullJS,      // AJOUTÉ
+          fullHTML: cleanHTML,
+          fullCSS: fullCSS,    
+          fullJS: fullJS,      
         })
 
     } catch (err: any) {
+        // En cas d'erreur fatale (ex: URL principale non récupérée, ou parsing JSON de la requête)
         console.error("[v0] Analysis error:", err)
         return NextResponse.json(
           {
@@ -167,5 +187,4 @@ export async function POST(request: Request) {
           { status: 500 },
         )
     }
-      }
-  
+}
