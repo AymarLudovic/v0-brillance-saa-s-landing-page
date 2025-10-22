@@ -3348,7 +3348,7 @@ useEffect(() => {
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
   return (
-    <div className="flex h-screen bg-[#fffcf6] font-sans text-[#37322F]">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#fffcf6] font-sans text-[#37322F]">
       
 
         <div 
