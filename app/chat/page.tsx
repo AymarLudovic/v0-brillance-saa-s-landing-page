@@ -3983,9 +3983,10 @@ useEffect(() => {
 
 
 
-       {activeTab === "preview" && (
+       
+        {activeTab === "preview" && (
   <div className="flex items-center rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1 w-[60%] bg-[#F7F5F3]">
-    <div className="h-full w-auto flex items-center justify-center ">
+    <div className="h-full w-auto hidden items-center justify-center ">
       <Monitor size={17} color="#000" />
     </div>
     <input
@@ -3995,16 +3996,17 @@ useEffect(() => {
       onKeyDown={(e) => {
         if (e.key === "Enter") handleNavigate()
       }}
-      className="flex-grow bg-transparent outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
+      className="flex-grow bg-transparent w-[60%] outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
       placeholder="/route"
     />
-    <Button
+    <div className="w-auto flex items-center gap-[2px]>
+      <Button
       variant="ghost"
       size="icon"
       className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
       onClick={handleNavigate}
     >
-      <ArrowRight size={17} className="h-4 w-4" />
+      <ArrowRight size={17} className="h-1 w-1" />
     </Button>
     <Button
       variant="ghost"
@@ -4012,7 +4014,7 @@ useEffect(() => {
       className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
       onClick={handleReload}
     >
-      <RefreshCw className="h-4 w-4" />
+      <RefreshCw className="h-1 w-1" />
     </Button>
     <Button
       variant="ghost"
@@ -4023,9 +4025,9 @@ useEffect(() => {
     >
       <svg className="h-[16px] w-[16px] flex-shrink-0 mx-1"  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M838-65 720-183v89h-80v-226h226v80h-90l118 118-56 57ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 20-2 40t-6 40h-82q5-20 7.5-40t2.5-40q0-20-2.5-40t-7.5-40H654q3 20 4.5 40t1.5 40q0 20-1.5 40t-4.5 40h-80q3-20 4.5-40t1.5-40q0-20-1.5-40t-4.5-40H386q-3 20-4.5 40t-1.5 40q0 20 1.5 40t4.5 40h134v80H404q12 43 31 82.5t45 75.5q20 0 40-2.5t40-4.5v82q-20 2-40 4.5T480-80ZM170-400h136q-3-20-4.5-40t-1.5-40q0-20 1.5-40t4.5-40H170q-5 20-7.5 40t-2.5 40q0 20 2.5 40t7.5 40Zm34-240h118q9-37 22.5-72.5T376-782q-55 18-99 54.5T204-640Zm172 462q-18-34-31.5-69.5T322-320H204q29 51 73 87.5t99 54.5Zm28-462h152q-12-43-31-82.5T480-798q-26 36-45 75.5T404-640Zm234 0h118q-29-51-73-87.5T584-782q18 34 31.5 69.5T638-640Z"/></svg>
     </Button>
+      </div>
   </div>
 )}
-        
                
           
 
@@ -4043,35 +4045,24 @@ useEffect(() => {
 
 {/* ⚠️ Assurez-vous d'importer l'icône Zap et Loader de Lucide React */}
 
-<Button
-    onClick={handleDeploy}
 
-disabled={
-    isConnecting.deploy || 
-    !connections?.vercel?.token || 
-    !currentProject ||             
-    !sandboxId                     
-}
-    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
->
-    {isConnecting.deploy ? (
-        <>
-            <Loader className="h-4 w-4 animate-spin" />
-            Déploiement...
-        </>
-    ) : (
-        <>
-            <Zap className="h-4 w-4" />
-            Déployer sur Vercel
-        </>
-    )}
-</Button>
               {/* Rendu de la Modal Vercel (Doit être affiché par-dessus le reste) */}
 {/* ---------------------------------------------------- */}
 {/* Affichage du Composant Modal */}
 {/* ---------------------------------------------------- */}
 
-
+<Button
+    onClick={handleVercelDeploy}
+    disabled={deploying}
+    className="bg-[#37322F] text-white px-1 py-1 rounded-[12px]  transition flex items-center "
+  >
+    
+              <svg className="h-[16px] fill-white flex md:hidden w-[16px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#fff"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
+         <span className="md:flex hidden">
+           {deploying ? "Deploying..." : "Deploy site"}
+         </span>     
+    
+  </Button>
 {showDeploymentStatus && deploymentDetails.status !== 'idle' && (
     <div 
         className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-2xl z-50 max-w-sm w-full 
@@ -4343,6 +4334,29 @@ disabled={
             </div>
           )}
         </div>
+
+            <div className="flex md:hidden border border-[rgba(55,50,47,0.12)] justify-center items-center w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
+    <button
+        onClick={() => toggleViewMode("chat")}
+        className={`px-1 w-1/2 py-1 border-r rounded-l-lg transition-colors duration-200 ${
+            viewMode === "chat" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : "bg-transparent text-gray-700"
+        }`}
+    >
+        Chat
+    </button>
+    <button
+        onClick={() => toggleViewMode("preview")}
+        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
+            viewMode === "preview" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : " text-gray-700"
+        }`}
+    >
+        Preview
+    </button>
+</div>
       </div>
 
 
