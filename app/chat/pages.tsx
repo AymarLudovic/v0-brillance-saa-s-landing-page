@@ -1173,7 +1173,12 @@ const MAX_FILES = 5; // Limite générale pour les fichiers et images
   
 
 
+const [viewMode, setViewMode] = useState("chat"); // 'chat' ou 'preview'
 
+// Fonction pour basculer
+const toggleViewMode = (mode) => {
+  setViewMode(mode);
+};
   
   
   
@@ -3165,7 +3170,18 @@ useEffect(() => {
   // -------------------
   return (
     <div className="flex h-screen bg-[#fffcf6] font-sans text-[#37322F]">
-      <div className="w-[40%] bg-[#fffcf6] h-full flex flex-col  border-[rgba(55,50,47,0.12)]">
+      
+        <div 
+  className={`
+    h-full flex flex-col bg-[#fffcf6] border-[rgba(55,50,47,0.12)] 
+    
+    
+    md:w-[40%] md:flex
+    
+    
+    ${viewMode === "chat" ? "w-full flex" : "hidden"} 
+  `}
+>
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
@@ -3838,6 +3854,30 @@ useEffect(() => {
       </div>
     </div>
   </div>
+
+  <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
+    <button
+        onClick={() => toggleViewMode("chat")}
+        className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
+            viewMode === "chat" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : "bg-transparent text-gray-700"
+        }`}
+    >
+        Chat
+    </button>
+    <button
+        onClick={() => toggleViewMode("preview")}
+        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
+            viewMode === "preview" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : " text-gray-700"
+        }`}
+    >
+        Preview
+    </button>
+</div>
+  
 </div>
 
 
@@ -3910,8 +3950,17 @@ useEffect(() => {
 
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
         
-          
-      <div className="w-[60%] h-full flex flex-col bg-[#fffcf6]">
+          <div 
+  className={`
+    h-full flex flex-col bg-[#fffcf6] 
+    
+    
+    md:w-[60%] md:flex
+    
+    
+    ${viewMode === "preview" ? "w-full flex" : "hidden"}
+  `}
+>
         <div className="flex items-center justify-between p-4 flex-shrink-0 h-12  border-[rgba(55,50,47,0.12)]">
           <div className="bg-[#fffcf6] rounded-xl h-10 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
