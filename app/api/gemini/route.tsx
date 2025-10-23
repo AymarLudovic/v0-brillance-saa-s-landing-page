@@ -1,15 +1,16 @@
+// app/api/gemini/route.ts (Optimisé)
+
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
 
-// --- TYPES ---
+// --- TYPES (inchangés) ---
 interface Message { 
     role: "user" | "assistant"; 
     content: string; 
     images?: string[]; 
     externalFiles?: { fileName: string; base64Content: string }[]; 
     mentionedFiles?: string[]; 
-    // Nouveau type pour la réponse d'un outil (functionResponse)
     functionResponse?: {
         name: string;
         response: any;
@@ -20,7 +21,7 @@ interface ProjectFile {
     content: string; 
 }
 
-// Utilitaires pour les fichiers
+// Utilitaires (inchangés)
 function getMimeTypeFromBase64(dataUrl: string): string {
     const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
     return match ? match[1] : 'application/octet-stream';
@@ -32,7 +33,7 @@ function cleanBase64Data(dataUrl: string): string {
 
 const BATCH_SIZE = 256; 
 
-// 🛑 DÉCLARATION DE L'OUTIL readFile 🛑
+// 🛑 DÉCLARATION DE L'OUTIL readFile (inchangée) 🛑
 const readFileDeclaration: FunctionDeclaration = {
   name: "readFile",
   description: "Lit le contenu d'un fichier du projet par son chemin d'accès (e.g., app/page.tsx, components/button.tsx). Doit être appelé avant de modifier ou d'analyser le contenu d'un fichier. Retourne le contenu du fichier sous forme de chaîne.",
@@ -50,19 +51,16 @@ const readFileDeclaration: FunctionDeclaration = {
 
 export async function POST(req: Request) {
   try {
+    const body = await req.json();
     const { 
-        //history, 
+        history, 
         uploadedImages,
         uploadedFiles,
-        // currentProjectFiles n'est pas utilisé dans le POST du serveur, mais on le garde en commentaire
-        // pour montrer qu'il est bien ignoré ici.
-    } = await req.json() as { 
-        //history: Message[], 
-        currentProjectFiles: ProjectFile[], 
+        // projectEmbeddings est ignoré
+    } = body as { 
+        history: Message[], 
         uploadedImages: string[],
         uploadedFiles: { fileName: string; base64Content: string }[],
-        // 🛑 projectEmbeddings EST RETIRÉ ICI 🛑
-        // projectEmbeddings: any[],
     }
 
     if (!history || history.length === 0) {
@@ -93,19 +91,11 @@ export async function POST(req: Request) {
                     response: msg.functionResponse.response,
                 }
             });
-            // Nous n'ajoutons pas de texte si c'est une réponse d'outil
         } 
         // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT 🛑
         else {
-            // Le message système est le premier élément (rôle 'user' dans l'historique Gemini)
-            // L'injection de basePrompt est critique pour le premier message utilisateur
-            // ou un message utilisateur qui fait suite à une réponse d'outil.
-            
-            // Note: Si le premier message de l'historique est le contexte système,
-            // il a déjà le rôle 'user' dans votre structure `contents`.
-            
             if (msg === history[history.length - 1] && role === 'user') {
-                // INJECTION DE BASEPROMPT UNIQUEMENT pour le dernier message (le prompt réel)
+                // INJECTION DE BASEPROMPT UNIQUEMENT pour le dernier message
                 textContent = basePrompt + "\n\n" + textContent; 
                 
                 // Gestion des images/fichiers binaires
@@ -137,8 +127,6 @@ export async function POST(req: Request) {
         contents.push({ role, parts });
     }
     
-    // --- APPEL API (SANS TENTATIVES CÔTÉ SERVEUR) ---
-    // La gestion des tentatives est gérée côté client (sendChat)
     const response = await ai.models.generateContentStream({
       model,
       contents, 
@@ -183,8 +171,6 @@ export async function POST(req: Request) {
       },
       async catch(error) {
         console.error("[API Gemini] Erreur durant le streaming:", error);
-        // Vous pouvez envoyer l'erreur au client si vous le souhaitez, mais la connexion sera probablement coupée
-        // controller.error(error); 
       }
     })
 
@@ -195,11 +181,10 @@ export async function POST(req: Request) {
       },
     })
   } catch (err: any) {
-    // Gestion des erreurs d'initialisation (e.g., req.json, API Key)
     console.error("[API Gemini] Erreur critique (pré-streaming):", err.message, err);
     return NextResponse.json({ 
         error: "Erreur serveur ou API Gemini: " + err.message,
         details: err.message
     }, { status: 500 })
   }
-  }
+        }
