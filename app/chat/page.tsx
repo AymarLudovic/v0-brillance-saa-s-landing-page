@@ -835,8 +835,6 @@ const READ_FILE_REGEX = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
 
 
 
-// Nouveau format d’artefact de lecture
-const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["']\s*\/>/;
 
 
 
@@ -2523,13 +2521,13 @@ const handleFetchFileAction = (
 
 // ---------------------- SEND CHAT ----------------------
 
-
-
-// ---------------------- SEND CHAT (FINAL & ROBUSTE + CONTEXTE INTELLIGENT) ----------------------
+         
+    
+// ---------------------- SEND CHAT (FINAL & STABLE) ----------------------
 
 const sendChat = async (promptOverride?: string) => {
   // --- Constantes pour la Robustesse ---
-  const MAX_RETRIES = 6; // Augmenté pour plus de fiabilité
+  const MAX_RETRIES = 6; 
   const BASE_DELAY_MS = 1000;
   
   const userPrompt = promptOverride || chatInput;
@@ -2540,7 +2538,7 @@ const sendChat = async (promptOverride?: string) => {
     return;
   }
 
-  // 1. Préparation initiale du message utilisateur
+  // 1. Préparation initiale du message utilisateur (inchangée)
   let contextForPrompt = "";
   if (mentionedFiles.length > 0 && currentProject) {
     contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
@@ -2562,10 +2560,10 @@ const sendChat = async (promptOverride?: string) => {
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  // 2. Logique de mise à jour de l'état (ajoute le message utilisateur et le placeholder)
+  // 2. Logique de mise à jour de l'état (inchangée)
   let currentHistory = [...messages, userMsg];
   let assistantMessageIndex = -1;
-  let text = ""; // Texte cumulé du stream
+  let text = ""; 
 
   setMessages((prev) => {
     assistantMessageIndex = prev.length + 1; 
@@ -2579,45 +2577,18 @@ const sendChat = async (promptOverride?: string) => {
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  // --- 1. CONTEXTE INTELLIGENT DES FICHIERS (HAUTE PERFORMANCE) ---
-  const MAX_PREVIEW_LINES = 50; // nombre de lignes max affichées par fichier
-  const CHUNK_SIZE = 200;       // taille logique d’un chunk (pour que l’IA sache qu’un fichier est grand)
-
+  // --- 1. CORRECTION DE LA LATENCE : PRÉPARATION CONTEXTE GLOBAL DES FICHIERS ---
+  // Nous envoyons UNIQUEMENT les métadonnées pour éviter la surcharge de contexte.
   const formattedFilesForContext = currentProjectFiles.map(file => {
-    const lines = file.content.split("\n");
-    const totalLines = lines.length;
-
-    // Fichiers petits → tout le contenu envoyé directement
-    if (totalLines <= MAX_PREVIEW_LINES) {
-      return [
-        `<project_file path="${file.filePath}" totalLines="${totalLines}" full="true">`,
-        ...lines.map((l, i) => `${i + 1} | ${l}`),
-        `</project_file>`
-      ].join("\n");
-    }
-
-    // Fichiers volumineux → on n’envoie qu’un aperçu (début + fin)
-    const startPreview = lines.slice(0, MAX_PREVIEW_LINES / 2);
-    const endPreview = lines.slice(-MAX_PREVIEW_LINES / 2);
-
-    const preview = [
-      ...startPreview.map((l, i) => `${i + 1} | ${l}`),
-      `...`,
-      ...endPreview.map((l, i) => `${totalLines - (MAX_PREVIEW_LINES / 2) + i + 1} | ${l}`)
-    ];
-
-    const chunkCount = Math.ceil(totalLines / CHUNK_SIZE);
-
-    return [
-      `<project_file path="${file.filePath}" totalLines="${totalLines}" chunks="${chunkCount}" full="false">`,
-      ...preview,
-      `</project_file>`
-    ].join("\n");
-  }).join("\n\n");
+      const totalLines = file.content.split("\n").length;
+      const sizeInChars = file.content.length;
+      return `<project_file path="${file.filePath}" totalLines="${totalLines}" size="${sizeInChars} chars"/>`;
+  }).join("\n");
 
   const systemFileContext: Message = {
     role: "system",
-    content: `[PROJECT CONTEXT: ${currentProjectFiles.length} files]\n${formattedFilesForContext}`
+    // Ajout d'une instruction claire pour l'IA
+    content: `[PROJECT CONTEXT: ${currentProjectFiles.length} files exist. Use the 'readFile' tool via <fetch_file> to get the content when needed.]\n${formattedFilesForContext}`
   };
   
   // L'historique pour l'API commence avec le contexte des fichiers
@@ -2632,6 +2603,7 @@ const sendChat = async (promptOverride?: string) => {
   let retryCount = 0;
   
   const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
+  // Regex corrigée pour être plus robuste
   const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["'][^>]*\/>/gi; 
 
   try {
@@ -2641,7 +2613,7 @@ const sendChat = async (promptOverride?: string) => {
       let res: Response | null = null; 
       let apiCallSuccessful = false;
 
-      // --- 2. BOUCLE POUR LA ROBUSTESSE (RE-TENTATIVE API) ---
+      // --- 2. AMÉLIORATION : BOUCLE POUR LA ROBUSTESSE (RE-TENTATIVE API) ---
       while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
         try {
           addLog(retryCount > 0 ? `[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES} après erreur API...` : '');
@@ -2659,8 +2631,9 @@ const sendChat = async (promptOverride?: string) => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
-              //history: historyForApi,
+              history: historyForApi,
               currentProjectFiles,
+              // projectEmbeddings RETIRÉ
               uploadedImages,
               uploadedFiles
             }),
@@ -2678,6 +2651,7 @@ const sendChat = async (promptOverride?: string) => {
           res = null; 
         }
       }
+      // FIN BOUCLE ROBUSTESSE
       
       if (!res) continue; 
 
@@ -2694,9 +2668,11 @@ const sendChat = async (promptOverride?: string) => {
         streamText += chunk;
         text += chunk; 
 
+        // ---------------- FETCH FILE (CORRECTION D'ERREUR DE PARSING) ----------------
         const fetchFileMatch = streamText.match(FETCH_FILE_REGEX);
         if (fetchFileMatch) {
           const rawFilePath = fetchFileMatch[1]; 
+          
           if (!rawFilePath || rawFilePath.trim().length === 0) {
               addLog(`❌ ERREUR DE PARSING: La balise <fetch_file> a un chemin invalide. Texte brut: ${fetchFileMatch[0]}`);
               throw new Error("L'IA a généré une balise <fetch_file> avec un chemin invalide. Arrêt du chaînage.");
@@ -2706,14 +2682,16 @@ const sendChat = async (promptOverride?: string) => {
           addLog(`[ACTION] Gemini requested file: ${filePath}. Chaînage activé.`);
           
           isFetchInProgress = true;
-          const fileContent = handleFetchFileAction(filePath, currentProjectFiles);
+          const fileContent = handleFetchFileAction(filePath, currentProjectFiles); 
           isFetchInProgress = false;
 
           historyForApi = [...historyForApi, { role: "assistant", content: streamText }, { role: "user", content: fileContent }];
+          
           actionChainActive = true; 
-          break;
+          break; 
         }
 
+        // ----------------- URL ARTIFACT (Logique inchangée) -----------------
         const urlMatch = text.match(inspirationUrlRegex);
         if (urlMatch) {
           try {
@@ -2726,7 +2704,9 @@ const sendChat = async (promptOverride?: string) => {
           } catch (e) { console.error("Failed to parse URL JSON:", e); }
         }
 
-        const fileArtifacts = extractFileArtifacts(text);
+        // ----------------- FILE ARTIFACTS (Logique inchangée) -----------------
+        const fileArtifacts = extractFileArtifacts(text); 
+
         fileArtifacts.forEach((artifact: any) => {
           if (artifact.type === "changes" && artifact.content && !artifact.content.trim().endsWith("</file_changes>")) {
             artifact.content += "\n</file_changes>";
@@ -2751,15 +2731,21 @@ const sendChat = async (promptOverride?: string) => {
             if (!artifactList.some(a => a.path === path)) artifactList.push({ path, type });
           });
 
+          if (currentProject) {
+            // addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject); 
+          }
+
           newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
         }
 
+        // Nettoyage texte pour affichage
         let textWithoutArtifacts = text
           .replace(inspirationUrlRegex, '') 
           .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
           .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
           .replace(FETCH_FILE_REGEX, '');
 
+        // Mise à jour message assistant
         setMessages((prev) => {
           const updatedMessages = [...prev];
           const lastMsg = updatedMessages[assistantMessageIndex];
@@ -2771,14 +2757,19 @@ const sendChat = async (promptOverride?: string) => {
         });
 
       } // FIN STREAMING
-    } while (actionChainActive);
+    } while (actionChainActive); 
+    // --- FIN BOUCLE DE CHAÎNAGE ---
 
+    // -------- POST STREAM (Finalisation) ---------- 
+    
+    // Logique de Traitement de l'URL Artifact (inchangée)
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
       return; 
     }
     
+    // Logique de Lancement de l'isolation (inchangée)
     const isAnalysisMode = promptOverride?.includes("Analysis data from");
     if (isAnalysisMode) {
       addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
@@ -2787,17 +2778,18 @@ const sendChat = async (promptOverride?: string) => {
     const finalArtifacts = extractFileArtifacts(text);
     if (finalArtifacts.length > 0) {
       addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
-      applyArtifactsToProject(finalArtifacts);
+      applyArtifactsToProject(finalArtifacts); 
 
       setTimeout(() => {
         finalArtifacts.forEach(async (artifact) => {
           const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
-          if (updatedFile) await reindexFile(updatedFile);
+          if (updatedFile) await reindexFile(updatedFile); 
         });
       }, 100);
     } else {
       addLog("Response treated as simple text or unrecognized format.");
     }
+    
 
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
@@ -2806,9 +2798,6 @@ const sendChat = async (promptOverride?: string) => {
     setLoading(false);
   }
 };
-  
-    
-
 
 
             
