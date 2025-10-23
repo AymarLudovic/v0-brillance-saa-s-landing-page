@@ -2495,44 +2495,50 @@ let isFetchInProgress = false; // Bloque les fetch en double
  * @param projectFiles Liste des fichiers du projet.
  * @returns Contenu du fichier formaté en <file_content> ou une chaîne d'erreur.
  */
-const handleFetchFileAction = (
-  filePath: string,
-  projectFiles: ProjectFile[]
-): string => {
-  
-  // Assurez-vous que isFetchInProgress est géré de manière externe
-  // Si le flag est géré correctement, cette vérification est bonne.
-  if (isFetchInProgress) {
-    addLog(`[FETCH_FILE] Ignoré (déjà en cours pour ${filePath})`);
-    return "";
-  }
-
-  const targetFile = projectFiles.find(f => f.filePath === filePath);
-  if (!targetFile) {
-    addLog(`[FETCH_FILE] Fichier introuvable : ${filePath}`); 
-    // Retourne une balise d'erreur que l'IA peut lire
-    return `\n<error_message path="${filePath}">File not found: ${filePath}</error_message>\n`; 
-  }
-
-  const content = targetFile.content || "";
-  const lines = content.split("\n");
-  const totalLines = lines.length;
-
-  addLog(`[FETCH_FILE] Fichier lu : ${filePath} (${totalLines} lignes)`); 
-
-  // Formatte le contenu ligne par ligne
-  const formattedFile = [
-    `<file_content path="${filePath}" totalLines="${totalLines}">`,
-    ...lines.map((line, i) => `${i + 1} | ${line}`),
-    `</file_content>`
-  ].join("\n");
-
-  return formattedFile;
-};
-
 // ---------------------- SEND CHAT ----------------------
 
          
+const handleFetchFileAction = async (
+  filePath: string,
+  projectFiles: ProjectFile[],
+  messages: Message[]
+): Promise<string> => {
+  if (isFetchInProgress) {
+    addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours pour ${filePath})`);
+    return "";
+  }
+
+  isFetchInProgress = true;
+
+  try {
+    addLog(`📂 [FETCH_FILE] Demande de lecture du fichier : ${filePath}`);
+
+    const targetFile = projectFiles.find(f => f.filePath === filePath);
+    if (!targetFile) {
+      addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
+      return "";
+    }
+
+    const content = targetFile.content || "";
+    const lines = content.split("\n");
+    const totalLines = lines.length;
+
+    addLog(`✅ [FETCH_FILE] Fichier trouvé (${content.length} caractères, ${totalLines} lignes). Préparation pour envoi...`);
+
+    // Formatte le contenu ligne par ligne
+    const formattedFile = [
+      `<file_content path="${filePath}" totalLines="${totalLines}">`,
+      ...lines.map((line, i) => `${i + 1} | ${line}`),
+      `</file_content>`
+    ].join("\n");
+
+    addLog(`📤 [FETCH_FILE] Contenu prêt pour injection (${totalLines} lignes)`);
+
+    return formattedFile;
+  } finally {
+    isFetchInProgress = false;
+  }
+};
     
 // ---------------------- SEND CHAT (FINAL & STABLE) ----------------------
 
@@ -2682,41 +2688,28 @@ const sendChat = async (promptOverride?: string) => {
         text += chunk; 
 
         // ---------------- FETCH FILE (CORRECTION D'ERREUR DE PARSING) ----------------
-        // ---------------- FETCH FILE (CORRECTION D'ERREUR DE PARSING ET DE TEXTE EXPLICATIF) ----------------
-        // ---------------- FETCH FILE (RÉSOLUTION DÉFINITIVE DU PARSING) ----------------
-        const fetchFileMatch = streamText.match(FETCH_FILE_REGEX);
-        if (fetchFileMatch) {
-          // 🛑 ATTENTION : L'index de capture change avec la nouvelle regex.
-          // fetchFileMatch[0] : balise complète.
-          // fetchFileMatch[1] : le guillemet utilisé (' ou ").
-          // fetchFileMatch[2] : le chemin du fichier (le contenu entre guillemets).
-          const rawFilePath = fetchFileMatch[2]; 
-          
-          // Détection d'un chemin vide ou invalide (maintenant sur l'index [2])
-          if (!rawFilePath || rawFilePath.trim().length === 0) {
-              addLog(`❌ ERREUR DE PARSING: La balise <fetch_file> a un chemin invalide. Texte brut: ${fetchFileMatch[0]}`);
-              throw new Error("L'IA a généré une balise <fetch_file> avec un chemin invalide. Arrêt du chaînage.");
+        // ---------------- FETCH FILE ----------------
+      const fetchFileMatch = text.match(FETCH_FILE_REGEX);
+      if (fetchFileMatch) {
+        const filePath = fetchFileMatch[1].trim();
+        addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
+
+        if (!isFetchInProgress) {
+          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles, messages);
+
+          // Injection directe dans le flux de texte
+          text += `\n${fileContent}\n`;
+
+          // Mise à jour du message assistant
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[assistantMessageIndex].content = text;
+            return updated;
+          });
+        } else {
+          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours pour ${filePath})`);
+        }
           }
-
-          const filePath = rawFilePath.trim(); 
-          addLog(`[ACTION] Gemini requested file: ${filePath}. Chaînage activé.`);
-          
-          // Déclenchement de l'action
-          isFetchInProgress = true;
-          // C'est ICI que handleFetchFileAction est appelée et elle est nécessaire!
-          const fileContent = handleFetchFileAction(filePath, currentProjectFiles); 
-          isFetchInProgress = false;
-
-          // Enregistre uniquement la balise elle-même dans l'historique
-          historyForApi = [
-            ...historyForApi, 
-            { role: "assistant", content: fetchFileMatch[0] }, 
-            { role: "user", content: fileContent }
-          ];
-          
-          actionChainActive = true; 
-          break; 
-               }
 
         // ----------------- URL ARTIFACT (Logique inchangée) -----------------
         const urlMatch = text.match(inspirationUrlRegex);
