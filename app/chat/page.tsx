@@ -2615,7 +2615,9 @@ const sendChat = async (promptOverride?: string) => {
   
   const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
   // Regex corrigée pour être plus robuste
-  const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["'][^>]*\/>/gi; 
+   
+
+  const FETCH_FILE_REGEX = /<fetch_file\s+path=(['"])(.*?)\1[^>]*\/>/gi;
 
   try {
     // --- 3. BOUCLE POUR LE CHAÎNAGE D'ACTIONS ---
@@ -2681,11 +2683,16 @@ const sendChat = async (promptOverride?: string) => {
 
         // ---------------- FETCH FILE (CORRECTION D'ERREUR DE PARSING) ----------------
         // ---------------- FETCH FILE (CORRECTION D'ERREUR DE PARSING ET DE TEXTE EXPLICATIF) ----------------
+        // ---------------- FETCH FILE (RÉSOLUTION DÉFINITIVE DU PARSING) ----------------
         const fetchFileMatch = streamText.match(FETCH_FILE_REGEX);
         if (fetchFileMatch) {
-          const rawFilePath = fetchFileMatch[1]; 
+          // 🛑 ATTENTION : L'index de capture change avec la nouvelle regex.
+          // fetchFileMatch[0] : balise complète.
+          // fetchFileMatch[1] : le guillemet utilisé (' ou ").
+          // fetchFileMatch[2] : le chemin du fichier (le contenu entre guillemets).
+          const rawFilePath = fetchFileMatch[2]; 
           
-          // Détection d'un chemin vide ou invalide (CONSERVÉ pour la robustesse)
+          // Détection d'un chemin vide ou invalide (maintenant sur l'index [2])
           if (!rawFilePath || rawFilePath.trim().length === 0) {
               addLog(`❌ ERREUR DE PARSING: La balise <fetch_file> a un chemin invalide. Texte brut: ${fetchFileMatch[0]}`);
               throw new Error("L'IA a généré une balise <fetch_file> avec un chemin invalide. Arrêt du chaînage.");
@@ -2696,20 +2703,20 @@ const sendChat = async (promptOverride?: string) => {
           
           // Déclenchement de l'action
           isFetchInProgress = true;
+          // C'est ICI que handleFetchFileAction est appelée et elle est nécessaire!
           const fileContent = handleFetchFileAction(filePath, currentProjectFiles); 
           isFetchInProgress = false;
-          
-          // 🛑 MODIFICATION CRITIQUE : N'enregistre que la balise elle-même dans l'historique
-          // et ignore tout texte explicatif de l'IA (fetchFileMatch[0] est la balise complète).
+
+          // Enregistre uniquement la balise elle-même dans l'historique
           historyForApi = [
             ...historyForApi, 
-            { role: "assistant", content: fetchFileMatch[0] }, // <-- ICI, on utilise fetchFileMatch[0]
+            { role: "assistant", content: fetchFileMatch[0] }, 
             { role: "user", content: fileContent }
           ];
           
           actionChainActive = true; 
           break; 
-    }
+               }
 
         // ----------------- URL ARTIFACT (Logique inchangée) -----------------
         const urlMatch = text.match(inspirationUrlRegex);
