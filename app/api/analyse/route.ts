@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server"
 
-// NOTE: JSDOM a été supprimé pour améliorer la robustesse dans les environnements légers.
-
-// --- Fonctions utilitaires ---
+// NOTE: Assurez-vous que vos fonctions utilitaires (fetchUrlContent, detectAnimationLibrary)
+// sont définies et disponibles dans le même contexte de fichier.
 
 /**
- * Récupère le contenu d'une URL de manière sécurisée.
+ * Récupère le contenu d'une URL de manière sécurisée. (Inchangée)
  */
 async function fetchUrlContent(url: string): Promise<{ success: boolean; content: string }> {
   try {
@@ -35,7 +34,7 @@ async function fetchUrlContent(url: string): Promise<{ success: boolean; content
 }
 
 /**
- * Détecte les librairies d'animation dans le contenu JS. (Logique inchangée)
+ * Détecte les librairies d'animation dans le contenu JS. (Inchangée)
  */
 function detectAnimationLibrary(content: string): { isAnimation: boolean; library?: string; confidence: number } {
   const patterns = [
@@ -58,7 +57,8 @@ function detectAnimationLibrary(content: string): { isAnimation: boolean; librar
   return { isAnimation: false, confidence: 0 }
 }
 
-// --- Route principale (REFACTOREE SANS JSDOM) ---
+
+// --- Route principale (CORRIGÉE) ---
 
 export async function POST(request: Request) {
     
@@ -87,14 +87,19 @@ export async function POST(request: Request) {
              baseURL = urlToAnalyze
         }
 
-        // --- 1. Extraction des sources CSS externes ---
-        const cssLinkRegex = /<link[^>]*href=["']([^"']+\.css\b[^"']*)["'][^>]*rel=["']stylesheet["'][^>]*>/gi
-        const cssSources = [...rawHTML.matchAll(cssLinkRegex)]
-          .map(match => match[1])
+        // --- 1. CORRECTION: Extraction des sources CSS externes ---
+        // Regex robuste: capture la balise entière (match[0]) et l'URL href (match[2])
+        // Elle ne se soucie pas de l'ordre ou des autres attributs.
+        const linkHrefCaptureRegex = /(<link\s+[^>]*?href=["']([^"']+)["'][^>]*?>)/gi
+        
+        const cssSources = [...rawHTML.matchAll(linkHrefCaptureRegex)]
+          .filter(match => /rel=["']stylesheet["']/i.test(match[0])) // 🛑 FIX: Filtre sur le rel="stylesheet" dans la balise entière
+          .map(match => match[2]) // 🛑 FIX: Extrait l'URL (le second groupe de capture)
           .filter(Boolean)
+        // FIN CORRECTION
 
         // --- 2. Extraction des sources JS externes ---
-        const scriptSrcRegex = /<script[^>]*src=["']([^"']+\.js\b[^"']*)["'][^>]*>/gi
+        const scriptSrcRegex = /<script[^>]*src=["']([^"']+)["'][^>]*>/gi
         const scriptSources = [...rawHTML.matchAll(scriptSrcRegex)]
           .map(match => match[1])
           .filter(Boolean)
@@ -103,7 +108,7 @@ export async function POST(request: Request) {
         const normalizeUrl = (path: string): string | null => {
             try {
                 if (path.startsWith('//')) {
-                    return `https:${path}` // Protocole relatif
+                    return `https:${path}`
                 }
                 return new URL(path, baseURL).href
             } catch {
@@ -152,6 +157,7 @@ export async function POST(request: Request) {
           .filter(s => s.status === 'fulfilled')
           .map((s: any) => `/* From: ${s.value.src} */\n${s.value.content}`);
 
+        // Regex pour capturer le contenu des scripts qui n'ont pas d'attribut src (inline)
         const inlineJsRegex = /<script\b[^>]*>(?:(?!src=["']).)*?([\s\S]*?)<\/script>/gi
         const inlineJs = [...rawHTML.matchAll(inlineJsRegex)]
           .map(match => match[1])
@@ -162,15 +168,13 @@ export async function POST(request: Request) {
         
 
         // --- 6. Extraction du HTML du corps (Nettoyage des scripts/styles) ---
-        // On prend le contenu brut du <body> et on supprime les balises inutiles
         const bodyContentMatch = rawHTML.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
         let cleanHTML = bodyContentMatch ? bodyContentMatch[1] : rawHTML;
 
-        // Suppression des balises script et style pour le fullHTML final
         cleanHTML = cleanHTML
             .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, '')
             .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, '')
-            .replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, ''); // Supprime les liens CSS
+            .replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, ''); 
 
         cleanHTML = cleanHTML.trim();
 
@@ -187,7 +191,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error: `Analysis failed: ${err.message}`,
-            details: "Please check the full error in the server logs (if possible). JSDOM was removed.",
+            details: "Analysis failed due to server-side error.",
           },
           { status: 500 },
         )
