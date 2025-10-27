@@ -2466,8 +2466,14 @@ Ne redemandez PAS ce fichier. Si vous avez besoin d'un autre, émettez simplemen
 
                     
             // ---------------------- GLOBALS ----------------------
+  // Constante pour la regex (à s'assurer qu'elle est définie au début du composant)
+// Exemple: const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["'][^>]*\/>/i;
+
+// ---------------------- GLOBALS ----------------------
 let isFetchInProgress = false; // Bloque les fetch en double
 
+// **NOUVEAU:** Cache local pour cette session, pour éviter les relectures non nécessaires d'un fichier déjà injecté.
+// Ceci n'est pas géré par le code ci-dessous, mais sera géré par la logique dans sendChat.
 
 // ---------------------- HANDLE FETCH FILE ----------------------
 /**
@@ -2476,9 +2482,10 @@ let isFetchInProgress = false; // Bloque les fetch en double
 const handleFetchFileAction = async (
   filePath: string,
   projectFiles: ProjectFile[],
-  messages: Message[]
-): Promise<string> => {
+  // NOTE: Le paramètre 'messages' n'est pas utilisé ici et peut être omis.
+): Promise<string> => { 
   if (isFetchInProgress) {
+    // Si déjà en cours, retourne immédiatement.
     addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours pour ${filePath})`);
     return "";
   }
@@ -2491,7 +2498,8 @@ const handleFetchFileAction = async (
     const targetFile = projectFiles.find(f => f.filePath === filePath);
     if (!targetFile) {
       addLog(`❌ [FETCH_FILE] Fichier introuvable : ${filePath}`);
-      return "";
+      // Retourne une balise d'erreur pour que l'IA le voie.
+      return `<file_content path="${filePath}" error="File not found."></file_content>`;
     }
 
     const content = targetFile.content || "";
@@ -2515,9 +2523,18 @@ const handleFetchFileAction = async (
   }
 };
 
+
 // ---------------------- SEND CHAT ----------------------
 
        // ---------------------- SEND CHAT (CORRIGÉ) ----------------------
+
+
+                 
+// Définir ces constantes au début du composant, en dehors de sendChat
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 500; // Démarrage rapide
+
+// ---------------------- SEND CHAT (AVEC AJOUTS) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
@@ -2543,66 +2560,103 @@ const sendChat = async (promptOverride?: string) => {
     mentionedFiles
   };
 
-  // 2. Préparation du placeholder de l'assistant
+  // 2. Préparation du placeholder
   const assistantPlaceholder: Message = {
     role: "assistant",
     content: "",
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  // 3. Logique de mise à jour de l'état (CORRIGÉE)
+  // 3. Logique de mise à jour de l'état
   let currentHistory = [...messages, userMsg];
   let assistantMessageIndex = -1;
   
-  // ✅ AJOUT DU MESSAGE UTILISATEUR ET DU PLACEHOLDER DE L'ASSISTANT ENSEMBLE
-  // Cela garantit que l'historique visible est cohérent avant le FETCH.
   setMessages((prev) => {
-    // L'index du message assistant sera le nouveau dernier message
     assistantMessageIndex = prev.length + 1; 
-    
-    // Si c'est un prompt normal, on efface l'input de chat
     if (!promptOverride) {
       setChatInput("");
     }
-    
-    // On retourne l'historique mis à jour avec le message utilisateur et le placeholder assistant
     return [...prev, userMsg, assistantPlaceholder];
   });
   
-  // Note: Nous utilisons `currentHistory` (lignes 35-37) pour le payload de l'API.
-
   const currentProjectFiles = currentProject
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
+  // ---------------- NOUVEAU: INJECTION DU CONTEXTE SYSTÈME ----------------
+  const fileList = currentProjectFiles.map(file => 
+    `<project_file path="${file.filePath}" size="${file.content.length} chars"/>`
+  ).join("\n");
+  
+  const systemFileContext: Message = {
+    role: "system",
+    content: `# PROJECT FILES (${currentProjectFiles.length} files)\n[Use the <fetch_file path="..."/> artifact to read content.]\n${fileList}`
+  };
+
+  // L'historique pour l'API commence avec le contexte système.
+  let historyForApi = [systemFileContext, ...currentHistory];
+
+  // ---------------- NOUVEAU: CACHE LOCAL POUR LECTURE DE FICHIER ----------------
+  // Utilisé pour implémenter la non-relecture demandée.
+  const readFilesCache = new Set<string>();
 
   setLoading(true);
   addLog(`Sending prompt to Gemini...`);
   
-  let urlArtifact: any = null; // Déclaré avant le try/catch
+  let urlArtifact: any = null;
+  let text = "";
+  let retryCount = 0; // Compteur pour les retries API
   
   try {
-    // 4. FETCH streaming (inchangé)
-    const res = await fetch("/api/gemini", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        history: currentHistory, // Historique avec le message utilisateur d'erreur
-        currentProjectFiles,
-        projectEmbeddings,
-        uploadedImages,
-        uploadedFiles
-      }),
-    });
+    let res: Response | null = null;
+    let apiCallSuccessful = false;
 
-    if (!res.ok || !res.body) throw new Error(`Gemini API request failed: ${res.statusText}`);
+    // ---------------- NOUVEAU: BOUCLE DE RETRY ROBUSTE ----------------
+    while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
+      try {
+        if (retryCount > 0) {
+          // Délai: exponentiel avec un plafond (ex: 500ms, 1000ms, 2000ms)
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000); 
+          addLog(`[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES} après erreur... Attente de ${delay}ms.`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            history: historyForApi, 
+            currentProjectFiles,
+            // ... autres props
+            projectEmbeddings,
+            uploadedImages,
+            uploadedFiles
+          }),
+        });
+
+        if (!res.ok || !res.body) {
+          throw new Error(`Gemini API request failed: ${res.statusText}`);
+        }
+        apiCallSuccessful = true;
+        retryCount = 0; // Réinitialiser le compteur
+      } catch (e: any) {
+        console.error(`API Call failed on attempt ${retryCount + 1}:`, e.message);
+        retryCount++;
+        if (retryCount >= MAX_RETRIES) {
+          // Si MAX_RETRIES est atteint, on jette l'erreur finale
+          throw new Error(`Gemini API failed after ${MAX_RETRIES} retries. Veuillez réessayer.`);
+        }
+        res = null; 
+      }
+    }
+    // ---------------- FIN BOUCLE DE RETRY ----------------
+
+    if (!res || !res.body) return; // Devrait être géré par l'erreur ci-dessus
+
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let text = "";
     
-    // Ici, assistantMessageIndex est déjà correctement défini grâce au setMessages au-dessus.
-    
-    // -------- STREAMING LOOP ---------- (inchangé)
+    // -------- STREAMING LOOP ---------- 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -2616,29 +2670,37 @@ const sendChat = async (promptOverride?: string) => {
         const filePath = fetchFileMatch[1].trim();
         addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
 
-        if (!isFetchInProgress) {
-          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles, messages);
-
-          // Injection directe dans le flux de texte
-          text += `\n${fileContent}\n`;
-
-          // Mise à jour du message assistant
-          // L'index est le bon, mais l'appel est asynchrone, ce qui peut créer un bug rare.
-          // On le laisse tel quel pour l'instant, car c'est le pattern de votre code.
-          setMessages((prev) => {
-            const updated = [...prev];
-            // On vérifie que l'index est valide
-            if (assistantMessageIndex < updated.length) {
-                updated[assistantMessageIndex].content = text;
-            }
-            return updated;
-          });
+        // **MODIFICATION POUR CACHING ET isFetchInProgress**
+        if (!isFetchInProgress && !readFilesCache.has(filePath)) {
+          
+          // 🛑 L'appel handleFetchFileAction est asynchrone et bloque le thread.
+          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
+          
+          // Si du contenu a été retourné, on l'injecte.
+          if (fileContent) {
+            // Injection directe dans le flux de texte (Votre logique)
+            text += `\n${fileContent}\n`; 
+            readFilesCache.add(filePath); // Marque le fichier comme lu/injecté dans ce tour
+            
+            // NOTE: Votre code met à jour l'état du message assistant ici
+            // pour afficher le texte enrichi (avec fileContent) dans le flux.
+            // Cette mise à jour de l'état asynchrone est conservée pour maintenir votre logique.
+            setMessages((prev) => {
+              const updated = [...prev];
+              if (assistantMessageIndex < updated.length) {
+                  updated[assistantMessageIndex].content = text;
+              }
+              return updated;
+            });
+          }
+        } else if (readFilesCache.has(filePath)) {
+          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà lu et injecté dans ce tour : ${filePath})`);
         } else {
-          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours pour ${filePath})`);
+          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours via isFetchInProgress)`);
         }
       }
 
-      // ----------------- URL ARTIFACT -----------------
+      // ----------------- URL ARTIFACT ----------------- (inchangé)
       const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
       const urlMatch = text.match(inspirationUrlRegex);
       if (urlMatch) {
@@ -2652,7 +2714,7 @@ const sendChat = async (promptOverride?: string) => {
         } catch (e) { console.error("Failed to parse URL JSON:", e); }
       }
 
-      // ----------------- FILE ARTIFACTS -----------------
+      // ----------------- FILE ARTIFACTS ----------------- (inchangé)
       const fileArtifacts = extractFileArtifacts(text);
 
       fileArtifacts.forEach((artifact: any) => {
@@ -2691,7 +2753,7 @@ const sendChat = async (promptOverride?: string) => {
         .replace(inspirationUrlRegex, '')
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, '');
+        .replace(FETCH_FILE_REGEX, ''); // Supprime la balise de requête
 
       // Mise à jour message assistant
       setMessages((prev) => {
@@ -2706,30 +2768,17 @@ const sendChat = async (promptOverride?: string) => {
     } // FIN STREAMING
 
     // -------- POST STREAM ---------- (inchangé)
+    if (urlArtifact) {
+      addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
+      await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
+      return;
+    }
     
-
-  if (urlArtifact) {
-  addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
-  await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-  return;
-  }
-    
-                      
-      
-
-    // 🔹 Lancement de l’isolation et génération
-    
-
-  
-    
-
-
-const isAnalysisMode = promptOverride?.includes("Analysis data from");
-if (isAnalysisMode) {
-  addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
-                  }
-        
-      
+    const isAnalysisMode = promptOverride?.includes("Analysis data from");
+    if (isAnalysisMode) {
+      addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
+    }
+          
     const finalArtifacts = extractFileArtifacts(text);
     if (finalArtifacts.length > 0) {
       addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
@@ -2745,17 +2794,13 @@ if (isAnalysisMode) {
       addLog("Response treated as simple text or unrecognized format.");
     }
   } catch (err: any) {
+    // S'assurer que le message d'erreur du système est ajouté
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
-    // S'assurer que le message d'erreur du système est ajouté après le crash potentiel
-    // pour que l'utilisateur le voit, même si le message assistant n'a pas pu être mis à jour.
     setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
   } finally {
     setLoading(false);
   }
-}; 
-
-                 
-
+};
 
     
 
