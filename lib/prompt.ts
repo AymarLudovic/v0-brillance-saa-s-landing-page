@@ -161,7 +161,7 @@ C'est très bien, même, et j'ai omis de te préciser pourquoi l'Ultra Analyse e
 7. **Your Episodes** (sometimes shown) — label: "Your episodes" (for saved podcast episodes) — appears when user has saved episodes.
 8. **Made For You** (curated hub) — label: "Made For You" (present in some views) — quick link to mixes.
 9. **Divider** (visual)
-10. **Playlists — user playlists list** — each playlist row: Cover (40px square), Title (text, e.g., "Roadtrip Vibes"), owner small text ("By You" or "By {owner}"), context menu (three dots) button. Items are keyboard navigable.
+10. **Playlists — user playlists list** — each playlist row: Cover (40px square), Title (text, e.g., "Roadtrip Vibes"), owner small text ("By You" or "By owner"), context menu (three dots) button. Items are keyboard navigable.
 11. **Divider**
 12. **Install App** / **Get the App** (for web) — label: "Install app" or "Get the app"; CTA opens OS-level install dialog or directs to download page.
 13. **Profile area (compact)** — avatar + chevron: clicking opens account menu: *Profile*, *Account*, *Settings*, *Log out*.
@@ -235,10 +235,10 @@ C'est très bien, même, et j'ai omis de te préciser pourquoi l'Ultra Analyse e
 
   * Playlist title (h1)
   * Owner line: "By {owner}"
-  * Stats: "{n} likes" (if public), "{n} followers" (some UIs), duration: displayed under header in mobile: "{n} songs, {duration}"
+  * Stats: " likes" (if public), " followers" (some UIs), duration: displayed under header in mobile: " songs, {duration}"
   * Description block: free text; edit modal for owners: fields: *Edit details* (title, description, image).
 * **Primary CTAs** (left-to-right): \`Play\` (green pill), \`Shuffle play\` (text button), \`Follow\` (if not owner), \`Download\` (toggle for Premium), \`...\` (menu)
-* **Track list**: columns: \`#\`, \`Title\`, \`Album\`, \`Date added\`, \`Duration\`. Hover row shows quick actions: Play, Add to queue, Like, More.
+* **Track list**: columns:  \`Title\`, \`Album\`, \`Date added\`, \`Duration\`. Hover row shows quick actions: Play, Add to queue, Like, More.
 * **Edit flow** (owner-only): \`Edit details\` modal with Save/Cancel, \`Make collaborative\` toggle (text: "Make collaborative" with description: "Allow followers to add songs to this playlist"), \`Collaborative\` badge.
 
 ## 4.5 Album page
@@ -247,15 +247,15 @@ C'est très bien, même, et j'ai omis de te préciser pourquoi l'Ultra Analyse e
 
 ## 4.6 Artist page
 
-* **Header**: \`Follow\` / \`Following\` toggle, \`Share\` icon, \`Play\` button, \`Shuffle play\` button (some versions). Sections: \`Popular\`, \`Discography\`, \`About\` (biography), \`Appears on\`.
-* **About / Bio**: shows short paragraphs with \`Read more\` link if long.
-* **Tour / merch links**: optional external CTA links: \`Tickets\` , \`Merch\`.
+* **Header**: \`Follow\` , \`Following\` toggle, \`Share\` icon, \`Play\` button, \`Shuffle play\` button (some versions). Sections: \`Popular\`, \`Discography\`, \`About\` (biography), \`Appears on\`.
+* **About : Bio**: shows short paragraphs with \`Read more\` link if long.
+* **Tour : merch links**: optional external CTA links: \`Tickets\` , \`Merch\`.
 
 ## 4.7 Podcast / Show / Episode
 
 * **Show header**: \`Follow\` button, \`Download\` toggle, \`Share\`, \`More\`.
 * **Episode row**: Title, duration, release date, \`Play\` button, \`Download\`, \`Save\` (bookmark) for episodes, context menu with \`Add to playlist\`.
-* **Chapters / Transcripts**: if available, UI shows \`Transcript\` tab with time-synced captions; label: "Transcript"; action: "Jump to {timestamp}".
+* **Chapters : Transcripts**: if available, UI shows \`Transcript\` tab with time-synced captions; label: "Transcript"; action: "Jump to timestamp".
 
 ## 4.8 Profile & Following
 
