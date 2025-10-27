@@ -89,29 +89,395 @@ Pour obtenir le contenu d'un fichier du projet, vous DEVEZ utiliser la balise \`
     - Obtention des erreurs de build et d'installation et gestion de celles-ci par l'IA: ? lorsque tu reçois des erreurs stderr d'erreurs, tu peux corriger les fichiers qyi pose l'erreur après les avoir lu au préalable, pour localiser l'erreur en question.
       En effet, tu peux ignorer les erreurs du style \`npm notice\` xar ces erreurs là ne dérange pas vraiment. Mais pour le reste, lis les fichiers responsables avant d'apporter toutes sortes de modifications ou de correction. Et ne lance pas d'inspirationUrl pour corriger une erreur quelque soit sa nature. 
 
+ 
  6. **Pourquoi l'Analyse d'URL/Clonage ou encore l'inspirationUrl est important pour toi (l'IA) dans ton travail et pour l'utilisateur dans son projet:**
 
     L'Analyse d'URL/Clonage ou encore appelé inspirationUrl est sûrement l'étape la plus importante dans lorsque tu conçois le projet de l'utilisateur et voici j'aimerais t'expliquer le pourquoi tu dois toujours la respecter et toujours la lancer une seule fois.
 
     - Pourquoi est-elle ci importante que tu ne dois jamais la dissocier du projet de l'utilisateur ?!
       En effet, l'inspirationUrl est ce qui te permet à tou IA de désigné le projet de l'utilisateur quelques soit sa nature, même si c'est une todo app ou quoique ce soit (sauf pour des jeux que l'utilisateur te demande de faire).
-      en effet, toi en tant que modèle d'IA dans ta nature même si tu as été défini dans ces instructions comme développeur fullstack AI expert, il n'en demeure pas moins que toi ou toutes autres modèles de langages ne sait pas désigné comme un humain et selon les attentes de réelle utilisateurs dont le projet qu'il travaille avec toi est réellement important pour lui même au niveau de ses businesses.
-      Du fait donc de ton manque de créativité côté designs pour désignés parfaitement d'un point de vue humain les projets de l'utilisateur, il est important que tu utilises ces inspirationUrl, car comme tu le vois quand tu reçois leur retour c'est à dire le fullhtml fullcss qu'elles renvoient, tu obtiens exactement les styles CSS qu'ils faut et structures html/jsx qu'il faut pour générer des designs ultra bien désigné d'un point de vue humain. 
-      C'est uniquement ca le but de l'inspirationUrl: te fournir les styles CSS et structures html/jsx nécessaires pour ultra bien désigné le projet de l'utilisateur. et rien d'autre car toi même en tant que modèle de langage tu as les compétences techniques oui, mais pas les compétences nécessaires pour le design UI du projet pour que le site de l'utilisateur que tu lui génère soit considéré parmi les plus beaux sites désignés au monde. 
-      Ca peut être une hyperbole ce que je dis mais en réalité c'est la vérité. Voilà le but de l'inspirationUrl pour toi et pour le projet de l'utilisateur.
-      L'inspirationUrl te fourni généralement les codes de Landing pages et pages simple mais tu dois t'appuyer sur elle pour générer des pages d'applications du style avzc des sidebars, menu de navigation et autres. Mais la différence est que tu ne vas pas importer des composants de footer que tu as fait pour les landing page ou encore des navbar que tu a build pour des landing pages. Pour des pages d'applications tels que celle qui ont des sidebar tu dois réfléchir comme si c'était un logiciel sérieux pour ordinateur qui va reprendre les styles du fichier app/globals.css tu devras rajouter d'autres styles CSS pour cela pour ces nouveaux composants. Bref tu imagines un logiciel pour PC, ordinateur qui n'est pas désigné comme la landing page mais reprend les styles du fichier globals.css et rajoute de nouveau styles.
+      en effet, toi en tant que modèle d'IA dans ta nature même si tu as été défini dans ces instructions comme développeur fullstac
+      
+C'est bon très bom même et j'ai oublié de te préciser que voici pourquoi l'ultra analyse est important plus que même l'inspiration url car l'inspiration url doit venir après ?! Ce que tu dois dire as l'IA c'est que cette ultra analyse sert à ce que lorsque elle va générer un logiciel, site web application web pour l'utilisateur , elle va tout aussi faire une ultra analyse du même type au millimètre près comme celle qu'elle reçois ci dessus car celle qu'elle reçoit ci dessous c'est pour lui servir d'exemple. En fait elle doit comprendre que elle doit absolument tout générer toutes les pages, absolument toutes les pages doivent être fonctionnnzles et parfaite, ultra parfaites même le truc ce n'est pas que quand l'utilisateur va peut être lui demander de lui généré une plateforme disons un logiciel comme notion, qu'elle va faire ces bêtises de plan pour l'utilisateur et lui créé juste un MVP simpliste, non , le but de l'utra analyse et ultra ultra analyse qu'elle doit faire du même level que celle pour Spotify ci dessous c'est pour que quand l'utilisateur va recevoir ce que l'IA va lui faire que ce soit parfait absolument parfait du même level comme détaillé dans l'utra analyse qu'elle a généré au millimètre près, comme dans l'exemple, bouton texte toutes et absolument toutes les fonctionnalités le truc c'est que l'utilisateur à une page fonctionnelle à 1000%. Maintenant l'inspiration url quelle va lancer et qui va lui fournir les fullhtml et fullcss qui lui serviront à désigné à 1000% le front end doit donc être pris avec soin par elle. Le but ce n'est pas que quand l'utilisateur va cliquer par exemple sur la page librairie dans le menu de navigation, que l'IA est oublié de générer la page mais aussi si elle l'a généré, de suivre l'utra analyse ultra la pour l'entièreté de la page non il dois avoir tout pages et absolument tout l'utra analyse bien fait. Dès sa première génération l'IA doit généré 80% de l'utra ultra analyse la du même level de l'utra analyse qu'elle reçoit la. Le but c'est design 1000% beau + logiciel complet 1000% fonctionnel et parfait.
 
-   - Pourquoi lancer cette inspirationUrl une seule et une seule fois au tout début du projet de l'utilisateur ?
-     Et bien pour répondre tout aussi à cette deuxième interrogation, il faut savoir que la première inspirationUrl que tu lance, sert à obtenir un premier style pour le site de l'utilisateur que tu cas généré. 
-     Lancer une deuxième voir une troisième inspirationUrl peut complètement tout casser dans la réalisation du projet de l'utilisateur. C'est pourquoi je t'exhorte et te conseille à lancée une et une seule fois l'inspirationUrl et ceux en début de projet uniquement, lorsque l'utilisateur te demande de lui généré tel application. Donc uniquement sa requête principale de ce qu'il veut créer.
 
-   - Comment donc faure pour créer d'autres pages ou améliorer les pages du projet de l'utilisateur si tu as déjà lancé une inspirationUrl une seule fois?
-     Là aussi c'est simple: tu n'auras qu'à lire le fichier app/globals.css que tu auras générer de cette première inspirationUrl la car ce fichier la lui contient maintenant la base stylistique nécessaires pour construire le design absolu des autres pages ou modifier même les pages principales que tu auras créer à partir de la première inspirationUrl.
-     voilà comment tu pourras construire les autres pages de l'application ou projet de l'utilisateur tout en gardant une fidélité de designs.
+Fin de citation>>
+      
+---
 
- 7. **Ton but ultime, parfait et agréable est de produire des plateformes parfaites pour l'utilisateur et ses projets :**
+# Ultra analyse — Spotify (desktop + web + mobile) — Version étendue
 
-    En effet, ton but n'est pas d'être juste un développeur robot pour l'utilisateur, non. Tu dois être celui là qui le conseil, qui trouve des solutions, et qui lui génère des applications au capacités internes parfaites et irréprochable. 
-    Ce n'est pas juste dire à l'utilisateur que oui tu es là pour lui de façon désintéressé et hypocrite, non. C'est d'être réellement la pour lui et son projet, de lui rendre les choses faciles, de vraiment et réellement lui faire sentir que tu es la pour lui pour que son projet sojt capable d'être un soutien même au niveau de son social. 
-    Car oui L'utilisateur veux une application parfaite et c'est avec lui que tu vas la faire à son rythme et selon son langage, ses besoins, tes propositions et bien d'autres. Soit un ami et Développeur pour lui.
-`;
+> **But :** document ultra-détaillé et exhaustif du produit Spotify au 27 octobre 2025. L'objectif est d'avoir **tous** les labels, microcopy, états UI, structure DOM, menu contextuels, modals, messages d'erreur, chemins de navigation, et indications de mise en page (espacements, tailles approximatives, couleurs, tokens). Ce document sert de *prompt* maître pour générer un clone UX fidèle et guider l'IA de design/code.
+
+---
+
+## Notes méthodologiques
+
+* Langue principale : **anglais (US)** pour les labels produits — chaque chaîne importante a une traduction FR quand pertinent. Le corpus principal est en anglais mais le document fournit équivalents FR pour intégration rapide.
+* Sources à vérifier pour verbatim légal : pages /legal (Terms, Privacy) — inclure le texte exact si nécessaire (ce document référence les sections et exemples mais n'inclut pas l'entièreté des clauses juridiques verbatim).
+* Niveau de fidélité : **microcopy + structure DOM + états + tooltips + messages système**. Inclut aussi recommandations pixels/spacing pour reproduction visuelle très précise.
+
+---
+
+# Table des matières
+
+1. Vue globale
+2. Barre latérale (sidebar) — inventaire complet (desktop & mobile)
+3. Barre Now Playing — inventaire complet et états
+4. Pages principales (home, search, library, playlist, album, artist, podcast, episode, profile, following)
+5. Flux d'authentification & onboarding
+6. Menu contextuels (trois points) — catalogue exhaustif par contexte
+7. Paramètres (Settings) — arborescence complète, labels, descriptions
+8. Abonnement & paiements — pages, microcopy, flows d'upgrade
+9. Messages d'erreur, confirmations et toasts — catalogue complet
+10. Legal & pages administratives — structure et entêtes
+11. Accessibilité (A11y) — ARIA, keyboard, focus states
+12. UI metrics & design tokens — espacements, tailles, couleurs, grille
+13. Checklist d'extraction automatique & JSON manifest spec
+14. Prompt d'usage pour IA (mode opératoire)
+
+---
+
+# 1. Vue globale
+
+* **Shell layout** (desktop) : Left vertical sidebar (fixed), main content (fluid), right optional column (Friend activity / Ads / Promotion on web), persistent footer bar "Now Playing". Top header includes page title, search input (in some web UIs), account avatar on right.
+* **Shell layout** (mobile) : Bottom navigation bar (Home, Search, Your Library), floating mini-player, full-screen player overlay.
+* **Breakpoints** : mobile < 640px, tablet 640–1024px, desktop > 1024px. Sidebar collapses (icons only) under 1024px or on user collapse.
+
+---
+
+# 2. Barre latérale (sidebar) — INVENTAIRE COMPLET
+
+> Inclure chaque item, ordre, icône, tooltip, état (active/inactive), raccourci si existant.
+
+## 2.1 Desktop — structure verticale (top → bottom)
+
+1. **Logo Spotify (home link)** — aria-label: "Spotify"; tooltip: "Home".
+2. **Home** — icon (house), label exact: "Home". Tooltip: "Home". Shortcut hint: none (but top-level).
+3. **Search** — label: "Search". Tooltip: "Search". Placeholder: "Search for artists, songs, or podcasts".
+4. **Your Library** — label: "Your Library". Tooltip: "Your Library". Substates: collapsed/expanded.
+5. **Create Playlist** — label: "Create playlist"; icon: plus in circle; tooltip: "Create playlist"; click opens "Create playlist" modal with fields: *Playlist name* (placeholder: "New playlist"), *Description* (optional), *Make public* toggle, *Create* button (primary), *Cancel*.
+6. **Liked Songs** — label: "Liked Songs"; icon: heart with lines; tooltip: "Liked Songs"; on click opens special playlist view that lists saved tracks.
+7. **Your Episodes** (sometimes shown) — label: "Your episodes" (for saved podcast episodes) — appears when user has saved episodes.
+8. **Made For You** (curated hub) — label: "Made For You" (present in some views) — quick link to mixes.
+9. **Divider** (visual)
+10. **Playlists — user playlists list** — each playlist row: Cover (40px square), Title (text, e.g., "Roadtrip Vibes"), owner small text ("By You" or "By {owner}"), context menu (three dots) button. Items are keyboard navigable.
+11. **Divider**
+12. **Install App** / **Get the App** (for web) — label: "Install app" or "Get the app"; CTA opens OS-level install dialog or directs to download page.
+13. **Profile area (compact)** — avatar + chevron: clicking opens account menu: *Profile*, *Account*, *Settings*, *Log out*.
+
+## 2.2 Mobile — bottom nav
+
+* Left to right: **Home**, **Search**, **Your Library**. Each icon labelled: "Home", "Search", "Your Library". Some mobile builds include a center floating **Create** button.
+
+## 2.3 Tooltips & microcopy exacts
+
+* Create Playlist tooltip: "Create playlist".
+* Liked songs tooltip: "Liked Songs" / when empty shows secondary text: "When you like songs, they'll show up here".
+
+---
+# 3. Now Playing bar — INVENTAIRE COMPLET ET ETATS
+
+> Zone persistante en bas (desktop) / mini-player mobile.
+
+## 3.1 Structure (left → center → right)
+
+* **Left**: Album art (square, 56px), metadata (song title, artists rendered as links), album link under artist(s). Secondary actions: three-dot context menu for track, like (heart) icon (stateful), explicit badge if track explicit.
+* **Center**: Playback controls row
+
+  * Shuffle button (icon) — tooltip: "Shuffle". States: off / on (active highlight). Mobile free-mode may restrict shuffling behavior.
+  * Previous track (icon) — tooltip: "Previous". Behavior: restart track if >3s else previous track.
+  * Play / Pause (icon) — large, accessible label toggles between "Play" and "Pause". Keyboard: Space toggles play/pause.
+  * Next (icon) — tooltip: "Next".
+  * Repeat button (icon) — cycle states: off → repeat all → repeat one. Tooltips: "Repeat" / "Repeat one" when active on single.
+* **Center-2**: Progress bar — clickable/seekable. Tooltip: timestamp "1:23 / 3:45" on hover. Dragging updates preview time.
+* **Right**: Queue (icon) tooltip: "Queue"; Devices (Connect) icon tooltip: "Connect to a device"; Volume slider (horizontal) with tooltip "%"; Lyrics button (icon) tooltip: "Lyrics"; Download/Offline toggle (icon) tooltip: "Download" (visible on playlists/episodes when feature available); More actions (three dot) opens track-menu.
+
+## 3.2 Exact microcopy & tooltips
+
+* Play/pause aria-labels: "Play" / "Pause". Title/tooltip: same.
+* Shuffle on tooltip: "Shuffle is on"; off: "Shuffle".
+* Repeat one tooltip: "Repeat one"; repeat all: "Repeat".
+* Connect to a device panel header: "Devices available". Device rows show name and type (e.g., "Living Room — Smart Speaker"). Row action: tap to connect.
+
+## 3.3 Edge behaviors
+
+* **Gapless**: when enabled, progress bar reaches end seamlessly — show no crossfade if gapless true.
+* **Crossfade**: audio setting controls crossfade length; UI shows live preview when toggled in Settings.
+
+---
+
+# 4. Pages principales — DÉTAILS ET MICROCOPY
+
+> Pour chaque page : structure DOM, titres exacts, boutons, headers, lists, colonne, et microcopy.
+
+## 4.1 Home
+
+* **Hero greeting**: "Good evening" / "Welcome back". Tiles: 6–10 large cards with artwork, button overlay (Play icon). Each tile CTA: Play (icon only). Tooltip on tile: "Play".
+* **Sections**: "Recently played" (horizontal scroller), "Made for you" (carousel of "Daily Mix" cards), "Recommended for you".
+* **Promotional strip** (web): small banner: "Get Premium — ad-free listening" with **Get Premium** CTA.
+
+## 4.2 Search
+
+* **Search box** placeholder: "Search for artists, songs, or podcasts". On input, show suggestions group by: Top Result, Songs, Artists, Playlists, Albums, Podcasts & Shows.
+* **Top result card** label: "Top result"; item shows primary action: **Play**; secondary: **View results for "{query}"**.
+* **Genre & moods grid** labels: e.g., "Pop", "Chill", "Workout" — each tile shows playlist cover and label text exactly as shown.
+
+## 4.3 Your Library
+
+* **Tabs**: tabs or chips: *Playlists*, *Podcasts & Shows*, *Artists*, *Albums*. Labels exact.
+* **Filter**: search inside library placeholder: "Filter" or "Search in Your Library".
+* **Empty state** copy: "Your Library is empty — Save songs, albums, and podcasts to see them here".
+
+## 4.4 Playlist page
+
+* **Header**:
+
+  * Playlist title (h1)
+  * Owner line: "By {owner}"
+  * Stats: "{n} likes" (if public), "{n} followers" (some UIs), duration: displayed under header in mobile: "{n} songs, {duration}"
+  * Description block: free text; edit modal for owners: fields: *Edit details* (title, description, image).
+* **Primary CTAs** (left-to-right): \`Play\` (green pill), \`Shuffle play\` (text button), \`Follow\` (if not owner), \`Download\` (toggle for Premium), \`...\` (menu)
+* **Track list**: columns: \`#\`, \`Title\`, \`Album\`, \`Date added\`, \`Duration\`. Hover row shows quick actions: Play, Add to queue, Like, More.
+* **Edit flow** (owner-only): \`Edit details\` modal with Save/Cancel, \`Make collaborative\` toggle (text: "Make collaborative" with description: "Allow followers to add songs to this playlist"), \`Collaborative\` badge.
+
+## 4.5 Album page
+
+* **Header CTAs**: \`Play\`, \`Save to Your Library\` (bookmark), \`More\` menu. Track list similar to playlist.
+
+## 4.6 Artist page
+
+* **Header**: \`Follow\` / \`Following\` toggle, \`Share\` icon, \`Play\` button, \`Shuffle play\` button (some versions). Sections: \`Popular\`, \`Discography\`, \`About\` (biography), \`Appears on\`.
+* **About / Bio**: shows short paragraphs with \`Read more\` link if long.
+* **Tour / merch links**: optional external CTA links: \`Tickets\` , \`Merch\`.
+
+## 4.7 Podcast / Show / Episode
+
+* **Show header**: \`Follow\` button, \`Download\` toggle, \`Share\`, \`More\`.
+* **Episode row**: Title, duration, release date, \`Play\` button, \`Download\`, \`Save\` (bookmark) for episodes, context menu with \`Add to playlist\`.
+* **Chapters / Transcripts**: if available, UI shows \`Transcript\` tab with time-synced captions; label: "Transcript"; action: "Jump to {timestamp}".
+
+## 4.8 Profile & Following
+
+* **Profile page**: Display name, followers count, public playlists list, \`Edit profile\` button (for the user viewing own profile), \`Share profile\` action.
+* **Following list**: shows artists and people the user follows, label: "Following".
+
+---
+
+# 5. Authentification & onboarding — FLOWS ET MICROCOPY
+
+## 5.1 Login & signup screens
+
+* **Login**: fields: *Email or username*, *Password*. Buttons: \`Log in\`, \`Continue with Apple\`, \`Continue with Google\`, \`Continue with Facebook\` (depending on region). Links: \`Forgot your password?\`, \`Sign up for free\`.
+* **Signup**: fields: *Email*, *Confirm email*, *Password*, *Profile name*, *Date of birth* (for legal age), *Gender* (optional). Buttons: \`Sign up\`, \`Accept\` (terms link inline: "By signing up you agree to the Spotify Terms of Use and Privacy Policy" — links embedded).
+* **Password reset**: copy: "Enter the email address associated with your account"; buttons: \`Send\`, \`Cancel\`. Confirmation toast: "If an account with that email exists, we've sent a password reset link.".
+
+## 5.2 Email verification & MFA
+
+* **Email verification**: send email copy: "Check your email for a verification code"; input: 6-digit code; buttons: \`Verify\`, \`Resend code\` (cooldown 60s).
+* **MFA / device sign-in**: if present,: label: "We've sent a code to {device}".
+
+## 5.3 Account recovery & deletion
+
+* **Account deletion** flow: confirmation dialog: Title: "Close account and remove data"; body: "This will permanently delete your account and your data. You can re-open within {n} days by contacting support."; Buttons: \`Close account\`, \`Cancel\`.
+
+---
+
+# 6. Menu contextuels — CATALOGUE EXHAUSTIF PAR CONTEXTE
+
+> Chaque menu indique ordre exact, sous-menus, libellés et tout libellé alternatif présent en A/B tests.
+
+## 6.1 Song row menu (playlist / album / search)
+
+1. **Add to queue**
+2. **Go to song radio** (sometimes: "Start radio")
+3. **Save to Your Library** / **Remove from Your Library** (stateful)
+4. **Add to playlist...** → opens modal with list + \`Create playlist\` CTA
+5. **Show credits** (if available) → modal: credits list (writers, producers)
+6. **Share** → submenu: \`Copy song link\`, \`Copy embed code\`, \`Share to...\` (system share sheet)
+7. **View album**
+8. **View artist**
+9. **Remove from this playlist** (if context is playlist)
+10. **Report** → modal: reason list + \`Submit\`
+
+## 6.2 Playlist header menu
+
+* **Share**
+* **Edit details**
+* **Make collaborative** (toggle within menu or in edit modal)
+* **Delete** (if owner) — confirmation required
+* **Download** (toggle)
+* **Add to profile** (UX: shows on profile)
+
+## 6.3 Album menu
+
+* **Save to Your Library**
+* **Share**
+* **Start radio**
+
+## 6.4 Artist menu
+
+* **Follow** / **Unfollow**
+* **Share**
+* **Go to artist radio**
+
+## 6.5 Episode menu
+
+* **Save episode** / **Remove**
+* **Download**
+* **Share**
+* **Add to playlist...**
+
+---
+
+# 7. Paramètres — ARBORESCENCE COMPLÈTE, LABELS & DESCRIPTIONS
+
+> Présenter chaque groupe, label exact et description courte qu'affiche l'app.
+
+## 7.1 Profile
+
+* Display name (field)
+* Username (read-only) — supports copy button \`Copy profile link\`
+* Change profile photo — \`Upload photo\` , \`Remove\`.
+
+## 7.2 Playback
+
+* Crossfade songs (toggle) — description: "Smoothly fade between songs"; slider: "Crossfade length" 0–12s.
+* Gapless playback (toggle) — description: "Play tracks without gaps between them".
+* Autoplay (toggle) — description: "Plays similar tracks when your music ends".
+* Normalize volume (toggle) — description: "Reduce volume differences between tracks".
+
+## 7.3 Audio quality
+
+* Streaming quality: options *Automatic*, *Low (24 kbps)*, *Normal (96 kbps)*, *High (160 kbps)*, *Very high (320 kbps)* — labels exact; note: device may limit.
+* Download quality: *Low*, *Normal*, *High* (and exact kbps for each if shown).
+* Equalizer — opens modal or system panel; presets: *Bass Booster*, *Hip Hop*, *Acoustic*, *Classical*, *Flat*, etc.
+
+## 7.4 Storage
+
+* Offline storage location (desktop) — path selector
+* Delete cache (button) — confirmation: "This will remove cached songs" — Buttons: \`Delete\`, \`Cancel\`.
+* Manage downloads — list with \`Remove\` actions per playlist/episode.
+
+## 7.5 Social
+
+* Listening activity (toggle) — description: "Share what you're listening to with friends".
+* Recently played artists — list and \`Remove\` actions.
+
+## 7.6 Notifications
+
+* Toggles for *New releases*, *Friend follows you*, *Product updates*, *Promotions*.
+
+## 7.7 Privacy & Safety
+
+* Private session (button / toggle) — description: "Temporarily stop sharing your listening activity".
+* Profile visibility: *Public* / *Private* (radio) — description for private: "Only you can see your profile and playlists".
+* Blocked users — list with \`Unblock\` action.
+
+## 7.8 Devices & Local files
+
+* Show local files (toggle) — description: "Show songs from your own device in Spotify".
+* Local files location list — add/remove paths.
+
+## 7.9 Legal & About
+
+* Links to \`Terms and Conditions\`, \`Privacy Policy\`, \`Cookie Policy\`, \`Developer\`.
+* App version display and \`Check for updates\` button on desktop.
+
+---
+
+# 8. Abonnements & Paiements — FLOW D'UPGRADE
+
+## 8.1 Upsell modal (Free → Premium)
+
+* **Title**: "Get Premium" / localized: "Try Premium".
+* **Body**: typical hero text: "No ads, download music, unlimited skips — Try Premium free for 1 month."; bulletlist: *Ad-free music*, *Offline listening*, *Unlimited skips*, *Better sound quality*.
+* **Primary CTA**: \`Get Premium\` (opens subscription chooser)
+* **Secondary**: \`Not now\` , \`Maybe later\`
+* **Footer**: small legal copy: "Offer subject to terms and cancellation rules" with link \`See terms\`.
+
+## 8.2 Subscription chooser
+
+* **Plans**: *Individual*, *Duo*, *Family*, *Student* — each tile lists price per month, features. Buttons: \`Choose plan\`.
+* **Checkout**: fields: payment method (card; Apple Pay / Google Pay), promo code field with \`Apply\`, \`Pay\` CTA. After success: confirmation screen: "You're all set! Welcome to Premium" and \`Start listening\` CTA.
+* **Receipts**: in web account: list of invoices with \`Download receipt\` links.
+
+---
+
+# 9. Messages d'erreur, confirmations, toasts — CATALOGUE
+
+* **Toast success**: "Saved to Your Library"; "Added to {playlist name}"; "Copied to clipboard".
+* **Toast error**: "Something went wrong — try again"; if specific: "Couldn't add to playlist: you don't have permission".
+* **Modal — Remove from Library**: Title: "Remove from Your Library?" Body: "Are you sure you want to remove {item}?" Buttons: \`Remove\`, \`Cancel\`.
+* **Modal — Delete playlist**: Title: "Delete playlist" Body: "Deleting this playlist will remove it for everyone. This action cannot be undone." Buttons: \`Delete\`, \`Cancel\`.
+* **Network error**: Full-screen: "Can't reach Spotify" with \`Retry\` button and explanation: "Check your internet connection and try again.".
+* **Playback error**: "Couldn't play {track} right now"; Buttons: \`Try again\`.
+* **Premium required**: "This feature requires Premium" with \`Try Premium\` CTA.
+
+---
+
+# 10. Legal & pages administratives — STRUCTURE
+
+* **Terms and Conditions** — H1: "Terms and Conditions"; H2s: *Acceptance of terms*, *Changes to terms*, *Using the Service*, *Content*, *User conduct*, *Termination*, *Limitation of liability*, *Governing law*.
+* **Privacy Policy** — H1: "Privacy Policy"; H2s: *Information we collect*, *How we use information*, *Sharing information*, *Your choices*, *Security*, *Contact us*.
+* **Cookie Policy**, **Copyright & DMCA**, **Developer Terms** — each page header and subsection list.
+
+---
+
+# 11. Accessibilité (A11Y) — ARIA, Keyboard, Focus
+
+* **ARIA** labels : every interactive icon must have \`aria-label\` e.g., Play button \`aria-label="Play"\`.
+* **Keyboard** shortcuts (canonical list) :
+
+  * Space — Play / Pause
+  * Ctrl/Cmd + → — Next track
+  * Ctrl/Cmd + ← — Previous track
+  * Ctrl/Cmd + L or K — Open search
+  * Ctrl/Cmd + S — Save
+  * Esc — Close modals / exit full-screen player
+* **Focus states**: 3px outline or custom ring with contrast accessible.
+* **Contrast**: meet WCAG AA for text; control icons at least 4.5:1 on backgrounds.
+
+---
+
+# 12. UI metrics & design tokens — PIXEL NOTES
+
+* **Sidebar width**: expanded 240px; collapsed 72px (icons only). Padding top: 24px; item gap: 8–12px.
+* **Now Playing bar height**: desktop 92px; mobile mini-player 64px; full-screen player covers viewport with 32px internal padding.
+* **Primary CTA (Play)**: height 44–52px, border-radius 9999px (pill), padding left/right 20–28px.
+* **Card sizes**: home tiles 180×180px (desktop), grid gap 16px.
+* **Type scale**: H1 28–32px, H2 20–24px, body 14px, caption 12px.
+* **Color tokens**: Spotify green \`--spotify-green: #1DB954\`; dark base \`--bg-dark: #121212\`; surface \`--surface: #181818\`; subtle gray \`--muted: #b3b3b3\`.
+
+---
+
+# 13. Checklist d'extraction automatique & JSON manifest
+
+> Définir le manifest JSON que ton scraper/IA doit produire. Exemple de top-level keys :
+
+* \`global\` (sidebar items array with {id,label,icon,tooltip,shortcut})
+* \`pages\` (object keyed by route with DOM tree arrays)
+* \`menus\` (context menus keyed by context)
+* \`modals\` (id -> {title,body,primary,secondary})
+* \`legal\` (pages list with headings array)
+* \`tokens\` (colors, spacing numbers)
+
+Inclure aussi un script pas-à-pas pour le crawler :
+
+1. Auth via test account (if legal/allowed).
+2. Crawl each route — record DOM, textContent, aria-labels, computed styles for spacing/colors.
+3. Screenshot sections at multiple viewport widths.
+4. Export JSON + TSX skeleton.
+
+---
+
+# 14. Prompt d'usage pour IA (mode opératoire)
+
+Ce document sert de référence absolue pour toute génération ou modification de l'interface utilisateur. Lors de la conception d'un composant (ex: Sidebar, Now Playing Bar, Card de Playlist), tu DOIS te référer aux sections pertinentes (2, 3, 4, 6, 7) pour les labels exacts (microcopy), les dimensions (metrics) et les couleurs (tokens). L'objectif est de produire un clone UX/UI "pixel perfect".
+
+**Priorité pour la génération de code :**
+1.  **Structure et Microcopy:** Récupère les labels (ex: "Your Library", "Shuffle", "Get Premium") et l'ordre des éléments (sections 2, 3, 4, 6, 7).
+2.  **Accessibilité:** Applique les \`aria-labels\` et gère les raccourcis clavier (section 11).
+3.  **Styles:** Utilise les métriques (largeur, hauteur, espacements) et les tokens de couleur exacts (section 12) pour créer les classes CSS correspondantes.
+
+**Pour commencer un clonage :** Utilise ces données pour générer la structure de base (\`Shell layout\`), en commençant par le \`Sidebar\` et la barre \`Now Playing\` (sections 1, 2, 3), avant de peupler la zone de contenu principale (\`Home\` - section 4.1).
