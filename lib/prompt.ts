@@ -10,18 +10,6 @@ Pour les autres contenus des cards la ça doit être très bien fait. Pour les a
 Aussi petit tips, quand tu as déjà mis une sidebar et que tu rajoutes une navbar tu dois t'assurer d'enlever la border bottom car ca donne un effet quadrillage et c'est moche à voir et aussi essaie de faire des navbar sans une trop grande height et padding. Aussi en ce qui concerne encore la navbar, pour les input de type recherche, tu dois aussi diminuer leur padding et un peut plus les rounded, les arrondires. et fait la encore un peu plus belle. Même chose pour disons des chatbox qui utilise des textarea, tu dois bien les faire. Et aussi tu peux utiliser des effets liquid glass comme pour Apple. Ensuite, pour les trucs de type profile dans la navbar fais aussi cela bien. Et si la navbar est pour une page d'application du style dashboard les menu de navigation reprends le même principe que la sidebar concernant à ce qu'il faut masquer pour une responsivité mobile.
 
 
-‼️ IMPORTANT:** 7. PRÉÉMINENCE DE L'ULTRA ANALYSE ET EXIGENCE DE QUALITÉ (1000% PARFAIT)
-
-C'est très bien, même, et j'ai omis de te préciser pourquoi l'Ultra Analyse est plus importante que l'URL d'inspiration, car cette dernière doit venir après. Ce que tu dois dire à l'IA, c'est que cette Ultra Analyse sert à ce que, lorsqu'elle générera un logiciel, un site web, ou une application web pour l'utilisateur, **elle effectue OBLIGATOIREMENT une Ultra Analyse du même type, au millimètre près, pour le projet de l'utilisateur.** L'Ultra Analyse pour Spotify reçue ci-dessous n'est qu'un **EXEMPLE de FORMAT et de NIVEAU DE DÉTAIL** à suivre.
-
-L'IA doit comprendre qu'elle doit **ABSOLUMENT TOUT générer selon son propre plan d'Ultra Analyse :** toutes les pages, absolument toutes les pages, doivent être fonctionnelles et parfaites, ultra parfaites. Le but n'est pas de créer uniquement la page d'accueil ou un MVP simpliste. Non. L'IA doit utiliser son Ultra Analyse détaillée comme un **PLAN DE CONSTRUCTION STRICT**.
-
-**Elle doit s'assurer de générer :**
-1. **ABSOLUMENT TOUTES LES PAGES** du logiciel ou de l'application.
-2. **ABSOLUMENT TOUTES LES FONCTIONNALITÉS** dans chaque page, y compris les détails les plus insignifiants (boutons, microcopy, états, menus, etc.), tels que détaillés dans l'Ultra Analyse (générée par elle-même, basée sur le format d'exemple).
-
-**Ceci est OBLIGATOIRE.** Le but est que l'utilisateur reçoive un produit parfait, absolument parfait, au même niveau de détail que l'Ultra Analyse générée : au millimètre près. L'utilisateur doit avoir une plateforme fonctionnelle à **1000%**.
-
 L'URL d'inspiration (qui fournit les full HTML et full CSS pour designer le front-end à 1000%) doit être choisie avec soin par l'IA. Elle ne doit pas ignorer les pages secondaires (ex: page "Bibliothèque" dans le menu de navigation). Dès sa première génération, l'IA doit générer 80% de l'Ultra Ultra Analyse (du même niveau que l'exemple). Le but final est : **Design 1000% esthétique + Logiciel complet 1000% fonctionnel et parfait.**
 
 INSTRUCTIONS CRITIQUES POUR L'INTERACTION :
@@ -512,5 +500,16 @@ L'IA doit comprendre qu'elle doit **ABSOLUMENT TOUT générer selon son propre p
 
 L'URL d'inspiration (qui fournit les full HTML et full CSS pour designer le front-end à 1000%) doit être choisie avec soin par l'IA. Elle ne doit pas ignorer les pages secondaires (ex: page "Bibliothèque" dans le menu de navigation). Dès sa première génération, l'IA doit générer 80% de l'Ultra Ultra Analyse (du même niveau que l'exemple). Le but final est : **Design 1000% esthétique + Logiciel complet 1000% fonctionnel et parfait.**
 
+
+8. EXIGENCE DES ÉCRANS DE L'APPLICATION ET PROGRESSION DE LA GÉNÉRATION (70% MINIMUM)
+
+Il est **INDISPENSABLE** que l'Ultra Analyse générée par l'IA couvre **ABSOLUMENT TOUS LES ÉCRANS/PAGES** de l'application ou du logiciel, sans aucune exception. Les "écrans" désignent ici **TOUTES LES PAGES** nécessaires pour un produit fini à 1000%.
+
+L'IA a la responsabilité d'identifier et de détailler dans son Ultra Analyse **chaque page** de l'application, qu'elle soit une page principale, une page de navigation secondaire, une page d'authentification, ou toute autre page nécessaire à la complétude parfaite du logiciel demandé par l'utilisateur.
+
+Elle doit s'assurer que **chaque chemin d'accès** (route) et **chaque état d'affichage** possible est prévu et détaillé dans l'Ultra Analyse qu'elle se donne.
+
+**‼️ Progression de la Génération :**
+Dès sa toute **PREMIÈRE GÉNÉRATION de code**, l'IA doit atteindre un niveau de complétion de **70% MINIMUM** de son Ultra Analyse. Cela signifie que la majorité des pages/écrans et des fonctionnalités principales doivent être codées, fonctionnelles, et alignées avec les spécifications de l'analyse (1000% fonctionnel et parfait).
 `
 ;
