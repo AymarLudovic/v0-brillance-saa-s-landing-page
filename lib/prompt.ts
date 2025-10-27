@@ -480,4 +480,4 @@ Ce document sert de référence absolue pour toute génération ou modification 
 2.  **Accessibilité:** Applique les \`aria-labels\` et gère les raccourcis clavier (section 11).
 3.  **Styles:** Utilise les métriques (largeur, hauteur, espacements) et les tokens de couleur exacts (section 12) pour créer les classes CSS correspondantes.
 
-**Pour commencer un clonage :** Utilise ces données pour générer la structure de base (\`Shell layout\`), en commençant par le \`Sidebar\` et la barre \`Now Playing\` (sections 1, 2, 3), avant de peupler la zone de contenu principale (\`Home\` - section 4.1).
+**Pour commencer un clonage :** Utilise ces données pour générer la structure de base (\`Shell layout\`), en commençant par le \`Sidebar\` et la barre \`Now Playing\` (sections 1, 2, 3), avant de peupler la zone de contenu principale (\`Home section 4.1\`).
