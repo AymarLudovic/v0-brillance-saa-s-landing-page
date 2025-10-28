@@ -37,7 +37,7 @@ export async function POST(req: Request) {
             start: "next dev -p 3000 -H 0.0.0.0",
           },
           dependencies: {
-            next: "14.2.16",
+            next: "16.0.1",
             react: "18.2.0",
             "react-dom": "18.2.0",
             "iconsax-reactjs": "0.0.8"
