@@ -2526,15 +2526,14 @@ const handleFetchFileAction = async (
 
 // ---------------------- SEND CHAT ----------------------
 
-       // ---------------------- SEND CHAT (CORRIGÉ) ----------------------
-
-
-                 
-// Définir ces constantes au début du composant, en dehors de sendChat
+       
+          // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 500; // Démarrage rapide
+const BASE_DELAY_MS = 500;
+// NOUVEAU: Seuil pour inclure le contenu complet d'un fichier dans le prompt
+const CONTENT_SNAPSHOT_LIMIT = 300000; // Exemple: inclut les fichiers de moins de 5000 caractères
 
-// ---------------------- SEND CHAT (AVEC AJOUTS) ----------------------
+// ---------------------- SEND CHAT (AVEC CONTENU DE FICHIER DANS L'HISTORIQUE) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
@@ -2583,21 +2582,45 @@ const sendChat = async (promptOverride?: string) => {
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  // ---------------- NOUVEAU: INJECTION DU CONTEXTE SYSTÈME ----------------
-  const fileList = currentProjectFiles.map(file => 
-    `<project_file path="${file.filePath}" size="${file.content.length} chars"/>`
-  ).join("\n");
+  // ---------------- NOUVEAU: INJECTION DU CONTEXTE SYSTÈME (LISTE ET CONTENU) ----------------
   
+  const filesList: string[] = [];
+  const filesContentSnapshots: string[] = [];
+  
+  currentProjectFiles.forEach(file => {
+      const content = file.content || "";
+      const size = content.length;
+      
+      // Ajout à la liste (toujours inclus)
+      filesList.push(`<project_file path="${file.filePath}" size="${size} chars"/>`);
+      
+      // Ajout du contenu complet (si la taille est inférieure au seuil)
+      if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
+          filesContentSnapshots.push(
+              `<file_content_snapshot path="${file.filePath}" totalLines="${content.split('\n').length}">\n` +
+              content + 
+              `\n</file_content_snapshot>`
+          );
+      }
+  });
+
   const systemFileContext: Message = {
     role: "system",
-    content: `# PROJECT FILES (${currentProjectFiles.length} files)\n[Use the <fetch_file path="..."/> artifact to read content.]\n${fileList}`
+    content: (
+        `# PROJECT FILES (${currentProjectFiles.length} files)\n` +
+        `[Use the <fetch_file path="..."/> artifact to read content for files not included below.]\n` +
+        filesList.join("\n") +
+        (filesContentSnapshots.length > 0 
+            ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS (Size <= ${CONTENT_SNAPSHOT_LIMIT} chars)\n` + filesContentSnapshots.join("\n\n")
+            : ""
+        )
+    )
   };
 
   // L'historique pour l'API commence avec le contexte système.
   let historyForApi = [systemFileContext, ...currentHistory];
 
-  // ---------------- NOUVEAU: CACHE LOCAL POUR LECTURE DE FICHIER ----------------
-  // Utilisé pour implémenter la non-relecture demandée.
+  // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (inchangé) ----------------
   const readFilesCache = new Set<string>();
 
   setLoading(true);
@@ -2605,17 +2628,16 @@ const sendChat = async (promptOverride?: string) => {
   
   let urlArtifact: any = null;
   let text = "";
-  let retryCount = 0; // Compteur pour les retries API
+  let retryCount = 0;
   
   try {
     let res: Response | null = null;
     let apiCallSuccessful = false;
 
-    // ---------------- NOUVEAU: BOUCLE DE RETRY ROBUSTE ----------------
+    // ---------------- BOUCLE DE RETRY ROBUSTE (inchangé) ----------------
     while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
       try {
         if (retryCount > 0) {
-          // Délai: exponentiel avec un plafond (ex: 500ms, 1000ms, 2000ms)
           const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000); 
           addLog(`[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES} après erreur... Attente de ${delay}ms.`);
           await new Promise(resolve => setTimeout(resolve, delay));
@@ -2627,7 +2649,6 @@ const sendChat = async (promptOverride?: string) => {
           body: JSON.stringify({ 
             history: historyForApi, 
             currentProjectFiles,
-            // ... autres props
             projectEmbeddings,
             uploadedImages,
             uploadedFiles
@@ -2638,12 +2659,11 @@ const sendChat = async (promptOverride?: string) => {
           throw new Error(`Gemini API request failed: ${res.statusText}`);
         }
         apiCallSuccessful = true;
-        retryCount = 0; // Réinitialiser le compteur
+        retryCount = 0;
       } catch (e: any) {
         console.error(`API Call failed on attempt ${retryCount + 1}:`, e.message);
         retryCount++;
         if (retryCount >= MAX_RETRIES) {
-          // Si MAX_RETRIES est atteint, on jette l'erreur finale
           throw new Error(`Gemini API failed after ${MAX_RETRIES} retries. Veuillez réessayer.`);
         }
         res = null; 
@@ -2651,7 +2671,7 @@ const sendChat = async (promptOverride?: string) => {
     }
     // ---------------- FIN BOUCLE DE RETRY ----------------
 
-    if (!res || !res.body) return; // Devrait être géré par l'erreur ci-dessus
+    if (!res || !res.body) return;
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -2671,20 +2691,22 @@ const sendChat = async (promptOverride?: string) => {
         addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
 
         // **MODIFICATION POUR CACHING ET isFetchInProgress**
-        if (!isFetchInProgress && !readFilesCache.has(filePath)) {
+        // Ajout d'une vérification pour le contenu déjà injecté via le snapshot initial
+        const isContentPreInjected = currentProjectFiles.some(
+            f => f.filePath === filePath && (f.content || "").length <= CONTENT_SNAPSHOT_LIMIT
+        );
+        
+        // Si non en cours, non déjà lu (cache), ET non déjà injecté au début de la conversation.
+        if (!isFetchInProgress && !readFilesCache.has(filePath) && !isContentPreInjected) {
           
-          // 🛑 L'appel handleFetchFileAction est asynchrone et bloque le thread.
           const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
           
-          // Si du contenu a été retourné, on l'injecte.
           if (fileContent) {
             // Injection directe dans le flux de texte (Votre logique)
             text += `\n${fileContent}\n`; 
             readFilesCache.add(filePath); // Marque le fichier comme lu/injecté dans ce tour
             
-            // NOTE: Votre code met à jour l'état du message assistant ici
-            // pour afficher le texte enrichi (avec fileContent) dans le flux.
-            // Cette mise à jour de l'état asynchrone est conservée pour maintenir votre logique.
+            // Mise à jour du message assistant (inchangé)
             setMessages((prev) => {
               const updated = [...prev];
               if (assistantMessageIndex < updated.length) {
@@ -2693,6 +2715,8 @@ const sendChat = async (promptOverride?: string) => {
               return updated;
             });
           }
+        } else if (isContentPreInjected) {
+            addLog(`⚠️ [FETCH_FILE] Ignoré (contenu déjà injecté dans le message système : ${filePath})`);
         } else if (readFilesCache.has(filePath)) {
           addLog(`⚠️ [FETCH_FILE] Ignoré (déjà lu et injecté dans ce tour : ${filePath})`);
         } else {
@@ -2753,7 +2777,9 @@ const sendChat = async (promptOverride?: string) => {
         .replace(inspirationUrlRegex, '')
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, ''); // Supprime la balise de requête
+        .replace(FETCH_FILE_REGEX, '') // Supprime la balise de requête
+        // NOUVEAU: Supprime l'artefact de contenu injecté (snapshot) pour l'affichage
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
 
       // Mise à jour message assistant
       setMessages((prev) => {
@@ -2794,13 +2820,12 @@ const sendChat = async (promptOverride?: string) => {
       addLog("Response treated as simple text or unrecognized format.");
     }
   } catch (err: any) {
-    // S'assurer que le message d'erreur du système est ajouté
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
     setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
   } finally {
     setLoading(false);
   }
-};
+};    
 
     
 
