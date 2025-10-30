@@ -1909,8 +1909,7 @@ ${file.content}
     // 🛑 NOUVEAU: On combine le contexte d'injection avec la demande originale. 
     // Cela force l'IA à considérer TOUT ce bloc comme son dernier message utilisateur.
     const finalInjectionPrompt = `
-    Le code du site ${urlToAnalyze} a été cloné et écrit dans les fichiers suivants. Vous avez maintenant ce code pour référence dans ce tour de conversation.
-     Lis les fichiers en questions.
+    Le site web ${urlToAnalyze} a été cloné. Les fichiers code source de celui-ci ont été créé et je pense que tu peux les voir dans ton historique. Confirme si tu peux les voir a l'utilisateur sans faire comme si tu répondais au message actuel. Et donne lui juste un peu de détails sur les fichiers du style à voir de quoi le site web parle et ce su'il contient. Pas besoin d'ultra analyse. C'est juste une confirmation.
     `;
 
     addLog("[CLONE-FLOW] ✅ Notifying Gemini with full file content...");
@@ -2074,7 +2073,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         - fullCSS (styles globaux et variables)
         - fullJS (scripts analysés)
 
-        NB: tu dois fidèlement créé faire ce que l'utilisateur t'a demandé de build dans sa requête : ${originalUserPrompt}. En effet, ces fullhtml et fullcss que tu va recevoir si sont des codes pour des landing pages de base. Oui en effet ce sont des codes de landing page.
+        NB: tu dois fidèlement créé faire ce que l'utilisateur t'a demandé de build dans sa requête : En effet, ces fullhtml et fullcss que tu va recevoir si sont des codes pour des landing pages de base. Oui en effet ce sont des codes de landing page.
             pour donc construire les landing page du projet de l'utilisateur selon sa requête ${originalUserPrompt} . Maus si il s'agit de générer les autres pages un peut plus techniques telsque des pages de dashboard, tu ne dois pas reprendre les codes landing pages. En effet, le seul code que tu 
         
         Ces fichiers représentent la base d’inspiration. 
