@@ -3646,6 +3646,19 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                   </pre>
               );
           }
+        // ----------------------------------------------------
+// DÉFINITIONS DES CONSTANTES POUR LE RENDU DE L'ARTEFACT
+// ----------------------------------------------------
+// (À placer dans la fonction de rendu, avant la vérification isFileArtifact)
+
+const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
+const isBuilding = isCreating || isEditing;
+const totalItems = artifact?.parsedList?.length || 0;
+
+// Chemin SVG du fichier (utilisé pour les listes d'artefacts)
+const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
+const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
 
           // 3. AFFICHAGE DE L'ARTEFACT DE CODE (en temps réel)
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
@@ -3655,67 +3668,46 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
               displayElements.push(
                   <div key="code-artifact" className={`   border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
-                      
-                      <ul className="list-disc  w-[100%] space-y-1">
-  {artifact.parsedList
-      .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
-      <li key={i} className="text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80">
-        <span>
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
-        </span>
-        {/* Afficher l'état TERMINE si l'artefact est parsé et complet */}
-        <p>{item.type === 'create' ? 'created' : 'edited'}</p>
-        <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
-        
-      </li>
-  ))}
-  
-  {/* NOUVEAU: Indication qu'il reste du contenu à streamer / Construction en cours */}
-  {(() => {
-    // Vérifie si la balise de CRÉATION est ouverte mais non fermée
-    const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+                      <ul className="list-disc pl-5 w-[100%] space-y-1">
+    {artifact.parsedList
+        .map((item: {path: string, type: 'create' | 'changes'}, i) => {
+            
+            // Détermine si cet élément est le dernier et si le streaming est toujours actif
+            const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
+            
+            // Détermine le texte du statut : Creating/Editing si en streaming, sinon created/edited
+            const statusText = item.type === 'create' 
+                ? (isCurrentlyStreaming ? 'Creating' : 'created')
+                : (isCurrentlyStreaming ? 'Editing' : 'edited');
+            
+            return (
+                <li 
+                    key={i} 
+                    // Ajoute l'effet d'animation sur l'élément en cours de traitement
+                    className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}
+                >
+                    <span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F">
+                            <path d={svgPath}/>
+                        </svg>
+                    </span>
+                    <p className="font-semibold">{statusText}</p>
+                    <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
+                </li>
+            );
+        })}
     
-    // Vérifie si la balise de MODIFICATION est ouverte mais non fermée
-    const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
-
-    if (isCreating) {
-      return (
-         {artifact.parsedList
-      .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
-      <li key={i} className="text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80">
-        <span>
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
-        </span>
-        {/* Afficher l'état TERMINE si l'artefact est parsé et complet */}
-        <p>Creating</p>
-        <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
-        
-      </li>
-  ))}
-  
-      );
-    } 
-    
-    if (isEditing) {
-      return (
-      {artifact.parsedList
-      .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
-      <li key={i} className="text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80">
-        <span>
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
-        </span>
-        {/* Afficher l'état TERMINE si l'artefact est parsé et complet */}
-        <p>Editing</p>
-        <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
-        
-      </li>
-  ))}
-  
-      );
-    }
-    
-    return null; // Rien n'est en cours de construction
-  })()}
+    {/* Indicateur de chargement global pour le "Building..." en fin de liste */}
+    {isBuilding ? (
+        <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1">
+          <span className="animate-spin">
+            {/* SVG d'icône de chargement */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 0 24 24" width="24px" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
+          </span>
+          {/* Affiche Creating... ou Editing... */}
+          <span className="font-semibold">{currentStatusText}...</span>
+        </li>
+    ) : null}
 </ul>
                   </div>
               );
