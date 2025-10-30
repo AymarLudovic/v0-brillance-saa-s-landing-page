@@ -2528,9 +2528,9 @@ const handleFetchFileAction = async (
        
           // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 20;
-const BASE_DELAY_MS = 4500;
+const BASE_DELAY_MS = 25500;
 // NOUVEAU: Seuil pour inclure le contenu complet d'un fichier dans le prompt
-const CONTENT_SNAPSHOT_LIMIT = 300000; // Exemple: inclut les fichiers de moins de 5000 caractères
+const CONTENT_SNAPSHOT_LIMIT = 4000000; // Exemple: inclut les fichiers de moins de 5000 caractères
 
 // ---------------------- SEND CHAT (AVEC CONTENU DE FICHIER DANS L'HISTORIQUE) ----------------------
 const sendChat = async (promptOverride?: string) => {
@@ -3534,7 +3534,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">
               Thinking...
             </p>
-            <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
+            <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
           </div>
           )}
         </div>
@@ -3651,32 +3651,54 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
               
               const pathsToDisplay = artifact.parsedList.length;
-              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+              const artifactClasses = hasTextContent ? "mt-1 pt-1  border-[rgba(55,50,47,0.1)]" : "pt-0";
 
               displayElements.push(
                   <div key="code-artifact" className={`   border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
                       
-                      <ul className="list-disc pl-5 w-[100%] space-y-1">
-                          {artifact.parsedList
-                              .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
-                              <li key={i} className="text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80">
-                                <span>
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
-                                </span>
-                                <p>{item.type === 'create' ? 'created' : 'edited'}</p>
-                                <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
-                                
-                              </li>
-                          ))}
-                          {/* Indication qu'il reste du contenu à streamer */}
-                          {rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>') ||
-                           rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>')
-                          ? (
-                               <li className="text-xs text-[#37322F]/60 italic">
-                                 Building... 
-                               </li>
-                          ) : null}
-                      </ul>
+                      <ul className="list-disc  w-[100%] space-y-1">
+  {artifact.parsedList
+      .map((item: {path: string, type: 'create' | 'changes'}, i) => ( 
+      <li key={i} className="text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80">
+        <span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
+        </span>
+        {/* Afficher l'état TERMINE si l'artefact est parsé et complet */}
+        <p>{item.type === 'create' ? 'created' : 'edited'}</p>
+        <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
+        
+      </li>
+  ))}
+  
+  {/* NOUVEAU: Indication qu'il reste du contenu à streamer / Construction en cours */}
+  {(() => {
+    // Vérifie si la balise de CRÉATION est ouverte mais non fermée
+    const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+    
+    // Vérifie si la balise de MODIFICATION est ouverte mais non fermée
+    const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
+
+    if (isCreating) {
+      return (
+        <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 animate-pulse">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
+          Creating...
+        </li>
+      );
+    } 
+    
+    if (isEditing) {
+      return (
+        <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 animate-pulse">
+         <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z"/></svg>
+          Editing...
+        </li>
+      );
+    }
+    
+    return null; // Rien n'est en cours de construction
+  })()}
+</ul>
                   </div>
               );
           }
@@ -3697,41 +3719,6 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           // 5. AFFICHAGE DU BOUTON COPIER (FORCÉMENT VISIBLE)
           // 5. AFFICHAGE DU BOUTON COPIER (CONDITION ULTRA SIMPLIFIÉE)
           // La seule condition est que ce soit l'assistant.
-          if (msg.role === "assistant") {
-              
-              // Définir la source du texte à copier: uniquement le texte explicatif nettoyé.
-              // On utilise le texte nettoyé s'il existe, sinon un message par défaut.
-              const textToCopy = finalContentToDisplay.length > 0 ? finalContentToDisplay : "Assistant response generated artifacts or is loading."; 
-              
-              const Icon = isCopied ? Check : Copy; 
-
-              const handleCopy = () => {
-                  navigator.clipboard.writeText(textToCopy).then(() => {
-                      setCopiedMessageIndex(index); 
-                      setTimeout(() => setCopiedMessageIndex(null), 2000); 
-                  }).catch(err => {
-                      console.error("Erreur de copie:", err);
-                  });
-              };
-              
-              displayElements.push(
-                  <div 
-                      key="copy-button" 
-                      className={`
-                          absolute bottom-[-10px] right-[-32px] 
-                          p-1 rounded-full 
-                          bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] 
-                          cursor-pointer 
-                          opacity-100 transition-opacity 
-                          ${isCopied ? 'opacity-100' : 'opacity-100'} // Toujours visible (opacity-100)
-                      `}
-                      onClick={handleCopy}
-                      title="Copier le texte explicatif"
-                  >
-                      <Icon className={`h-4 w-4 ${isCopied ? 'text-green-600' : 'text-[#37322F]'}`} />
-                  </div>
-              );
-    }
 
 
           // LOGIQUE DE RETOUR FINAL
