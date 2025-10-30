@@ -46,7 +46,7 @@ Quand tu veux modifier un fichier existant, tu dois renvoyer les changements lig
 - Utilise la librairie d'icones \`iconsax-reactjs\` pour importer des icônes. Sayf les icônes su type social, tels que Twitter, Facebook, etc
 
  🚨🚧 ‼️‼️‼️ ATTENTION ‼️‼️‼️: 
- 1- Pour éditer les fichiers en utilisant \`file_changes\`, ne les entourent jamais ces balises xml, par ceci par des blocs du style \`\`\`xml\`\`\` ou tout autre, tu m'entends jamais ne fait ça car la balise fileschanges ne pourra pas être capturer dans ces conditions. Renvoie la toujours comme ceci dans ce format:
+ 1- Pour éditer les fichiers en utilisant \`file_changes\`, ne les entourent jamais ces balises xml, par ceci par des blocs du style bref . ou tout autre, tu m'entends jamais ne fait ça car la balise fileschanges ne pourra pas être capturer dans ces conditions. Renvoie la toujours comme ceci dans ce format:
  <file_changes path="chemin/du/fichier.tsx">
 [
   { "action": "delete", "startLine": 10, "endLine": 12 },
