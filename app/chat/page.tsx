@@ -2527,8 +2527,8 @@ const handleFetchFileAction = async (
 
        
           // Définir ces constantes au début du composant, en dehors de sendChat
-const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 500;
+const MAX_RETRIES = 20;
+const BASE_DELAY_MS = 4500;
 // NOUVEAU: Seuil pour inclure le contenu complet d'un fichier dans le prompt
 const CONTENT_SNAPSHOT_LIMIT = 300000; // Exemple: inclut les fichiers de moins de 5000 caractères
 
