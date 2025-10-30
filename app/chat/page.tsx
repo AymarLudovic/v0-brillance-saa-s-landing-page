@@ -3526,6 +3526,17 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               <circle cx="12" cy="12" r="10" />
             </svg>
           </div>
+
+          {/* NOUVEAU: Indicateur "Thinking..." */}
+          {loading && index === messages.length - 1 && (
+            
+          <div className="flex items-center gap-[3px]">
+            <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">
+              Thinking...
+            </p>
+            <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
+          </div>
+          )}
         </div>
       )}
       
