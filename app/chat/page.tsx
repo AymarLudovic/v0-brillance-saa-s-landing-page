@@ -2525,14 +2525,14 @@ const handleFetchFileAction = async (
 
 // ---------------------- SEND CHAT ----------------------
 
-       
-          // Définir ces constantes au début du composant, en dehors de sendChat
-const MAX_RETRIES = 20;
-const BASE_DELAY_MS = 25500;
-// NOUVEAU: Seuil pour inclure le contenu complet d'un fichier dans le prompt
-const CONTENT_SNAPSHOT_LIMIT = 50000; // Exemple: inclut les fichiers de moins de 5000 caractères
+    
+// Définir ces constantes au début du composant, en dehors de sendChat
+const MAX_RETRIES = 6;
+const BASE_DELAY_MS = 500;
+// MODIFIÉ: Limite stricte de 6000 caractères pour inclure le contenu complet
+const CONTENT_SNAPSHOT_LIMIT = 6000; 
 
-// ---------------------- SEND CHAT (AVEC CONTENU DE FICHIER DANS L'HISTORIQUE) ----------------------
+// ---------------------- SEND CHAT (AVEC FILTRAGE DE CONTENU > 6000 CARACTÈRES) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
@@ -2581,33 +2581,50 @@ const sendChat = async (promptOverride?: string) => {
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  // ---------------- NOUVEAU: INJECTION DU CONTEXTE SYSTÈME (LISTE ET CONTENU) ----------------
+  // ---------------- MODIFIÉ: INJECTION DU CONTEXTE SYSTÈME (FILTRE 6000 CHARS) ----------------
   
   const filesList: string[] = [];
   const filesContentSnapshots: string[] = [];
-  
+  let filesExcludedCount = 0; // Compteur pour les fichiers exclus pour cause de taille
+
   currentProjectFiles.forEach(file => {
       const content = file.content || "";
       const size = content.length;
       
-      // Ajout à la liste (toujours inclus)
-      filesList.push(`<project_file path="${file.filePath}" size="${size} chars"/>`);
-      
-      // Ajout du contenu complet (si la taille est inférieure au seuil)
+      let fileStatus = '';
+
+      // Ajout du contenu complet SEULEMENT si la taille est <= 6000
       if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
           filesContentSnapshots.push(
               `<file_content_snapshot path="${file.filePath}" totalLines="${content.split('\n').length}">\n` +
               content + 
               `\n</file_content_snapshot>`
           );
+          fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
+
+      } else if (size > CONTENT_SNAPSHOT_LIMIT) {
+          // Fichier exclu de l'injection de contenu
+          filesExcludedCount++;
+          fileStatus = `(Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)`;
+          
+      } else {
+          // Fichier vide ou autre
+          fileStatus = `(EMPTY file)`;
       }
+      
+      // La liste des chemins est toujours incluse avec le statut
+      filesList.push(`<project_file path="${file.filePath}" ${fileStatus.trim()}/>`);
   });
 
   const systemFileContext: Message = {
     role: "system",
     content: (
-        `# PROJECT FILES (${currentProjectFiles.length} files)\n` +
-        `[Use the <fetch_file path="..."/> artifact to read content for files not included below.]\n` +
+        `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
+        `[Use the <fetch_file path="..."/> artifact to read content for files excluded or not included below.]\n` +
+        (filesExcludedCount > 0 
+            ? `⚠️ ${filesExcludedCount} files were EXCLUDED from initial context injection (size > ${CONTENT_SNAPSHOT_LIMIT} chars).\n`
+            : ''
+        ) +
         filesList.join("\n") +
         (filesContentSnapshots.length > 0 
             ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS (Size <= ${CONTENT_SNAPSHOT_LIMIT} chars)\n` + filesContentSnapshots.join("\n\n")
@@ -2633,7 +2650,7 @@ const sendChat = async (promptOverride?: string) => {
     let res: Response | null = null;
     let apiCallSuccessful = false;
 
-    // ---------------- BOUCLE DE RETRY ROBUSTE (inchangé) ----------------
+    // ---------------- BOUCLE DE RETRY ROBUSTE (inchangée) ----------------
     while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
       try {
         if (retryCount > 0) {
@@ -2648,7 +2665,6 @@ const sendChat = async (promptOverride?: string) => {
           body: JSON.stringify({ 
             history: historyForApi, 
             currentProjectFiles,
-            projectEmbeddings,
             uploadedImages,
             uploadedFiles
           }),
@@ -2689,8 +2705,7 @@ const sendChat = async (promptOverride?: string) => {
         const filePath = fetchFileMatch[1].trim();
         addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
 
-        // **MODIFICATION POUR CACHING ET isFetchInProgress**
-        // Ajout d'une vérification pour le contenu déjà injecté via le snapshot initial
+        // Vérification MODIFIÉE: le fichier a-t-il été inclus au début ? (Taille <= 6000)
         const isContentPreInjected = currentProjectFiles.some(
             f => f.filePath === filePath && (f.content || "").length <= CONTENT_SNAPSHOT_LIMIT
         );
@@ -2701,7 +2716,7 @@ const sendChat = async (promptOverride?: string) => {
           const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
           
           if (fileContent) {
-            // Injection directe dans le flux de texte (Votre logique)
+            // Injection directe dans le flux de texte
             text += `\n${fileContent}\n`; 
             readFilesCache.add(filePath); // Marque le fichier comme lu/injecté dans ce tour
             
@@ -2776,8 +2791,8 @@ const sendChat = async (promptOverride?: string) => {
         .replace(inspirationUrlRegex, '')
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, '') // Supprime la balise de requête
-        // NOUVEAU: Supprime l'artefact de contenu injecté (snapshot) pour l'affichage
+        .replace(FETCH_FILE_REGEX, '') 
+        // Supprime l'artefact de contenu injecté (snapshot) pour l'affichage
         .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
 
       // Mise à jour message assistant
@@ -2792,7 +2807,7 @@ const sendChat = async (promptOverride?: string) => {
       });
     } // FIN STREAMING
 
-    // -------- POST STREAM ---------- (inchangé)
+    // -------- POST STREAM ---------- 
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
@@ -2816,7 +2831,8 @@ const sendChat = async (promptOverride?: string) => {
         });
       }, 100);
     } else {
-      addLog("Response treated as simple text or unrecognized format.");
+      // MODIFIÉ: Message plus clair en cas de réponse simple ou non reconnue
+      addLog("✅ Response received. No code artifacts detected to apply.");
     }
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
@@ -2824,10 +2840,7 @@ const sendChat = async (promptOverride?: string) => {
   } finally {
     setLoading(false);
   }
-};    
-
-    
-
+};
 
 
             
