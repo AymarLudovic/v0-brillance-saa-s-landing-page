@@ -2074,7 +2074,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         - fullJS (scripts analysés)
 
         NB: tu dois fidèlement créé faire ce que l'utilisateur t'a demandé de build dans sa requête : En effet, ces fullhtml et fullcss que tu va recevoir si sont des codes pour des landing pages de base. Oui en effet ce sont des codes de landing page.
-            pour donc construire les landing page du projet de l'utilisateur selon sa requête ${originalUserPrompt} . Maus si il s'agit de générer les autres pages un peut plus techniques telsque des pages de dashboard, tu ne dois pas reprendre les codes landing pages. En effet, le seul code que tu 
+            pour donc construire les landing page du projet de l'utilisateur selon sa requête . Mais si il s'agit de générer les autres pages un peut plus techniques telsque des pages de dashboard, tu ne dois pas reprendre les codes landing pages. En effet, le seul code que tu 
         
         Ces fichiers représentent la base d’inspiration. 
         L’IA doit les utiliser pour reconstruire la structure complète du site 
@@ -2084,7 +2084,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         Le fullhtml doit être aussi pleinement utiliser pour construire les pages des applications du projet de l'utilisateur. surtout que ce soit une landing page ou des pages de plateforme et autres pour le projet de l'utilisateur. tu devras uniquement te basé sur les styles du fullcss, mais ne pas importer le footer ou les navbar que tu builderas qui sont pour la landing page pour des pages comme le dashboard, etc ou tout autres pages techniques. 
 
         --- FULL HTML START ---
-        Je ne t'envoie pas le ${fullHTML} juste pour que tu copies et colle. Non. car tu dois être créatif, et bien comprendre la requête de l'utilisateur et construire ce qu'il te demande. Je t'envoi le fullcss pour que tu comprends sur qu'elles styles CSS ton jsx/html va devoir s'appuyer. Mais, tu vas devoir ajouter à ces styles tes propres styles pour build tes propres composant ( du style sidebar, nav, etc...). Le fullhtml que tu reçois si possède des composants réutilisables pour n'importe quelle projet et ils font appel aux meilleurs styles du fullcss. Réutilises ses composants du fullhtml tout en les adaptant réellement au besoin de l'utilisateur et de sa requête.
+        Je ne t'envoie pas le fullhtml juste pour que tu copies et colle. Non. car tu dois être créatif, et bien comprendre la requête de l'utilisateur et construire ce qu'il te demande. Je t'envoi le fullcss pour que tu comprends sur qu'elles styles CSS ton jsx/html va devoir s'appuyer. Mais, tu vas devoir ajouter à ces styles tes propres styles pour build tes propres composant ( du style sidebar, nav, etc...). Le fullhtml que tu reçois si possède des composants réutilisables pour n'importe quelle projet et ils font appel aux meilleurs styles du fullcss. Réutilises ses composants du fullhtml tout en les adaptant réellement au besoin de l'utilisateur et de sa requête.
         --- FULL HTML END ---
 
         --- FULL CSS START ---
@@ -2399,9 +2399,7 @@ const sendFileToGemini = async (
     // 🧩 Création du prompt d'injection
     const injectionPrompt = `
 [CONTENU DU FICHIER REQUIS PAR VOUS : ${filePath}]
-\`\`\`${filePath.split('.').pop() || 'text'}
-${fileContent}
-\`\`\`
+
 [FIN CONTENU FICHIER]
 
 ✅ Vous avez maintenant le contenu COMPLET du fichier ${filePath}.
@@ -2620,7 +2618,7 @@ const sendChat = async (promptOverride?: string) => {
     role: "system",
     content: (
         `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
-        `[Use the <fetch_file path="..."/> artifact to read content for files excluded or not included below.]\n` +
+        `[Use the <fetch_file path="..."/> artifact to read content for files excluded or not included below But ask first to the user to read those files.]\n` +
         (filesExcludedCount > 0 
             ? `⚠️ ${filesExcludedCount} files were EXCLUDED from initial context injection (size > ${CONTENT_SNAPSHOT_LIMIT} chars).\n`
             : ''
