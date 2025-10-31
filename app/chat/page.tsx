@@ -2530,7 +2530,7 @@ const handleFetchFileAction = async (
 const MAX_RETRIES = 20;
 const BASE_DELAY_MS = 25500;
 // NOUVEAU: Seuil pour inclure le contenu complet d'un fichier dans le prompt
-const CONTENT_SNAPSHOT_LIMIT = 4000000; // Exemple: inclut les fichiers de moins de 5000 caractères
+const CONTENT_SNAPSHOT_LIMIT = 50000; // Exemple: inclut les fichiers de moins de 5000 caractères
 
 // ---------------------- SEND CHAT (AVEC CONTENU DE FICHIER DANS L'HISTORIQUE) ----------------------
 const sendChat = async (promptOverride?: string) => {
