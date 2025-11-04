@@ -2530,37 +2530,30 @@ const handleFetchFileAction = async (
 
 // ---------------------- SEND CHAT ----------------------
 
-    
-// Définir ces constantes au début du composant, en dehors de sendChat
-const MAX_RETRIES = 6;
+    // Définir ces constantes au début du composant, en dehors de sendChat
+const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
-// MODIFIÉ: Limite stricte de 6000 caractères pour inclure le contenu complet
-const CONTENT_SNAPSHOT_LIMIT = 6000; 
 
-// ---------------------- SEND CHAT (AVEC FILTRAGE DE CONTENU > 6000 CARACTÈRES) ----------------------
+// ---------------------- SEND CHAT (VERSION SIMPLE SANS CONTEXTE AVANCÉ) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
-  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
+  // Simplification de la vérification initiale
+  if (!userPrompt) return; 
+  // Rétabli la vérification de projet si nécessaire pour le contexte métier
   if (!currentProject && !promptOverride) {
     addLog("Please create or load a project before starting a conversation.");
     return;
   }
 
-  // 1. Préparation du message utilisateur (inchangée)
-  let contextForPrompt = "";
-  if (mentionedFiles.length > 0 && currentProject) {
-    contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
-  }
-  const finalUserPrompt = userPrompt + contextForPrompt;
-
+  // 1. Préparation du message utilisateur (simplifiée)
+  const finalUserPrompt = userPrompt; // Pas de contextForPrompt
+  
   const userMsg: Message = {
     role: "user",
     content: finalUserPrompt,
     artifactData: { type: null, rawJson: "", parsedList: [] },
-    images: uploadedImages,
-    externalFiles: uploadedFiles,
-    mentionedFiles
+    // Supprime images, externalFiles, mentionedFiles pour ne pas bloquer l'API
   };
 
   // 2. Préparation du placeholder
@@ -2582,66 +2575,11 @@ const sendChat = async (promptOverride?: string) => {
     return [...prev, userMsg, assistantPlaceholder];
   });
   
-  const currentProjectFiles = currentProject
-    ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
-    : [];
+  // 🛑 SUPPRESSION DE L'INJECTION DE CONTEXTE SYSTÈME
+  // On utilise l'historique direct
+  let historyForApi = currentHistory;
 
-  // ---------------- MODIFIÉ: INJECTION DU CONTEXTE SYSTÈME (FILTRE 6000 CHARS) ----------------
-  
-  const filesList: string[] = [];
-  const filesContentSnapshots: string[] = [];
-  let filesExcludedCount = 0; // Compteur pour les fichiers exclus pour cause de taille
-
-  currentProjectFiles.forEach(file => {
-      const content = file.content || "";
-      const size = content.length;
-      
-      let fileStatus = '';
-
-      // Ajout du contenu complet SEULEMENT si la taille est <= 6000
-      if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
-          filesContentSnapshots.push(
-              `<file_content_snapshot path="${file.filePath}" totalLines="${content.split('\n').length}">\n` +
-              content + 
-              `\n</file_content_snapshot>`
-          );
-          fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
-
-      } else if (size > CONTENT_SNAPSHOT_LIMIT) {
-          // Fichier exclu de l'injection de contenu
-          filesExcludedCount++;
-          fileStatus = `(Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)`;
-          
-      } else {
-          // Fichier vide ou autre
-          fileStatus = `(EMPTY file)`;
-      }
-      
-      // La liste des chemins est toujours incluse avec le statut
-      filesList.push(`<project_file path="${file.filePath}" ${fileStatus.trim()}/>`);
-  });
-
-  const systemFileContext: Message = {
-    role: "system",
-    content: (
-        `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
-        `[Use the <fetch_file path="..."/> artifact to read content for files excluded or not included below But ask first to the user to read those files.]\n` +
-        (filesExcludedCount > 0 
-            ? `⚠️ ${filesExcludedCount} files were EXCLUDED from initial context injection (size > ${CONTENT_SNAPSHOT_LIMIT} chars).\n`
-            : ''
-        ) +
-        filesList.join("\n") +
-        (filesContentSnapshots.length > 0 
-            ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS (Size <= ${CONTENT_SNAPSHOT_LIMIT} chars)\n` + filesContentSnapshots.join("\n\n")
-            : ""
-        )
-    )
-  };
-
-  // L'historique pour l'API commence avec le contexte système.
-  let historyForApi = [systemFileContext, ...currentHistory];
-
-  // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (inchangé) ----------------
+  // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (VIDE) ----------------
   const readFilesCache = new Set<string>();
 
   setLoading(true);
@@ -2664,14 +2602,18 @@ const sendChat = async (promptOverride?: string) => {
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
+        // NOTE: On envoie l'historique simple sans le contexte fichier.
+        // Côté API, le basePrompt sera injecté sur le dernier message utilisateur.
         res = await fetch("/api/gemini", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             history: historyForApi, 
-            currentProjectFiles,
-            uploadedImages,
-            uploadedFiles
+            // ATTENTION: Ces champs sont envoyés à l'API mais ne doivent pas être traités comme avant
+            currentProjectFiles: [], // Vide pour éviter la logique côté API
+            projectEmbeddings: undefined, 
+            uploadedImages: [], // Vide pour éviter la logique côté API
+            uploadedFiles: [] // Vide pour éviter la logique côté API
           }),
         });
 
@@ -2704,43 +2646,10 @@ const sendChat = async (promptOverride?: string) => {
       const chunk = decoder.decode(value, { stream: true });
       text += chunk;
 
-      // ---------------- FETCH FILE ----------------
+      // 🛑 IGNORER LA LOGIQUE FETCH FILE
       const fetchFileMatch = text.match(FETCH_FILE_REGEX);
       if (fetchFileMatch) {
-        const filePath = fetchFileMatch[1].trim();
-        addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
-
-        // Vérification MODIFIÉE: le fichier a-t-il été inclus au début ? (Taille <= 6000)
-        const isContentPreInjected = currentProjectFiles.some(
-            f => f.filePath === filePath && (f.content || "").length <= CONTENT_SNAPSHOT_LIMIT
-        );
-        
-        // Si non en cours, non déjà lu (cache), ET non déjà injecté au début de la conversation.
-        if (!isFetchInProgress && !readFilesCache.has(filePath) && !isContentPreInjected) {
-          
-          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
-          
-          if (fileContent) {
-            // Injection directe dans le flux de texte
-            text += `\n${fileContent}\n`; 
-            readFilesCache.add(filePath); // Marque le fichier comme lu/injecté dans ce tour
-            
-            // Mise à jour du message assistant (inchangé)
-            setMessages((prev) => {
-              const updated = [...prev];
-              if (assistantMessageIndex < updated.length) {
-                  updated[assistantMessageIndex].content = text;
-              }
-              return updated;
-            });
-          }
-        } else if (isContentPreInjected) {
-            addLog(`⚠️ [FETCH_FILE] Ignoré (contenu déjà injecté dans le message système : ${filePath})`);
-        } else if (readFilesCache.has(filePath)) {
-          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà lu et injecté dans ce tour : ${filePath})`);
-        } else {
-          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours via isFetchInProgress)`);
-        }
+          addLog(`⚠️ [ACTION] Fetch file ignoré dans la version simple.`);
       }
 
       // ----------------- URL ARTIFACT ----------------- (inchangé)
@@ -2758,6 +2667,7 @@ const sendChat = async (promptOverride?: string) => {
       }
 
       // ----------------- FILE ARTIFACTS ----------------- (inchangé)
+      // La logique de parsing des artefacts est conservée mais n'utilisera pas les fichiers si non définis
       const fileArtifacts = extractFileArtifacts(text);
 
       fileArtifacts.forEach((artifact: any) => {
@@ -2784,9 +2694,8 @@ const sendChat = async (promptOverride?: string) => {
           if (!artifactList.some(a => a.path === path)) artifactList.push({ path, type });
         });
 
-        if (currentProject) {
-          addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
-        }
+        // 🛑 IGNORER L'AJOUT DE FICHIERS SANS CONTEXTE PROJET
+        // if (currentProject) { addFilesIfNew(...); }
 
         newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
       }
@@ -2796,9 +2705,7 @@ const sendChat = async (promptOverride?: string) => {
         .replace(inspirationUrlRegex, '')
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, '') 
-        // Supprime l'artefact de contenu injecté (snapshot) pour l'affichage
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
+        .replace(FETCH_FILE_REGEX, ''); 
 
       // Mise à jour message assistant
       setMessages((prev) => {
@@ -2826,17 +2733,10 @@ const sendChat = async (promptOverride?: string) => {
           
     const finalArtifacts = extractFileArtifacts(text);
     if (finalArtifacts.length > 0) {
-      addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
-      applyArtifactsToProject(finalArtifacts);
-
-      setTimeout(() => {
-        finalArtifacts.forEach(async (artifact) => {
-          const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
-          if (updatedFile) await reindexFile(updatedFile);
-        });
-      }, 100);
+      addLog(`Response contains code. Applying ${finalArtifacts.length} changes. (Note: Project context is disabled)`);
+      // applyArtifactsToProject(finalArtifacts); // Désactivé
+      // Logic reindexation désactivée
     } else {
-      // MODIFIÉ: Message plus clair en cas de réponse simple ou non reconnue
       addLog("✅ Response received. No code artifacts detected to apply.");
     }
   } catch (err: any) {
@@ -2846,6 +2746,7 @@ const sendChat = async (promptOverride?: string) => {
     setLoading(false);
   }
 };
+
 
 
             
