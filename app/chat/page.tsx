@@ -2083,7 +2083,15 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         en important les classes correspondantes depuis globals.css.
         Le fullhtml doit être aussi pleinement utiliser pour construire les pages des applications du projet de l'utilisateur. surtout que ce soit une landing page ou des pages de plateforme et autres pour le projet de l'utilisateur. tu devras uniquement te basé sur les styles du fullcss, mais ne pas importer le footer ou les navbar que tu builderas qui sont pour la landing page pour des pages comme le dashboard, etc ou tout autres pages techniques. 
 
-        --- FULL HTML START ---
+        --- FULL HTML START --- 
+
+        🚨🚨 IMPORTANT 🚨🚨:
+        Tu dois comprendre ceci, ce fullHTML que je t'envoie ci est récupérer depuis l'url la. En fait ce code fullhtml est généralement celui de la 
+        Landing page du site analyser ainsi que le code fullCSS qui lui est les styles de cette landing page. En fait le but de t'envoyer le fullhtml landing page est du fait n'ont pas que quand tu vas créé l'application de l'utilisateur, le design structurelle de ses pages seront comme la landing page là car ça serait illogique, par exemple imagine un peu l'utilisateur t'a demandé de faire des pages de dashboard, des pages d'authentification et quand il regarde le design final de ces pages que
+        tu lui as donné, c'est encore la landing page mais que juste pour rendre ça page Dashboard selon la demande de l'utilisateur tu as juste légèrement modifié : Ce n'est pas bin. 
+        Le fullhtml te permet vraiment de voir comment les composants sont bien formé : des cards avec des images, des hero, button, div, etc, bref le but c'est que tu fasses des pages qui reprennent le design de ce fullhtml la mais à la différence que la page soit bien builder dans le style que l'on l'attend, Dashboard, page de dashboard, mais reprenant les styles, div, button, etc de la fullhtml de la landing page la. Le fullCSS lui il est le miel, le design.
+        Voici ici donc le fullHTML.
+        ${fullHTML}
         Je ne t'envoie pas le fullhtml juste pour que tu copies et colle. Non. car tu dois être créatif, et bien comprendre la requête de l'utilisateur et construire ce qu'il te demande. Je t'envoi le fullcss pour que tu comprends sur qu'elles styles CSS ton jsx/html va devoir s'appuyer. Mais, tu vas devoir ajouter à ces styles tes propres styles pour build tes propres composant ( du style sidebar, nav, etc...). Le fullhtml que tu reçois si possède des composants réutilisables pour n'importe quelle projet et ils font appel aux meilleurs styles du fullcss. Réutilises ses composants du fullhtml tout en les adaptant réellement au besoin de l'utilisateur et de sa requête.
         --- FULL HTML END ---
 
