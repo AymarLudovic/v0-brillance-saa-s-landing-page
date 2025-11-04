@@ -1,4 +1,4 @@
-// app/api/gemini/route.ts (Optimisé)
+// app/api/gemini/route.ts (Corrigé)
 
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
@@ -6,7 +6,7 @@ import { basePrompt } from "@/lib/prompt"
 
 // --- TYPES (inchangés) ---
 interface Message { 
-    role: "user" | "assistant"; 
+    role: "user" | "assistant" | "system"; // Ajout de 'system' pour la robustesse du type côté client/API
     content: string; 
     images?: string[]; 
     externalFiles?: { fileName: string; base64Content: string }[]; 
@@ -77,13 +77,16 @@ export async function POST(req: Request) {
     const model = "gemini-2.5-flash"
     
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
+    const lastUserIndex = history.length - 1; // Le dernier message de l'historique
 
-    for (const msg of history) {
+    for (let i = 0; i < history.length; i++) {
+        const msg = history[i];
         const parts: Part[] = [];
-        const role = msg.role === 'assistant' ? 'model' : 'user';
+        // L'API Gemini n'utilise que 'user' ou 'model' (remplace 'assistant' par 'model')
+        const role = msg.role === 'assistant' ? 'model' : 'user'; 
         let textContent = msg.content;
 
-        // 🛑 TRAITEMENT DES RÉPONSES D'OUTILS 🛑
+        // 🛑 TRAITEMENT DES RÉPONSES D'OUTILS (Doit venir en premier si présent)
         if (msg.functionResponse) {
             parts.push({
                 functionResponse: {
@@ -92,10 +95,14 @@ export async function POST(req: Request) {
                 }
             });
         } 
-        // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT 🛑
+        // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT (et Contexte Système)
         else {
-            if (msg === history[history.length - 1] && role === 'user') {
-                // INJECTION DE BASEPROMPT UNIQUEMENT pour le dernier message
+            
+            // 1. Injection du basePrompt et des binaires (uniquement sur le DERNIER message utilisateur)
+            // L'historique [system context, user message] fait que le message utilisateur est à l'index final (lastUserIndex).
+            if (i === lastUserIndex && role === 'user') {
+                
+                // Injection du basePrompt avant le contenu utilisateur
                 textContent = basePrompt + "\n\n" + textContent; 
                 
                 // Gestion des images/fichiers binaires
@@ -121,10 +128,16 @@ export async function POST(req: Request) {
                     });
                 }
             }
-            parts.push({ text: textContent }); 
+            
+            // 2. Assurer que le message texte est toujours présent
+            // Si le contenu est vide (e.g., placeholder vide de l'assistant ou message user sans texte), on envoie un espace.
+            parts.push({ text: textContent || ' ' }); 
         }
-
-        contents.push({ role, parts });
+        
+        // Ajoute le message à 'contents' seulement s'il y a des parties
+        if (parts.length > 0) {
+            contents.push({ role, parts });
+        }
     }
     
     const response = await ai.models.generateContentStream({
@@ -187,4 +200,4 @@ export async function POST(req: Request) {
         details: err.message
     }, { status: 500 })
   }
-        }
+}
