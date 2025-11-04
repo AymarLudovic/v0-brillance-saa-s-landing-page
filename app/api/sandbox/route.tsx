@@ -3,48 +3,53 @@ import * as e2b from "@e2b/code-interpreter";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => {
+    const body = await req.json().catch((e) => {
+      console.error("[v0] Failed to parse request JSON:", e);
       throw new Error("Invalid JSON in request body");
     });
 
-    const { action, sandboxId: bodySandboxId, files: requestFiles } = body || {};
+    const { action, sandboxId: bodySandboxId, files: requestFiles, plan } = body || {};
     const apiKey = process.env.E2B_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json({ error: "E2B_API_KEY manquant" }, { status: 500 });
     }
 
-    // Définition des timeouts de connexion/session pour les sandboxes connectées
-    const SANDBOX_CONNECT_TIMEOUT = 900_000; // 15 minutes
-    const SANDBOX_SESSION_TIMEOUT = 900_000; // 15 minutes
+    console.log("[v0] Sandbox API called with action:", action);
+
+    // Définition des timeouts E2B (900000 ms = 15 minutes)
+    const SANDBOX_TIMEOUT_MS = 900000; 
+    const INSTALL_TIMEOUT_MS = 600000; // 10 minutes pour npm install
+    const BUILD_TIMEOUT_MS = 300000;  // 5 minutes pour npm run build
 
     switch (action) {
       case "create": {
+        console.log("[v0] Creating new sandbox...");
         const sandbox = await e2b.Sandbox.betaCreate({
           apiKey,
-          // Le timeout create reste à 7_600_000 tel que dans votre code original.
-          timeoutMs: 2_600_000, 
-          autoPause: true,
+          timeoutMs: SANDBOX_TIMEOUT_MS, // 15 minutes pour la création
+          autoPause: true, // **Ajouté: Activer l'auto-pause pour la persistance**
         });
 
-        // Fichiers Next.js par défaut pour le sandbox
+        // Fichiers Next.js par défaut (incluant 'iconsax-reactjs' et globals.css)
         const defaultPackageJson = {
           name: "nextjs-app",
           private: true,
           scripts: {
             dev: "next dev -p 3000 -H 0.0.0.0",
             build: "next build",
-            start: "next dev -p 3000 -H 0.0.0.0",
+            start: "next start -p 3000 -H 0.0.0.0", // Utilisez 'start' pour la production
           },
           dependencies: {
-            next: "14.2.16",
+            next: "14.2.3", // Version harmonisée
             react: "18.2.0",
             "react-dom": "18.2.0",
-            "iconsax-reactjs": "0.0.8"
+            "iconsax-reactjs": "0.0.8" // Conservé de votre premier code
           },
         };
         await sandbox.files.write("/home/user/package.json", JSON.stringify(defaultPackageJson, null, 2));
 
+        // tsconfig.json (Conservé de votre premier code)
         await sandbox.files.write("/home/user/tsconfig.json", JSON.stringify({
           compilerOptions: {
             target: "esnext",
@@ -65,7 +70,7 @@ export async function POST(req: Request) {
           exclude: ["node_modules"],
         }, null, 2));
 
-        // Layout
+        // layout.tsx (Conservé de votre premier code)
         await sandbox.files.write(
           "/home/user/app/layout.tsx",
           `import './globals.css';
@@ -79,7 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }`
         );
 
-        // Page
+        // page.tsx (Conservé de votre premier code)
         await sandbox.files.write("/home/user/app/page.tsx", `"use client";
 export default function Page() {
   return (
@@ -90,7 +95,7 @@ export default function Page() {
   );
 }`);
 
-        // AJOUT DU FICHIER globals.css ICI
+        // globals.css (Conservé de votre premier code)
         await sandbox.files.write(
           "/home/user/app/globals.css",
           `
@@ -113,10 +118,14 @@ div {
 `
         );
 
-
-        console.log(`Sandbox créé: ${sandbox.sandboxId}`);
+        console.log(`[v0] Sandbox créé: ${sandbox.sandboxId}`);
         return NextResponse.json({ success: true, sandboxId: sandbox.sandboxId });
       }
+
+      // ----------------------------------------------------------------------
+      // NOTE: Le cas "applyPlan" complexe a été omis car il ne faisait pas partie 
+      // de votre premier code et alourdirait le processus si non nécessaire.
+      // ----------------------------------------------------------------------
 
       case "getFiles": {
         const sid = bodySandboxId
@@ -130,7 +139,7 @@ div {
             // Tente de se connecter à la sandbox existante avec un timeout
             sandbox = await e2b.Sandbox.connect(sid, {
               apiKey,
-              timeoutMs: SANDBOX_CONNECT_TIMEOUT,
+              timeoutMs: SANDBOX_TIMEOUT_MS,
             })
           } catch (connectError: any) {
             console.log("[v0] Failed to connect to sandbox, it may be paused or expired:", connectError.message)
@@ -138,13 +147,14 @@ div {
           }
 
           // Définit le timeout de session pour la durée de l'opération
-          await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT)
+          await sandbox.setTimeout(SANDBOX_TIMEOUT_MS)
 
-          // Commande pour lister tous les fichiers pertinents, en ignorant les dossiers de build/dépendances
+          // Commande pour lister tous les fichiers pertinents
           const { stdout: fileList } = await sandbox.commands.run(
             "find . -type f -not -path './node_modules/*' -not -path './.next/*' -not -path './.*'",
             {
               cwd: "/home/user",
+              timeoutMs: 30000, // Timeout court pour la commande find
             },
           )
 
@@ -170,15 +180,9 @@ div {
                   files[cleanPath] = JSON.stringify(parsed, null, 2)
                   console.log(`[v0] Validated and formatted JSON file: ${cleanPath}`)
                 } catch (jsonError) {
-                  // Fallback si le JSON est corrompu
+                  // Fallback si le JSON est corrompu (utilise le contenu brut ou une valeur par défaut si besoin)
                   console.error(`[v0] Invalid JSON in ${cleanPath}:`, jsonError)
-                  if (cleanPath === "package.json") {
-                    // (Logique de package.json par défaut omise ici pour la concision)
-                    files[cleanPath] = content
-                    console.log(`[v0] Used fallback package.json due to corruption`)
-                  } else {
-                    files[cleanPath] = content
-                  }
+                  files[cleanPath] = content // Conserve le contenu brut corrompu
                 }
               } else {
                 files[cleanPath] = typeof content === "string" ? content : String(content)
@@ -209,18 +213,16 @@ div {
             { status: 500 },
           )
         }
-            }
+      }
 
-
-   case "processFiles": {
+      case "processFiles": {
         const sid = bodySandboxId
         if (!sid) throw new Error("sandboxId manquant")
 
         console.log("[v0] Processing files for deployment from sandbox:", sid)
 
         try {
-          // 1. Appel interne à getFiles pour obtenir le contenu des fichiers
-          // NOTE: La logique interne de 'getFiles' gère déjà la connexion/timeout.
+          // 1. Appel interne à getFiles
           const extractResponse = await fetch(`${req.url}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -245,7 +247,7 @@ div {
               continue
             }
 
-            // Validation simple de package.json (optionnel)
+            // Validation simple de package.json
             if (filePath === "package.json") {
               try {
                 JSON.parse(fileContent)
@@ -291,11 +293,11 @@ div {
         if (!bodySandboxId || !body.filePath || !body.content)
           throw new Error("Paramètres manquants (sandboxId, filePath, content)");
 
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_CONNECT_TIMEOUT });
-        await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT); // Timeout de session ajouté
-        
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS });
+        await sandbox.setTimeout(SANDBOX_TIMEOUT_MS); // Timeout de session
+
         await sandbox.files.write(`/home/user/${body.filePath}`, body.content);
-        console.log(`Fichier ${body.filePath} écrit dans le sandbox ${bodySandboxId}`);
+        console.log(`[v0] Fichier ${body.filePath} écrit dans le sandbox ${bodySandboxId}`);
         return NextResponse.json({ success: true, message: `File ${body.filePath} written` });
       }
 
@@ -304,13 +306,13 @@ div {
           throw new Error("Paramètres manquants (sandboxId ou files[])");
         }
 
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_CONNECT_TIMEOUT });
-        await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT); // Timeout de session ajouté
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS });
+        await sandbox.setTimeout(SANDBOX_TIMEOUT_MS); // Timeout de session
 
         for (const f of requestFiles) {
           if (!f.filePath || !f.content) continue;
           await sandbox.files.write(`/home/user/${f.filePath}`, f.content);
-          console.log(`Fichier ${f.filePath} écrit dans le sandbox ${bodySandboxId}`);
+          console.log(`[v0] Fichier ${f.filePath} écrit dans le sandbox ${bodySandboxId}`);
         }
 
         return NextResponse.json({ success: true, message: `${requestFiles.length} files written` });
@@ -319,8 +321,8 @@ div {
       case "install":
       case "build": {
         if (!bodySandboxId) throw new Error("sandboxId manquant");
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_CONNECT_TIMEOUT });
-        await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT);
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS });
+        await sandbox.setTimeout(SANDBOX_TIMEOUT_MS);
 
         let commandResult: e2b.CommandResult = {
           stdout: "",
@@ -334,11 +336,11 @@ div {
             // Timeout de commande plus long pour l'installation
             commandResult = await sandbox.commands.run("npm install --no-audit --loglevel warn", {
               cwd: "/home/user",
-              timeoutMs: 600_000, 
+              timeoutMs: INSTALL_TIMEOUT_MS, 
             });
           } else { // action === "build"
             // Timeout de commande pour le build
-            commandResult = await sandbox.commands.run("npm run build", { cwd: "/home/user", timeoutMs: 300_000 });
+            commandResult = await sandbox.commands.run("npm run build", { cwd: "/home/user", timeoutMs: BUILD_TIMEOUT_MS });
           }
           commandSuccess = commandResult.exitCode === 0;
         } catch (e: any) {
@@ -349,30 +351,30 @@ div {
               exitCode: e.exitCode,
               error: e.message,
             };
-            console.warn(`E2B CommandExitError capturée pour l'action '${action}':`, e);
+            console.warn(`[v0] E2B CommandExitError capturée pour l'action '${action}':`, e);
           } else {
-            console.error(`Erreur inattendue lors de l'exécution de la commande E2B pour l'action '${action}':`, e);
+            console.error(`[v0] Erreur inattendue lors de l'exécution de la commande E2B pour l'action '${action}':`, e);
             commandResult.error = e.message || "Erreur inconnue lors de l'exécution de la commande";
             commandResult.stderr += `\nUnexpected API error: ${e.message || e.toString()}`;
           }
           commandSuccess = false;
         }
         
-        console.log(`Commande '${action}' exécutée dans le sandbox ${bodySandboxId}. Résultat complet:`, commandResult);
+        console.log(`[v0] Commande '${action}' exécutée dans le sandbox ${bodySandboxId}. Exit Code: ${commandResult.exitCode}`);
 
         return NextResponse.json({ success: commandSuccess, action, result: commandResult });
       }
 
       case "start": {
         if (!bodySandboxId) throw new Error("sandboxId manquant");
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_CONNECT_TIMEOUT });
-        await sandbox.setTimeout(SANDBOX_SESSION_TIMEOUT);
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS });
+        await sandbox.setTimeout(SANDBOX_TIMEOUT_MS);
 
-        // La commande 'start' n'a pas de timeout de commande, car elle est censée rester en cours d'exécution.
-        const process = await sandbox.commands.start("npm run start", { cwd: "/home/user" });
+        // Utilise npm run start (mode production/persistant)
+        const process = await sandbox.commands.start("npm run start", { cwd: "/home/user" }); 
         const url = `https://${sandbox.getHost(3000)}`;
 
-        console.log(`Commande 'start' lancée dans le sandbox ${bodySandboxId}. URL: ${url}, Process ID: ${process.processID}`);
+        console.log(`[v0] Commande 'start' lancée dans le sandbox ${bodySandboxId}. URL: ${url}, Process ID: ${process.processID}`);
         
         return NextResponse.json({ success: true, action, url, processId: process.processID });
       }
@@ -381,7 +383,7 @@ div {
         return NextResponse.json({ error: "Action inconnue" }, { status: 400 });
     }
   } catch (e: any) {
-    console.error("Erreur dans l'API route /api/sandbox:", e);
+    console.error("[v0] Erreur dans l'API route /api/sandbox:", e);
     return NextResponse.json({ error: e.message || "Erreur inconnue", details: e.toString() }, { status: 500 });
   }
-            }
+      }
