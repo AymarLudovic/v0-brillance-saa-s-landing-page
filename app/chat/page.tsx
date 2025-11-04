@@ -2092,8 +2092,10 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
         Le fullhtml te permet vraiment de voir comment les composants sont bien formé : des cards avec des images, des hero, button, div, etc, bref le but c'est que tu fasses des pages qui reprennent le design de ce fullhtml la mais à la différence que la page soit bien builder dans le style que l'on l'attend, Dashboard, page de dashboard, mais reprenant les styles, div, button, etc de la fullhtml de la landing page la. Le fullCSS lui il est le miel, le design.
         
         Je ne t'envoie pas le fullhtml juste pour que tu copies et colle. Non. car tu dois être créatif, et bien comprendre la requête de l'utilisateur et construire ce qu'il te demande. Je t'envoi le fullcss pour que tu comprends sur qu'elles styles CSS ton jsx/html va devoir s'appuyer. Mais, tu vas devoir ajouter à ces styles tes propres styles pour build tes propres composant ( du style sidebar, nav, etc...). Le fullhtml que tu reçois si possède des composants réutilisables pour n'importe quelle projet et ils font appel aux meilleurs styles du fullcss. Réutilises ses composants du fullhtml tout en les adaptant réellement au besoin de l'utilisateur et de sa requête.
-        --- FULL HTML END ---
-         Je ne te l'envoie pas car tu dois te débrouiller.
+        --- FULL HTML START ---
+         ${fullHTML}
+
+         Le fullhtml ci la te donne une vue d'ensemble.
         --- FULL CSS START ---
         ${fullCSS}
         --- FULL CSS END ---
@@ -2530,30 +2532,37 @@ const handleFetchFileAction = async (
 
 // ---------------------- SEND CHAT ----------------------
 
-    // Définir ces constantes au début du composant, en dehors de sendChat
+    
+            // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 500;
+const BASE_DELAY_MS = 1000;
+// Limite stricte de 6000 caractères pour inclure le contenu complet
+const CONTENT_SNAPSHOT_LIMIT = 50000; 
 
-// ---------------------- SEND CHAT (VERSION SIMPLE SANS CONTEXTE AVANCÉ) ----------------------
+// ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
-  // Simplification de la vérification initiale
-  if (!userPrompt) return; 
-  // Rétabli la vérification de projet si nécessaire pour le contexte métier
+  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
   if (!currentProject && !promptOverride) {
     addLog("Please create or load a project before starting a conversation.");
     return;
   }
 
-  // 1. Préparation du message utilisateur (simplifiée)
-  const finalUserPrompt = userPrompt; // Pas de contextForPrompt
-  
+  // 1. Préparation du message utilisateur
+  let contextForPrompt = "";
+  if (mentionedFiles.length > 0 && currentProject) {
+    contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
+  }
+  const finalUserPrompt = userPrompt + contextForPrompt;
+
   const userMsg: Message = {
     role: "user",
     content: finalUserPrompt,
     artifactData: { type: null, rawJson: "", parsedList: [] },
-    // Supprime images, externalFiles, mentionedFiles pour ne pas bloquer l'API
+    images: uploadedImages,
+    externalFiles: uploadedFiles,
+    mentionedFiles
   };
 
   // 2. Préparation du placeholder
@@ -2575,11 +2584,66 @@ const sendChat = async (promptOverride?: string) => {
     return [...prev, userMsg, assistantPlaceholder];
   });
   
-  // 🛑 SUPPRESSION DE L'INJECTION DE CONTEXTE SYSTÈME
-  // On utilise l'historique direct
-  let historyForApi = currentHistory;
+  const currentProjectFiles = currentProject
+    ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
+    : [];
 
-  // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (VIDE) ----------------
+  // ---------------- MODIFIÉ: INJECTION DU CONTEXTE SYSTÈME (FILTRE 6000 CHARS) ----------------
+  
+  const filesList: string[] = [];
+  const filesContentSnapshots: string[] = [];
+  let filesExcludedCount = 0; 
+
+  currentProjectFiles.forEach(file => {
+      const content = file.content || "";
+      const size = content.length;
+      
+      let fileStatus = '';
+
+      // Ajout du contenu complet SEULEMENT si la taille est <= 6000
+      if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
+          filesContentSnapshots.push(
+              `<file_content_snapshot path="${file.filePath}" totalLines="${content.split('\n').length}">\n` +
+              content + 
+              `\n</file_content_snapshot>`
+          );
+          fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
+
+      } else if (size > CONTENT_SNAPSHOT_LIMIT) {
+          // Fichier exclu de l'injection de contenu
+          filesExcludedCount++;
+          fileStatus = `(Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)`;
+          
+      } else {
+          // Fichier vide
+          fileStatus = `(EMPTY file)`;
+      }
+      
+      // La liste des chemins est toujours incluse avec le statut
+      filesList.push(`<project_file path="${file.filePath}" ${fileStatus.trim()}/>`);
+  });
+
+  const systemFileContext: Message = {
+    role: "system",
+    content: (
+        `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
+        `[Use the <fetch_file path="..."/> artifact to read content for files excluded or not included below.]\n` +
+        (filesExcludedCount > 0 
+            ? `⚠️ ${filesExcludedCount} files were EXCLUDED from initial context injection (size > ${CONTENT_SNAPSHOT_LIMIT} chars).\n`
+            : ''
+        ) +
+        filesList.join("\n") +
+        (filesContentSnapshots.length > 0 
+            ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS (Size <= ${CONTENT_SNAPSHOT_LIMIT} chars)\n` + filesContentSnapshots.join("\n\n")
+            : ""
+        )
+    )
+  };
+
+  // L'historique pour l'API commence avec le contexte système.
+  let historyForApi = [systemFileContext, ...currentHistory];
+
+  // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (inchangé) ----------------
   const readFilesCache = new Set<string>();
 
   setLoading(true);
@@ -2602,18 +2666,15 @@ const sendChat = async (promptOverride?: string) => {
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-        // NOTE: On envoie l'historique simple sans le contexte fichier.
-        // Côté API, le basePrompt sera injecté sur le dernier message utilisateur.
         res = await fetch("/api/gemini", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             history: historyForApi, 
-            // ATTENTION: Ces champs sont envoyés à l'API mais ne doivent pas être traités comme avant
-            currentProjectFiles: [], // Vide pour éviter la logique côté API
-            projectEmbeddings: undefined, 
-            uploadedImages: [], // Vide pour éviter la logique côté API
-            uploadedFiles: [] // Vide pour éviter la logique côté API
+            currentProjectFiles,
+            //projectEmbeddings,
+            uploadedImages,
+            uploadedFiles
           }),
         });
 
@@ -2646,10 +2707,43 @@ const sendChat = async (promptOverride?: string) => {
       const chunk = decoder.decode(value, { stream: true });
       text += chunk;
 
-      // 🛑 IGNORER LA LOGIQUE FETCH FILE
+      // ---------------- FETCH FILE ----------------
       const fetchFileMatch = text.match(FETCH_FILE_REGEX);
       if (fetchFileMatch) {
-          addLog(`⚠️ [ACTION] Fetch file ignoré dans la version simple.`);
+        const filePath = fetchFileMatch[1].trim();
+        addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
+
+        // Vérification MODIFIÉE: le fichier a-t-il été inclus au début ? (Taille <= 6000)
+        const isContentPreInjected = currentProjectFiles.some(
+            f => f.filePath === filePath && (f.content || "").length <= CONTENT_SNAPSHOT_LIMIT
+        );
+        
+        // Si non en cours, non déjà lu (cache), ET non déjà injecté au début de la conversation.
+        if (!isFetchInProgress && !readFilesCache.has(filePath) && !isContentPreInjected) {
+          
+          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
+          
+          if (fileContent) {
+            // Injection directe dans le flux de texte
+            text += `\n${fileContent}\n`; 
+            readFilesCache.add(filePath); // Marque le fichier comme lu/injecté dans ce tour
+            
+            // Mise à jour du message assistant (inchangé)
+            setMessages((prev) => {
+              const updated = [...prev];
+              if (assistantMessageIndex < updated.length) {
+                  updated[assistantMessageIndex].content = text;
+              }
+              return updated;
+            });
+          }
+        } else if (isContentPreInjected) {
+            addLog(`⚠️ [FETCH_FILE] Ignoré (contenu déjà injecté dans le message système : ${filePath})`);
+        } else if (readFilesCache.has(filePath)) {
+          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà lu et injecté dans ce tour : ${filePath})`);
+        } else {
+          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours via isFetchInProgress)`);
+        }
       }
 
       // ----------------- URL ARTIFACT ----------------- (inchangé)
@@ -2667,7 +2761,6 @@ const sendChat = async (promptOverride?: string) => {
       }
 
       // ----------------- FILE ARTIFACTS ----------------- (inchangé)
-      // La logique de parsing des artefacts est conservée mais n'utilisera pas les fichiers si non définis
       const fileArtifacts = extractFileArtifacts(text);
 
       fileArtifacts.forEach((artifact: any) => {
@@ -2694,8 +2787,9 @@ const sendChat = async (promptOverride?: string) => {
           if (!artifactList.some(a => a.path === path)) artifactList.push({ path, type });
         });
 
-        // 🛑 IGNORER L'AJOUT DE FICHIERS SANS CONTEXTE PROJET
-        // if (currentProject) { addFilesIfNew(...); }
+        if (currentProject) {
+          addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
+        }
 
         newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
       }
@@ -2705,7 +2799,9 @@ const sendChat = async (promptOverride?: string) => {
         .replace(inspirationUrlRegex, '')
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, ''); 
+        .replace(FETCH_FILE_REGEX, '') 
+        // Supprime l'artefact de contenu injecté (snapshot) pour l'affichage
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
 
       // Mise à jour message assistant
       setMessages((prev) => {
@@ -2733,9 +2829,15 @@ const sendChat = async (promptOverride?: string) => {
           
     const finalArtifacts = extractFileArtifacts(text);
     if (finalArtifacts.length > 0) {
-      addLog(`Response contains code. Applying ${finalArtifacts.length} changes. (Note: Project context is disabled)`);
-      // applyArtifactsToProject(finalArtifacts); // Désactivé
-      // Logic reindexation désactivée
+      addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+      applyArtifactsToProject(finalArtifacts);
+
+      setTimeout(() => {
+        finalArtifacts.forEach(async (artifact) => {
+          const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
+          if (updatedFile) await reindexFile(updatedFile);
+        });
+      }, 100);
     } else {
       addLog("✅ Response received. No code artifacts detected to apply.");
     }
@@ -2746,8 +2848,7 @@ const sendChat = async (promptOverride?: string) => {
     setLoading(false);
   }
 };
-
-
+      
 
             
        
