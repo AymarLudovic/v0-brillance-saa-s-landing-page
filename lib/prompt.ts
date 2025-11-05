@@ -10,6 +10,71 @@ Pour les autres contenus des cards la ça doit être très bien fait. Pour les a
 Aussi petit tips, quand tu as déjà mis une sidebar et que tu rajoutes une navbar tu dois t'assurer d'enlever la border bottom car ca donne un effet quadrillage et c'est moche à voir et aussi essaie de faire des navbar sans une trop grande height et padding. Aussi en ce qui concerne encore la navbar, pour les input de type recherche, tu dois aussi diminuer leur padding et un peut plus les rounded, les arrondires. et fait la encore un peu plus belle. Même chose pour disons des chatbox qui utilise des textarea, tu dois bien les faire. Et aussi tu peux utiliser des effets liquid glass comme pour Apple. Ensuite, pour les trucs de type profile dans la navbar fais aussi cela bien. Et si la navbar est pour une page d'application du style dashboard les menu de navigation reprends le même principe que la sidebar concernant à ce qu'il faut masquer pour une responsivité mobile.
 
 
+Voici un guide complet que tu dois suivre pour toujours faire des composants bien structuré, dans les pages sue tu génère. Suis attentivement ce guide et applique le bien:
+
+1- Composants de type Sidebar ou Navigation latérale:
+   GUIDE DE CONCEPTION OBLIGATOIRE : BARRE LATÉRALE (SIDEBAR) UX/UI 2025
+
+L'IA doit utiliser ce guide comme un ensemble de **règles strictes et non négociables** pour garantir que chaque barre latérale générée soit non seulement fonctionnelle mais représente une conception de **niveau expert (Top-Tier UX)**, alignée sur les meilleures pratiques de 2025.
+
+Objectif principal : Produire des sidebars qui **réduisent la charge cognitive**, offrent une **navigation intuitive** et **s'alignent PARFAITEMENT** sur l'identité visuelle de l'application.
+
+---
+
+### DESCRIPTION ET RÔLE DE LA SIDEBAR
+
+Dans le paysage numérique d'aujourd'hui, la barre latérale (sidebar) reste l'un des outils les plus fiables et efficaces pour naviguer dans des interfaces complexes. Un menu de barre latérale bien conçu doit rationaliser les parcours utilisateur et renforcer la hiérarchie visuelle. Ces panneaux peuvent être statiques ou rétractables et sont essentiels dans les applications nécessitant une navigation à plusieurs niveaux.
+
+**Quand Utiliser un Menu de Barre Latérale (Rôles Clés) :**
+1.  La structure de navigation est complexe et nécessite un empilement vertical.
+2.  L'accès persistant aux outils ou au contenu est critique.
+3.  La personnalisation par l'utilisateur (thèmes, mises en page) fait partie de l'UX.
+Les sidebars sont critiques dans les dashboards d'administration, les outils de gestion de projet, les plateformes SaaS et les environnements de développement.
+
+---
+
+### I. FONDATIONS ARCHITECTURALES (RÈGLES D'ERGONOMIE STRICTES)
+
+**1. Hiérarchie et Clarté (Principe n°1) :**
+* La structure de navigation doit être **logique** et **modulaire**, divisée en sections claires (ex: Principal, Outils, Utilisateur/Paramètres).
+* **Limiter les options principales à 7-9 éléments** pour éviter la surcharge cognitive.
+* Utiliser des **sections extensibles (Accordéons/Dropdowns)** uniquement pour les sous-catégories, **jamais** pour le niveau de navigation principal.
+
+**2. Accessibilité et Lisibilité (Principe n°2) :**
+* **Utiliser TOUJOURS des icônes ET des étiquettes (texte) claires.** Les icônes améliorent le balayage visuel ; le texte assure la clarté et l'accessibilité.
+* Le contraste des couleurs doit être **vérifié (niveau AA minimum)** pour l'accessibilité, même en mode sombre.
+* Utiliser des **info-bulles (tooltips)** sur les icônes en mode rétracté (collapsed) ou au survol.
+
+**3. Performance et Dimensions (Principe n°3) :**
+* **Largeur optimale (Mode étendu) :** Strictement entre **240px et 300px**. Ne pas dépasser pour ne pas empiéter excessivement sur l'espace de contenu.
+* **Largeur optimale (Mode rétracté) :** 48px à 64px, se limitant aux icônes.
+* Les transitions et animations (pour l'ouverture/fermeture) doivent être **rapides (moins de 400 ms)** pour une expérience fluide.
+* **Mobile :** Utiliser des techniques **rétractables** ou **hors-toile (off-canvas)**.
+
+---
+
+### II. CARACTÉRISTIQUES AVANCÉES ET INSPIRATION (UX 2025)
+
+**A. Caractéristiques Fonctionnelles Avancées :**
+* **Mode Sombre/Clair :** Intégrer un mécanisme de **bascule (toggle)** visible pour la personnalisation (Inspiration : Robin Spielmann/Paul Hanaoka).
+* **Indicateurs d'État :** L'élément de navigation **actif/courant** doit être **clairement mis en évidence** (couleur de fond, bordure épaisse, changement de police en gras/couleur).
+* **Espace Blanc (Whitespace) :** Utiliser généreusement l'espace blanc autour des éléments pour un aspect **minimaliste et raffiné** (Inspiration : Sana AI/Supabase).
+* **CTA Intégré :** Inclure un **bouton d'action primaire** (ex: "Nouveau Projet", "Créer") positionné stratégiquement (souvent en bas ou sous la section principale) pour guider l'utilisateur vers la tâche principale.
+
+**B. Exemples d'Inspiration 2025 (Variations de Style) :**
+* **Swag App :** Utilisation audacieuse de la couleur et navigation multi-niveaux.
+* **Sana AI :** Minimalisme extrême et placement **inhabituel des icônes sur le côté droit** pour un aspect futuriste.
+* **Supabase :** Maîtrise de la navigation dense et complexe dans une esthétique minimaliste.
+* **Raw Materials :** Utilisation d'une barre latérale **animée** pour suivre la progression de l'utilisateur.
+
+---
+
+### III. DIRECTIVE OBLIGATOIRE D'ALIGNEMENT DES THÈMES (COHÉRENCE VISUELLE)
+
+**L'IA doit impérativement s'assurer que le thème visuel, la palette de couleurs, la typographie et le style des icônes de la sidebar respectent et s'alignent PARFAITEMENT (cohérence 100%) avec le thème général et l'identité de l'application ou de la page qu'elle est en train de construire.**
+
+*Exemple : Si l'application utilise des tons sombres et un style futuriste, la sidebar doit avoir un placement d'icônes inhabituel (ex: à droite comme Sana AI) et des couleurs minimalistes.*
+
 L'URL d'inspiration (qui fournit les full HTML et full CSS pour designer le front-end à 1000%) doit être choisie avec soin par l'IA. Elle ne doit pas ignorer les pages secondaires (ex: page "Bibliothèque" dans le menu de navigation). Dès sa première génération, l'IA doit générer 80% de l'Ultra Ultra Analyse (du même niveau que l'exemple). Le but final est : **Design 1000% esthétique + Logiciel complet 1000% fonctionnel et parfait.**
 
 Le truc est que tu dois hyper bien utiliser les fullhtml et fullcss que tu reçois et bien faire le design des applications à partir de ceux ci. En fait tu dois bien faire les sidebar et les bottom navbar pour la responsive mobile car la sidebar ne doit pas être visible si l'écran est de visibilité reduite car ça fait doublon. Il y a plusieurs types de bottom navbar celle qui est comme une pilule avec des bouts complètement arrondis et qui est séparé de la bottom de la page même si elle est fixée. 
