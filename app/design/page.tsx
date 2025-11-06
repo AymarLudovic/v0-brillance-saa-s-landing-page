@@ -12,9 +12,10 @@ interface StyleSection {
 }
 
 interface ThemeStyle {
-  id: string; // ID unique du thème (timestamp)
-  name: string; // Nom donné par l'utilisateur (ex: 'theme_site_light_white')
+  id: string; 
+  name: string; 
   sections: StyleSection[];
+  baseUrl: string; // Ajout pour la correction de l'iFrame
 }
 
 interface AnalysisResult {
@@ -22,6 +23,7 @@ interface AnalysisResult {
   fullHTML: string;
   fullCSS: string;
   fullJS: string;
+  urlAnalyzed: string; // Ajout de l'URL pour la base href
   error?: string;
 }
 
@@ -62,23 +64,30 @@ const StyleLibraryManager: React.FC = () => {
     setLoading(true);
     setAnalysis(null);
 
+    let urlToAnalyze = url;
+    if (!/^https?:\/\//i.test(urlToAnalyze)) {
+        urlToAnalyze = "https://" + urlToAnalyze;
+    }
+    const baseUrl = new URL(urlToAnalyze).origin + '/';
+
     try {
-      // Appel à l'API Next.js (assurez-vous que /api/analyse/route.ts est prêt)
+      // Appel à l'API Next.js
       const response = await fetch('/api/analyse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: urlToAnalyze }),
       });
 
       const data: AnalysisResult = await response.json();
 
       if (data.success) {
-        setAnalysis(data);
+        setAnalysis({...data, urlAnalyzed: baseUrl});
 
         // Crée la section "style_primary" avec le HTML/CSS complets
         const newTheme: ThemeStyle = {
           id: Date.now().toString(),
-          name: themeName.replace(/\s/g, '_').toLowerCase(), // Nettoyage du nom pour TypeScript
+          name: themeName.replace(/\s/g, '_').toLowerCase(), 
+          baseUrl: baseUrl, // Sauvegarde la base URL
           sections: [
             {
               name: 'style_primary',
@@ -90,7 +99,7 @@ const StyleLibraryManager: React.FC = () => {
 
         const newLibrary = [...library, newTheme];
         saveLibrary(newLibrary);
-        setSelectedTheme(newTheme); // Sélectionne le nouveau thème
+        setSelectedTheme(newTheme); 
       } else {
         alert(`Erreur d'analyse: ${data.error || "Réponse non réussie de l'API"}`);
       }
@@ -106,14 +115,16 @@ const StyleLibraryManager: React.FC = () => {
   const iframeContent = useMemo(() => {
     if (!analysis || !analysis.success) return '';
 
-    // Combinaison sécurisée du HTML, CSS et JS
+    // Utilisation de la base URL pour corriger les liens 404
+    const baseHref = analysis.urlAnalyzed;
+
     return `
       <!DOCTYPE html>
       <html lang="fr">
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>${analysis.fullCSS}</style>
+          <base href="${baseHref}"> <style>${analysis.fullCSS}</style>
       </head>
       <body>
           ${analysis.fullHTML}
@@ -131,11 +142,20 @@ const StyleLibraryManager: React.FC = () => {
   }, [analysis]);
 
   // --- 3. Gestion des Thèmes et Sections (Suppression) ---
-
   const handleSelectTheme = (themeId: string) => {
     const theme = library.find(t => t.id === themeId);
     setSelectedTheme(theme || null);
-    setFileContent(''); // Masquer l'aperçu du fichier lors du changement de thème
+    setFileContent('');
+    // Mise à jour de l'analyse pour l'iFrame si le thème sélectionné a été analysé
+    if (theme) {
+        setAnalysis({
+            success: true,
+            fullHTML: theme.sections[0]?.html || '',
+            fullCSS: theme.sections[0]?.css || '',
+            fullJS: '', // Le JS n'est pas stocké par section/thème mais il faut fournir un fallback
+            urlAnalyzed: theme.baseUrl
+        } as AnalysisResult);
+    }
   };
 
   const handleDeleteTheme = (themeId: string) => {
@@ -161,11 +181,10 @@ const StyleLibraryManager: React.FC = () => {
         };
       }
       return theme;
-    }).filter(theme => theme.sections.length > 0); // Suppression si le thème devient vide
+    }).filter(theme => theme.sections.length > 0); 
 
     saveLibrary(newLibrary);
     
-    // Mise à jour de la sélection
     if (selectedTheme && selectedTheme.id === themeId) {
         const updatedTheme = newLibrary.find(t => t.id === themeId);
         setSelectedTheme(updatedTheme || null);
@@ -173,50 +192,71 @@ const StyleLibraryManager: React.FC = () => {
   };
 
 
-  // --- 4. Génération et Affichage du Fichier Typescript ---
+  // --- 4. Génération et Affichage du Fichier Typescript (Nouveau Format) ---
 
-  const generateTSFileContent = (theme: ThemeStyle): string => {
+  const generateTSFileContent = (allThemes: ThemeStyle[]): string => {
     // Échappement des backticks et des barres obliques pour les string templates JS/TS
     const escapeContent = (content: string) => content.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+    
+    // Structure le contenu de tous les thèmes dans le format XML souhaité
+    const themesContent = allThemes.map((theme, themeIndex) => {
+        const themeTagName = `theme_site_${themeIndex + 1}`;
+        
+        const sectionsContent = theme.sections.map((sec, secIndex) => {
+            const sectionTagName = `style_${secIndex + 1}`;
+            
+            return `
+    <${sectionTagName} name="${sec.name.toUpperCase()}">
+        <metadata>
+            <theme_name>${theme.name}</theme_name>
+            <base_url>${theme.baseUrl}</base_url>
+        </metadata>
+        <css>
+            ${escapeContent(sec.css)}
+        </css>
+        <html>
+            ${escapeContent(sec.html)}
+        </html>
+    </${sectionTagName}>`;
+        }).join('\n');
 
-    const sectionsCode = theme.sections.map(sec => `
-// --- Section: ${sec.name.toUpperCase()} ---
-export const ${theme.name.toUpperCase()}_${sec.name.toUpperCase()}_CSS = \`${escapeContent(sec.css)}\`
-export const ${theme.name.toUpperCase()}_${sec.name.toUpperCase()}_HTML = \`${escapeContent(sec.html)}\`
-    `).join('\n');
+        return `
+<${themeTagName} name="${theme.name.toUpperCase()}">
+${sectionsContent}
+</${themeTagName}>`;
+    }).join('\n\n');
 
+    // Le prompt entier est encapsulé dans une seule constante
     return `
 /**
- * Fichier de thème généré depuis la librairie de styles.
- * Thème: ${theme.name}
- * ID: ${theme.id}
- * Date de génération: ${new Date().toISOString()}
+ * Fichier de librairie de styles généré pour l'IA.
+ * Contient tous les thèmes et sections du Local Storage, formatés pour être consommés comme un PROMPT STRUCTURÉ.
  */
-    ${sectionsCode}
-    `;
+export const DESIGN_STYLE_LIBRARY_PROMPT = \`
+${themesContent}
+\`;
+`;
   };
 
   const handleShowFile = () => {
-    if (selectedTheme) {
-      setFileContent(generateTSFileContent(selectedTheme));
-    }
+    // Afficher l'ensemble de la librairie, pas seulement le thème sélectionné
+    setFileContent(generateTSFileContent(library));
   };
 
   const handleDownloadFile = () => {
-    if (selectedTheme) {
-      const content = generateTSFileContent(selectedTheme);
-      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${selectedTheme.name}.ts`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
+    const content = generateTSFileContent(library);
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `design_library_${Date.now()}.ts`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
+  // Rendu du composant (inchangé)
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '1200px', margin: 'auto' }}>
       <h1>📚 Style Analyzer & Library Manager</h1>
@@ -283,7 +323,7 @@ export const ${theme.name.toUpperCase()}_${sec.name.toUpperCase()}_HTML = \`${es
                 backgroundColor: theme.id === selectedTheme?.id ? '#e6ffe6' : '#f9f9f9'
               }}
             >
-              <strong>{theme.name}</strong> ({theme.sections.length} section(s))
+              **{theme.name.toUpperCase()}** ({theme.sections.length} section(s))
               <button 
                 onClick={(e) => { e.stopPropagation(); handleDeleteTheme(theme.id); }} 
                 style={{ marginLeft: '10px', color: 'red', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
@@ -299,7 +339,7 @@ export const ${theme.name.toUpperCase()}_${sec.name.toUpperCase()}_HTML = \`${es
           <div style={{ borderTop: '2px dashed #ccc', marginTop: '15px', paddingTop: '15px' }}>
             <h3>Détails du Groupe: {selectedTheme.name.toUpperCase()}</h3>
             
-            <p>Ce groupe contient toutes les sections de styles enregistrées pour ce thème.</p>
+            <p>Base URL utilisée: <code style={{ backgroundColor: '#ffffe0', padding: '2px 4px' }}>{selectedTheme.baseUrl}</code> (pour résolution des assets)</p>
 
             {/* Liste des Sections (Styles) */}
             <ul style={{ listStyleType: 'none', padding: 0 }}>
@@ -318,7 +358,7 @@ export const ${theme.name.toUpperCase()}_${sec.name.toUpperCase()}_HTML = \`${es
 
             <div style={{ marginTop: '20px' }}>
               <button onClick={handleShowFile} style={{ marginRight: '10px', padding: '10px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-                Show File (`{selectedTheme.name}.ts`)
+                Show File (DESIGN_STYLE_LIBRARY_PROMPT.ts)
               </button>
               <button onClick={handleDownloadFile} style={{ padding: '10px', backgroundColor: '#2196F3', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
                 Télécharger le fichier .ts
@@ -331,7 +371,7 @@ export const ${theme.name.toUpperCase()}_${sec.name.toUpperCase()}_HTML = \`${es
       {/* Aperçu du Fichier .ts */}
       {fileContent && (
         <div style={{ marginTop: '20px' }}>
-          <h2>Aperçu du Fichier TypeScript (`{selectedTheme?.name}.ts`)</h2>
+          <h2>Aperçu du Fichier TypeScript Complet</h2>
           <pre style={{ backgroundColor: '#2d2d2d', color: '#f8f8f2', padding: '15px', border: '1px solid #ddd', overflowX: 'auto', borderRadius: '5px' }}>
             {fileContent}
           </pre>
