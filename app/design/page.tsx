@@ -3,6 +3,17 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import localforage from 'localforage'; // 👈 Import de localforage
+
+// Configuration de LocalForage (IndexedDB)
+// Nous utilisons une configuration simple pour stocker la librairie
+localforage.config({
+    name: 'StyleDesignLibrary',
+    storeName: 'themes_and_styles',
+    description: 'Style library for AI designer themes'
+});
+
+const DB_KEY = 'styleLibrary'; // Clé utilisée pour stocker le tableau de thèmes
 
 // --- Types pour la gestion des données ---
 interface StyleSection {
@@ -25,7 +36,7 @@ interface AnalysisResult {
   fullJS: string;
   urlAnalyzed: string;
   error?: string;
-  details?: string; // Ajout pour capturer plus de détails d'erreur
+  details?: string;
 }
 
 // Composant principal de la librairie de styles
@@ -37,27 +48,48 @@ const StyleLibraryManager: React.FC = () => {
   const [library, setLibrary] = useState<ThemeStyle[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<ThemeStyle | null>(null);
   const [fileContent, setFileContent] = useState('');
-  // NOUVEL ÉTAT POUR L'AFFICHAGE DES ERREURS
   const [apiError, setApiError] = useState<string | null>(null); 
+  const [dbStatus, setDbStatus] = useState<string>('Initialisation du stockage...');
 
-  // --- Gestion du LocalStorage ---
-  useEffect(() => {
+
+  // --- Gestion du Stockage (LocalForage/IndexedDB) ---
+
+  const loadLibrary = useCallback(async () => {
     try {
-      if (typeof window !== 'undefined') {
-        const storedLibrary = localStorage.getItem('styleLibrary');
-        if (storedLibrary) {
-          setLibrary(JSON.parse(storedLibrary));
-        }
+      setDbStatus('Chargement...');
+      const storedLibrary = await localforage.getItem(DB_KEY) as ThemeStyle[] | null;
+      if (storedLibrary) {
+        setLibrary(storedLibrary);
+        setDbStatus(`Librairie chargée. ${storedLibrary.length} thèmes trouvés.`);
+      } else {
+        setLibrary([]);
+        setDbStatus('Aucun thème trouvé. Démarrage de la librairie.');
       }
-    } catch (e) {
-      console.error("Impossible de charger la librairie du localStorage", e);
+    } catch (e: any) {
+      setDbStatus(`Erreur de chargement de la base de données: ${e.message}`);
+      console.error(e);
     }
   }, []);
 
-  const saveLibrary = useCallback((newLibrary: ThemeStyle[]) => {
+  useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
+
+
+  const saveLibrary = useCallback(async (newLibrary: ThemeStyle[]) => {
     setLibrary(newLibrary);
-    if (typeof window !== 'undefined') {
-        localStorage.setItem('styleLibrary', JSON.stringify(newLibrary));
+    setApiError(null); // Réinitialiser l'erreur
+
+    try {
+      setDbStatus('Sauvegarde en cours...');
+      await localforage.setItem(DB_KEY, newLibrary);
+      setDbStatus(`Sauvegarde réussie de ${newLibrary.length} thèmes.`);
+    } catch (e: any) {
+      // IndexedDB gère beaucoup plus de données, donc l'erreur de quota est moins probable, 
+      // mais nous la gérons quand même.
+      const errorMsg = e.message || e.name || 'Erreur inconnue lors de la sauvegarde.';
+      setApiError(`[ERREUR DE SAUVEGARDE DB] Impossible de sauvegarder la librairie. Détails: ${errorMsg}`);
+      setDbStatus(`Échec de la sauvegarde.`);
     }
   }, []);
 
@@ -66,7 +98,7 @@ const StyleLibraryManager: React.FC = () => {
     if (!url || !themeName) return;
     setLoading(true);
     setAnalysis(null);
-    setApiError(null); // Réinitialiser l'erreur
+    setApiError(null); 
 
     let urlToAnalyze = url;
     if (!/^https?:\/\//i.test(urlToAnalyze)) {
@@ -93,7 +125,6 @@ const StyleLibraryManager: React.FC = () => {
       const data: AnalysisResult = await response.json();
       
       if (!response.ok || !data.success) {
-        // Erreur API (même si la réponse est JSON, le statut peut être 500 ou success: false)
         const errorMessage = data.error || `Erreur HTTP: ${response.status} ${response.statusText}`;
         const errorDetails = data.details || "Aucun détail d'erreur fourni.";
         setApiError(`[API ÉCHOUÉE] ${errorMessage} | Détails: ${errorDetails}`);
@@ -118,11 +149,10 @@ const StyleLibraryManager: React.FC = () => {
       };
 
       const newLibrary = [...library, newTheme];
-      saveLibrary(newLibrary);
+      await saveLibrary(newLibrary); // Utilisation de la fonction ASYNCHRONE
       setSelectedTheme(newTheme); 
       
     } catch (error: any) {
-      // Erreur de réseau ou parsing JSON
       setApiError(`[ERREUR RÉSEAU/PARSE] ${error.message}. Vérifiez la console.`);
     } finally {
       setLoading(false);
@@ -133,7 +163,6 @@ const StyleLibraryManager: React.FC = () => {
   const iframeContent = useMemo(() => {
     if (!analysis || !analysis.success) return '';
 
-    // Utilisation de la base URL pour corriger les liens 404
     const baseHref = analysis.urlAnalyzed;
 
     return `
@@ -142,13 +171,13 @@ const StyleLibraryManager: React.FC = () => {
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <base href="${baseHref}"> <style>${analysis.fullCSS}</style>
+          <base href="${baseHref}"> 
+          <style>${analysis.fullCSS}</style>
       </head>
       <body>
           ${analysis.fullHTML}
           <script>${analysis.fullJS}</script>
           <style>
-            /* Correction de style pour l'iFrame */
             body {
                 margin: 0;
                 padding: 10px; 
@@ -173,22 +202,22 @@ const StyleLibraryManager: React.FC = () => {
             fullJS: '', 
             urlAnalyzed: theme.baseUrl
         } as AnalysisResult);
-        setApiError(null); // Réinitialiser l'erreur
+        setApiError(null); 
     }
   };
 
-  const handleDeleteTheme = (themeId: string) => {
+  const handleDeleteTheme = async (themeId: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce groupe de thème complet ?')) return;
 
     const newLibrary = library.filter(t => t.id !== themeId);
-    saveLibrary(newLibrary);
+    await saveLibrary(newLibrary); // Utilisation de la fonction ASYNCHRONE
     if (selectedTheme?.id === themeId) {
       setSelectedTheme(null);
       setAnalysis(null);
     }
   };
 
-  const handleDeleteSection = (themeId: string, sectionName: string) => {
+  const handleDeleteSection = async (themeId: string, sectionName: string) => {
     if (!confirm(`Êtes-vous sûr de vouloir supprimer la section "${sectionName}" de ce groupe ?`)) return;
 
     const newLibrary = library.map(theme => {
@@ -202,7 +231,7 @@ const StyleLibraryManager: React.FC = () => {
       return theme;
     }).filter(theme => theme.sections.length > 0); 
 
-    saveLibrary(newLibrary);
+    await saveLibrary(newLibrary); // Utilisation de la fonction ASYNCHRONE
     
     if (selectedTheme && selectedTheme.id === themeId) {
         const updatedTheme = newLibrary.find(t => t.id === themeId);
@@ -214,10 +243,8 @@ const StyleLibraryManager: React.FC = () => {
   // --- 4. Génération et Affichage du Fichier Typescript (Format XML/Prompt) ---
 
   const generateTSFileContent = (allThemes: ThemeStyle[]): string => {
-    // Échappement des backticks et des barres obliques pour les string templates JS/TS
     const escapeContent = (content: string) => content.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
     
-    // Structure le contenu de tous les thèmes dans le format XML souhaité
     const themesContent = allThemes.map((theme, themeIndex) => {
         const themeTagName = `theme_site_${themeIndex + 1}`;
         
@@ -245,11 +272,10 @@ ${sectionsContent}
 </${themeTagName}>`;
     }).join('\n\n');
 
-    // Le prompt entier est encapsulé dans une seule constante
     return `
 /**
  * Fichier de librairie de styles généré pour l'IA.
- * Contient tous les thèmes et sections du Local Storage, formatés pour être consommés comme un PROMPT STRUCTURÉ.
+ * Contient tous les thèmes et sections du IndexedDB, formatés pour être consommés comme un PROMPT STRUCTURÉ.
  */
 export const DESIGN_STYLE_LIBRARY_PROMPT = \`
 ${themesContent}
@@ -258,7 +284,6 @@ ${themesContent}
   };
 
   const handleShowFile = () => {
-    // Afficher l'ensemble de la librairie
     setFileContent(generateTSFileContent(library));
   };
 
@@ -278,8 +303,8 @@ ${themesContent}
   // --- Rendu du composant ---
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '1200px', margin: 'auto' }}>
-      <h1>📚 Style Analyzer & Library Manager</h1>
-      <p>Créez une librairie de styles réutilisables pour votre IA en stockant les analyses dans le **Local Storage**.</p>
+      <h1>📚 Style Analyzer & Library Manager (IndexedDB)</h1>
+      <p>Statut DB: <code style={{ backgroundColor: '#ccffcc', padding: '3px 6px', borderRadius: '4px' }}>{dbStatus}</code></p>
       
       {/* AFFICHAGE DES ERREURS DE L'API */}
       {apiError && (
@@ -335,11 +360,6 @@ ${themesContent}
             style={{ width: '100%', height: '400px', border: '2px solid #333', borderRadius: '8px' }}
           />
         </div>
-      )}
-      {analysis && !analysis.success && (
-         <div style={{ padding: '10px', backgroundColor: '#fdd', border: '1px solid red', marginBottom: '15px' }}>
-            Erreur lors de l'analyse: {analysis.error}
-         </div>
       )}
 
       {/* SECTION 2: Gestion et Génération */}
