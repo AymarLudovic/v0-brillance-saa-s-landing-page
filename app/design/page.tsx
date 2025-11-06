@@ -15,7 +15,7 @@ interface ThemeStyle {
   id: string; 
   name: string; 
   sections: StyleSection[];
-  baseUrl: string; // Ajout pour la correction de l'iFrame
+  baseUrl: string; 
 }
 
 interface AnalysisResult {
@@ -23,8 +23,9 @@ interface AnalysisResult {
   fullHTML: string;
   fullCSS: string;
   fullJS: string;
-  urlAnalyzed: string; // Ajout de l'URL pour la base href
+  urlAnalyzed: string;
   error?: string;
+  details?: string; // Ajout pour capturer plus de détails d'erreur
 }
 
 // Composant principal de la librairie de styles
@@ -36,6 +37,8 @@ const StyleLibraryManager: React.FC = () => {
   const [library, setLibrary] = useState<ThemeStyle[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<ThemeStyle | null>(null);
   const [fileContent, setFileContent] = useState('');
+  // NOUVEL ÉTAT POUR L'AFFICHAGE DES ERREURS
+  const [apiError, setApiError] = useState<string | null>(null); 
 
   // --- Gestion du LocalStorage ---
   useEffect(() => {
@@ -63,12 +66,21 @@ const StyleLibraryManager: React.FC = () => {
     if (!url || !themeName) return;
     setLoading(true);
     setAnalysis(null);
+    setApiError(null); // Réinitialiser l'erreur
 
     let urlToAnalyze = url;
     if (!/^https?:\/\//i.test(urlToAnalyze)) {
         urlToAnalyze = "https://" + urlToAnalyze;
     }
-    const baseUrl = new URL(urlToAnalyze).origin + '/';
+    
+    let baseUrl: string;
+    try {
+      baseUrl = new URL(urlToAnalyze).origin + '/';
+    } catch {
+      setApiError("URL non valide. Assurez-vous d'entrer un format correct (ex: google.com).");
+      setLoading(false);
+      return;
+    }
 
     try {
       // Appel à l'API Next.js
@@ -79,33 +91,39 @@ const StyleLibraryManager: React.FC = () => {
       });
 
       const data: AnalysisResult = await response.json();
-
-      if (data.success) {
-        setAnalysis({...data, urlAnalyzed: baseUrl});
-
-        // Crée la section "style_primary" avec le HTML/CSS complets
-        const newTheme: ThemeStyle = {
-          id: Date.now().toString(),
-          name: themeName.replace(/\s/g, '_').toLowerCase(), 
-          baseUrl: baseUrl, // Sauvegarde la base URL
-          sections: [
-            {
-              name: 'style_primary',
-              css: data.fullCSS,
-              html: data.fullHTML,
-            },
-          ],
-        };
-
-        const newLibrary = [...library, newTheme];
-        saveLibrary(newLibrary);
-        setSelectedTheme(newTheme); 
-      } else {
-        alert(`Erreur d'analyse: ${data.error || "Réponse non réussie de l'API"}`);
+      
+      if (!response.ok || !data.success) {
+        // Erreur API (même si la réponse est JSON, le statut peut être 500 ou success: false)
+        const errorMessage = data.error || `Erreur HTTP: ${response.status} ${response.statusText}`;
+        const errorDetails = data.details || "Aucun détail d'erreur fourni.";
+        setApiError(`[API ÉCHOUÉE] ${errorMessage} | Détails: ${errorDetails}`);
+        setAnalysis(null);
+        return; 
       }
-    } catch (error) {
-      console.error('Analyse échouée', error);
-      alert("Erreur lors de l'appel API. Vérifiez la console.");
+
+      setAnalysis({...data, urlAnalyzed: baseUrl});
+
+      // Crée la section "style_primary"
+      const newTheme: ThemeStyle = {
+        id: Date.now().toString(),
+        name: themeName.replace(/\s/g, '_').toLowerCase(), 
+        baseUrl: baseUrl,
+        sections: [
+          {
+            name: 'style_primary',
+            css: data.fullCSS,
+            html: data.fullHTML,
+          },
+        ],
+      };
+
+      const newLibrary = [...library, newTheme];
+      saveLibrary(newLibrary);
+      setSelectedTheme(newTheme); 
+      
+    } catch (error: any) {
+      // Erreur de réseau ou parsing JSON
+      setApiError(`[ERREUR RÉSEAU/PARSE] ${error.message}. Vérifiez la console.`);
     } finally {
       setLoading(false);
     }
@@ -146,15 +164,16 @@ const StyleLibraryManager: React.FC = () => {
     const theme = library.find(t => t.id === themeId);
     setSelectedTheme(theme || null);
     setFileContent('');
-    // Mise à jour de l'analyse pour l'iFrame si le thème sélectionné a été analysé
+    
     if (theme) {
         setAnalysis({
             success: true,
             fullHTML: theme.sections[0]?.html || '',
             fullCSS: theme.sections[0]?.css || '',
-            fullJS: '', // Le JS n'est pas stocké par section/thème mais il faut fournir un fallback
+            fullJS: '', 
             urlAnalyzed: theme.baseUrl
         } as AnalysisResult);
+        setApiError(null); // Réinitialiser l'erreur
     }
   };
 
@@ -192,7 +211,7 @@ const StyleLibraryManager: React.FC = () => {
   };
 
 
-  // --- 4. Génération et Affichage du Fichier Typescript (Nouveau Format) ---
+  // --- 4. Génération et Affichage du Fichier Typescript (Format XML/Prompt) ---
 
   const generateTSFileContent = (allThemes: ThemeStyle[]): string => {
     // Échappement des backticks et des barres obliques pour les string templates JS/TS
@@ -239,7 +258,7 @@ ${themesContent}
   };
 
   const handleShowFile = () => {
-    // Afficher l'ensemble de la librairie, pas seulement le thème sélectionné
+    // Afficher l'ensemble de la librairie
     setFileContent(generateTSFileContent(library));
   };
 
@@ -256,12 +275,30 @@ ${themesContent}
     URL.revokeObjectURL(url);
   };
 
-  // Rendu du composant (inchangé)
+  // --- Rendu du composant ---
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '1200px', margin: 'auto' }}>
       <h1>📚 Style Analyzer & Library Manager</h1>
       <p>Créez une librairie de styles réutilisables pour votre IA en stockant les analyses dans le **Local Storage**.</p>
       
+      {/* AFFICHAGE DES ERREURS DE L'API */}
+      {apiError && (
+        <div style={{ 
+          padding: '15px', 
+          marginBottom: '20px', 
+          borderRadius: '8px', 
+          backgroundColor: '#ffe6e6', 
+          border: '2px solid red',
+          fontWeight: 'bold',
+          whiteSpace: 'pre-wrap'
+        }}>
+          ❌ ERREUR API/RÉSEAU:
+          <pre style={{ margin: '5px 0 0 0', backgroundColor: '#fdd', padding: '10px', borderRadius: '4px', fontSize: '14px' }}>
+            {apiError}
+          </pre>
+        </div>
+      )}
+
       {/* SECTION 1: Analyse et Stockage */}
       <div style={{ border: '1px solid #0070f3', padding: '15px', marginBottom: '20px', borderRadius: '8px', backgroundColor: '#f0f8ff' }}>
         <h2>1. Analyser un Nouveau Site (Appel API)</h2>
