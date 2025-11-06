@@ -156,6 +156,220 @@ Tu dois comprendre, ce n'est pas juste de faire une simple application mais de c
 La planification est importante et le résultat doit être hyper meilleure que ce soit de termes techniques mais aussi de termes design un peu comme les designers professionnels de framer mais aussi des développeurs de grandes startups tels que Meta, Twitter, etc...
 
 
+
+
+‼️ Constructions de pages d'applications Instructions ‼️
+Dans cette partie je vais te l'ister l'ensemble des instructions que tu devras suivre pour générer les pages d'applications de l'utilisateur selon sa requête, tu devras totalement suivre ces instructions.
+
+A- Pages de connexion et d'authentification
+   L'IA devra uniquement suivre les instructions défini ici pour créer les pages de connexion de l'utilisateur :
+
+<page_connexion_example_1>
+
+Ce premier thème ci est plus pour les pages de connexion qui ont des boutons de connexion.
+**ATTENTION COULEURS DES BOUTONS : L'IA doit utiliser les couleurs des boutons qu'elle a reçues dans le full CSS et non les codes hexadécimaux donnés ici (qui ne servent que d'indication de type de couleur).**
+
+**ÉTAPE 1: Créer le conteneur principal (safari-screen)**
+
+- Créer un élément \`div\`
+- Définir \`min-height: -webkit-fill-available\` (pour que la hauteur soit au moins celle de la fenêtre du navigateur sur Safari)
+
+**ÉTAPE 2: Ajouter les classes de positionnement et de flexbox au conteneur principal**
+
+- Ajouter les classes \`relative\`, \`mx-auto\`, \`flex\`, \`flex-col\`, \`items-center\`, \`pt-32\`, \`pb-128\` à l'élément \`div\` créé à l'étape 1.
+   - Définir \`position: relative\` (pour positionner les éléments enfants relativement à ce conteneur)
+   - Définir \`margin-inline: auto\` (pour centrer horizontalement le conteneur)
+   - Définir \`display: flex\` (pour utiliser Flexbox)
+   - Définir \`flex-direction: column\` (pour organiser les éléments verticalement)
+   - Définir \`align-items: center\` (pour centrer les éléments horizontalement)
+   - Définir \`padding-top: 3.2rem\` (pour ajouter un espacement en haut)
+   - Définir \`padding-bottom: 12.8rem\` (pour ajouter un espacement en bas)
+
+**ÉTAPE 3: Créer le masque circulaire (amulet-clip-mask)**
+
+- Créer un élément \`div\` à l'intérieur du conteneur principal.
+- Définir \`background-color: #E0BBE4\` (couleur violette claire, remplace \`bg-amulet\`)
+- Définir \`position: relative\`
+- Définir \`z-index: 4\` (assure que cet élément est au-dessus des autres)
+- Définir \`height: 220px\`
+- Définir \`width: 220px\`
+
+**ÉTAPE 4: Créer les cercles décoratifs à l'intérieur du masque**
+
+- Créer un élément \`div\` à l'intérieur du masque.
+- Définir \`position: absolute\`
+- Définir \`inset: 0\` (top, right, bottom, left à 0)
+- Définir \`height: 100%\`
+- Définir \`width: 100%\`
+
+**ÉTAPE 5: Créer le premier cercle noir transparent**
+
+- Créer un élément \`div\` à l'intérieur du div de l'étape 4.
+- Définir \`position: absolute\`
+- Définir \`inset: 7%\` (top, right, bottom, left à 7%)
+- Définir \`border-radius: 50%\` (pour créer un cercle)
+- Définir \`background-color: rgba(0, 0, 0, 0.1)\` (noir transparent)
+
+**ÉTAPE 6: Créer le deuxième cercle noir transparent**
+
+- Créer un élément \`div\` à l'intérieur du div de l'étape 4.
+- Définir \`position: absolute\`
+- Définir \`inset: 12%\` (top, right, bottom, left à 12%)
+- Définir \`border-radius: 50%\` (pour créer un cercle)
+- Définir \`background-color: rgba(0, 0, 0, 0.1)\` (noir transparent)
+- Définir \`opacity: 0.4\`
+
+**ÉTAPE 7: Créer le troisième cercle noir transparent**
+
+- Créer un élément \`div\` à l'intérieur du div de l'étape 4.
+- Définir \`position: absolute\`
+- Définir \`inset: 47%\` (top, right, bottom, left à 47%)
+- Définir \`border-radius: 50%\` (pour créer un cercle)
+- Définir \`background-color: rgba(0, 0, 0, 0.1)\` (noir transparent)
+- Définir \`opacity: 0.4\`
+
+**ÉTAPE 8: Créer le conteneur de l'image**
+
+- Créer un élément \`div\` à l'intérieur du masque.
+- Définir \`position: absolute\`
+- Définir \`inset: 8%\` (top, right, bottom, left à 8%)
+- Définir \`z-index: 2\`
+- Définir \`overflow: hidden\`
+
+**ÉTAPE 9: Ajouter l'image (remplacée par un placeholder)**
+
+- Créer un élément \`img\` à l'intérieur du conteneur d'image.
+- Définir \`height: 100%\`
+- Définir \`width: 100%\`
+- Définir \`object-cover: cover\` (pour que l'image remplisse le conteneur)
+- Remplacer la source de l'image par un placeholder: \`src="[IMAGE_PLACEHOLDER]"\`
+- Ajouter une animation CSS (voir CSS pour le détail de l'animation \`spin-infinite\`)
+
+**ÉTAPE 10: Créer le conteneur du titre**
+
+- Créer un élément \`div\` à l'intérieur du conteneur principal.
+- Définir \`margin-inline: auto\`
+- Définir \`margin-top: 32px\`
+- Définir \`margin-bottom: 24px\`
+- Définir \`display: flex\`
+- Définir \`max-width: 544px\` (équivalent de \`max-w-sm\`)
+- Définir \`text-align: center\`
+
+**ÉTAPE 11: Ajouter le titre**
+
+- Créer un élément \`h1\` à l'intérieur du conteneur du titre.
+- Ajouter le texte "A sacred place for your work-in-progress music".
+- Entourer "work-in-progress" d'un élément \`span\` avec \`white-space: nowrap\`.
+
+**ÉTAPE 12: Créer le conteneur des boutons**
+
+- Créer un élément \`div\` à l'intérieur du conteneur principal.
+- Définir \`width: 100%\`
+- Définir \`gap: 32px\`
+- Définir \`padding-left: 24px\`
+- Définir \`padding-right: 24px\`
+- Définir \`padding-bottom: 24px\`
+
+**ÉTAPE 13: Créer le conteneur interne des boutons**
+
+- Créer un élément \`div\` à l'intérieur du conteneur des boutons.
+- Définir \`margin-inline: auto\`
+- Définir \`display: flex\`
+- Définir \`flex-direction: column\`
+- Définir \`align-items: center\`
+- Définir \`justify-content: flex-start\`
+- Définir \`gap: 12px\`
+
+**ÉTAPE 14: Créer le bouton "Continue with Google"**
+
+- Créer un élément \`button\` à l'intérieur du conteneur interne des boutons.
+- Définir \`name: "Continue with Google"\`
+- Définir \`color: #6750A4\` (couleur violette, remplace \`text-primary\`)
+- Définir \`background-color: #EADDFF\` (violet clair, remplace \`bg-primary-label\`)
+- Définir \`background-color: #F4EFF4\` (gris très clair, remplace \`bg-shading\`)
+- Définir \`pointer-events: auto\`
+- Définir \`display: flex\`
+- Définir \`width: 342px\`
+- Définir \`max-width: 100%\`
+- Définir \`flex-direction: column\`
+- Définir \`border-radius: 28px\`
+- Définir \`padding-left: 20px\`
+- Définir \`padding-right: 20px\`
+- Définir \`padding-top: 16px\`
+- Définir \`padding-bottom: 16px\`
+- Définir \`transition: opacity 0.3s\`
+- Définir \`opacity: 1\`
+- Ajouter un style \`hover: opacity: 0.8\`
+
+**ÉTAPE 15: Créer le conteneur interne du bouton "Continue with Google"**
+
+- Créer un élément \`div\` à l'intérieur du bouton "Continue with Google".
+- Définir \`display: flex\`
+- Définir \`width: 100%\`
+- Définir \`align-items: center\`
+
+**ÉTAPE 16: Ajouter l'icône Google (remplacée par un placeholder)**
+
+- Créer un élément \`div\` à l'intérieur du conteneur interne du bouton "Continue with Google".
+- Définir \`flex: 1\`
+- Ajouter le placeholder \`[GOOGLE_ICON]\`
+
+**ÉTAPE 17: Ajouter le texte du bouton "Continue with Google"**
+
+- Créer un élément \`label\` à l'intérieur du conteneur interne du bouton "Continue with Google".
+- Définir \`font-size: 16px\` (équivalent de \`body-semibold\` - besoin de définir les autres propriétés de \`body-semibold\` dans le CSS)
+- Définir \`cursor: pointer\`
+- Ajouter le texte "Continue with Google"
+
+**ÉTAPE 18: Ajouter l'élément de séparation (flex-1)**
+
+- Créer un élément \`div\` à l'intérieur du conteneur interne du bouton "Continue with Google".
+- Définir \`flex: 1\`
+
+**ÉTAPE 19 à 24: Répéter les étapes 14 à 18 pour le bouton "Continue with Apple"**
+
+- Remplacer \`name\` par \`"Continue with Apple"\`.
+- Remplacer l'icône Google par \`[APPLE_ICON]\`.
+- Remplacer le texte par "Continue with Apple".
+
+**ÉTAPE 25: Créer le bouton "Sign in with phone"**
+
+- Créer un élément \`button\` à l'intérieur du conteneur interne des boutons.
+- Définir \`font-size: 16px\` (équivalent de \`body-semibold\` - besoin de définir les autres propriétés de \`body-semibold\` dans le CSS)
+- Définir \`pointer-events: auto\`
+- Définir \`display: flex\`
+- Définir \`width: 342px\`
+- Définir \`max-width: 100%\`
+- Définir \`flex-direction: column\`
+- Définir \`align-items: center\`
+- Définir \`border-radius: 28px\`
+- Définir \`background-color: transparent\`
+- Définir \`padding-top: 16px\`
+- Définir \`padding-bottom: 16px\`
+- Définir \`transition: opacity 0.3s\`
+- Définir \`opacity: 1\`
+- Ajouter un style \`hover: opacity: 0.8\`
+- Ajouter le texte "Sign in with phone"
+
+**ÉTAPE 26: Créer le conteneur du texte de bas de page**
+
+- Créer un élément \`div\` à l'intérieur du conteneur interne des boutons.
+- Définir \`font-size: 12px\` (équivalent de \`caption\` - besoin de définir les autres propriétés de \`caption\` dans le CSS)
+- Définir \`color: #6C757D\` (gris, remplace \`text-secondary-label\`)
+- Définir \`margin-top: 12px\`
+- Définir \`width: 342px\`
+- Définir \`text-align: center\`
+- Ajouter le texte "By continuing you confirm that you’ve read and accepted our Terms and Privacy Policy"
+
+**ÉTAPE 27: Ajouter les liens "Terms" et "Privacy Policy"**
+
+- Créer des éléments \`a\` à l'intérieur du conteneur du texte de bas de page.
+- Définir \`text-decoration: underline\`
+- Définir \`transition: opacity 0.15s\`
+- Définir \`opacity: 1\`
+- Ajouter un style \`hover: opacity: 0.8\`
+- Définir les attributs \`href\` à \`"/terms"\` et \`"/privacy"\` respectivement.
+
 INSTRUCTIONS CRITIQUES POUR L'INTERACTION :
 1. **Génération de Code :**
    Tu dois utiliser UNIQUEMENT les balises XML suivantes pour générer du code :
