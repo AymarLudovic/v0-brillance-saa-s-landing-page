@@ -13,15 +13,15 @@ localforage.config({
 });
 
 const DB_KEY = 'styleLibrary'; 
-const DEFAULT_SECTION_NAME = 'style_component'; // Nom par défaut pour la section de style analysée
+const DEFAULT_SECTION_NAME = 'style_component';
 
 // --- Types pour la gestion des données ---
 interface StyleSection { 
-  id: string; // ID unique pour cette analyse (site)
-  name: string; // Nom de la section/analyse (ex: 'header_nav')
-  css: string; // Le CSS isolé
-  html: string; // Le HTML isolé
-  url: string; // URL du site d'origine
+  id: string; 
+  name: string; 
+  css: string; 
+  html: string; // Contient le HTML isolé + son DOM parent
+  url: string; 
 }
 
 interface ThemeStyle {
@@ -41,16 +41,26 @@ interface AnalysisResult {
   details?: string;
 }
 
-// --- Fonctions d'Utilité d'Isolation CSS/HTML (Simplifié) ---
+interface DetectedElement {
+    id: string; // ID unique interne
+    tagName: string;
+    selector: string; // Ex: 'header#main-nav'
+    htmlSnippet: string;
+    fullOuterHTML: string; // Le HTML complet de l'élément sélectionné
+}
+
+// Définition des tags structuraux à détecter automatiquement
+const STRUCTURAL_TAGS = ['header', 'nav', 'main', 'aside', 'footer', 'section', 'article', 'h1', 'h2', 'a', 'button', 'input', 'form', 'figure'];
+
+// --- Fonctions d'Utilité d'Isolation CSS/HTML (Réutilisées) ---
 
 /**
- * Tente d'extraire les règles CSS pertinentes basées sur les classes/IDs de l'élément.
- * C'est une extraction heuristique : elle cherche les blocs qui contiennent les sélecteurs.
+ * Tente d'extraire les règles CSS pertinentes.
  */
-const extractRelevantCss = (fullCSS: string, element: HTMLElement): string => {
+const extractRelevantCss = (fullCSS: string, element: HTMLElement, domDepth: number): string => {
     const selectors = new Set<string>();
     
-    // 1. Collecte récursive des sélecteurs (classe, ID, tag) de l'élément et de ses descendants
+    // Collecte des sélecteurs de l'élément sélectionné et de ses descendants
     const collectSelectors = (el: HTMLElement) => {
         if (el.className) {
             el.className.split(/\s+/).forEach(cls => selectors.add('.' + cls.trim()));
@@ -66,33 +76,42 @@ const extractRelevantCss = (fullCSS: string, element: HTMLElement): string => {
             }
         });
     };
-    collectSelectors(element);
+    
+    collectSelectors(element); 
+    
+    // Collecte des sélecteurs des parents jusqu'à la profondeur spécifiée
+    let current = element.parentElement;
+    let depth = 0;
+    while(current && depth < domDepth && current.tagName.toLowerCase() !== 'body') {
+        if (current.className) {
+             current.className.split(/\s+/).forEach(cls => selectors.add('.' + cls.trim()));
+        }
+        if (current.id) {
+            selectors.add('#' + current.id.trim());
+        }
+        selectors.add(current.tagName.toLowerCase());
+        current = current.parentElement;
+        depth++;
+    }
 
     if (selectors.size === 0) return '';
 
-    // 2. Création d'une RegExp pour matcher les règles
-    // On échappe les caractères spéciaux pour l'utilisation dans la RegExp
     const safeSelectors = Array.from(selectors)
-        .filter(s => s.length > 1) // Ignore les tags trop génériques comme 'body'
+        .filter(s => s.length > 1) 
         .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         .join('|');
     
-    // Si aucun sélecteur n'a été collecté (ex: simple div sans classe), on s'arrête.
     if (!safeSelectors) return '';
 
-    // Regex pour capturer tout bloc de règle CSS contenant un de nos sélecteurs.
-    // (?:[^{]*?) permet de capturer les media queries et autres préfixes.
     const aggressiveRuleRegex = new RegExp(`([^}]+)({[^}]*})`, 'gs');
-    
     let relevantCss = '';
     let match;
     
     while ((match = aggressiveRuleRegex.exec(fullCSS)) !== null) {
-        const selectorsPart = match[1]; // Ex: .container > p
-        const ruleBlock = match[0];    // Ex: .container > p { color: red; }
+        const selectorsPart = match[1]; 
+        const ruleBlock = match[0];    
         
         let shouldInclude = false;
-        // Vérifie si un de nos sélecteurs est inclus dans la partie sélecteurs de la règle
         selectors.forEach(selector => {
             if (selectorsPart.includes(selector)) {
                 shouldInclude = true;
@@ -104,7 +123,6 @@ const extractRelevantCss = (fullCSS: string, element: HTMLElement): string => {
         }
     }
 
-    // Ajout d'une base minimale (utile pour le rendu isolé)
     return `
 html, body {
     margin: 0;
@@ -112,10 +130,84 @@ html, body {
     box-sizing: border-box;
     font-family: inherit;
     font-size: 100%;
+    line-height: 1.5;
 }
 ${relevantCss}`;
 };
 
+
+/**
+ * Récupère le HTML de l'élément sélectionné entouré par ses parents jusqu'à la profondeur spécifiée.
+ */
+const getSurroundingDom = (element: HTMLElement, depth: number): string => {
+    let current = element;
+    let wrapper = element.outerHTML;
+    
+    for (let i = 0; i < depth; i++) {
+        if (!current.parentElement || current.parentElement.tagName.toLowerCase() === 'body') {
+            break;
+        }
+        const parent = current.parentElement;
+        // Filtrer les attributs inutiles
+        const attributes = Array.from(parent.attributes)
+            .filter(attr => !attr.name.startsWith('data-') && attr.name !== 'style' && attr.name !== 'class') 
+            .map(attr => `${attr.name}="${attr.value}"`)
+            .join(' ');
+            
+        // Inclure la classe du parent est critique pour le style, on le fait manuellement
+        const classAttr = parent.className ? ` class="${parent.className}"` : '';
+            
+        wrapper = `<${parent.tagName.toLowerCase()} ${attributes}${classAttr}>${wrapper}</${parent.tagName.toLowerCase()}>`;
+        current = parent;
+    }
+
+    return wrapper;
+};
+
+
+/**
+ * Analyse le HTML brut pour détecter les éléments structuraux.
+ */
+const parseHTMLForStructuralElements = (htmlString: string): DetectedElement[] => {
+    if (typeof DOMParser === 'undefined') return [];
+
+    const parser = new DOMParser();
+    // Utiliser 'text/html' pour un parsing standard
+    const doc = parser.parseFromString(htmlString, 'text/html');
+    const detected: DetectedElement[] = [];
+    let uniqueIndex = 0;
+
+    STRUCTURAL_TAGS.forEach((tag) => {
+        const elements = doc.querySelectorAll(tag);
+        elements.forEach((el) => {
+            const elementId = el.id ? `#${el.id}` : (el.className ? `.${el.className.split(/\s+/)[0]}` : '');
+            
+            detected.push({
+                id: (uniqueIndex++).toString(),
+                tagName: tag,
+                selector: tag + elementId,
+                htmlSnippet: el.outerHTML.substring(0, 100).replace(/\n/g, ' ') + '...',
+                fullOuterHTML: el.outerHTML,
+            });
+        });
+    });
+    
+    // Ajout des divs/figures significatifs
+    const genericElements = doc.querySelectorAll('div[id], div[class], figure[id], figure[class]');
+    genericElements.forEach((el) => {
+        const elementId = el.id ? `#${el.id}` : (el.className ? `.${el.className.split(/\s+/)[0]}` : '');
+        
+        detected.push({
+            id: (uniqueIndex++).toString(),
+            tagName: el.tagName.toLowerCase(),
+            selector: el.tagName.toLowerCase() + elementId,
+            htmlSnippet: el.outerHTML.substring(0, 100).replace(/\n/g, ' ') + '...',
+            fullOuterHTML: el.outerHTML,
+        });
+    });
+
+    return detected;
+};
 
 // Composant principal de la librairie de styles
 const StyleLibraryManager: React.FC = () => {
@@ -129,23 +221,25 @@ const StyleLibraryManager: React.FC = () => {
   const [apiError, setApiError] = useState<string | null>(null); 
   const [dbStatus, setDbStatus] = useState<string>('Initialisation du stockage...');
   
-  // --- NOUVEAUX ÉTATS POUR L'ISOLATION ---
+  // --- NOUVEAUX ÉTATS POUR L'ISOLATION PROGRAMMATIQUE ---
+  const [detectedElements, setDetectedElements] = useState<DetectedElement[]>([]);
   const [isolatedHtml, setIsolatedHtml] = useState('');
   const [isolatedCss, setIsolatedCss] = useState('');
   const [isolatedName, setIsolatedName] = useState(DEFAULT_SECTION_NAME);
   const [isComponentIsolated, setIsComponentIsolated] = useState(false);
+  const [domDepth, setDomDepth] = useState(0); 
+  // Nous stockons l'objet DetectedElement pour la logique d'isolation
+  const [currentDetection, setCurrentDetection] = useState<DetectedElement | null>(null); 
 
 
   // --- Gestion du Stockage (LocalForage/IndexedDB) ---
-
-  const loadLibrary = useCallback(async () => {
+  const loadLibrary = useCallback(async () => { /* ... loadLibrary function remains the same ... */ 
     try {
       setDbStatus('Chargement...');
       const storedLibrary = await localforage.getItem(DB_KEY) as ThemeStyle[] | null;
       if (storedLibrary) {
         setLibrary(storedLibrary);
-        // Tente de sélectionner le dernier thème pour une meilleure UX
-        setSelectedTheme(storedLibrary[storedLibrary.length - 1] || null);
+        setSelectedTheme(storedLibrary[storedLibrary.length - 1] || null); 
         setDbStatus(`Librairie chargée. ${storedLibrary.length} thèmes trouvés.`);
       } else {
         setLibrary([]);
@@ -162,7 +256,7 @@ const StyleLibraryManager: React.FC = () => {
   }, [loadLibrary]);
 
 
-  const saveLibrary = useCallback(async (newLibrary: ThemeStyle[]) => {
+  const saveLibrary = useCallback(async (newLibrary: ThemeStyle[]) => { /* ... saveLibrary function remains the same ... */
     setLibrary(newLibrary);
     setApiError(null); 
 
@@ -177,15 +271,17 @@ const StyleLibraryManager: React.FC = () => {
     }
   }, []);
 
-  // --- 1. Analyse (Charge l'état d'analyse, ne sauvegarde plus le full site) ---
+  // --- 1. Analyse (Charge l'état d'analyse ET dÉtecte les Éléments) ---
   const handleAnalyzeAndSave = async () => {
     if (!url || !themeName) return;
     setLoading(true);
     setAnalysis(null);
+    setDetectedElements([]);
     setApiError(null); 
-    setIsComponentIsolated(false); // Réinitialiser l'isolation
+    setIsComponentIsolated(false); 
     setIsolatedHtml('');
     setIsolatedCss('');
+    setCurrentDetection(null);
 
     let urlToAnalyze = url;
     if (!/^https?:\/\//i.test(urlToAnalyze)) {
@@ -202,7 +298,6 @@ const StyleLibraryManager: React.FC = () => {
     }
 
     try {
-      // 1. Appel à l'API Next.js
       const response = await fetch('/api/analyse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -219,20 +314,21 @@ const StyleLibraryManager: React.FC = () => {
         return; 
       }
 
-      // 2. Met à jour l'état d'analyse
       const newAnalysis: AnalysisResult = {...data, urlAnalyzed: baseUrl};
       setAnalysis(newAnalysis);
 
-      const normalizedThemeName = themeName.replace(/\s/g, '_').toLowerCase();
+      // 🛑 NOUVEAU: Détection des éléments structuraux
+      const detected = parseHTMLForStructuralElements(data.fullHTML);
+      setDetectedElements(detected);
 
-      // 3. Crée le thème s'il n'existe pas, ou le sélectionne
+      const normalizedThemeName = themeName.replace(/\s/g, '_').toLowerCase();
       let themeFound = library.find(t => t.name === normalizedThemeName);
       if (!themeFound) {
           themeFound = {
               id: Date.now().toString(),
               name: normalizedThemeName, 
               baseUrl: baseUrl,
-              sections: [], // Commence vide, on sauvera les composants isolés plus tard
+              sections: [], 
           };
           const newLibrary = [...library, themeFound];
           await saveLibrary(newLibrary);
@@ -246,64 +342,79 @@ const StyleLibraryManager: React.FC = () => {
     }
   };
 
-  // --- IFrame Interactivité et Isolation ---
-const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
-    if (!iframe || !iframe.contentDocument || !analysis || !analysis.success) return;
 
-    const doc = iframe.contentDocument;
-    const body = doc.body;
+  // --- Logique d'Isolation Programmatique (Déclenchée par bouton) ---
 
-    body.style.cursor = 'default';
-
-    // Fonction d'isolation déclenchée par la fin du contact (relâchement du doigt)
-    const handleTouchEnd = (e: TouchEvent) => {
-        // e.changedTouches[0].target est l'élément DOM touché
-        const targetElement = e.changedTouches?.[0]?.target;
-
-        if (!(targetElement instanceof HTMLElement) || targetElement === body || targetElement === doc.documentElement) return;
-        
-        // Empêche le zoom, le défilement et les événements de click simulés
-        e.preventDefault(); 
-        e.stopPropagation();
-        
-        const selectedElement = targetElement;
-
-        // --- Logique d'Isolation ---
-        const html = selectedElement.outerHTML;
-        const css = extractRelevantCss(analysis.fullCSS, selectedElement);
-            
-        setIsolatedHtml(html);
-        setIsolatedCss(css);
-        
-        const descriptiveName = selectedElement.tagName.toLowerCase() + 
-            (selectedElement.id ? `#${selectedElement.id}` : 
-             (selectedElement.className ? `.${selectedElement.className.split(/\s+/)[0]}` : ''));
-        setIsolatedName(descriptiveName);
-        setIsComponentIsolated(true);
-        setApiError(null); 
-
-        // --- Surlignement (Feedback Visuel) ---
-        doc.querySelectorAll('[data-highlighted]').forEach(el => {
-            (el as HTMLElement).style.outline = 'none';
-            (el as HTMLElement).removeAttribute('data-highlighted');
-        });
-        selectedElement.style.outline = '3px solid #FF9800';
-        selectedElement.setAttribute('data-highlighted', 'true');
-    };
+  const findElementByOuterHTML = (fullHTML: string, elementOuterHTML: string): HTMLElement | null => {
+    // Utiliser DOMParser pour créer un DOM virtuel
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(fullHTML, 'text/html');
     
-    // Nous écoutons 'touchend' pour une meilleure précision du ciblage mobile
-    body.addEventListener('touchend', handleTouchEnd, { passive: false });
+    // Trouver tous les éléments pour la recherche
+    const allElements = doc.body.querySelectorAll('*');
     
-    // Empêcher l'iframe d'ajouter des écouteurs 'click' qui entreraient en conflit
-    body.style.pointerEvents = 'auto';
-
-    // Nettoyage
-    iframe.onload = () => {
-        body.removeEventListener('touchend', handleTouchEnd);
-    };
+    // Chercher l'élément exact basé sur le outerHTML (peut être sensible aux espaces)
+    for (let i = 0; i < allElements.length; i++) {
+        if (allElements[i].outerHTML === elementOuterHTML) {
+            return allElements[i] as HTMLElement;
+        }
+    }
+    // Tentative moins stricte (juste pour s'assurer qu'on trouve quelque chose)
+    for (let i = 0; i < allElements.length; i++) {
+        if (allElements[i].outerHTML.includes(elementOuterHTML.substring(0, 50))) {
+             return allElements[i] as HTMLElement;
+        }
+    }
+    
+    return null;
   };
 
-  // --- 2. Génération de l'iFrame COMPLET (Visualisation de l'analyse) ---
+
+  const updateIsolatedComponent = useCallback((detection: DetectedElement, depth: number, fullHTML: string, fullCSS: string) => {
+    
+    // 1. Reconstruire l'élément à partir de la chaîne de l'analyse complète
+    const elementToIsolate = findElementByOuterHTML(fullHTML, detection.fullOuterHTML);
+
+    if (!elementToIsolate) {
+        setApiError(`[ERREUR ISOLEMENT] Impossible de retrouver l'élément ${detection.selector} dans le DOM.`);
+        setIsComponentIsolated(false);
+        return;
+    }
+    
+    // 2. Isolation du HTML avec DOM Parent
+    const htmlWithDom = getSurroundingDom(elementToIsolate, depth);
+    
+    // 3. Isolation du CSS
+    const css = extractRelevantCss(fullCSS, elementToIsolate, depth);
+        
+    // 4. Mise à jour des états
+    setIsolatedHtml(htmlWithDom);
+    setIsolatedCss(css);
+    setIsolatedName(detection.selector.replace(/[.#]/g, '_').toLowerCase().substring(0, 40));
+    setIsComponentIsolated(true);
+    setApiError(null); 
+
+    // On stocke la détection actuelle pour la sauvegarde
+    setCurrentDetection(detection);
+
+  }, []);
+
+
+  const handleIsolateProgrammatically = (detection: DetectedElement) => {
+    if (!analysis) return;
+    // Déclenche la mise à jour de l'isolation avec la profondeur actuelle
+    updateIsolatedComponent(detection, domDepth, analysis.fullHTML, analysis.fullCSS);
+  };
+  
+  // Recalcule l'isolation dès que la profondeur du DOM change
+  useEffect(() => {
+    if (currentDetection && analysis) {
+        updateIsolatedComponent(currentDetection, domDepth, analysis.fullHTML, analysis.fullCSS);
+    }
+  }, [domDepth, currentDetection, analysis, updateIsolatedComponent]);
+
+
+  // --- IFrame COMPlET (Affichage de l'analyse, n'est plus cliquable pour la sélection) ---
   const iframeContent = useMemo(() => {
     if (!analysis || !analysis.success) return '';
 
@@ -318,20 +429,15 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
           <base href="${baseHref}"> 
           <style>${analysis.fullCSS}</style>
           <style>
-            /* Disable user selection/interaction feedback */
-            * { user-select: none; }
-            /* Hide scrollbars for cleaner preview */
-            ::-webkit-scrollbar { display: none; }
+            /* Désactiver toute interaction pour éviter les bugs de sélection */
+            * { pointer-events: none; }
           </style>
       </head>
       <body>
           ${analysis.fullHTML}
           <script>${analysis.fullJS}</script>
           <style>
-            body {
-                margin: 0;
-                padding: 0;
-            }
+            body { margin: 0; padding: 0; }
           </style>
       </body>
       </html>
@@ -339,7 +445,7 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
   }, [analysis]);
 
   // --- IFrame ISOLÉ (Visualisation du composant sélectionné) ---
-  const isolatedIframeContent = useMemo(() => {
+  const isolatedIframeContent = useMemo(() => { /* ... isolatedIframeContent function remains the same ... */
     if (!isComponentIsolated) return '';
 
     return `
@@ -347,7 +453,7 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
       <html lang="fr">
       <head>
           <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta name="viewport" content="width=device-width, initial-width, initial-scale=1.0">
           <style>
             ${isolatedCss}
           </style>
@@ -372,7 +478,7 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
   
   // NOUVELLE FONCTION: Sauvegarde le composant isolé
   const handleSaveIsolatedComponent = async () => {
-    if (!isolatedHtml || !isolatedCss || !selectedTheme || !analysis) {
+    if (!isolatedHtml || !isolatedCss || !selectedTheme || !analysis || !currentDetection) {
         setApiError("Veuillez sélectionner un élément et un groupe de thème avant de sauvegarder.");
         return;
     }
@@ -382,10 +488,10 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
 
     const newSiteAnalysis: StyleSection = {
         id: Date.now().toString(),
-        name: isolatedName.replace(/[^\w\d]/g, '_').toLowerCase().substring(0, 40), // Nettoyage du nom
-        css: isolatedCss, // Le CSS isolé, pertinent
-        html: isolatedHtml, // Le composant HTML isolé
-        url: analysis.urlAnalyzed // URL du site d'origine
+        name: isolatedName, 
+        css: isolatedCss, 
+        html: isolatedHtml, 
+        url: analysis.urlAnalyzed 
     };
 
     const newLibrary = library.map(t => {
@@ -400,28 +506,26 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
 
     await saveLibrary(newLibrary);
     
-    // Met à jour la sélection pour l'affichage (important si le thème n'était pas encore dans le state Library)
     const updatedTheme = newLibrary.find(t => t.id === selectedTheme.id);
     setSelectedTheme(updatedTheme || null);
     
-    // Efface l'état d'isolation pour repartir sur une nouvelle sélection
     setIsComponentIsolated(false);
     setIsolatedHtml('');
     setIsolatedCss('');
+    setCurrentDetection(null);
+    setDomDepth(0);
     setLoading(false);
   };
 
-
-  const handleSelectTheme = (themeId: string) => {
+  const handleSelectTheme = (themeId: string) => { /* ... handleSelectTheme function remains the same ... */
     const theme = library.find(t => t.id === themeId);
     setSelectedTheme(theme || null);
     setFileContent('');
-    // Réinitialise l'aperçu complet si on change de thème (pour éviter la confusion)
     setAnalysis(null); 
     setApiError(null); 
   };
-
-  const handleDeleteTheme = async (themeId: string) => {
+  
+  const handleDeleteTheme = async (themeId: string) => { /* ... handleDeleteTheme function remains the same ... */
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce groupe de thème complet ?')) return;
 
     const newLibrary = library.filter(t => t.id !== themeId);
@@ -432,7 +536,7 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
     }
   };
 
-  const handleDeleteSection = async (themeId: string, sectionId: string) => {
+  const handleDeleteSection = async (themeId: string, sectionId: string) => { /* ... handleDeleteSection function remains the same ... */
     const theme = library.find(t => t.id === themeId);
     if (!theme) return;
     
@@ -459,73 +563,63 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
   };
 
 
-  // --- 4. Génération et Affichage du Fichier Typescript (Nettoyage SVG maintenu) ---
+  // --- 4. Génération et Affichage du Fichier Typescript (Mise à jour pour les composants isolés) ---
 
   const generateTSFileContent = (allThemes: ThemeStyle[]): string => {
     
-    // 🛑 Fonction pour l'échappement et le nettoyage des SVG/Path/G
     const escapeAndCleanContentForAI = (content: string) => {
         let cleanedContent = content;
-
-        // 1. Remplacer les balises <svg>...</svg> (y compris leur contenu) par [logo]
         cleanedContent = cleanedContent.replace(/<svg\b[^>]*>.*?<\/svg>/gs, '[logo]');
-
-        // 2. Remplacer les balises <path>...</path> et <g>...</g> par [logo]
         cleanedContent = cleanedContent.replace(/<path\b[^>]*>.*?<\/path>/gs, '[logo]');
         cleanedContent = cleanedContent.replace(/<g\b[^>]*>.*?<\/g>/gs, '[logo]');
-        
-        // 3. Échappement final
         return cleanedContent.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
     };
     
     const themesContent = allThemes.map((theme, themeIndex) => {
-        const themeTagName = `theme_site_${themeIndex + 1}`;
+        const themeTagName = `theme_component_group_${themeIndex + 1}`;
         
-        const sitesContent = theme.sections.map((site, siteIndex) => {
-            const siteTagName = `site_${siteIndex + 1}`;
+        const componentsContent = theme.sections.map((site, componentIndex) => {
+            const componentTagName = `component_${componentIndex + 1}`;
             
-            // 🛑 Nettoyage appliqué uniquement au contenu exporté pour l'IA
             const cleanedHtml = escapeAndCleanContentForAI(site.html);
             const cleanedCss = escapeAndCleanContentForAI(site.css);
 
             return `
-    <${siteTagName} name="${site.name.toUpperCase()}" url="${site.url}">
+    <${componentTagName} name="${site.name.toUpperCase()}" url_source="${site.url}">
         <metadata>
             <theme_name>${theme.name}</theme_name>
             <component_name>${site.name}</component_name>
-            <analysis_id>${site.id}</analysis_id>
+            <isolation_id>${site.id}</isolation_id>
         </metadata>
-        <css>
+        <css_style_isolation>
             ${cleanedCss}
-        </css>
-        <html>
+        </css_style_isolation>
+        <html_structure>
             ${cleanedHtml}
-        </html>
-    </${siteTagName}>`;
-        }).join('\n');
+        </html_structure>
+    </${componentTagName}>`;
+        }).join('\n'); // <-- Fin du map des composants (sections)
 
         return `
 <${themeTagName} name="${theme.name.toUpperCase()}">
-${sitesContent}
+${componentsContent}
 </${themeTagName}>`;
-    }).join('\n\n');
+    }).join('\n\n'); // <-- Fin du map des thèmes
 
     return `
 /**
  * Fichier de librairie de styles généré pour l'IA.
  * Contient tous les thèmes et composants isolés du IndexedDB, formatés pour être consommés comme un PROMPT STRUCTURÉ.
  * Les éléments SVG/Path/G ont été remplacés par [logo] pour réduire la taille du prompt.
+ * Ces composants incluent la structure DOM parente (jusqu'à la profondeur définie par l'utilisateur) pour un meilleur style contextuel.
  */
 export const DESIGN_STYLE_LIBRARY_PROMPT = \`
 ${themesContent}
 \`;
 `;
-  };
+  }; // <-- Fin de la fonction generateTSFileContent
 
-  const handleShowFile = () => {
-    setFileContent(generateTSFileContent(library));
-  };
-
+  const handleShowFile = () => { setFileContent(generateTSFileContent(library)); };
   const handleDownloadFile = () => {
     const content = generateTSFileContent(library);
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -563,7 +657,7 @@ ${themesContent}
         </div>
       )}
 
-      {/* SECTION 1: Analyse et Stockage */}
+      {/* SECTION 1: Analyse et Préparation */}
       <div style={{ border: '1px solid #0070f3', padding: '15px', marginBottom: '20px', borderRadius: '8px', backgroundColor: '#f0f8ff' }}>
         <h2>1. Lancer l'Analyse d'un Site</h2>
         <input
@@ -585,34 +679,93 @@ ${themesContent}
           disabled={loading || !url || !themeName}
           style={{ padding: '10px 15px', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
         >
-          {loading ? 'Analyse en cours...' : 'Lancer l\'Analyse (Préparation à l\'Isolation)'}
+          {loading ? 'Analyse en cours...' : 'Lancer l\'Analyse & Détection des Composants'}
         </button>
-        <p style={{ marginTop: '10px', fontSize: '14px', color: '#555' }}>L'analyse crée ou sélectionne le Groupe de Thème, puis vous permet d'isoler des composants ci-dessous.</p>
       </div>
 
-      {/* SECTION 2: Visualisation du Site Cliquable */}
+      {/* SECTION 2: Visualisation et Détection Automatique */}
       {analysis && analysis.success && (
-        <div style={{ marginBottom: '20px', border: '1px solid #333', padding: '15px', borderRadius: '8px' }}>
-          <h2>2. Site Analysé (Outil d'Inspection)</h2>
-          <p>Utilisez la souris pour **pointer** (surlignement) et **cliquer** (isolation) un composant dans l'iframe. 🖱️</p>
-          <iframe
-            // La propriété onLoad permet de lancer le script d'inspection une fois le srcDoc chargé
-            onLoad={(e) => handleIframeLoad(e.currentTarget)} 
-            srcDoc={iframeContent}
-            title="Visualisation du contenu analysé (cliquable)"
-            style={{ width: '100%', height: '400px', border: '2px solid #333', borderRadius: '8px' }}
-          />
+        <div style={{ marginBottom: '20px', border: '1px solid #333', padding: '15px', borderRadius: '8px', display: 'flex', gap: '20px' }}>
+          
+          <div style={{ flex: 1, minWidth: '400px' }}>
+             <h2>2.1. Site Analysé (Aperçu Statique)</h2>
+            <iframe
+              srcDoc={iframeContent}
+              title="Visualisation du contenu analysé (statique)"
+              // L'onload est maintenant retiré car l'iframe n'est plus interactif pour la sélection
+              style={{ width: '100%', height: '400px', border: '2px solid #333', borderRadius: '8px' }}
+            />
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <h2>2.2. Composants Détectés ({detectedElements.length})</h2>
+            <p style={{ marginBottom: '10px', fontSize: '14px', color: '#555' }}>
+                Cliquez sur **"Isoler & Prévisualiser"** pour charger le composant dans l'aperçu dynamique ci-dessous.
+            </p>
+            <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', padding: '10px', borderRadius: '4px' }}>
+                {detectedElements.length > 0 ? (
+                    detectedElements.map((detection) => (
+                        <div 
+                            key={detection.id}
+                            style={{ 
+                                padding: '8px', 
+                                borderBottom: '1px dotted #ccc', 
+                                marginBottom: '5px', 
+                                backgroundColor: currentDetection?.id === detection.id ? '#fff3e0' : 'transparent'
+                            }}
+                        >
+                            <div style={{ fontWeight: 'bold' }}>
+                                Tag: &lt;{detection.tagName}&gt; | Sélecteur: {detection.selector}
+                            </div>
+                            <code style={{ fontSize: '11px', color: '#777' }}>{detection.htmlSnippet}</code>
+                            <button
+                                onClick={() => handleIsolateProgrammatically(detection)}
+                                style={{ 
+                                    float: 'right', 
+                                    padding: '5px 10px', 
+                                    backgroundColor: '#0070f3', 
+                                    color: 'white', 
+                                    border: 'none', 
+                                    borderRadius: '3px', 
+                                    cursor: 'pointer' 
+                                }}
+                            >
+                                Isoler & Prévisualiser
+                            </button>
+                            <div style={{ clear: 'both' }}></div>
+                        </div>
+                    ))
+                ) : (
+                    <p>Aucun élément structural ou identifié n'a été trouvé.</p>
+                )}
+            </div>
+          </div>
         </div>
       )}
       
-      {/* SECTION 3: Composant Isolé */}
-      {isComponentIsolated && (
+      {/* SECTION 3: Composant Isolé et Contrôle du DOM */}
+      {isComponentIsolated && analysis && (
         <div style={{ border: '2px solid #00AA00', padding: '15px', marginBottom: '20px', borderRadius: '8px', backgroundColor: '#e6ffe6' }}>
             <h2>3. Composant Isolé Sélectionné ({isolatedName})</h2>
             
+            <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <label style={{ fontWeight: 'bold' }}>
+                    Niveaux DOM Parents à Inclure (Contextualisation Style):
+                </label>
+                <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    value={domDepth}
+                    onChange={(e) => setDomDepth(Math.max(0, Math.min(5, parseInt(e.target.value) || 0)))}
+                    style={{ width: '60px', padding: '8px', border: '1px solid #00AA00', textAlign: 'center' }}
+                />
+                <span style={{ fontSize: '14px', color: '#555' }}>({domDepth} niveaux de div/éléments parents sont inclus.)</span>
+            </div>
+            
             <div style={{ display: 'flex', gap: '20px' }}>
                 <div style={{ flex: 1 }}>
-                    <h3>Rendu Isolé (CSS extrait)</h3>
+                    <h3>Rendu Isolé (Aperçu)</h3>
                     <iframe
                         srcDoc={isolatedIframeContent}
                         title="Visualisation du composant isolé"
@@ -622,11 +775,11 @@ ${themesContent}
                 <div style={{ flex: 1 }}>
                     <h3>Code Source pour l'IA (Aperçu Nettoyé)</h3>
                     <p>
-                        **HTML:** {isolatedHtml.length} chars, 
+                        **HTML/DOM:** {isolatedHtml.length} chars, 
                         **CSS extrait:** {isolatedCss.length} chars
                     </p>
                     <textarea 
-                        value={`HTML snippet: ${isolatedHtml.substring(0, 300)}...\n\nCSS snippet: ${isolatedCss.substring(0, 300)}...`} 
+                        value={`HTML snippet (depth ${domDepth}):\n${isolatedHtml.substring(0, 500)}...\n\nCSS snippet:\n${isolatedCss.substring(0, 500)}...`} 
                         readOnly
                         style={{ width: '100%', height: '150px', resize: 'none', backgroundColor: '#f4f4f4', padding: '10px', fontSize: '12px' }}
                         title="HTML et CSS isolé"
@@ -637,7 +790,7 @@ ${themesContent}
             <input
                 type="text"
                 value={isolatedName}
-                onChange={(e) => setIsolatedName(e.target.value)}
+                onChange={(e) => setIsolatedName(e.target.value.replace(/[^\w\d]/g, '_').toLowerCase().substring(0, 40))}
                 placeholder="Nom du composant à sauvegarder (ex: header_nav)"
                 style={{ width: '300px', padding: '8px', marginRight: '10px', border: '1px solid #ccc', marginTop: '10px' }}
             />
@@ -699,7 +852,7 @@ ${themesContent}
             <ul style={{ listStyleType: 'none', padding: 0 }}>
               {selectedTheme.sections.map((site, index) => (
                 <li key={site.id} style={{ margin: '8px 0', padding: '5px', borderBottom: '1px dotted #eee' }}>
-                  **Composant #{index + 1}**: <code style={{ backgroundColor: '#e6f7ff', padding: '2px 4px' }}>{site.name.toUpperCase()}</code> (HTML: {Math.round(site.html.length / 1024)} KB, CSS: {Math.round(site.css.length / 1024)} KB)
+                  **Composant #{index + 1}**: <code style={{ backgroundColor: '#e6f7ff', padding: '2px 4px' }}>{site.name.toUpperCase()}</code> (HTML/DOM: {Math.round(site.html.length / 1024)} KB, CSS: {Math.round(site.css.length / 1024)} KB)
                   <button 
                     onClick={() => handleDeleteSection(selectedTheme.id, site.id)} 
                     style={{ marginLeft: '20px', color: '#ff4d4d', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
@@ -736,4 +889,4 @@ ${themesContent}
 };
 
 export default StyleLibraryManager;
-        
+            
