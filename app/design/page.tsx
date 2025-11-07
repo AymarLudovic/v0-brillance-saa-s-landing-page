@@ -253,20 +253,23 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
     const doc = iframe.contentDocument;
     const body = doc.body;
 
-    body.style.cursor = 'default'; 
+    body.style.cursor = 'default';
 
-    const handleClick = (e: MouseEvent | TouchEvent) => {
-        const targetElement = (e.target instanceof HTMLElement) ? e.target : null;
+    // Fonction d'isolation déclenchée par la fin du contact (relâchement du doigt)
+    const handleTouchEnd = (e: TouchEvent) => {
+        // e.changedTouches[0].target est l'élément DOM touché
+        const targetElement = e.changedTouches?.[0]?.target;
 
-        if (!targetElement || targetElement === body || targetElement === doc.documentElement) return;
+        if (!(targetElement instanceof HTMLElement) || targetElement === body || targetElement === doc.documentElement) return;
         
+        // Empêche le zoom, le défilement et les événements de click simulés
         e.preventDefault(); 
         e.stopPropagation();
         
         const selectedElement = targetElement;
 
+        // --- Logique d'Isolation ---
         const html = selectedElement.outerHTML;
-        
         const css = extractRelevantCss(analysis.fullCSS, selectedElement);
             
         setIsolatedHtml(html);
@@ -279,6 +282,7 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
         setIsComponentIsolated(true);
         setApiError(null); 
 
+        // --- Surlignement (Feedback Visuel) ---
         doc.querySelectorAll('[data-highlighted]').forEach(el => {
             (el as HTMLElement).style.outline = 'none';
             (el as HTMLElement).removeAttribute('data-highlighted');
@@ -286,14 +290,18 @@ const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
         selectedElement.style.outline = '3px solid #FF9800';
         selectedElement.setAttribute('data-highlighted', 'true');
     };
-
-    body.addEventListener('click', handleClick);
     
+    // Nous écoutons 'touchend' pour une meilleure précision du ciblage mobile
+    body.addEventListener('touchend', handleTouchEnd, { passive: false });
+    
+    // Empêcher l'iframe d'ajouter des écouteurs 'click' qui entreraient en conflit
+    body.style.pointerEvents = 'auto';
+
+    // Nettoyage
     iframe.onload = () => {
-        body.removeEventListener('click', handleClick);
+        body.removeEventListener('touchend', handleTouchEnd);
     };
   };
-
 
   // --- 2. Génération de l'iFrame COMPLET (Visualisation de l'analyse) ---
   const iframeContent = useMemo(() => {
