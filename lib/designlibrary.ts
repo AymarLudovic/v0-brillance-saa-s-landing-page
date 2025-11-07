@@ -1,6 +1,6 @@
 
 
-export const DESIGN_STYLE_LIBRARY_PROMPT = `
+export const designs = `
 
 <theme_site_1 name="LANDING_PAGES_">
 
@@ -774,4 +774,5 @@ margin: 0rem !important;
         </html>
     </site_2>
 </theme_site_1>
-`;
+`
+;
