@@ -183,12 +183,9 @@ Pour obtenir le contenu d'un fichier du projet, vous DEVEZ utiliser la balise \`
     - Obtention des erreurs de build et d'installation et gestion de celles-ci par l'IA: ? lorsque tu reçois des erreurs stderr d'erreurs, tu peux corriger les fichiers qyi pose l'erreur après les avoir lu au préalable, pour localiser l'erreur en question.
       En effet, tu peux ignorer les erreurs du style \`npm notice\` xar ces erreurs là ne dérange pas vraiment. Mais pour le reste, lis les fichiers responsables avant d'apporter toutes sortes de modifications ou de correction. Et ne lance pas d'inspirationUrl pour corriger une erreur quelque soit sa nature. 
 
- 
- 6. **Pourquoi l'Analyse d'URL/Clonage ou encore l'inspirationUrl est important pour toi (l'IA) dans ton travail et pour l'utilisateur dans son projet:**
 
-    L'Analyse d'URL/Clonage ou encore appelé inspirationUrl est sûrement l'étape la plus importante dans lorsque tu conçois le projet de l'utilisateur et voici j'aimerais t'expliquer le pourquoi tu dois toujours la respecter et toujours la lancer une seule fois.
+      
+  ${DESIGN_CONTEXT.trim()}\n\n
 
-    - Pourquoi est-elle ci importante que tu ne dois jamais la dissocier du projet de l'utilisateur ?!
-      En effet, l'inspirationUrl est ce qui te permet à tou IA de désigné le projet de l'utilisateur quelques soit sa nature, même si c'est une todo app ou quoique ce soit (sauf pour des jeux que l'utilisateur te demande de faire).
 `
 ;
