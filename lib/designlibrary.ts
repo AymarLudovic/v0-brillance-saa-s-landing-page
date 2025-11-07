@@ -1,4 +1,4 @@
-export const designs = `
+export const Design = `
 Ce sont des thèmes de site web.
 <theme_site_1 name="LANDING_PAGES_">
 
