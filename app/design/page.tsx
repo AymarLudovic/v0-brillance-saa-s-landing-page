@@ -247,64 +247,51 @@ const StyleLibraryManager: React.FC = () => {
   };
 
   // --- IFrame Interactivité et Isolation ---
-
-  const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
+const handleIframeLoad = (iframe: HTMLIFrameElement | null) => {
     if (!iframe || !iframe.contentDocument || !analysis || !analysis.success) return;
 
     const doc = iframe.contentDocument;
     const body = doc.body;
 
-    // Réinitialisation du curseur pour l'interaction
-    body.style.cursor = 'crosshair';
+    body.style.cursor = 'default'; 
 
-    // Fonction de surlignement à la souris
-    const handleMouseOver = (e: MouseEvent) => {
-        if (!(e.target instanceof HTMLElement) || e.target === body || e.target === doc.documentElement) return;
-        e.stopPropagation();
+    const handleClick = (e: MouseEvent | TouchEvent) => {
+        const targetElement = (e.target instanceof HTMLElement) ? e.target : null;
 
-        doc.querySelectorAll('[data-highlighted]').forEach(el => {
-            (el as HTMLElement).style.outline = 'none';
-            (el as HTMLElement).removeAttribute('data-highlighted');
-        });
-
-        (e.target as HTMLElement).style.outline = '3px solid #FF9800';
-        (e.target as HTMLElement).setAttribute('data-highlighted', 'true');
-    };
-
-    // Fonction de clic pour isoler le composant
-    const handleClick = (e: MouseEvent) => {
-        if (!(e.target instanceof HTMLElement) || e.target === body || e.target === doc.documentElement) return;
-        e.preventDefault();
+        if (!targetElement || targetElement === body || targetElement === doc.documentElement) return;
+        
+        e.preventDefault(); 
         e.stopPropagation();
         
-        const selectedElement = e.target as HTMLElement;
+        const selectedElement = targetElement;
 
-        // 1. Isolation du HTML
         const html = selectedElement.outerHTML;
         
-        // 2. Isolation du CSS (utilisation de la fonction utilitaire)
         const css = extractRelevantCss(analysis.fullCSS, selectedElement);
             
-        // 3. Mise à jour des états
         setIsolatedHtml(html);
         setIsolatedCss(css);
         
-        // Crée un nom descriptif
         const descriptiveName = selectedElement.tagName.toLowerCase() + 
             (selectedElement.id ? `#${selectedElement.id}` : 
              (selectedElement.className ? `.${selectedElement.className.split(/\s+/)[0]}` : ''));
         setIsolatedName(descriptiveName);
         setIsComponentIsolated(true);
         setApiError(null); 
+
+        doc.querySelectorAll('[data-highlighted]').forEach(el => {
+            (el as HTMLElement).style.outline = 'none';
+            (el as HTMLElement).removeAttribute('data-highlighted');
+        });
+        selectedElement.style.outline = '3px solid #FF9800';
+        selectedElement.setAttribute('data-highlighted', 'true');
     };
 
-    // Attache les écouteurs d'événements
-    body.addEventListener('mouseover', handleMouseOver);
     body.addEventListener('click', handleClick);
     
-    // Nettoyage au déchargement (via le retour du useEffect ou un useRef, ici on se base sur la prochaine charge)
-    // C'est un simple `onLoad`, donc les listeners sont attachés à chaque fois.
-    // L'important est que l'isolation fonctionne.
+    iframe.onload = () => {
+        body.removeEventListener('click', handleClick);
+    };
   };
 
 
