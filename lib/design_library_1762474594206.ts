@@ -1,8 +1,5 @@
 
-/**
- * Fichier de librairie de styles généré pour l'IA.
- * Contient tous les thèmes et sites analysés du IndexedDB, formatés pour être consommés comme un PROMPT STRUCTURÉ.
- */
+
 export const DESIGN_STYLE_LIBRARY_PROMPT = `
 
 <theme_site_1 name="LANDING_PAGES_">
