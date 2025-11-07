@@ -17,7 +17,7 @@ ${designs}
 ---
 `;
 
-const FULL_PROMPT_INJECTION = `${basePrompt}\n\n${DESIGN_CONTEXT_INSTRUCTION.trim()}`;
+const FULL_PROMPT_INJECTION = `${basePrompt}\n\n`;
 
 
 // --- TYPES (inchangés) ---
