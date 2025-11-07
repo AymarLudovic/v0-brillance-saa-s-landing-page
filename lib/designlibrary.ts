@@ -1,7 +1,5 @@
-
-
 export const designs = `
-
+Ce sont des thèmes de site web.
 <theme_site_1 name="LANDING_PAGES_">
 
     <site_1 name="STYLE_PRIMARY" url="https://dub.co/">
