@@ -2,9 +2,8 @@
 
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
-import { basePrompt } from "@/lib/prompt" // <-- Votre basePrompt existant
-// 🛑 NOUVEAU : Importation de la librairie de design
-import { DESIGN_STYLE_LIBRARY_PROMPT as designs } from "@/lib/designlibrary"; 
+import { basePrompt } from "@/lib/prompt"
+import { designs } from "@/lib/designlibrary"
 
 
 // --- Déclaration du Contexte de Design pour l'IA ---
@@ -93,7 +92,7 @@ export async function POST(req: Request) {
     const model = "gemini-2.5-flash"
     
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
-    const lastUserIndex = history.length - 1; // Le dernier message de l'historique
+    const lastUserIndex = history.length - 1; 
 
     for (let i = 0; i < history.length; i++) {
         const msg = history[i];
@@ -101,7 +100,7 @@ export async function POST(req: Request) {
         const role = msg.role === 'assistant' ? 'model' : 'user'; 
         let textContent = msg.content;
 
-        // 🛑 TRAITEMENT DES RÉPONSES D'OUTILS (Doit venir en premier si présent)
+        // 🛑 TRAITEMENT DES RÉPONSES D'OUTILS
         if (msg.functionResponse) {
             parts.push({
                 functionResponse: {
@@ -110,7 +109,7 @@ export async function POST(req: Request) {
                 }
             });
         } 
-        // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT (et Contexte Système)
+        // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT
         else {
             
             // 1. Injection du prompt complet (basePrompt + designs) et des binaires (uniquement sur le DERNIER message utilisateur)
@@ -213,4 +212,4 @@ export async function POST(req: Request) {
         details: err.message
     }, { status: 500 })
   }
-}
+    }
