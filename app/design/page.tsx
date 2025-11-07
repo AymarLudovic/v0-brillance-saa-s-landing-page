@@ -407,11 +407,15 @@ const StyleLibraryManager: React.FC = () => {
   };
   
   // Recalcule l'isolation dès que la profondeur du DOM change
+  
+
+                            // Recalcule l'isolation dès que la profondeur du DOM change
   useEffect(() => {
     if (currentDetection && analysis) {
+        // L'updateIsolationComponent génère toujours le CSS FILTRÉ pour le PROMPT de l'IA.
         updateIsolatedComponent(currentDetection, domDepth, analysis.fullHTML, analysis.fullCSS);
     }
-  }, [domDepth, currentDetection, analysis, updateIsolatedComponent]);
+  }, [domDepth, currentDetection, analysis, updateIsolatedComponent]); // <-- NOUVELLE DÉPENDANCE: 'analysis'
 
 
   // --- IFrame COMPlET (Affichage de l'analyse, n'est plus cliquable pour la sélection) ---
@@ -445,21 +449,29 @@ const StyleLibraryManager: React.FC = () => {
   }, [analysis]);
 
   // --- IFrame ISOLÉ (Visualisation du composant sélectionné) ---
-  const isolatedIframeContent = useMemo(() => { /* ... isolatedIframeContent function remains the same ... */
-    if (!isComponentIsolated) return '';
+  // --- IFrame ISOLÉ (Visualisation du composant sélectionné) ---
+const isolatedIframeContent = useMemo(() => { 
+    if (!isComponentIsolated || !analysis) return '';
+
+    // 🛑 CLÉ: Utiliser le CSS COMPLET de l'analyse pour une fidélité visuelle de 100%
+    const fullCssForRendering = analysis.fullCSS; 
+    // 🛑 CLÉ: Utiliser l'URL analysée comme base pour les chemins relatifs
+    const baseHref = analysis.urlAnalyzed;
 
     return `
       <!DOCTYPE html>
       <html lang="fr">
       <head>
           <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-width, initial-scale=1.0">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <base href="${baseHref}"> 
           <style>
-            ${isolatedCss}
+            ${fullCssForRendering}
           </style>
           <style>
+            /* Vous pouvez ajuster ou supprimer ces styles pour une fidélité maximale */
             body { 
-                margin: 10px; 
+                margin: 0; 
                 padding: 10px; 
                 border: 1px dashed blue; 
                 min-height: 90vh;
@@ -471,7 +483,7 @@ const StyleLibraryManager: React.FC = () => {
       </body>
       </html>
     `;
-  }, [isolatedHtml, isolatedCss, isComponentIsolated]);
+}, [isolatedHtml, isComponentIsolated, analysis]);
 
 
   // --- 3. Gestion des Thèmes et Sections (Sauvegarde et Suppression) ---
