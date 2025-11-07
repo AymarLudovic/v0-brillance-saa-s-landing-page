@@ -1,12 +1,29 @@
-// app/api/gemini/route.ts (Corrigé)
+// app/api/gemini/route.ts 
 
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
-import { basePrompt } from "@/lib/prompt"
+import { basePrompt } from "@/lib/prompt" // <-- Votre basePrompt existant
+// 🛑 NOUVEAU : Importation de la librairie de design
+import { DESIGN_STYLE_LIBRARY_PROMPT as designs } from "@/lib/designlibrary"; 
+
+
+// --- Déclaration du Contexte de Design pour l'IA ---
+const DESIGN_CONTEXT_INSTRUCTION = `
+---
+**CONTEXTE DE STYLE/DESIGN : LIBRAIRIE DE THÈMES**
+
+Les données XML ci-dessous représentent une librairie de thèmes et de styles extraits de sites Web. Tu dois utiliser ces informations comme **référence de style** lorsque l'utilisateur te demande de générer ou de modifier des composants pour correspondre à un style existant. Fais référence aux thèmes et aux sites par leurs balises correspondantes (<theme_site_X>, <site_X>).
+
+${designs}
+---
+`;
+
+const FULL_PROMPT_INJECTION = `${basePrompt}\n\n${DESIGN_CONTEXT_INSTRUCTION.trim()}`;
+
 
 // --- TYPES (inchangés) ---
 interface Message { 
-    role: "user" | "assistant" | "system"; // Ajout de 'system' pour la robustesse du type côté client/API
+    role: "user" | "assistant" | "system"; 
     content: string; 
     images?: string[]; 
     externalFiles?: { fileName: string; base64Content: string }[]; 
@@ -56,7 +73,6 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
-        // projectEmbeddings est ignoré
     } = body as { 
         history: Message[], 
         uploadedImages: string[],
@@ -82,7 +98,6 @@ export async function POST(req: Request) {
     for (let i = 0; i < history.length; i++) {
         const msg = history[i];
         const parts: Part[] = [];
-        // L'API Gemini n'utilise que 'user' ou 'model' (remplace 'assistant' par 'model')
         const role = msg.role === 'assistant' ? 'model' : 'user'; 
         let textContent = msg.content;
 
@@ -98,12 +113,11 @@ export async function POST(req: Request) {
         // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT (et Contexte Système)
         else {
             
-            // 1. Injection du basePrompt et des binaires (uniquement sur le DERNIER message utilisateur)
-            // L'historique [system context, user message] fait que le message utilisateur est à l'index final (lastUserIndex).
+            // 1. Injection du prompt complet (basePrompt + designs) et des binaires (uniquement sur le DERNIER message utilisateur)
             if (i === lastUserIndex && role === 'user') {
                 
-                // Injection du basePrompt avant le contenu utilisateur
-                textContent = basePrompt + "\n\n" + textContent; 
+                // Injection du prompt combiné (basePrompt existant + context de design)
+                textContent = FULL_PROMPT_INJECTION + "\n\n" + textContent; 
                 
                 // Gestion des images/fichiers binaires
                 if (uploadedImages && uploadedImages.length > 0) {
@@ -130,7 +144,6 @@ export async function POST(req: Request) {
             }
             
             // 2. Assurer que le message texte est toujours présent
-            // Si le contenu est vide (e.g., placeholder vide de l'assistant ou message user sans texte), on envoie un espace.
             parts.push({ text: textContent || ' ' }); 
         }
         
