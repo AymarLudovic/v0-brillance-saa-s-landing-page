@@ -521,15 +521,77 @@ const isolatedIframeContent = useMemo(() => {
 
 
 // --- NOUVEAU: IFrame VÉRIFICATION AUTONOME (Utilise uniquement le CSS Filtré pour l'IA) ---
-// --- IFrame VÉRIFICATION AUTONOME (Utilise UNIQUEMENT le CSS Filtré pour l'IA) ---
+// --- IFrame VÉRIFICATION AUTONOME (CSS Inlining Auto-Exécutant) ---
 const standaloneIframeContent = useMemo(() => {
     if (!isComponentIsolated || !analysis) return '';
 
-    // 🛑 CLÉ : On utilise ici isolatedCss (le CSS FILTRÉ) pour le test d'autonomie.
-    const cssForStandaloneCheck = isolatedCss; 
+    // CLÉ: On utilise le CSS COMPLET pour que le moteur de rendu puisse calculer les styles
+    const fullCssForCalculation = analysis.fullCSS; 
+    const baseHref = analysis.urlAnalyzed;
+    const rootId = currentDetection?.id || 'isolated-root';
+
+    // Script pour inliner les styles calculés
+    const inliningScript = `
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const rootElement = document.querySelector('[data-auto-inlining-id="${rootId}"]');
+          if (!rootElement) {
+              console.error('Élément racine non trouvé pour l\'inlining.');
+              return;
+          }
+
+          function inlineComputedStyles(element) {
+              if (!element || element.nodeType !== 1) return;
+
+              const computedStyle = window.getComputedStyle(element);
+              const styleProps = {};
+              
+              // Liste des propriétés que vous voulez absolument conserver
+              const relevantProps = [
+                  'color', 'backgroundColor', 'border', 'padding', 'margin', 
+                  'width', 'height', 'fontSize', 'fontWeight', 'textAlign', 
+                  'display', 'position', 'top', 'left', 'right', 'bottom', 
+                  'lineHeight', 'fontFamily', 'boxShadow', 'textDecoration',
+                  'flexDirection', 'justifyContent', 'alignItems', 'gap' 
+              ];
+              
+              const currentInlineStyle = element.getAttribute('style') || '';
+              let newInlineStyle = currentInlineStyle;
+
+              relevantProps.forEach(prop => {
+                  const value = computedStyle.getPropertyValue(prop);
+                  if (value && value !== 'initial' && value !== 'unset' && !currentInlineStyle.includes(prop)) {
+                      // Convertir en kebab-case
+                      const cssProp = prop.replace(/([A-Z])/g, (g) => \`-\${g[0].toLowerCase()}\`);
+                      newInlineStyle += \`\${cssProp}: \${value}; \`;
+                  }
+              });
+              
+              // Appliquer les nouveaux styles. 
+              element.setAttribute('style', newInlineStyle.trim());
+              
+              // Optionnel: Retirer les classes pour le test ultime de l'autonomie du style.
+              // element.removeAttribute('class'); // Décommenter si vous voulez voir la défaillance des styles non inlinés
+
+              // Récursivement pour les enfants
+              Array.from(element.children).forEach(inlineComputedStyles);
+          }
+
+          inlineComputedStyles(rootElement);
+
+          // Signal que l'inlining est terminé. L'utilisateur doit copier le outerHTML ici.
+          console.log("INLINING TERMINÉ. Copiez le outerHTML de l'élément.");
+          rootElement.style.outline = '3px solid green'; // Marqueur visuel de fin
+        });
+      </script>
+    `;
     
-    // On conserve la base href pour les ressources (images, polices) qui sont un autre facteur d'échec de l'autonomie.
-    const baseHref = analysis.urlAnalyzed; 
+    // Ajout d'un attribut pour que le script puisse trouver l'élément racine
+    const taggedHtml = isolatedHtml.replace(
+        new RegExp(`^<([a-z]+)`, 'i'), 
+        (match, tag) => `<${tag} data-auto-inlining-id="${rootId}"`
+    );
+
 
     return `
       <!DOCTYPE html>
@@ -539,24 +601,19 @@ const standaloneIframeContent = useMemo(() => {
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <base href="${baseHref}"> 
           <style>
-            /* CSS FILTRÉ pour le prompt IA injecté ci-dessous (Test d'autonomie) */
-            ${cssForStandaloneCheck}
+            ${fullCssForCalculation}
           </style>
           <style>
-            body { 
-                margin: 0; 
-                padding: 10px; 
-                border: 2px dashed red; /* Bordure Rouge pour la vérification */
-                min-height: 90vh;
-            }
+            body { margin: 0; padding: 10px; border: 2px dashed red; min-height: 90vh; }
           </style>
       </head>
       <body>
-          ${isolatedHtml}
+          ${taggedHtml}
+          ${inliningScript}
       </body>
       </html>
     `;
-}, [isolatedHtml, isolatedCss, isComponentIsolated, analysis]);
+}, [isolatedHtml, isComponentIsolated, analysis, currentDetection]);
 
   // --- 3. Gestion des Thèmes et Sections (Sauvegarde et Suppression) ---
   
