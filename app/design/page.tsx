@@ -521,18 +521,26 @@ const isolatedIframeContent = useMemo(() => {
 
 
 // --- NOUVEAU: IFrame VÉRIFICATION AUTONOME (Utilise uniquement le CSS Filtré pour l'IA) ---
+// --- IFrame VÉRIFICATION AUTONOME (Utilise UNIQUEMENT le CSS Filtré pour l'IA) ---
 const standaloneIframeContent = useMemo(() => {
-    if (!isComponentIsolated) return '';
+    if (!isComponentIsolated || !analysis) return '';
 
-    // CLÉ: On utilise ici isolatedCss (le CSS filtré) et non analysis.fullCSS
+    // 🛑 CLÉ : On utilise ici isolatedCss (le CSS FILTRÉ) pour le test d'autonomie.
+    const cssForStandaloneCheck = isolatedCss; 
+    
+    // On conserve la base href pour les ressources (images, polices) qui sont un autre facteur d'échec de l'autonomie.
+    const baseHref = analysis.urlAnalyzed; 
+
     return `
       <!DOCTYPE html>
       <html lang="fr">
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <base href="${baseHref}"> 
           <style>
-            ${isolatedCss}
+            /* CSS FILTRÉ pour le prompt IA injecté ci-dessous (Test d'autonomie) */
+            ${cssForStandaloneCheck}
           </style>
           <style>
             body { 
@@ -541,8 +549,6 @@ const standaloneIframeContent = useMemo(() => {
                 border: 2px dashed red; /* Bordure Rouge pour la vérification */
                 min-height: 90vh;
             }
-            /* Pour un test strict, ajoutez un reset de police pour vérifier que le CSS filtré l'inclut */
-            html, body { font-family: sans-serif !important; }
           </style>
       </head>
       <body>
@@ -550,7 +556,7 @@ const standaloneIframeContent = useMemo(() => {
       </body>
       </html>
     `;
-}, [isolatedHtml, isolatedCss, isComponentIsolated]);
+}, [isolatedHtml, isolatedCss, isComponentIsolated, analysis]);
 
   // --- 3. Gestion des Thèmes et Sections (Sauvegarde et Suppression) ---
   
