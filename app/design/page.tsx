@@ -272,7 +272,23 @@ const StyleLibraryManager: React.FC = () => {
   // --- 4. Génération et Affichage du Fichier Typescript (Format XML/Prompt Corrigé) ---
 
   const generateTSFileContent = (allThemes: ThemeStyle[]): string => {
-    const escapeContent = (content: string) => content.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+    
+    // 🛑 NOUVELLE FONCTION : Échappement des caractères et suppression des SVG pour le prompt IA
+    const escapeAndCleanContent = (content: string) => {
+        let cleanedContent = content;
+
+        // 1. Remplacer les balises <svg>...</svg> (y compris leur contenu) par [logo]
+        // Le modificateur 's' (dotAll) permet à '.' de correspondre aux retours à la ligne.
+        cleanedContent = cleanedContent.replace(/<svg\b[^>]*>.*?<\/svg>/gs, '[logo]');
+
+        // 2. Remplacer les balises <path>...</path> et <g>...</g> par [logo]
+        // Utile pour les fragments ou les éléments spécifiques
+        cleanedContent = cleanedContent.replace(/<path\b[^>]*>.*?<\/path>/gs, '[logo]');
+        cleanedContent = cleanedContent.replace(/<g\b[^>]*>.*?<\/g>/gs, '[logo]');
+        
+        // 3. Échappement final pour la chaîne de caractères template (backticks)
+        return cleanedContent.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+    };
     
     const themesContent = allThemes.map((theme, themeIndex) => {
         const themeTagName = `theme_site_${themeIndex + 1}`;
@@ -281,6 +297,10 @@ const StyleLibraryManager: React.FC = () => {
         const sitesContent = theme.sections.map((site, siteIndex) => {
             const siteTagName = `site_${siteIndex + 1}`;
             
+            // 🛑 Nettoyage du HTML et du CSS avant l'injection
+            const cleanedHtml = escapeAndCleanContent(site.html);
+            const cleanedCss = escapeAndCleanContent(site.css);
+
             return `
     <${siteTagName} name="${site.name.toUpperCase()}" url="${site.url}">
         <metadata>
@@ -288,10 +308,10 @@ const StyleLibraryManager: React.FC = () => {
             <analysis_id>${site.id}</analysis_id>
         </metadata>
         <css>
-            ${escapeContent(site.css)}
+            ${cleanedCss}
         </css>
         <html>
-            ${escapeContent(site.html)}
+            ${cleanedHtml}
         </html>
     </${siteTagName}>`;
         }).join('\n');
@@ -306,6 +326,7 @@ ${sitesContent}
 /**
  * Fichier de librairie de styles généré pour l'IA.
  * Contient tous les thèmes et sites analysés du IndexedDB, formatés pour être consommés comme un PROMPT STRUCTURÉ.
+ * Les éléments SVG/Path/G ont été remplacés par [logo] pour réduire la taille du prompt.
  */
 export const DESIGN_STYLE_LIBRARY_PROMPT = \`
 ${themesContent}
