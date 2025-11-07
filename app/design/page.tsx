@@ -486,6 +486,38 @@ const isolatedIframeContent = useMemo(() => {
 }, [isolatedHtml, isComponentIsolated, analysis]);
 
 
+// --- NOUVEAU: IFrame VÉRIFICATION AUTONOME (Utilise uniquement le CSS Filtré pour l'IA) ---
+const standaloneIframeContent = useMemo(() => {
+    if (!isComponentIsolated) return '';
+
+    // CLÉ: On utilise ici isolatedCss (le CSS filtré) et non analysis.fullCSS
+    return `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            ${isolatedCss}
+          </style>
+          <style>
+            body { 
+                margin: 0; 
+                padding: 10px; 
+                border: 2px dashed red; /* Bordure Rouge pour la vérification */
+                min-height: 90vh;
+            }
+            /* Pour un test strict, ajoutez un reset de police pour vérifier que le CSS filtré l'inclut */
+            html, body { font-family: sans-serif !important; }
+          </style>
+      </head>
+      <body>
+          ${isolatedHtml}
+      </body>
+      </html>
+    `;
+}, [isolatedHtml, isolatedCss, isComponentIsolated]);
+
   // --- 3. Gestion des Thèmes et Sections (Sauvegarde et Suppression) ---
   
   // NOUVELLE FONCTION: Sauvegarde le composant isolé
@@ -777,28 +809,41 @@ ${themesContent}
             
             <div style={{ display: 'flex', gap: '20px' }}>
                 <div style={{ flex: 1 }}>
-                    <h3>Rendu Isolé (Aperçu)</h3>
+                    <h3>Rendu Fidèle (CSS Complet)</h3>
                     <iframe
                         srcDoc={isolatedIframeContent}
-                        title="Visualisation du composant isolé"
+                        title="Visualisation du composant isolé fidèle"
                         style={{ width: '100%', height: '300px', border: '1px solid #00AA00', borderRadius: '4px' }}
                     />
                 </div>
+                
+                {/* 🛑 NOUVEL Iframe de VÉRIFICATION AUTONOME */}
                 <div style={{ flex: 1 }}>
-                    <h3>Code Source pour l'IA (Aperçu Nettoyé)</h3>
-                    <p>
-                        **HTML/DOM:** {isolatedHtml.length} chars, 
-                        **CSS extrait:** {isolatedCss.length} chars
-                    </p>
-                    <textarea 
-                        value={`HTML snippet (depth ${domDepth}):\n${isolatedHtml.substring(0, 500)}...\n\nCSS snippet:\n${isolatedCss.substring(0, 500)}...`} 
-                        readOnly
-                        style={{ width: '100%', height: '150px', resize: 'none', backgroundColor: '#f4f4f4', padding: '10px', fontSize: '12px' }}
-                        title="HTML et CSS isolé"
+                    <h3>Rendu AUTONOME (CSS Filtré pour IA)</h3>
+                    <iframe
+                        srcDoc={standaloneIframeContent}
+                        title="Visualisation autonome du composant isolé"
+                        style={{ width: '100%', height: '300px', border: '2px solid red', borderRadius: '4px' }}
                     />
                 </div>
             </div>
 
+            <div style={{ flex: 2, marginTop: '20px' }}>
+                <h3>Code Source pour l'IA (Complet et Non Tronqué)</h3>
+                <p>
+                    **HTML/DOM:** {isolatedHtml.length} chars, 
+                    **CSS extrait:** {isolatedCss.length} chars. **Ce code source est celui qui est envoyé à l'IA.**
+                </p>
+                <textarea 
+                    // 🛑 Affichage du code source COMPLET, sans les "..."
+                    value={`HTML snippet (depth ${domDepth}):\n${isolatedHtml}\n\nCSS snippet:\n${isolatedCss}`} 
+                    readOnly
+                    style={{ width: '100%', height: '180px', resize: 'none', backgroundColor: '#f4f4f4', padding: '10px', fontSize: '12px' }}
+                    title="HTML et CSS isolé"
+                />
+            </div>
+            
+            {/* Le reste de la Section 3... */}
             <input
                 type="text"
                 value={isolatedName}
