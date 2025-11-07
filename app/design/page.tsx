@@ -54,14 +54,17 @@ const STRUCTURAL_TAGS = ['header', 'nav', 'main', 'aside', 'footer', 'section', 
 
 // --- Fonctions d'Utilité d'Isolation CSS/HTML (Réutilisées) ---
 
+
 /**
- * Tente d'extraire les règles CSS pertinentes.
+ * Tente d'extraire les règles CSS pertinentes pour le PROMPT de l'IA.
+ * Cette fonction est optimisée pour la lisibilité par l'IA et non pour un rendu 100% fidèle seul.
+ * Le rendu 100% fidèle utilise analysis.fullCSS.
  */
 const extractRelevantCss = (fullCSS: string, element: HTMLElement, domDepth: number): string => {
     const selectors = new Set<string>();
     
-    // Collecte des sélecteurs de l'élément sélectionné et de ses descendants
-    const collectSelectors = (el: HTMLElement) => {
+    // Collecte des sélecteurs de l'élément sélectionné et de ses DESCENDANTS
+    const collectSelectors = (el: HTMLElement, maxDepth: number) => {
         if (el.className) {
             el.className.split(/\s+/).forEach(cls => selectors.add('.' + cls.trim()));
         }
@@ -70,16 +73,19 @@ const extractRelevantCss = (fullCSS: string, element: HTMLElement, domDepth: num
         }
         selectors.add(el.tagName.toLowerCase());
 
-        Array.from(el.children).forEach(child => {
-            if (child instanceof HTMLElement) {
-                collectSelectors(child);
-            }
-        });
+        // Limiter la collecte des descendants pour ne pas surcharger (si on veut le strict minimum)
+        if (maxDepth > 0) {
+            Array.from(el.children).forEach(child => {
+                if (child instanceof HTMLElement) {
+                    collectSelectors(child, maxDepth - 1);
+                }
+            });
+        }
     };
     
-    collectSelectors(element); 
+    collectSelectors(element, 3); // Collecter les sélecteurs jusqu'à 3 niveaux de profondeur dans l'élément isolé.
     
-    // Collecte des sélecteurs des parents jusqu'à la profondeur spécifiée
+    // Collecte des sélecteurs des PARENTS (jusqu'à la profondeur DOM)
     let current = element.parentElement;
     let depth = 0;
     while(current && depth < domDepth && current.tagName.toLowerCase() !== 'body') {
@@ -96,74 +102,102 @@ const extractRelevantCss = (fullCSS: string, element: HTMLElement, domDepth: num
 
     if (selectors.size === 0) return '';
 
-    const safeSelectors = Array.from(selectors)
-        .filter(s => s.length > 1) 
-        .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-        .join('|');
+    // Construction d'une expression régulière plus simple pour la recherche
+    const selectorRegex = new RegExp(
+        Array.from(selectors)
+             // Échapper les caractères spéciaux utilisés en Regex
+            .map(s => s.replace(/([.*+?^=!:${}()|[\]/\\])/g, '\\$1')) 
+             // Regrouper les sélecteurs pour une seule recherche efficace
+            .join('|'), 
+        'g'
+    );
     
-    if (!safeSelectors) return '';
-
+    // Recherche agressive : trouver les blocs de règles
     const aggressiveRuleRegex = new RegExp(`([^}]+)({[^}]*})`, 'gs');
     let relevantCss = '';
     let match;
     
     while ((match = aggressiveRuleRegex.exec(fullCSS)) !== null) {
         const selectorsPart = match[1]; 
-        const ruleBlock = match[0];    
         
-        let shouldInclude = false;
-        selectors.forEach(selector => {
-            if (selectorsPart.includes(selector)) {
-                shouldInclude = true;
-            }
-        });
-
-        if (shouldInclude) {
-            relevantCss += ruleBlock + '\n';
+        // Tester si la partie sélecteurs contient un de nos sélecteurs.
+        if (selectorRegex.test(selectorsPart)) {
+            relevantCss += match[0] + '\n';
         }
     }
 
+    // Assurer l'inclusion des styles de base critiques pour l'autonomie
     return `
+/* Style de Réinitialisation minimal pour l'autonomie du composant */
 html, body {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: inherit;
+    font-family: inherit; 
     font-size: 100%;
     line-height: 1.5;
 }
+* { box-sizing: border-box; }
+/* FIN du Style de Réinitialisation */
+
 ${relevantCss}`;
 };
 
-
 /**
  * Récupère le HTML de l'élément sélectionné entouré par ses parents jusqu'à la profondeur spécifiée.
+ * Inclut l'attribut 'style' pour garantir la fidélité des styles en ligne.
  */
 const getSurroundingDom = (element: HTMLElement, depth: number): string => {
     let current = element;
-    let wrapper = element.outerHTML;
-    
-    for (let i = 0; i < depth; i++) {
-        if (!current.parentElement || current.parentElement.tagName.toLowerCase() === 'body') {
-            break;
-        }
-        const parent = current.parentElement;
-        // Filtrer les attributs inutiles
-        const attributes = Array.from(parent.attributes)
-            .filter(attr => !attr.name.startsWith('data-') && attr.name !== 'style' && attr.name !== 'class') 
+    let wrapper = element.outerHTML; // Commence avec le HTML de l'élément
+
+    // Fonction pour générer la balise ouvrante d'un élément
+    const buildOpeningTag = (el: HTMLElement): string => {
+        const tagName = el.tagName.toLowerCase();
+        
+        // Filtrer les attributs inutiles/dynamiques et récupérer les attributs de base
+        const attributes = Array.from(el.attributes)
+            .filter(attr => !attr.name.startsWith('data-') && attr.name !== 'style') 
             .map(attr => `${attr.name}="${attr.value}"`)
             .join(' ');
             
-        // Inclure la classe du parent est critique pour le style, on le fait manuellement
-        const classAttr = parent.className ? ` class="${parent.className}"` : '';
+        // 🛑 CLÉ 1: Inclure l'attribut 'style' si présent pour conserver les styles en ligne (inlining partiel)
+        const styleAttr = el.getAttribute('style') ? ` style="${el.getAttribute('style')}"` : '';
+        
+        // 🛑 CLÉ 2: Inclure l'attribut 'class' manuellement pour s'assurer qu'il est toujours là.
+        const classAttr = el.className ? ` class="${el.className}"` : '';
             
-        wrapper = `<${parent.tagName.toLowerCase()} ${attributes}${classAttr}>${wrapper}</${parent.tagName.toLowerCase()}>`;
-        current = parent;
+        // Construire la balise d'ouverture
+        return `<${tagName} ${attributes}${classAttr}${styleAttr}>`;
+    };
+
+    // Le premier élément (l'élément isolé lui-même) doit conserver ses styles
+    const originalOuterHTML = element.outerHTML;
+    const openingTag = buildOpeningTag(element);
+    
+    // Remplacer l'ancienne balise ouvrante par la balise nettoyée et stylée
+    wrapper = originalOuterHTML.replace(
+        new RegExp(`^<${element.tagName.toLowerCase()}[^>]*?>`), 
+        openingTag
+    );
+    
+    // Traitement des parents
+    let currentWrapperElement = element.parentElement;
+    for (let i = 0; i < depth; i++) {
+        if (!currentWrapperElement || currentWrapperElement.tagName.toLowerCase() === 'body') {
+            break;
+        }
+        
+        const parentOpeningTag = buildOpeningTag(currentWrapperElement);
+        const parentClosingTag = `</${currentWrapperElement.tagName.toLowerCase()}>`;
+        
+        // Envelopper le contenu
+        wrapper = `${parentOpeningTag}${wrapper}${parentClosingTag}`;
+        currentWrapperElement = currentWrapperElement.parentElement;
     }
 
     return wrapper;
 };
-
 
 /**
  * Analyse le HTML brut pour détecter les éléments structuraux.
