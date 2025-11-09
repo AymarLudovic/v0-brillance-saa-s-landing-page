@@ -264,7 +264,11 @@ const StyleLibraryManager: React.FC = () => {
   const [domDepth, setDomDepth] = useState(0); 
   // Nous stockons l'objet DetectedElement pour la logique d'isolation
   const [currentDetection, setCurrentDetection] = useState<DetectedElement | null>(null); 
-
+// --- Nouveaux États pour l'interaction IA ---
+const [aiGenerationResult, setAiGenerationResult] = useState(''); // Le HTML/CSS généré par l'IA
+const [isAiLoading, setIsAiLoading] = useState(false);
+const [aiError, setAiError] = useState<string | null>(null);
+const [componentToGenerate, setComponentToGenerate] = useState('Navbar'); // Type de composant demandé
 
   // --- Gestion du Stockage (LocalForage/IndexedDB) ---
   const loadLibrary = useCallback(async () => { /* ... loadLibrary function remains the same ... */ 
@@ -615,6 +619,94 @@ const standaloneIframeContent = useMemo(() => {
     `;
 }, [isolatedHtml, isComponentIsolated, analysis, currentDetection]);
 
+
+// --- Fonction: Gère l'appel à la route API Next.js ---
+const handleGenerateWithAI = async () => {
+    // Vérification: l'utilisateur doit avoir isolé un composant
+    if (!isolatedHtml || !isolatedCss) {
+        setAiError("Veuillez d'abord isoler un composant pour fournir une référence de style.");
+        return;
+    }
+    
+    setIsAiLoading(true);
+    setAiError(null);
+    setAiGenerationResult('');
+
+    // --- 1. Construction du PROMPT Structuré (Apprentissage) ---
+    const learningHtml = isolatedHtml;
+    const learningCss = isolatedCss; 
+    
+    const structuredInput = `
+Vous êtes un expert en UI/UX. Analysez les composants ci-dessous pour leur qualité esthétique et structurelle.
+Utilisez ce code comme RÉFÉRENCE ABSOLUE de design pour les classes et les styles (CSS filtré).
+
+<PERFECT_COMPONENT_EXAMPLE>
+  <HTML_SNIPPET>
+    ${learningHtml}
+  </HTML_SNIPPET>
+  <CSS_SNIPPET>
+    ${learningCss}
+  </CSS_SNIPPET>
+</PERFECT_COMPONENT_EXAMPLE>
+
+// --- 2. Instruction de Génération ---
+En vous basant uniquement sur les classes et le style de la RÉFÉRENCE fournie,
+générez un composant ${componentToGenerate} en HTML et CSS (dans une balise <style>). 
+Le code doit être parfaitement structuré (utilisez des balises sémantiques: <nav>, <aside>, etc.).
+Votre réponse doit être UNIQUEMENT le code HTML/CSS complet, prêt à être affiché dans un <body>. Ne pas inclure de balise <html>, <head> ou <body>.
+`;
+    
+    const API_ENDPOINT = '/api/generate-component';
+
+    try {
+        const response = await fetch(API_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: structuredInput }), // Envoi du prompt
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erreur API: ${response.statusText}`);
+        }
+
+        const data = await response.json(); 
+        
+        // Stockage du code généré brut
+        setAiGenerationResult(data.generatedCode || '');
+        
+    } catch (e: any) {
+        setAiError(e.message || "Une erreur est survenue lors de l'appel à l'IA.");
+    } finally {
+        setIsAiLoading(false);
+    }
+};
+
+// --- Fonction: Prépare le contenu pour le QUATRIÈME Iframe ---
+const aiIframeContent = useMemo(() => {
+    if (!aiGenerationResult) return '';
+
+    return `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { 
+                margin: 0; 
+                padding: 20px; 
+                min-height: 90vh;
+                border: 3px solid purple; /* Bordure Violette pour la Génération IA */
+            }
+          </style>
+      </head>
+      <body>
+          ${aiGenerationResult}
+      </body>
+      </html>
+    `;
+}, [aiGenerationResult]);
+
   // --- 3. Gestion des Thèmes et Sections (Sauvegarde et Suppression) ---
   
   // NOUVELLE FONCTION: Sauvegarde le composant isolé
@@ -963,6 +1055,69 @@ ${themesContent}
         </div>
       )}
 
+
+        <hr style={{ margin: '40px 0' }} />
+
+{/* Section 4: Interaction IA et Génération */}
+<div style={{ marginTop: '40px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
+    <h2>🤖 Génération de Composants Assistée par IA</h2>
+    <p>
+        Entraînez l'IA à adopter le style du **Composant Isolé** ci-dessus. L'IA générera un nouveau composant avec une **structure sémantique parfaite** (${componentToGenerate}) dans le style appris.
+    </p>
+
+    <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', marginTop: '15px' }}>
+        <div style={{ flex: 1 }}>
+            <label htmlFor="compType" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Composant sémantique à générer :</label>
+            <input 
+                id="compType"
+                type="text"
+                value={componentToGenerate}
+                onChange={(e) => setComponentToGenerate(e.target.value)}
+                placeholder="Ex: Sidebar, Dashboard Header, Card List"
+                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+            />
+        </div>
+        
+        <button 
+            onClick={handleGenerateWithAI} 
+            disabled={isAiLoading || !isolatedHtml} // Désactivé si pas de référence isolée
+            style={{ 
+                padding: '10px 20px', 
+                backgroundColor: isAiLoading ? '#888' : '#6A1B9A', // Violet pour Gemini
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '5px', 
+                cursor: isAiLoading ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                minWidth: '150px'
+            }}
+        >
+            {isAiLoading ? 'Génération en cours...' : '🧠 Générer le Composant'}
+        </button>
+    </div>
+
+    {aiError && <p style={{ color: 'red', marginTop: '10px' }}>Erreur IA: {aiError}</p>}
+</div>
+
+{/* Affichage du 4ème Iframe et du Code */}
+{aiGenerationResult && (
+    <div style={{ marginTop: '20px' }}>
+        <h3>Quatrième Iframe : Rendu de la Génération IA (Bordure Violette)</h3>
+        <iframe
+            srcDoc={aiIframeContent}
+            title="Visualisation de la génération IA"
+            style={{ width: '100%', height: '400px', border: '3px solid purple', borderRadius: '4px' }}
+        />
+
+        <h3 style={{ marginTop: '20px' }}>Code Généré par l'IA (pour le Scoring/Analyse)</h3>
+        <textarea 
+            value={aiGenerationResult} 
+            readOnly
+            style={{ width: '100%', height: '150px', resize: 'none', backgroundColor: '#eee', padding: '10px', fontSize: '12px' }}
+            title="Code Généré par l'IA"
+        />
+    </div>
+)}
 
       {/* SECTION 4: Gestion de la Librairie */}
       <div style={{ border: '1px solid #000', padding: '15px', marginBottom: '20px', borderRadius: '8px', backgroundColor: '#fff' }}>
