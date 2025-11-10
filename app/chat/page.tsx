@@ -2079,7 +2079,7 @@ const runAutomatedAnalysis = async (
       addLog("[AUTO-FLOW] Sending FULL HTML + FULL CSS with maximum reinforced application instructions to Gemini.");
       
       const analysisContext = `
-        Voici les fichiers extraits depuis ${urlToAnalyze} :
+        Voici les fullhtml et fullcss reçu après que toi Gemini est lancée l'inspirationUrl, ne la relance plus, sert toi de ces fullhtml et fullcss  :
         - fullHTML (Code source complet de la Landing Page)
         - fullCSS (Styles globaux et variables du Système de Design)
 
@@ -2117,7 +2117,7 @@ const runAutomatedAnalysis = async (
       `;
       
       // 🚀 Envoi à ton système IA (api/gemini)
-      await sendChat(`${originalUserPrompt}\n\n${analysisContext}`);
+      await sendChat(`${analysisContext}`);
     }
 
   } catch (err: any) {
@@ -2540,8 +2540,8 @@ const handleFetchFileAction = async (
 
     
             // Définir ces constantes au début du composant, en dehors de sendChat
-const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 1000;
+const MAX_RETRIES = 10;
+const BASE_DELAY_MS = 500000;
 // Limite stricte de 6000 caractères pour inclure le contenu complet
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
 
