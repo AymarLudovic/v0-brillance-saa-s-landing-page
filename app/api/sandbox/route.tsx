@@ -45,6 +45,7 @@ export async function POST(req: Request) {
             next: "14.2.3", // Version harmonisée
             react: "18.2.0",
             "react-dom": "18.2.0",
+            "tailwindcss": "4.1.17",
             "iconsax-reactjs": "0.0.8" // Conservé de votre premier code
           },
         };
