@@ -754,35 +754,36 @@ const callSandboxAction = async (action: string, body: any = {}) => {
         throw e;
     }
 };
+// DANS app/library/page.tsx, remplacez la fonction handleCreateSandbox existante par ce bloc :
 
-// --- Fonction de Création (Écriture du Full CSS) ---
 const handleCreateSandbox = async () => {
-    // analysis est l'objet qui contient fullCSS et detections après l'analyse
-    if (!analysis?.fullCSS) { 
-        setE2bError("Veuillez analyser un site pour obtenir le Full CSS avant de créer la Sandbox.");
+    // 🛑 CORRECTION CLÉ : Vérifie que le Full CSS est une chaîne non vide (> 50 caractères)
+    if (!analysis?.fullCSS || typeof analysis.fullCSS !== 'string' || analysis.fullCSS.length < 50) { 
+        setE2bError("ERREUR DE DONNÉES: Le Full CSS n'a pas été extrait ou est vide (< 50 caractères). Veuillez refaire l'analyse du site pour obtenir le CSS.");
         return;
     }
+
     setSandboxStatus('CREATING');
     addLog('Démarrage de la création de la Sandbox Next.js...');
     try {
+        // 1. Création du Sandbox
         const result = await callSandboxAction('create');
         setSandboxId(result.sandboxId);
         addLog(`✅ Sandbox créée: ${result.sandboxId}.`);
         
-        // 🛑 Écriture du Full CSS dans globals.css via 'addFile' (votre route existante)
+        // 2. Écriture du Full CSS via 'addFile'. Le 'content' (analysis.fullCSS) est maintenant garanti d'exister.
         addLog('Écriture du Full CSS dans app/globals.css...');
         await callSandboxAction('addFile', { 
             filePath: 'app/globals.css', 
-            content: analysis.fullCSS // Le Full CSS complet
+            content: analysis.fullCSS
          });
         addLog('✅ Full CSS écrit dans app/globals.css.');
         
         setSandboxStatus('IDLE');
     } catch (e) {
-        // Erreur gérée
+        // L'erreur est déjà gérée par callSandboxAction
     }
 };
-
 // --- Logique d'Extraction de Fichiers (Clé pour la communication IA <-> Sandbox) ---
 const extractFilesFromResponse = (text: string): { filePath: string, content: string }[] => {
     // Regex pour capturer les blocs de code Markdown et le chemin d'accès explicite (// Path:)
