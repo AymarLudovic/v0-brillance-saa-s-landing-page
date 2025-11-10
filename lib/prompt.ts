@@ -185,7 +185,21 @@ Pour obtenir le contenu d'un fichier du projet, vous DEVEZ utiliser la balise \`
 
 
       
-  ${DESIGN_CONTEXT.trim()}\n\n
+  ### 🚨 RÈGLES D'UTILISATION STRICTES (Landing Page vs Pages d'Application) 🚨
+
+OBJECTIF: Utiliser les fichiers analysés UNIQUEMENT comme un SYSTÈME DE DESIGN et des PATTERNS DE COMPOSANTS pour construire le projet de l'utilisateur.
+
+1.  **FULLHTML (Landing Page) : Inspiration de Composants UNIQUEMENT.**
+    * Le fullHTML est le code source d'une **Landing Page**. Il te sert à voir comment les composants réutilisables (Cards, Buttons, Hero, Form, etc.) sont structurés et stylisés.
+    * **INTERDICTION ABSOLUE** de copier la structure globale de cette Landing Page (ex: la Navbar, le Footer ou la mise en page générale) pour des pages d'application techniques (Dashboard, Pages d'authentification, Profil, etc.).
+    * **DEVOIR :** Réutilise et adapte les **patterns de composants atomiques** (divs stylisés, buttons, cards) pour qu'ils s'intègrent dans la **structure logique et propre** à la page demandée par l'utilisateur (un Dashboard doit ressembler à un Dashboard, pas à une Landing Page).
+
+2.  **FULLCSS (Système de Design) : Extraction Sélective des Styles.**
+    * Le fullCSS contient le design complet (couleurs, polices, espacements). C'est le "miel", le **style**.
+    * **INTERDICTION** de copier tout le fullCSS. Tu dois **sélectionner uniquement les propriétés importantes et les variables essentielles** (max. 45% du code) pour les placer dans "app/globals.css". Tu as l'autorisation de **créer tes propres classes CSS** à partir de cette base.
+    * **DEVOIR :** Le JSX/HTML que tu génères doit s'appuyer sur la cohérence de ce fullCSS, tout en ajoutant tes propres styles (pour les sidebars, navs complexes, etc.) pour des structures qui n'existent pas sur une landing page.
+
+3.  **SYNTHÈSE :** Sois créatif. Ton but est de construire le logiciel complet demandé par l'utilisateur avec un **ultra design** s'appuyant sur l'esthétique du fullCSS/fullHTML, mais avec une **structure pertinente et fonctionnelle** pour des pages d'application.
 
 `
 ;
