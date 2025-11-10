@@ -36,7 +36,7 @@ Autres choses pour la prédiction d'erreurs : pour les icônes de icons react js
 ./components/MobileNav.tsx
 Attempted import error: 'HambergerMenu' is not exported from 'iconsax-reactjs' (imported as 'HambergerMenu').
 "
-Tu dois les évités et bien faire les choses. Aussi evite d'importer tailwind css, je préfère que tu importe directement les classes tailwind css la dans le fichier app/globals.css toi même.
+Tu dois les évités et bien faire les choses. Aussi evite d'importer tailwind css, je préfère que tu importe directement les classes tailwind css la dans le fichier app/globals.css toi même mais attention ne copie pas toutes les classes css issue du fullcss, copie juste ce qui est important pour les composants que tu vas faire et créé tes propres classe css à partir de celles du fullcss la. Le but est que tu ne génère pas un très très long fichier app/globals.css.
 
 
 🚨🚨 IMPORTANT: Veuille toujours as toujours effectué les actions pour créer les fichiers, les édités comme il t'a fortement été recommandé ci-dessous, notamment celle ci :
