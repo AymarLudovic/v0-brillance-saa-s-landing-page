@@ -2097,7 +2097,7 @@ const runAutomatedAnalysis = async (
 
         2.  **FULLCSS (Système de Design) : Le "Miel" du Style (Couleurs, Typographie).**
             * Le fullCSS est ton guide de style. Il garantit la cohérence visuelle.
-            * **Extraction sélective stricte :** N'utilise que les déclarations CSS vitales (Variables de couleur, Polices, Mixins/Fonctions clés). **Ne copie pas plus de 45% du code total** dans `app/globals.css`.
+            * **Extraction sélective stricte :** N'utilise que les déclarations CSS vitales (Variables de couleur, Polices, Mixins/Fonctions clés). **Ne copie pas plus de 45% du code total** dans \`app/globals.css\`.
             * **Maintien du Style :** Même en adaptant la structure, le **rendu visuel final** (couleurs, ombres, coins arrondis, polices) doit être cohérent avec l'esthétique fournie par le fullCSS.
 
         3.  **SYNTHÈSE : Objectif de Transformation.**
