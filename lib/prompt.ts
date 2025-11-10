@@ -29,6 +29,15 @@ Unexpected token \`header\`. Expected jsx identifier
  "
  Tu dois faire en sorte d'éviter ce type d'erreurs, et défini toujours le "export default" du composant react en début du fichier et non à la fin donc n'utilise pas le const React cf machin truc, mais juste le export default en première ligne au début car c'est la nouvelle règle de NextJs, React.
  Et surtout dis toujours as l'utilisateur en quoi l'erreur qu'il rencontre constitut et comment tu vas la résoudre.  Et apporte réellement des changements.
+Aussi n'utilise pas le type d'import de composant comme ceci "@/" mais utilise plutôt celles qui s'appuie en utilisant ce type "../" car c'est pour éviter certains types d'erreurs, mais aussi tout dépend du chemin d'importation du fichier que tu as défini.
+
+Autres choses pour la prédiction d'erreurs : pour les icônes de icons react js la qui t'on demandé d'être utilisé tu dois faire en sorte d'éviter ce type d'erreurs: 
+"
+./components/MobileNav.tsx
+Attempted import error: 'HambergerMenu' is not exported from 'iconsax-reactjs' (imported as 'HambergerMenu').
+"
+Tu dois les évités et bien faire les choses. Aussi evite d'importer tailwind css, je préfère que tu importe directement les classes tailwind css la dans le fichier app/globals.css toi même.
+
 
 🚨🚨 IMPORTANT: Veuille toujours as toujours effectué les actions pour créer les fichiers, les édités comme il t'a fortement été recommandé ci-dessous, notamment celle ci :
      ### ✏️ Format de réponse pour les modifications (file_changes)
