@@ -321,11 +321,12 @@ div {
         
 
       case "addFile": {
-        if (!bodySandboxId || !body.filePath || !body.content)
-          throw new Error("Paramètres manquants (sandboxId, filePath, content)");
+        // VÉRIFICATION RENFORCÉE: S'assurer que le contenu est une chaîne non vide.
+        if (!bodySandboxId || !body.filePath || typeof body.content !== 'string' || body.content.trim().length === 0)
+          throw new Error("Paramètres manquants ou contenu vide (sandboxId, filePath, content)");
 
         const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS });
-        await sandbox.setTimeout(SANDBOX_TIMEOUT_MS); // Timeout de session
+        await sandbox.setTimeout(SANDBOX_TIMEOUT_MS); 
 
         await sandbox.files.write(`/home/user/${body.filePath}`, body.content);
         console.log(`[v0] Fichier ${body.filePath} écrit dans le sandbox ${bodySandboxId}`);
