@@ -8,7 +8,8 @@ export async function POST(req: Request) {
       throw new Error("Invalid JSON in request body");
     });
 
-    const { action, sandboxId: bodySandboxId, files: requestFiles, plan } = body || {};
+    // 🔑 CORRECTION DES VARIABLES : Extraction des champs nécessaires, y compris le renommage de sandboxId
+    const { action, sandboxId: bodySandboxId, files: requestFiles, plan, filePath, content } = body || {};
     const apiKey = process.env.E2B_API_KEY;
 
     if (!apiKey) {
@@ -122,16 +123,10 @@ div {
         return NextResponse.json({ success: true, sandboxId: sandbox.sandboxId });
       }
 
-      // ----------------------------------------------------------------------
-      // NOTE: Le cas "applyPlan" complexe a été omis car il ne faisait pas partie 
-      // de votre premier code et alourdirait le processus si non nécessaire.
-      // ----------------------------------------------------------------------
-
-  // INSERER dans app/api/sandbox/route.ts (Après case "addFiles")
 
       // 🛑 NOUVELLE ACTION: writeFiles
       case "writeFiles": { 
-        if (!bodySandboxId || !requestFiles || !Array.isArray(requestFiles)) {
+        if (!bodySandboxId || !requestFiles || !ArrayArray(requestFiles)) {
           throw new Error("Paramètres manquants (sandboxId ou files[])");
         }
 
@@ -156,7 +151,7 @@ div {
         }
 
         return NextResponse.json({ success: true, message: `${requestFiles.length} files processed`, writeResults });
-        }
+      }
 
       case "getFiles": {
         const sid = bodySandboxId
@@ -319,21 +314,23 @@ div {
         }
       }
         
-
       case "addFile": {
+        // 🔑 CORRECTION CLÉ : Utiliser les variables extraites directement
         // VÉRIFICATION RENFORCÉE: S'assurer que le contenu est une chaîne non vide.
-        if (!bodySandboxId || !body.filePath || typeof body.content !== 'string' || body.content.trim().length === 0)
+        if (!bodySandboxId || !filePath || typeof content !== 'string' || content.trim().length === 0)
           throw new Error("Paramètres manquants ou contenu vide (sandboxId, filePath, content)");
 
         const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS });
         await sandbox.setTimeout(SANDBOX_TIMEOUT_MS); 
 
-        await sandbox.files.write(`/home/user/${body.filePath}`, body.content);
-        console.log(`[v0] Fichier ${body.filePath} écrit dans le sandbox ${bodySandboxId}`);
-        return NextResponse.json({ success: true, message: `File ${body.filePath} written` });
+        // Utiliser filePath et content directement
+        await sandbox.files.write(`/home/user/${filePath}`, content);
+        console.log(`[v0] Fichier ${filePath} écrit dans le sandbox ${bodySandboxId}`);
+        return NextResponse.json({ success: true, message: `File ${filePath} written` });
       }
 
       case "addFiles": {
+        // La déstructuration garantit que bodySandboxId et requestFiles sont disponibles
         if (!bodySandboxId || !requestFiles || !Array.isArray(requestFiles)) {
           throw new Error("Paramètres manquants (sandboxId ou files[])");
         }
@@ -342,7 +339,9 @@ div {
         await sandbox.setTimeout(SANDBOX_TIMEOUT_MS); // Timeout de session
 
         for (const f of requestFiles) {
-          if (!f.filePath || !f.content) continue;
+          // CORRECTION: Assurer que le contenu n'est pas une chaîne vide
+          if (!f.filePath || typeof f.content !== 'string' || f.content.trim().length === 0) continue;
+          
           await sandbox.files.write(`/home/user/${f.filePath}`, f.content);
           console.log(`[v0] Fichier ${f.filePath} écrit dans le sandbox ${bodySandboxId}`);
         }
@@ -395,9 +394,7 @@ div {
         
     console.log(`[v0] Commande '${action}' exécutée dans le sandbox ${bodySandboxId}. Exit Code: ${commandResult.exitCode}`);
 
-        // 🛑 LIGNE À REMPLACER (ou à modifier)
-        // Ancienne Ligne: return NextResponse.json({ success: commandSuccess, action, result: commandResult });
-        // Nouvelle Ligne:
+        // 🛑 Inclusion de stderr pour l'autocorrection IA
         return NextResponse.json({ success: commandSuccess, action, result: commandResult, stderr: commandResult.stderr });
       }
 
@@ -422,4 +419,4 @@ div {
     console.error("[v0] Erreur dans l'API route /api/sandbox:", e);
     return NextResponse.json({ error: e.message || "Erreur inconnue", details: e.toString() }, { status: 500 });
   }
-      }
+          }
