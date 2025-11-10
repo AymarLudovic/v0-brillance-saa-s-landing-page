@@ -2009,10 +2009,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
 };
   
            
-             
-
-
-  const runAutomatedAnalysis = async (
+const runAutomatedAnalysis = async (
   urlToAnalyze: string,
   originalUserPrompt: string,
   isCloning: boolean = false
@@ -2030,9 +2027,208 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
   let fullHTML = '';
   let fullJS = '';
   let baseURL = '';
+  
+  // =========================================================================
+  // === UTILITAIRES D'ISOLATION (Définis ici pour être dans le scope demandé) ===
+  // =========================================================================
+
+  /**
+   * Tente d'extraire les règles CSS pertinentes pour le PROMPT de l'IA.
+   */
+  const extractRelevantCss = (fullCSS: string, element: HTMLElement, domDepth: number): string => {
+      const selectors = new Set<string>();
+      
+      const collectSelectors = (el: HTMLElement, maxDepth: number) => {
+          if (el.className) {
+              el.className.split(/\s+/).forEach(cls => selectors.add('.' + cls.trim()));
+          }
+          if (el.id) {
+              selectors.add('#' + el.id.trim());
+          }
+          selectors.add(el.tagName.toLowerCase());
+
+          if (maxDepth > 0) {
+              Array.from(el.children).forEach(child => {
+                  if (child instanceof HTMLElement) {
+                      collectSelectors(child, maxDepth - 1);
+                  }
+              });
+          }
+      };
+      
+      collectSelectors(element, 3); 
+
+      let current = element.parentElement;
+      let depth = 0;
+      while(current && depth < domDepth && current.tagName.toLowerCase() !== 'body') {
+          if (current.className) {
+              current.className.split(/\s+/).forEach(cls => selectors.add('.' + cls.trim()));
+          }
+          if (current.id) {
+              selectors.add('#' + current.id.trim());
+          }
+          selectors.add(current.tagName.toLowerCase());
+          current = current.parentElement;
+          depth++;
+      }
+
+      if (selectors.size === 0) return '';
+
+      const selectorRegex = new RegExp(
+          Array.from(selectors)
+              .map(s => s.replace(/([.*+?^=!:${}()|[\]/\\])/g, '\\$1')) 
+              .join('|'), 
+          'g'
+      );
+      
+      const aggressiveRuleRegex = new RegExp(`([^}]+)({[^}]*})`, 'gs');
+      let relevantCss = '';
+      let match;
+      
+      while ((match = aggressiveRuleRegex.exec(fullCSS)) !== null) {
+          const selectorsPart = match[1]; 
+          
+          if (selectorRegex.test(selectorsPart)) {
+              relevantCss += match[0] + '\n';
+          }
+      }
+
+      return `
+/* Style de Réinitialisation minimal pour l'autonomie du composant */
+html, body {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: inherit; 
+    font-size: 100%;
+    line-height: 1.5;
+}
+* { box-sizing: border-box; }
+/* FIN du Style de Réinitialisation */
+
+${relevantCss}`;
+  };
+
+  /**
+   * Récupère le HTML de l'élément sélectionné entouré par ses parents jusqu'à la profondeur spécifiée.
+   */
+  const getSurroundingDom = (element: HTMLElement, depth: number): string => {
+      let wrapper = element.outerHTML; 
+
+      const buildOpeningTag = (el: HTMLElement): string => {
+          const tagName = el.tagName.toLowerCase();
+          
+          const attributes = Array.from(el.attributes)
+              .filter(attr => !attr.name.startsWith('data-') && attr.name !== 'style') 
+              .map(attr => `${attr.name}="${attr.value}"`)
+              .join(' ');
+              
+          const styleAttr = el.getAttribute('style') ? ` style="${el.getAttribute('style')}"` : '';
+          const classAttr = el.className ? ` class="${el.className}"` : '';
+              
+          return `<${tagName} ${attributes}${classAttr}${styleAttr}>`;
+      };
+
+      const originalOuterHTML = element.outerHTML;
+      const openingTag = buildOpeningTag(element);
+      
+      wrapper = originalOuterHTML.replace(
+          new RegExp(`^<${element.tagName.toLowerCase()}[^>]*?>`), 
+          openingTag
+      );
+      
+      let currentWrapperElement = element.parentElement;
+      for (let i = 0; i < depth; i++) {
+          if (!currentWrapperElement || currentWrapperElement.tagName.toLowerCase() === 'body') {
+              break;
+          }
+          
+          const parentOpeningTag = buildOpeningTag(currentWrapperElement);
+          const parentClosingTag = `</${currentWrapperElement.tagName.toLowerCase()}>`;
+          
+          wrapper = `${parentOpeningTag}${wrapper}${parentClosingTag}`;
+          currentWrapperElement = currentWrapperElement.parentElement;
+      }
+
+      return wrapper;
+  };
+
+  /**
+   * Cherche l'élément exact par son outerHTML.
+   */
+  const findElementByOuterHTML = (fullHTML: string, elementOuterHTML: string): HTMLElement | null => {
+      if (typeof DOMParser === 'undefined') return null;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(fullHTML, 'text/html');
+      
+      const allElements = doc.body.querySelectorAll('*');
+      
+      for (let i = 0; i < allElements.length; i++) {
+          if (allElements[i].outerHTML === elementOuterHTML) {
+              return allElements[i] as HTMLElement;
+          }
+      }
+      for (let i = 0; i < allElements.length; i++) {
+          if (allElements[i].outerHTML.includes(elementOuterHTML.substring(0, 50))) {
+               return allElements[i] as HTMLElement;
+          }
+      }
+      
+      return null;
+  };
+
+  /**
+   * Analyse le HTML brut pour détecter les éléments structuraux.
+   */
+  const parseHTMLForStructuralElements = (htmlString: string): DetectedElement[] => {
+      if (typeof DOMParser === 'undefined') return [];
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlString, 'text/html');
+      const detected: DetectedElement[] = [];
+      let uniqueIndex = 0;
+      
+      const STRUCTURAL_TAGS = ['header', 'nav', 'main', 'aside', 'footer', 'section', 'article', 'h1', 'h2', 'a', 'button', 'input', 'form', 'figure'];
+
+      STRUCTURAL_TAGS.forEach((tag) => {
+          const elements = doc.querySelectorAll(tag);
+          elements.forEach((el) => {
+              const elementId = el.id ? `#${el.id}` : (el.className ? `.${el.className.split(/\s+/)[0]}` : '');
+              
+              detected.push({
+                  id: (uniqueIndex++).toString(),
+                  tagName: tag,
+                  selector: tag + elementId,
+                  htmlSnippet: el.outerHTML.substring(0, 100).replace(/\n/g, ' ') + '...',
+                  fullOuterHTML: el.outerHTML,
+              } as DetectedElement);
+          });
+      });
+      
+      const genericElements = doc.querySelectorAll('div[id], div[class], figure[id], figure[class]');
+      genericElements.forEach((el) => {
+          const elementId = el.id ? `#${el.id}` : (el.className ? `.${el.className.split(/\s+/)[0]}` : '');
+          
+          detected.push({
+              id: (uniqueIndex++).toString(),
+              tagName: el.tagName.toLowerCase(),
+              selector: el.tagName.toLowerCase() + elementId,
+              htmlSnippet: el.outerHTML.substring(0, 100).replace(/\n/g, ' ') + '...',
+              fullOuterHTML: el.outerHTML,
+          } as DetectedElement);
+      });
+
+      // Filter duplicates based on fullOuterHTML
+      const uniqueDetected = Array.from(new Map(detected.map(item => [item.fullOuterHTML, item])).values());
+      return uniqueDetected;
+  };
+
+  // =========================================================================
+  // === DÉBUT DU FLUX RUNAUTOMATEDANALYSIS ===
+  // =========================================================================
 
   try {
-    setAnalysisStatus(`1/2: Analyse de ${urlToAnalyze} (Récupération des données)...`);
+    setAnalysisStatus(`1/3: Analyse de ${urlToAnalyze} (Récupération des données)...`);
     addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`);
 
     // --- Étape 1 : Récupération des données via ton API analyse ---
@@ -2058,55 +2254,99 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
 
     baseURL = new URL(urlToAnalyze).origin;
 
-    if (!fullHTML) {
-      throw new Error("Analysis failed: API did not return 'fullHTML' content.");
+    if (!fullHTML || !fullCSS || fullCSS.trim().length < 50) {
+      throw new Error("Analysis failed: Le fullHTML ou le fullCSS est manquant/vide. Impossible de procéder à la génération de design.");
     }
+    
+    // 🛑 Détection des éléments structuraux
+    const detectedElements = parseHTMLForStructuralElements(fullHTML);
+
 
     // --- Étape 3 : DISPATCH logique selon mode ---
     if (isCloning) {
-      await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze);
+      await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze); 
     } else {
-      // 🧠 Étape spéciale : création du pont vers sendChat()
+      // 🧠 NOUVELLE ÉTAPE : Isolation de TOUS les composants détectés
+      setAnalysisStatus(`2/3: Isolation des ${detectedElements.length} composants réutilisables...`);
+      addLog(`[AUTO-FLOW] Phase 2: Isolation des ${detectedElements.length} composants clés.`);
+
+      const DOM_DEPTH = 2; // Profondeur DOM fixe pour l'isolation automatique
+      let isolatedComponentsContext = '';
+
+      const componentsToIsolate = detectedElements; 
+
+      if (componentsToIsolate.length === 0) {
+          throw new Error("L'analyse n'a détecté aucun élément structural à isoler. Tentative avortée.");
+      }
+
+      for (let i = 0; i < componentsToIsolate.length; i++) {
+          const detection = componentsToIsolate[i];
+
+          // 1. Reconstruire l'élément à partir de la chaîne de l'analyse complète
+          const elementToIsolate = findElementByOuterHTML(fullHTML, detection.fullOuterHTML);
+
+          if (!elementToIsolate) {
+              addLog(`[WARN] Impossible de retrouver l'élément ${detection.selector}. Saut.`);
+              continue;
+          }
+
+          // 2. Isolation du HTML avec DOM Parent
+          const isolatedHtmlWithDom = getSurroundingDom(elementToIsolate, DOM_DEPTH);
+          
+          // 3. Isolation du CSS FILTRÉ (pour le prompt de l'IA)
+          const isolatedCssFiltered = extractRelevantCss(fullCSS, elementToIsolate, DOM_DEPTH);
+
+          isolatedComponentsContext += `
+/* ========================================================================= */
+/* --- COMPOSANT ISOLÉ #${i + 1} : ${detection.selector} --- */
+/* ========================================================================= */
+
+Profondeur du DOM parent incluse: ${DOM_DEPTH}
+
+/* --- HTML du Composant Isolé (Inclut l'environnement DOM Parent) --- */
+${isolatedHtmlWithDom}
+
+/* --- CSS FILTRÉ pour le Composant Isolé (Pour l'autonomie) --- */
+${isolatedCssFiltered}
+`;
+      }
+
+      // 🧠 Étape finale : création du pont vers sendChat() avec composants isolés
+      setAnalysisStatus(`3/3: Envoi du contexte d'analyse à l'IA...`);
       const analysisContext = `
         Voici les fichiers extraits depuis ${urlToAnalyze} :
-        - fullHTML (structure complète du site)
-        - fullCSS (styles globaux et variables)
-        - fullJS (scripts analysés)
+        - ISOLATED COMPONENTS (Composants réutilisables extraits de la Landing Page)
+        - fullCSS (styles globaux et variables du Système de Design)
 
-        NB: tu dois fidèlement créé faire ce que l'utilisateur t'a demandé de build dans sa requête : En effet, ces fullhtml et fullcss que tu va recevoir si sont des codes pour des landing pages de base. Oui en effet ce sont des codes de landing page.
-            pour donc construire les landing page du projet de l'utilisateur selon sa requête . Mais si il s'agit de générer les autres pages un peut plus techniques telsque des pages de dashboard, tu ne dois pas reprendre les codes landing pages. En effet, le seul code que tu 
-        
-        Ces fichiers représentent la base d’inspiration. 
-        L’IA doit les utiliser pour reconstruire la structure complète du site 
-        et placer tous les styles quelle souhaiterais utiliser (ne génère pas tout le css et HTML, jusque 45% de ces fullHTML et fullCSS) copiés dans "app/globals.css".
-        Elle doit s’inspirer du fullHTML pour recréer les composants React, 
-        en important les classes correspondantes depuis globals.css.
-        Le fullhtml doit être aussi pleinement utiliser pour construire les pages des applications du projet de l'utilisateur. surtout que ce soit une landing page ou des pages de plateforme et autres pour le projet de l'utilisateur. tu devras uniquement te basé sur les styles du fullcss, mais ne pas importer le footer ou les navbar que tu builderas qui sont pour la landing page pour des pages comme le dashboard, etc ou tout autres pages techniques. 
+        OBJECTIF: L'IA doit utiliser ces données UNIQUEMENT comme un **SYSTÈME DE DESIGN** et des **PATTERNS DE COMPOSANTS** pour construire le projet de l'utilisateur.
 
-        --- FULL HTML START --- 
+        ### 🚨 RÈGLES D'UTILISATION STRICTES (Landing Page vs Pages d'Application) 🚨
 
-        🚨🚨 IMPORTANT 🚨🚨:
-        Tu dois comprendre ceci, ce fullHTML que je t'envoie ci est récupérer depuis l'url la. En fait ce code fullhtml est généralement celui de la 
-        Landing page du site analyser ainsi que le code fullCSS qui lui est les styles de cette landing page. En fait le but de t'envoyer le fullhtml landing page est du fait n'ont pas que quand tu vas créé l'application de l'utilisateur, le design structurelle de ses pages seront comme la landing page là car ça serait illogique, par exemple imagine un peu l'utilisateur t'a demandé de faire des pages de dashboard, des pages d'authentification et quand il regarde le design final de ces pages que
-        tu lui as donné, c'est encore la landing page mais que juste pour rendre ça page Dashboard selon la demande de l'utilisateur tu as juste légèrement modifié : Ce n'est pas bin. 
-        Le fullhtml te permet vraiment de voir comment les composants sont bien formé : des cards avec des images, des hero, button, div, etc, bref le but c'est que tu fasses des pages qui reprennent le design de ce fullhtml la mais à la différence que la page soit bien builder dans le style que l'on l'attend, Dashboard, page de dashboard, mais reprenant les styles, div, button, etc de la fullhtml de la landing page la. Le fullCSS lui il est le miel, le design.
-        🚧🚨 Surtout il ne s'agit pas pour toi de copier absolument tout le fullcss. Non prend uniquement les propriétés importantes et construit kes autres qui vont te servir à désigné, tu peux créer tes classes CSS toi même à partir de ce fullcss. Même principe pour le fullhtml. Le but est de t'alléger le travail.🚧🚨
-        Je ne t'envoie pas le fullhtml juste pour que tu copies et colle. Non. car tu dois être créatif, et bien comprendre la requête de l'utilisateur et construire ce qu'il te demande. Je t'envoi le fullcss pour que tu comprends sur qu'elles styles CSS ton jsx/html va devoir s'appuyer. Mais, tu vas devoir ajouter à ces styles tes propres styles pour build tes propres composant ( du style sidebar, nav, etc...). Le fullhtml que tu reçois si possède des composants réutilisables pour n'importe quelle projet et ils font appel aux meilleurs styles du fullcss. Réutilises ses composants du fullhtml tout en les adaptant réellement au besoin de l'utilisateur et de sa requête.
-        --- FULL HTML START ---
-         ${fullHTML}
+        1.  **ISOLATED COMPONENTS : Inspiration de Composants UNIQUEMENT.**
+            * Le bloc ISOLATED COMPONENTS ci-dessous contient **TOUS les composants clés** (Header, Sections, Footer, etc.) de la **Landing Page**. Ils te servent à voir comment les éléments sont structurés et stylisés.
+            * **INTERDICTION ABSOLUE** de copier la structure globale de la Landing Page pour des pages d'application techniques (Dashboard, Pages d'authentification, Profil, etc.).
+            * **DEVOIR :** Réutilise et adapte les **patterns de composants atomiques** pour qu'ils s'intègrent dans la **structure logique et propre** à la page demandée par l'utilisateur.
 
-         Le fullhtml ci la te donne une vue d'ensemble.
-        --- FULL CSS START ---
+        2.  **FULLCSS (Système de Design) : Extraction Sélective des Styles.**
+            * Le fullCSS est le **style** (couleurs, polices, espacements).
+            * **INTERDICTION** de copier tout le fullCSS. Tu dois **sélectionner uniquement les propriétés importantes et les variables essentielles** (max. 45% du code) pour les placer dans "app/globals.css". Tu peux **créer tes propres classes CSS** à partir de cette base.
+            * **DEVOIR :** Ton JSX/HTML doit s'appuyer sur la cohérence de ce fullCSS, en ajoutant tes propres styles si nécessaire pour des structures d'application (sidebars, navs complexes).
+
+        3.  **SYNTHÈSE :** Sois créatif. Construis le logiciel complet demandé avec un **ultra design** basé sur cette esthétique, mais avec une **structure pertinente et fonctionnelle**.
+
+        --- ISOLATED COMPONENTS START (Composants Réutilisables) ---
+        ${isolatedComponentsContext}
+        --- ISOLATED COMPONENTS END ---
+
+        --- FULL CSS START (Système de Design) ---
         ${fullCSS}
         --- FULL CSS END ---
 
-
-        génère des fichiers complet et sans donner d'instructions ou explications sur le code que tu as généré. Génère au bon format comme il t'a été instruit dans tes instructions.
-        et surtout ne lance plus une autre InspirationUrl car celle-ci est largement suffisant vu qu'elle ta fourni le fullhtml et fullcss c'est complètement sur eux que tu vas t'appuyer pour générer le site que veux L'utilisateur avec 
-        un ultra design complètement appuyez sur ces fullhtml et fullcss comme je t'ai mentionné de comment les utiliser.
+        génère des fichiers complets et sans donner d'instructions ou explications mis à part à l'utilisateur les isolated composant que tu as reçu afin de confirmer la réception sur le code que tu as généré. Génère au bon format comme il t'a été instruit dans tes instructions.
+        Surtout, ne lance plus une autre InspirationUrl car celle-ci est largement suffisante.
       `;
 
-      addLog("[AUTO-FLOW] Sending fullHTML + fullCSS to Gemini for design generation...");
+      addLog("[AUTO-FLOW] Sending ALL Isolated Components + fullCSS to Gemini for design generation...");
       
       // 🚀 Envoi à ton système IA (api/gemini)
       await sendChat(`${originalUserPrompt}\n\n${analysisContext}`);
@@ -2120,8 +2360,7 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
     setLoading(false);
     setAnalysisStatus(null);
   }
-};
-  
+};    
 
                                                   
       
