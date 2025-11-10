@@ -270,6 +270,19 @@ const [isAiLoading, setIsAiLoading] = useState(false);
 const [aiError, setAiError] = useState<string | null>(null);
 const [componentToGenerate, setComponentToGenerate] = useState('Navbar'); // Type de composant demandé
 
+// --- États pour le Sandbox E2B ---
+const [sandboxId, setSandboxId] = useState<string | null>(null);
+const [sandboxUrl, setSandboxUrl] = useState<string | null>(null);
+const [sandboxStatus, setSandboxStatus] = useState<'IDLE' | 'CREATING' | 'INSTALLING' | 'BUILDING' | 'RUNNING' | 'ERROR'>('IDLE');
+const [sandboxLogs, setSandboxLogs] = useState<string[]>([]);
+const [e2bError, setE2bError] = useState<string | null>(null);
+
+// --- États pour le Chat IA ---
+// NOTE: Utilisez 'any' pour le type Content si vous n'avez pas l'import
+const [chatHistory, setChatHistory] = useState<any[]>([]); 
+const [chatInput, setChatInput] = useState('');
+const [isChatLoading, setIsChatLoading] = useState(false);
+
   // --- Gestion du Stockage (LocalForage/IndexedDB) ---
   const loadLibrary = useCallback(async () => { /* ... loadLibrary function remains the same ... */ 
     try {
@@ -708,6 +721,208 @@ const aiIframeContent = useMemo(() => {
 }, [aiGenerationResult]);
 
   // --- 3. Gestion des Thèmes et Sections (Sauvegarde et Suppression) ---
+
+
+// Fichier: app/library/page.tsx
+
+const SANDBOX_API_ENDPOINT = '/api/sandbox';
+const CHAT_API_ENDPOINT = '/api/chat';
+
+const addLog = (message: string) => {
+    setSandboxLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+};
+
+// --- Fonction Générique d'Action Sandbox (modifiée pour la gestion d'erreur) ---
+const callSandboxAction = async (action: string, body: any = {}) => {
+    setE2bError(null);
+    try {
+        const response = await fetch(SANDBOX_API_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, sandboxId, ...body }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            // 🛑 Gère le cas où l'erreur est dans stderr (install/build)
+            throw new Error(result.error || result.details || result.stderr || `Erreur lors de l'action ${action}.`);
+        }
+        return result;
+    } catch (e: any) {
+        addLog(`ERREUR E2B: Action ${action} failed: ${e.message}`);
+        setE2bError(e.message);
+        setSandboxStatus('ERROR');
+        throw e;
+    }
+};
+
+// --- Fonction de Création (Écriture du Full CSS) ---
+const handleCreateSandbox = async () => {
+    // analysis est l'objet qui contient fullCSS et detections après l'analyse
+    if (!analysis?.fullCSS) { 
+        setE2bError("Veuillez analyser un site pour obtenir le Full CSS avant de créer la Sandbox.");
+        return;
+    }
+    setSandboxStatus('CREATING');
+    addLog('Démarrage de la création de la Sandbox Next.js...');
+    try {
+        const result = await callSandboxAction('create');
+        setSandboxId(result.sandboxId);
+        addLog(`✅ Sandbox créée: ${result.sandboxId}.`);
+        
+        // 🛑 Écriture du Full CSS dans globals.css via 'addFile' (votre route existante)
+        addLog('Écriture du Full CSS dans app/globals.css...');
+        await callSandboxAction('addFile', { 
+            filePath: 'app/globals.css', 
+            content: analysis.fullCSS // Le Full CSS complet
+         });
+        addLog('✅ Full CSS écrit dans app/globals.css.');
+        
+        setSandboxStatus('IDLE');
+    } catch (e) {
+        // Erreur gérée
+    }
+};
+
+// --- Logique d'Extraction de Fichiers (Clé pour la communication IA <-> Sandbox) ---
+const extractFilesFromResponse = (text: string): { filePath: string, content: string }[] => {
+    // Regex pour capturer les blocs de code Markdown et le chemin d'accès explicite (// Path:)
+    const fileRegex = /```(?:tsx|jsx|ts|js|css|json|html|bash|plaintext)\n([\s\S]*?)\n```\s*(\/\/\s*Path:\s*(.*?)\s*)?/g;
+    let match;
+    const files: { filePath: string, content: string }[] = [];
+
+    while ((match = fileRegex.exec(text)) !== null) {
+        const fileContent = match[1].trim();
+        const rawPath = match[3]; 
+        
+        if (rawPath) {
+            const cleanPath = rawPath.trim().startsWith('src/') ? rawPath.trim().substring(4) : rawPath.trim();
+            files.push({ filePath: cleanPath, content: fileContent });
+        } else {
+            addLog('⚠️ Fichier généré sans chemin explicite. Ignoré.');
+        }
+    }
+    return files;
+};
+
+
+// --- Fonction de Chat et Génération (Cœur du système) ---
+const handleSendMessage = async (message: string, isCorrection = false) => {
+    if ((!message && !isCorrection) || isChatLoading) return;
+    
+    const userMessage = { role: "user", parts: [{ text: message }] };
+    if (!isCorrection) setChatInput(''); 
+    setChatHistory(prev => [...prev, userMessage]); 
+    
+    setIsChatLoading(true);
+
+    // 🛑 Construction du prompt INITIAL (Correction du Problème Landing Page/Application)
+    let initialContext = '';
+    if (chatHistory.length === 0 && !isCorrection && analysis?.detections) {
+        // Injection de TOUS les composants pour le contexte de style
+        const allDetectionsPrompt = analysis.detections
+            .map(d => `<component_ref name="${d.name}" class_example="${d.classes.split(' ').slice(0, 3).join(' ')}" />`)
+            .join('\n');
+            
+        initialContext = `
+        CONTEXTE GLOBAL ET RÉFÉRENCE DE STYLE: L'intégralité du CSS du site est dans app/globals.css.
+        Voici la liste de TOUS les composants du site analysé. Inspirez-vous de leur STYLE (couleurs, polices) pour créer une VRAIE PAGE D'APPLICATION avec une SÉMANTIQUE CORRECTE (Sidebar, Layouts, Dashboard).
+        <ALL_COMPONENT_REFERENCES>
+          ${allDetectionsPrompt}
+        </ALL_COMPONENT_REFERENCES>
+        
+        INSTRUCTION: ${message}
+        `;
+    }
+
+    const finalMessage = initialContext ? initialContext : message;
+
+    try {
+        const response = await fetch(CHAT_API_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                history: chatHistory, 
+                currentMessage: finalMessage 
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erreur API: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const generatedResponse = data.generatedResponse || '';
+
+        const aiResponse = { role: "model", parts: [{ text: generatedResponse }] };
+        setChatHistory(prev => [...prev, aiResponse]);
+        
+        const filesToCreate = extractFilesFromResponse(generatedResponse);
+        
+        if (filesToCreate.length > 0) {
+            if (sandboxId) {
+                addLog(`L'IA a généré ${filesToCreate.length} fichiers. Écriture dans la Sandbox...`);
+                // Utilisation de la nouvelle action writeFiles
+                await callSandboxAction('writeFiles', { files: filesToCreate });
+                addLog('✅ Fichiers écrits. Vous pouvez maintenant Installer/Build/Démarrer.');
+            } else {
+                addLog('⚠️ Fichiers générés, mais aucune Sandbox active pour l\'écriture.');
+            }
+        }
+        
+    } catch (e: any) {
+        setE2bError(e.message || "Erreur inconnue lors du chat IA.");
+    } finally {
+        setIsChatLoading(false);
+    }
+};
+
+// --- Les autres fonctions E2B (handleInstall, handleBuild, handleStart)
+// Elles appellent callSandboxAction et utilisent handleSendMessage en cas d'erreur
+const handleInstall = async () => {
+    if (!sandboxId) return;
+    setSandboxStatus('INSTALLING');
+    addLog('Lancement de npm install...');
+    try {
+        const result = await callSandboxAction('install');
+        if (result.success) {
+            addLog('✅ Installation terminée.');
+            setSandboxStatus('IDLE');
+        } else {
+            addLog(`❌ Installation ÉCHOUÉE. Envoi du log d'erreur à l'IA...`);
+            // Correction basée sur stderr
+            handleSendMessage(`Corrige les erreurs d'installation npm/dépendances dans package.json basées sur ce log:\n${result.stderr}`, true);
+        }
+    } catch (e) {}
+};
+
+const handleBuild = async () => {
+    if (!sandboxId) return;
+    setSandboxStatus('BUILDING');
+    addLog('Lancement de npm run build...');
+    try {
+        const result = await callSandboxAction('build');
+        if (result.success) {
+            addLog('✅ Build terminé avec succès.');
+            setSandboxStatus('IDLE');
+        } else {
+            addLog(`❌ Build ÉCHOUÉ. Envoi du log d'erreur à l'IA...`);
+            // Correction basée sur stderr
+            handleSendMessage(`Corrige les erreurs de code/build (dans app/page.tsx ou autres) basées sur ce log:\n${result.stderr}`, true);
+        }
+    } catch (e) {}
+};
+
+const handleStart = async () => {
+    if (!sandboxId) return;
+    setSandboxStatus('RUNNING');
+    addLog('Démarrage de l\'application (npm run start)...');
+    try {
+        const result = await callSandboxAction('start');
+        setSandboxUrl(result.url);
+        addLog(`✅ Application démarrée. URL: ${result.url}`);
+        setSandboxStatus('RUNNING');
+    } catch (e) {}
+};
   
   // NOUVELLE FONCTION: Sauvegarde le composant isolé
   const handleSaveIsolatedComponent = async () => {
@@ -1058,64 +1273,107 @@ ${themesContent}
 
         <hr style={{ margin: '40px 0' }} />
 
-{/* Section 4: Interaction IA et Génération */}
-<div style={{ marginTop: '40px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
-    <h2>🤖 Génération de Composants Assistée par IA</h2>
+
+
+<hr style={{ margin: '40px 0' }} />
+
+{/* Section 4: Chat IA, Génération Next.js & Sandbox */}
+<div style={{ padding: '20px', border: '1px solid #6A1B9A', borderRadius: '8px', backgroundColor: '#faf5ff' }}>
+    <h2>🤖 Chat IA & Sandbox Next.js (E2B)</h2>
     <p>
-        Entraînez l'IA à adopter le style du **Composant Isolé** ci-dessus. L'IA générera un nouveau composant avec une **structure sémantique parfaite** (${componentToGenerate}) dans le style appris.
+        **Objectif :** Générer des pages d'application (Settings, Dashboard) qui utilisent le style de la Landing Page.
+        **Flux :** 1. Créer Sandbox & Écrire CSS &gt; 2. Chat &gt; 3. Installer &gt; 4. Build &gt; 5. Démarrer
     </p>
 
-    <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', marginTop: '15px' }}>
-        <div style={{ flex: 1 }}>
-            <label htmlFor="compType" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Composant sémantique à générer :</label>
-            <input 
-                id="compType"
-                type="text"
-                value={componentToGenerate}
-                onChange={(e) => setComponentToGenerate(e.target.value)}
-                placeholder="Ex: Sidebar, Dashboard Header, Card List"
-                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
-            />
-        </div>
+    {/* Contrôles de la Sandbox */}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '20px', padding: '15px', border: '1px dashed #A55EEA', borderRadius: '4px' }}>
+        <h3 style={{ width: '100%', margin: '0 0 10px 0' }}>⚙️ Opérations Sandbox E2B</h3>
         
+        {/* Boutons d'Action */}
         <button 
-            onClick={handleGenerateWithAI} 
-            disabled={isAiLoading || !isolatedHtml} // Désactivé si pas de référence isolée
-            style={{ 
-                padding: '10px 20px', 
-                backgroundColor: isAiLoading ? '#888' : '#6A1B9A', // Violet pour Gemini
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '5px', 
-                cursor: isAiLoading ? 'not-allowed' : 'pointer',
-                fontWeight: 'bold',
-                minWidth: '150px'
-            }}
+            onClick={sandboxId ? () => addLog(`Sandbox ID: ${sandboxId}`) : handleCreateSandbox} 
+            disabled={sandboxStatus !== 'IDLE' && !sandboxId || !analysis}
+            style={{ padding: '8px 15px', backgroundColor: sandboxId ? '#00AA00' : '#6A1B9A', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
         >
-            {isAiLoading ? 'Génération en cours...' : '🧠 Générer le Composant'}
+            {sandboxStatus === 'CREATING' ? 'Création...' : (sandboxId ? `Sandbox: ${sandboxId.substring(0, 8)}...` : '1. Créer Sandbox & Écrire CSS')}
+        </button>
+        <button 
+            onClick={handleInstall} 
+            disabled={!sandboxId || sandboxStatus !== 'IDLE'}
+            style={{ padding: '8px 15px', backgroundColor: sandboxStatus === 'INSTALLING' ? '#FFCC00' : '#3399FF', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+        >
+            {sandboxStatus === 'INSTALLING' ? 'Installation...' : 'npm install'}
+        </button>
+        <button 
+            onClick={handleBuild} 
+            disabled={!sandboxId || sandboxStatus !== 'IDLE'}
+            style={{ padding: '8px 15px', backgroundColor: sandboxStatus === 'BUILDING' ? '#FFCC00' : '#3399FF', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+        >
+            {sandboxStatus === 'BUILDING' ? 'Build...' : 'npm run build'}
+        </button>
+        <button 
+            onClick={handleStart} 
+            disabled={!sandboxId || sandboxStatus !== 'IDLE'}
+            style={{ padding: '8px 15px', backgroundColor: sandboxStatus === 'RUNNING' ? '#00AA00' : '#FF5733', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+        >
+            {sandboxStatus === 'RUNNING' ? 'Running...' : 'npm run start'}
+        </button>
+
+        <p style={{ margin: '5px 0 0 0', fontWeight: 'bold' }}>Statut: {sandboxStatus}</p>
+        {e2bError && <p style={{ color: 'red', width: '100%' }}>Erreur E2B: {e2bError}</p>}
+    </div>
+    
+    {/* Console des Logs */}
+    <h3 style={{ marginTop: '20px' }}>Logs E2B (Sortie Console & Erreurs)</h3>
+    <textarea 
+        value={sandboxLogs.join('\n')} 
+        readOnly
+        style={{ width: '100%', height: '100px', resize: 'none', backgroundColor: '#333', color: '#00FF00', padding: '10px', fontSize: '12px', fontFamily: 'monospace' }}
+        title="Logs Sandbox"
+    />
+
+    {/* Interface de Chat */}
+    <h3 style={{ marginTop: '20px' }}>Chat avec l'IA (Historique Conservé)</h3>
+    <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '10px', border: '1px solid #ddd', backgroundColor: 'white', marginBottom: '10px' }}>
+        {chatHistory.map((msg, index) => (
+            <div key={index} style={{ marginBottom: '10px', padding: '5px', borderRadius: '4px', backgroundColor: msg.role === 'user' ? '#e6f7ff' : '#f5f5f5', borderLeft: `3px solid ${msg.role === 'user' ? '#007bff' : '#6A1B9A'}` }}>
+                <strong>{msg.role === 'user' ? 'Vous' : 'IA (Gemini)'}:</strong>
+                <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', margin: '5px 0' }}>{msg.parts.map(p => p.text).join('')}</pre>
+            </div>
+        ))}
+        {isChatLoading && <p>🧠 L'IA réfléchit...</p>}
+    </div>
+    
+    <div style={{ display: 'flex', gap: '10px' }}>
+        <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && chatInput) handleSendMessage(chatInput); }}
+            placeholder="Ex: Crée une page Settings avec une Sidebar"
+            disabled={isChatLoading}
+            style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+        />
+        <button 
+            onClick={() => handleSendMessage(chatInput)} 
+            disabled={isChatLoading || !chatInput}
+            style={{ padding: '10px 15px', backgroundColor: '#6A1B9A', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+        >
+            Envoyer
         </button>
     </div>
-
-    {aiError && <p style={{ color: 'red', marginTop: '10px' }}>Erreur IA: {aiError}</p>}
 </div>
 
-{/* Affichage du 4ème Iframe et du Code */}
-{aiGenerationResult && (
+{/* Iframe du Sandbox Next.js */}
+{sandboxUrl && (
     <div style={{ marginTop: '20px' }}>
-        <h3>Quatrième Iframe : Rendu de la Génération IA (Bordure Violette)</h3>
+        <h3>🚀 Rendu de l'Application Next.js (via Sandbox)</h3>
         <iframe
-            srcDoc={aiIframeContent}
-            title="Visualisation de la génération IA"
-            style={{ width: '100%', height: '400px', border: '3px solid purple', borderRadius: '4px' }}
+            src={sandboxUrl}
+            title="Next.js Sandbox Application"
+            style={{ width: '100%', height: '600px', border: '3px solid #6A1B9A', borderRadius: '4px' }}
         />
-
-        <h3 style={{ marginTop: '20px' }}>Code Généré par l'IA (pour le Scoring/Analyse)</h3>
-        <textarea 
-            value={aiGenerationResult} 
-            readOnly
-            style={{ width: '100%', height: '150px', resize: 'none', backgroundColor: '#eee', padding: '10px', fontSize: '12px' }}
-            title="Code Généré par l'IA"
-        />
+        <p style={{ marginTop: '5px' }}>URL Sandbox: <a href={sandboxUrl} target="_blank" rel="noopener noreferrer">{sandboxUrl}</a></p>
     </div>
 )}
 
