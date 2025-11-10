@@ -127,6 +127,37 @@ div {
       // de votre premier code et alourdirait le processus si non nécessaire.
       // ----------------------------------------------------------------------
 
+  // INSERER dans app/api/sandbox/route.ts (Après case "addFiles")
+
+      // 🛑 NOUVELLE ACTION: writeFiles
+      case "writeFiles": { 
+        if (!bodySandboxId || !requestFiles || !Array.isArray(requestFiles)) {
+          throw new Error("Paramètres manquants (sandboxId ou files[])");
+        }
+
+        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS });
+        await sandbox.setTimeout(SANDBOX_TIMEOUT_MS);
+
+        const writeResults: { filePath: string, success: boolean, error?: string }[] = [];
+
+        for (const f of requestFiles) {
+          if (!f.filePath || typeof f.content !== 'string') {
+            writeResults.push({ filePath: f.filePath || 'inconnu', success: false, error: 'filePath ou content manquant/invalide' });
+            continue;
+          }
+          try {
+            await sandbox.files.write(`/home/user/${f.filePath}`, f.content);
+            console.log(`[v0] Fichier ${f.filePath} écrit dans le sandbox ${bodySandboxId}`);
+            writeResults.push({ filePath: f.filePath, success: true });
+          } catch (error: any) {
+            console.error(`[v0] Échec de l'écriture de ${f.filePath}:`, error);
+            writeResults.push({ filePath: f.filePath, success: false, error: error.message });
+          }
+        }
+
+        return NextResponse.json({ success: true, message: `${requestFiles.length} files processed`, writeResults });
+        }
+
       case "getFiles": {
         const sid = bodySandboxId
         if (!sid) throw new Error("sandboxId manquant")
@@ -360,9 +391,13 @@ div {
           commandSuccess = false;
         }
         
-        console.log(`[v0] Commande '${action}' exécutée dans le sandbox ${bodySandboxId}. Exit Code: ${commandResult.exitCode}`);
+        
+    console.log(`[v0] Commande '${action}' exécutée dans le sandbox ${bodySandboxId}. Exit Code: ${commandResult.exitCode}`);
 
-        return NextResponse.json({ success: commandSuccess, action, result: commandResult });
+        // 🛑 LIGNE À REMPLACER (ou à modifier)
+        // Ancienne Ligne: return NextResponse.json({ success: commandSuccess, action, result: commandResult });
+        // Nouvelle Ligne:
+        return NextResponse.json({ success: commandSuccess, action, result: commandResult, stderr: commandResult.stderr });
       }
 
       case "start": {
