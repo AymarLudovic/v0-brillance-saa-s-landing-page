@@ -2007,8 +2007,8 @@ const handleInspirationUrl = async (url: string, originalUserPrompt: string) => 
     addLog(`❌ Erreur pendant handleInspirationUrl: ${err.message}`);
   }
 };
-  
-           
+
+
 const runAutomatedAnalysis = async (
   urlToAnalyze: string,
   originalUserPrompt: string,
@@ -2028,207 +2028,19 @@ const runAutomatedAnalysis = async (
   let fullJS = '';
   let baseURL = '';
   
-  // =========================================================================
-  // === UTILITAIRES D'ISOLATION (Définis ici pour être dans le scope demandé) ===
-  // =========================================================================
-
-  /**
-   * Tente d'extraire les règles CSS pertinentes pour le PROMPT de l'IA.
-   */
-  const extractRelevantCss = (fullCSS: string, element: HTMLElement, domDepth: number): string => {
-      const selectors = new Set<string>();
-      
-      const collectSelectors = (el: HTMLElement, maxDepth: number) => {
-          if (el.className) {
-              el.className.split(/\s+/).forEach(cls => selectors.add('.' + cls.trim()));
-          }
-          if (el.id) {
-              selectors.add('#' + el.id.trim());
-          }
-          selectors.add(el.tagName.toLowerCase());
-
-          if (maxDepth > 0) {
-              Array.from(el.children).forEach(child => {
-                  if (child instanceof HTMLElement) {
-                      collectSelectors(child, maxDepth - 1);
-                  }
-              });
-          }
-      };
-      
-      collectSelectors(element, 3); 
-
-      let current = element.parentElement;
-      let depth = 0;
-      while(current && depth < domDepth && current.tagName.toLowerCase() !== 'body') {
-          if (current.className) {
-              current.className.split(/\s+/).forEach(cls => selectors.add('.' + cls.trim()));
-          }
-          if (current.id) {
-              selectors.add('#' + current.id.trim());
-          }
-          selectors.add(current.tagName.toLowerCase());
-          current = current.parentElement;
-          depth++;
-      }
-
-      if (selectors.size === 0) return '';
-
-      const selectorRegex = new RegExp(
-          Array.from(selectors)
-              .map(s => s.replace(/([.*+?^=!:${}()|[\]/\\])/g, '\\$1')) 
-              .join('|'), 
-          'g'
-      );
-      
-      const aggressiveRuleRegex = new RegExp(`([^}]+)({[^}]*})`, 'gs');
-      let relevantCss = '';
-      let match;
-      
-      while ((match = aggressiveRuleRegex.exec(fullCSS)) !== null) {
-          const selectorsPart = match[1]; 
-          
-          if (selectorRegex.test(selectorsPart)) {
-              relevantCss += match[0] + '\n';
-          }
-      }
-
-      return `
-/* Style de Réinitialisation minimal pour l'autonomie du composant */
-html, body {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: inherit; 
-    font-size: 100%;
-    line-height: 1.5;
-}
-* { box-sizing: border-box; }
-/* FIN du Style de Réinitialisation */
-
-${relevantCss}`;
-  };
-
-  /**
-   * Récupère le HTML de l'élément sélectionné entouré par ses parents jusqu'à la profondeur spécifiée.
-   */
-  const getSurroundingDom = (element: HTMLElement, depth: number): string => {
-      let wrapper = element.outerHTML; 
-
-      const buildOpeningTag = (el: HTMLElement): string => {
-          const tagName = el.tagName.toLowerCase();
-          
-          const attributes = Array.from(el.attributes)
-              .filter(attr => !attr.name.startsWith('data-') && attr.name !== 'style') 
-              .map(attr => `${attr.name}="${attr.value}"`)
-              .join(' ');
-              
-          const styleAttr = el.getAttribute('style') ? ` style="${el.getAttribute('style')}"` : '';
-          const classAttr = el.className ? ` class="${el.className}"` : '';
-              
-          return `<${tagName} ${attributes}${classAttr}${styleAttr}>`;
-      };
-
-      const originalOuterHTML = element.outerHTML;
-      const openingTag = buildOpeningTag(element);
-      
-      wrapper = originalOuterHTML.replace(
-          new RegExp(`^<${element.tagName.toLowerCase()}[^>]*?>`), 
-          openingTag
-      );
-      
-      let currentWrapperElement = element.parentElement;
-      for (let i = 0; i < depth; i++) {
-          if (!currentWrapperElement || currentWrapperElement.tagName.toLowerCase() === 'body') {
-              break;
-          }
-          
-          const parentOpeningTag = buildOpeningTag(currentWrapperElement);
-          const parentClosingTag = `</${currentWrapperElement.tagName.toLowerCase()}>`;
-          
-          wrapper = `${parentOpeningTag}${wrapper}${parentClosingTag}`;
-          currentWrapperElement = currentWrapperElement.parentElement;
-      }
-
-      return wrapper;
-  };
-
-  /**
-   * Cherche l'élément exact par son outerHTML.
-   */
-  const findElementByOuterHTML = (fullHTML: string, elementOuterHTML: string): HTMLElement | null => {
-      if (typeof DOMParser === 'undefined') return null;
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(fullHTML, 'text/html');
-      
-      const allElements = doc.body.querySelectorAll('*');
-      
-      for (let i = 0; i < allElements.length; i++) {
-          if (allElements[i].outerHTML === elementOuterHTML) {
-              return allElements[i] as HTMLElement;
-          }
-      }
-      for (let i = 0; i < allElements.length; i++) {
-          if (allElements[i].outerHTML.includes(elementOuterHTML.substring(0, 50))) {
-               return allElements[i] as HTMLElement;
-          }
-      }
-      
-      return null;
-  };
-
-  /**
-   * Analyse le HTML brut pour détecter les éléments structuraux.
-   */
-  const parseHTMLForStructuralElements = (htmlString: string): DetectedElement[] => {
-      if (typeof DOMParser === 'undefined') return [];
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlString, 'text/html');
-      const detected: DetectedElement[] = [];
-      let uniqueIndex = 0;
-      
-      const STRUCTURAL_TAGS = ['header', 'nav', 'main', 'aside', 'footer', 'section', 'article', 'h1', 'h2', 'a', 'button', 'input', 'form', 'figure'];
-
-      STRUCTURAL_TAGS.forEach((tag) => {
-          const elements = doc.querySelectorAll(tag);
-          elements.forEach((el) => {
-              const elementId = el.id ? `#${el.id}` : (el.className ? `.${el.className.split(/\s+/)[0]}` : '');
-              
-              detected.push({
-                  id: (uniqueIndex++).toString(),
-                  tagName: tag,
-                  selector: tag + elementId,
-                  htmlSnippet: el.outerHTML.substring(0, 100).replace(/\n/g, ' ') + '...',
-                  fullOuterHTML: el.outerHTML,
-              } as DetectedElement);
-          });
-      });
-      
-      const genericElements = doc.querySelectorAll('div[id], div[class], figure[id], figure[class]');
-      genericElements.forEach((el) => {
-          const elementId = el.id ? `#${el.id}` : (el.className ? `.${el.className.split(/\s+/)[0]}` : '');
-          
-          detected.push({
-              id: (uniqueIndex++).toString(),
-              tagName: el.tagName.toLowerCase(),
-              selector: el.tagName.toLowerCase() + elementId,
-              htmlSnippet: el.outerHTML.substring(0, 100).replace(/\n/g, ' ') + '...',
-              fullOuterHTML: el.outerHTML,
-          } as DetectedElement);
-      });
-
-      // Filter duplicates based on fullOuterHTML
-      const uniqueDetected = Array.from(new Map(detected.map(item => [item.fullOuterHTML, item])).values());
-      return uniqueDetected;
-  };
+  // 🛑 Tags structuraux clés à cibler par l'IA (Les blocs de design à réutiliser)
+  const STRUCTURAL_TAGS = [
+      'header', 'nav', 'main', 'aside', 'footer', 'section', 'article', 
+      'h1', 'h2', 'a', 'button', 'input', 'form', 'figure', 'div[class*="card"]', 'div[class*="cta"]'
+  ];
+  const tagsList = STRUCTURAL_TAGS.join(', ');
 
   // =========================================================================
   // === DÉBUT DU FLUX RUNAUTOMATEDANALYSIS ===
   // =========================================================================
 
   try {
-    setAnalysisStatus(`1/3: Analyse de ${urlToAnalyze} (Récupération des données)...`);
+    setAnalysisStatus(`1/2: Analyse de ${urlToAnalyze} (Récupération des données)...`);
     addLog(`[AUTO-FLOW] Phase 1: Calling analysis API for ${urlToAnalyze}`);
 
     // --- Étape 1 : Récupération des données via ton API analyse ---
@@ -2258,95 +2070,51 @@ ${relevantCss}`;
       throw new Error("Analysis failed: Le fullHTML ou le fullCSS est manquant/vide. Impossible de procéder à la génération de design.");
     }
     
-    // 🛑 Détection des éléments structuraux
-    const detectedElements = parseHTMLForStructuralElements(fullHTML);
-
-
     // --- Étape 3 : DISPATCH logique selon mode ---
     if (isCloning) {
       await processAnalysisResult(fullHTML, fullCSS, fullJS, urlToAnalyze); 
     } else {
-      // 🧠 NOUVELLE ÉTAPE : Isolation de TOUS les composants détectés
-      setAnalysisStatus(`2/3: Isolation des ${detectedElements.length} composants réutilisables...`);
-      addLog(`[AUTO-FLOW] Phase 2: Isolation des ${detectedElements.length} composants clés.`);
-
-      const DOM_DEPTH = 2; // Profondeur DOM fixe pour l'isolation automatique
-      let isolatedComponentsContext = '';
-
-      const componentsToIsolate = detectedElements; 
-
-      if (componentsToIsolate.length === 0) {
-          throw new Error("L'analyse n'a détecté aucun élément structural à isoler. Tentative avortée.");
-      }
-
-      for (let i = 0; i < componentsToIsolate.length; i++) {
-          const detection = componentsToIsolate[i];
-
-          // 1. Reconstruire l'élément à partir de la chaîne de l'analyse complète
-          const elementToIsolate = findElementByOuterHTML(fullHTML, detection.fullOuterHTML);
-
-          if (!elementToIsolate) {
-              addLog(`[WARN] Impossible de retrouver l'élément ${detection.selector}. Saut.`);
-              continue;
-          }
-
-          // 2. Isolation du HTML avec DOM Parent
-          const isolatedHtmlWithDom = getSurroundingDom(elementToIsolate, DOM_DEPTH);
-          
-          // 3. Isolation du CSS FILTRÉ (pour le prompt de l'IA)
-          const isolatedCssFiltered = extractRelevantCss(fullCSS, elementToIsolate, DOM_DEPTH);
-
-          isolatedComponentsContext += `
-/* ========================================================================= */
-/* --- COMPOSANT ISOLÉ #${i + 1} : ${detection.selector} --- */
-/* ========================================================================= */
-
-Profondeur du DOM parent incluse: ${DOM_DEPTH}
-
-/* --- HTML du Composant Isolé (Inclut l'environnement DOM Parent) --- */
-${isolatedHtmlWithDom}
-
-/* --- CSS FILTRÉ pour le Composant Isolé (Pour l'autonomie) --- */
-${isolatedCssFiltered}
-`;
-      }
-
-      // 🧠 Étape finale : création du pont vers sendChat() avec composants isolés
-      setAnalysisStatus(`3/3: Envoi du contexte d'analyse à l'IA...`);
+      // 🧠 NOUVELLE ÉTAPE : Création du contexte avec FULL HTML et instructions renforcées
+      setAnalysisStatus(`2/2: Envoi du contexte d'analyse renforcé à l'IA...`);
+      addLog("[AUTO-FLOW] Sending FULL HTML + FULL CSS with maximum reinforced application instructions to Gemini.");
+      
       const analysisContext = `
         Voici les fichiers extraits depuis ${urlToAnalyze} :
-        - ISOLATED COMPONENTS (Composants réutilisables extraits de la Landing Page)
-        - fullCSS (styles globaux et variables du Système de Design)
+        - fullHTML (Code source complet de la Landing Page)
+        - fullCSS (Styles globaux et variables du Système de Design)
 
-        OBJECTIF: L'IA doit utiliser ces données UNIQUEMENT comme un **SYSTÈME DE DESIGN** et des **PATTERNS DE COMPOSANTS** pour construire le projet de l'utilisateur.
+        OBJECTIF FINAL: Ton but est de construire le logiciel complet demandé par l'utilisateur avec un **ultra design** basé sur l'esthétique du fullCSS/fullHTML, mais avec une **structure logique et fonctionnelle** pour des pages d'application modernes.
 
-        ### 🚨 RÈGLES D'UTILISATION STRICTES (Landing Page vs Pages d'Application) 🚨
+        ### 🚨 RÈGLES D'ADAPTATION STRUCTURELLE CRITIQUES 🚨
+        
+        La différence entre une Landing Page et une Page d'Application est **structurelle** et **fonctionnelle**.
 
-        1.  **ISOLATED COMPONENTS : Inspiration de Composants UNIQUEMENT.**
-            * Le bloc ISOLATED COMPONENTS ci-dessous contient **TOUS les composants clés** (Header, Sections, Footer, etc.) de la **Landing Page**. Ils te servent à voir comment les éléments sont structurés et stylisés.
-            * **INTERDICTION ABSOLUE** de copier la structure globale de la Landing Page pour des pages d'application techniques (Dashboard, Pages d'authentification, Profil, etc.).
-            * **DEVOIR :** Réutilise et adapte les **patterns de composants atomiques** pour qu'ils s'intègrent dans la **structure logique et propre** à la page demandée par l'utilisateur.
+        1.  **FULLHTML (Landing Page) : Source d'Inspiration de Composants (Atomes et Molécules).**
+            * Le fullHTML est le plan de conception d'une vitrine. **Il ne doit JAMAIS servir de plan de construction global.**
+            * **INTERDICTION ABSOLUE de Copier la Méta-Structure :** Tu ne dois *pas* réutiliser la structure complète du Header de la Landing Page, du Footer complet, ni la séquence des sections principales. Ces éléments sont spécifiques à une page unique de marketing.
+            * **PRIORITÉ MAXIMALE : Focus sur les Composants Structuraux :** Concentre-toi sur l'extraction des patterns de design des éléments réutilisables suivants. Ces balises représentent les **blocs de construction** à adapter : **${tagsList}**.
+            * **DEVOIR :** Lorsque tu construis une page d'application (ex: Dashboard, Profil, Settings), tu dois créer une structure D'APPLICATION appropriée (ex: Sidebar de navigation, En-tête de Dashboard minimaliste, Zone de contenu principal en grille/flex). Ensuite, tu dois injecter le **style visuel** et la **micro-structure HTML/CSS** des éléments ciblés ci-dessus.
 
-        2.  **FULLCSS (Système de Design) : Extraction Sélective des Styles.**
-            * Le fullCSS est le **style** (couleurs, polices, espacements).
-            * **INTERDICTION** de copier tout le fullCSS. Tu dois **sélectionner uniquement les propriétés importantes et les variables essentielles** (max. 45% du code) pour les placer dans "app/globals.css". Tu peux **créer tes propres classes CSS** à partir de cette base.
-            * **DEVOIR :** Ton JSX/HTML doit s'appuyer sur la cohérence de ce fullCSS, en ajoutant tes propres styles si nécessaire pour des structures d'application (sidebars, navs complexes).
+        2.  **FULLCSS (Système de Design) : Le "Miel" du Style (Couleurs, Typographie).**
+            * Le fullCSS est ton guide de style. Il garantit la cohérence visuelle.
+            * **Extraction sélective stricte :** N'utilise que les déclarations CSS vitales (Variables de couleur, Polices, Mixins/Fonctions clés). **Ne copie pas plus de 45% du code total** dans `app/globals.css`.
+            * **Maintien du Style :** Même en adaptant la structure, le **rendu visuel final** (couleurs, ombres, coins arrondis, polices) doit être cohérent avec l'esthétique fournie par le fullCSS.
 
-        3.  **SYNTHÈSE :** Sois créatif. Construis le logiciel complet demandé avec un **ultra design** basé sur cette esthétique, mais avec une **structure pertinente et fonctionnelle**.
+        3.  **SYNTHÈSE : Objectif de Transformation.**
+            * **Transformer la Structure Marketing (Landing Page) en Structure Fonctionnelle (App).**
+            * **Ton code doit être fonctionnel, modulaire et utiliser les patterns de design adaptés de la source, mais *dans un contexte d'application*.**
 
-        --- ISOLATED COMPONENTS START (Composants Réutilisables) ---
-        ${isolatedComponentsContext}
-        --- ISOLATED COMPONENTS END ---
+        --- FULL HTML START (Landing Page Structure & Patterns) ---
+        ${fullHTML}
+        --- FULL HTML END ---
 
         --- FULL CSS START (Système de Design) ---
         ${fullCSS}
         --- FULL CSS END ---
 
-        génère des fichiers complets et sans donner d'instructions ou explications mis à part à l'utilisateur les isolated composant que tu as reçu afin de confirmer la réception sur le code que tu as généré. Génère au bon format comme il t'a été instruit dans tes instructions.
+        génère des fichiers complets et sans donner d'instructions ou explications sur le code que tu as généré. Génère au bon format comme il t'a été instruit dans tes instructions.
         Surtout, ne lance plus une autre InspirationUrl car celle-ci est largement suffisante.
       `;
-
-      addLog("[AUTO-FLOW] Sending ALL Isolated Components + fullCSS to Gemini for design generation...");
       
       // 🚀 Envoi à ton système IA (api/gemini)
       await sendChat(`${originalUserPrompt}\n\n${analysisContext}`);
@@ -2360,8 +2128,7 @@ ${isolatedCssFiltered}
     setLoading(false);
     setAnalysisStatus(null);
   }
-};    
-
+};
                                                   
       
 
