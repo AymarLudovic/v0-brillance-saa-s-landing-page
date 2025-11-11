@@ -261,6 +261,9 @@ OBJECTIF: Utiliser les fichiers analysés UNIQUEMENT comme un SYSTÈME DE DESIGN
   
   [Rest of response...]"
 
+  NB: Continue your prior response. IMPORTANT: Immediately begin from where you left off without any interruptions.
+  Do not repeat any content, files and code, including artifact and action tags.
+
 </chain_of_thought_instructions>
 
 Cette instructions \`<chain_of_thought_instructions>\` ci dessus t'aide à être stable et à mieux planifier et réaliser la construction du projet de l'utilisateur, assure toi de toujours la faire.
