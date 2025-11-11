@@ -3885,7 +3885,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
 
 <div className="p-1 h-[170px] md:h-[170px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
-  <div className="relative p-2 flex flex-col h-[170px] md:h-[210px]">
+  <div className="relative p-2 flex flex-col h-[170px] md:h-[170px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
     <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
@@ -4018,7 +4018,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
                 />
             </label>
   <label className="flex pr-1 items-center gap-1  cursor-pointer">
-    <div className="h-[22px] w-[22px] text-sm flex items-center gap-[3px]">
+    <div className="h-[22px] w-auto text-sm flex items-center gap-[3px]">
         {/* L'icône du bouton d'upload (utiliser un simple SVG ou une icône) */}
         <Image size={18} />
       <p>attach</p>
@@ -4158,10 +4158,10 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
     </div>
 )}
 
-<Button className="h-[24px] w-auto bg-transparent px-3 flex items-center gap-[3px] text-sm">
-         <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
+<button className="h-[24px] w-auto bg-transparent px-3 flex items-center gap-[3px] text-lg text-black">
+         <svg className="h-[20px] w-[20px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
          <p>Plan</p>
-</Button>
+</button>
         <Button
       className=" bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-full flex items-center justify-center p-1"
       onClick={() => sendChat()}
