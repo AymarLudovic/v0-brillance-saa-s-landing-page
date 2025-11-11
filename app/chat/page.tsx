@@ -2542,14 +2542,19 @@ const handleFetchFileAction = async (
 // ---------------------- SEND CHAT ----------------------
 
     
-  // ---------------------- SEND CHAT ----------------------
-
-            // Définir ces constantes au début du composant, en dehors de sendChat
+// ---------------------- DÉFINITIONS GLOBALES (À VÉRIFIER EN HAUT DE VOTRE FICHIER) ----------------------
+// Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 10;
 const BASE_DELAY_MS = 500000;
 // Limite stricte de 6000 caractères pour inclure le contenu complet
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
+
+// Définitions de Regex rendues accessibles globalement pour la fonction (Correction de l'erreur de portée)
 const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
+// Assurez-vous que FETCH_FILE_REGEX est aussi définie ici si elle n'est pas globale
+// const FETCH_FILE_REGEX = /<fetch_file path=["']([^"']+)["'][^>]*\/>/g; 
+
+
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
@@ -2613,9 +2618,17 @@ const sendChat = async (promptOverride?: string) => {
 
       // Ajout du contenu complet SEULEMENT si la taille est <= 6000
       if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
+          
+          // 🔥 MODIFICATION POUR AJOUTER LES NUMÉROS DE LIGNE
+          const lines = content.split('\n');
+          const contentWithLineNumbers = lines.map((line, index) => 
+              `${index + 1}: ${line}`
+          ).join('\n');
+          // 🔥 FIN MODIFICATION
+          
           filesContentSnapshots.push(
-              `<file_content_snapshot path="${file.filePath}" totalLines="${content.split('\n').length}">\n` +
-              content + 
+              `<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n` +
+              contentWithLineNumbers + // <-- Utiliser le contenu numéroté ici
               `\n</file_content_snapshot>`
           );
           fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
@@ -2761,7 +2774,6 @@ const sendChat = async (promptOverride?: string) => {
       }
 
       // ----------------- URL ARTIFACT ----------------- (inchangé)
-     
       const urlMatch = text.match(inspirationUrlRegex);
       if (urlMatch) {
         try {
@@ -2864,8 +2876,7 @@ const sendChat = async (promptOverride?: string) => {
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      // NOTE: Le `return` ici signifie que la suite du bloc `try` ne s'exécutera pas,
-      // mais le bloc `finally` sera quand même exécuté, garantissant le nettoyage de l'état.
+      // Le bloc finally sera exécuté, assurant la mise à jour de l'état.
       return; 
     }
     
@@ -2896,7 +2907,7 @@ const sendChat = async (promptOverride?: string) => {
     setMessages((prev) => prev.filter((_, index) => index !== assistantMessageIndex)); 
   } finally {
     
-    // 🔥 CORRECTION DE L'HISTORIQUE: Remplacement final du placeholder
+    // 🔥 MISE À JOUR FINALE DANS FINALLY POUR ÉVITER LES RACE CONDITIONS
     if (finalAssistantMessage) {
         setMessages((prev) => {
             const updated = [...prev];
@@ -2911,6 +2922,8 @@ const sendChat = async (promptOverride?: string) => {
     setLoading(false);
   }
 };
+
+    
 
       
 
