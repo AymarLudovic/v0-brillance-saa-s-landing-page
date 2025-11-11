@@ -3997,7 +3997,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
-<div className="mb-1 pl-1 p-2 flex items-center gap-1">
+<div className="mb-1 pl-1 p-2 flex items-center gap-2">
     <div 
         className="w-[22px] relative -bottom-[3px] p-1 h-[22px] border border-black rounded-[8px] hidden items-center justify-center cursor-pointer hover:bg-gray-100"
         onClick={() => setIsPlusDropdownOpen(!isPlusDropdownOpen)}
@@ -4007,7 +4007,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
 
 
   
-  <label className="w-[22px] relative -bottom-[3px] p-1 h-[22px] border border-black rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-100">
+  <label className="w-[22px] relative p-1 h-[22px] border border-black rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-100">
                 <Plus size={16} />
                 <input 
                     type="file" 
