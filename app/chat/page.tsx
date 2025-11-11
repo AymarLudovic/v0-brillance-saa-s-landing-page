@@ -2104,6 +2104,8 @@ const runAutomatedAnalysis = async (
             * **Transformer la Structure Marketing (Landing Page) en Structure Fonctionnelle (App).**
             * **Ton code doit être fonctionnel, modulaire et utiliser les patterns de design adaptés de la source, mais *dans un contexte d'application*.**
 
+       4. Construit le projet de l'utilisateur dont il t'a fait par dans cette instruction : ${originalUserPrompt} complètement dès le début, les étapes de base. les fullhtml fullcss qui sont ci dessous sont justes pour les designs.
+
         --- FULL HTML START (Landing Page Structure & Patterns) ---
         ${fullHTML}
         --- FULL HTML END ---
@@ -2114,10 +2116,11 @@ const runAutomatedAnalysis = async (
 
         génère des fichiers complets et sans donner d'instructions ou explications sur le code que tu as généré. Génère au bon format comme il t'a été instruit dans tes instructions.
         Surtout, ne lance plus une autre InspirationUrl car celle-ci est largement suffisante.
+        
       `;
       
       // 🚀 Envoi à ton système IA (api/gemini)
-      await sendChat(`${analysisContext}`);
+      await sendChat(`${originalUserPrompt}\n\n${analysisContext}`);
     }
 
   } catch (err: any) {
