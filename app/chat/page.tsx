@@ -2541,7 +2541,8 @@ const handleFetchFileAction = async (
 
 // ---------------------- SEND CHAT ----------------------
 
-    // ---------------------- SEND CHAT ----------------------
+    
+  // ---------------------- SEND CHAT ----------------------
 
             // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 10;
@@ -2662,6 +2663,9 @@ const sendChat = async (promptOverride?: string) => {
   let urlArtifact: any = null;
   let text = "";
   let retryCount = 0;
+
+  // Variable pour stocker le message final de l'assistant après le streaming (Nouveau)
+  let finalAssistantMessage: Message | undefined = undefined; 
   
   try {
     let res: Response | null = null;
@@ -2813,7 +2817,7 @@ const sendChat = async (promptOverride?: string) => {
         // Supprime l'artefact de contenu injecté (snapshot) pour l'affichage
         .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
 
-      // Mise à jour message assistant
+      // Mise à jour message assistant (pour l'affichage en streaming)
       setMessages((prev) => {
         const updatedMessages = [...prev];
         const lastMsg = updatedMessages[assistantMessageIndex];
@@ -2825,45 +2829,44 @@ const sendChat = async (promptOverride?: string) => {
       });
     } // FIN STREAMING
 
-    // ---------------- BLOC DE CORRECTION DE L'HISTORIQUE (AJOUTÉ) ----------------
-    setMessages((prev) => {
-        const updatedMessages = [...prev];
-        const finalAssistantMsg = updatedMessages[assistantMessageIndex];
-        
-        if (finalAssistantMsg?.role === "assistant") {
-            // Recalcul du texte propre à partir de la variable 'text' accumulée
-            let finalCleanText = text
-                .replace(inspirationUrlRegex, '')
-                .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-                .replace(FETCH_FILE_REGEX, '') 
-                .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
-
-            finalAssistantMsg.content = finalCleanText;
-            
-            // S'assurer que les données d'artefact finales sont bien stockées
-            const finalArtifacts = extractFileArtifacts(text);
-            if (finalArtifacts.length > 0) {
-                finalAssistantMsg.artifactData = { 
-                    type: 'files', 
-                    parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })),
-                    rawJson: text 
-                } as any;
-            } else if (urlArtifact) {
-                finalAssistantMsg.artifactData = { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] } as any;
-            } else {
-                finalAssistantMsg.artifactData = { type: null, rawJson: "", parsedList: [] };
-            }
-        }
-        return updatedMessages;
-    });
-    // ---------------- FIN BLOC DE CORRECTION ----------------
+    // ---------------- CORRECTION: PRÉPARATION DU MESSAGE FINAL (sans setMessages) ----------------
     
+    let finalCleanText = text
+        .replace(inspirationUrlRegex, '')
+        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+        .replace(FETCH_FILE_REGEX, '') 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
+
+    const finalArtifacts = extractFileArtifacts(text);
+    let artifactData: any;
+    if (finalArtifacts.length > 0) {
+        artifactData = { 
+            type: 'files', 
+            parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })),
+            rawJson: text 
+        };
+    } else if (urlArtifact) {
+        artifactData = { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] };
+    } else {
+        artifactData = { type: null, rawJson: "", parsedList: [] };
+    }
+
+    finalAssistantMessage = {
+        role: "assistant",
+        content: finalCleanText,
+        artifactData: artifactData
+    };
+
+    // ---------------- FIN PRÉPARATION MESSAGE FINAL ----------------
+
     // -------- POST STREAM ---------- 
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      return;
+      // NOTE: Le `return` ici signifie que la suite du bloc `try` ne s'exécutera pas,
+      // mais le bloc `finally` sera quand même exécuté, garantissant le nettoyage de l'état.
+      return; 
     }
     
     const isAnalysisMode = promptOverride?.includes("Analysis data from");
@@ -2871,7 +2874,7 @@ const sendChat = async (promptOverride?: string) => {
       addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
     }
           
-    const finalArtifacts = extractFileArtifacts(text);
+    // Les artifacts sont déjà extraits dans `finalArtifacts` ci-dessus
     if (finalArtifacts.length > 0) {
       addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
       applyArtifactsToProject(finalArtifacts);
@@ -2887,11 +2890,29 @@ const sendChat = async (promptOverride?: string) => {
     }
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
+    // En cas d'erreur, on ajoute un message d'erreur dans l'historique
     setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
+    // On efface le placeholder en cas d'erreur
+    setMessages((prev) => prev.filter((_, index) => index !== assistantMessageIndex)); 
   } finally {
+    
+    // 🔥 CORRECTION DE L'HISTORIQUE: Remplacement final du placeholder
+    if (finalAssistantMessage) {
+        setMessages((prev) => {
+            const updated = [...prev];
+            // On vérifie que le message à l'index est bien le placeholder, et on le remplace.
+            if (assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
+                 updated[assistantMessageIndex] = finalAssistantMessage as Message; 
+            }
+            return updated;
+        });
+    }
+    
     setLoading(false);
   }
 };
+
+      
 
             
        
