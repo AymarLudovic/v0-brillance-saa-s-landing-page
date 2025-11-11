@@ -3883,7 +3883,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
 
 
 
-<div className="p-1 h-[200px] md:h-[190px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+<div className="p-1 h-[170px] md:h-[170px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
   <div className="relative p-2 flex flex-col h-[170px] md:h-[210px]">
     
@@ -4018,7 +4018,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
                 />
             </label>
   <label className="flex pr-1 items-center gap-1  cursor-pointer">
-    <div className="h-[22px] w-[22px] text-sm flex items-center gap-[3px] relative -bottom-[2px]">
+    <div className="h-[22px] w-[22px] text-sm flex items-center gap-[3px]">
         {/* L'icône du bouton d'upload (utiliser un simple SVG ou une icône) */}
         <Image size={18} />
       <p>attach</p>
@@ -4058,13 +4058,6 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
 
 {/* 2. BOUTON MENTION */}
 <div className="relative p-2">
-    <div 
-        className="w-auto p-1 h-[25px] border border-black rounded-[8px] flex items-center justify-center gap-1 cursor-pointer hover:bg-gray-100"
-        onClick={() => setIsMentionDropdownOpen(!isMentionDropdownOpen)}
-    >
-        <AtSign size={16} />
-        <p className="text-sm pr-1">Mention</p>
-    </div>
 
     {isMentionDropdownOpen && (
         <div className="absolute bottom-full mb-2 left-0 z-50 p-2 border rounded shadow-lg bg-white w-60 max-h-60 overflow-y-auto">
@@ -4165,7 +4158,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
     </div>
 )}
 
-<Button className="h-[22px] w-auto px-3 flex items-center gap-[3px] text-sm">
+<Button className="h-[24px] w-auto bg-transparent px-3 flex items-center gap-[3px] text-sm">
          <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
          <p>Plan</p>
 </Button>
