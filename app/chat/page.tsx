@@ -2549,7 +2549,7 @@ const MAX_RETRIES = 10;
 const BASE_DELAY_MS = 500000;
 // Limite stricte de 6000 caractères pour inclure le contenu complet
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
-
+const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
@@ -2761,7 +2761,7 @@ const sendChat = async (promptOverride?: string) => {
       }
 
       // ----------------- URL ARTIFACT ----------------- (inchangé)
-      const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
+     
       const urlMatch = text.match(inspirationUrlRegex);
       if (urlMatch) {
         try {
