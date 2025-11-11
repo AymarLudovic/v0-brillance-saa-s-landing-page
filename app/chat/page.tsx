@@ -2541,7 +2541,8 @@ const handleFetchFileAction = async (
 
 // ---------------------- SEND CHAT ----------------------
 
-    
+    // ---------------------- SEND CHAT ----------------------
+
             // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 10;
 const BASE_DELAY_MS = 500000;
@@ -2824,6 +2825,40 @@ const sendChat = async (promptOverride?: string) => {
       });
     } // FIN STREAMING
 
+    // ---------------- BLOC DE CORRECTION DE L'HISTORIQUE (AJOUTÉ) ----------------
+    setMessages((prev) => {
+        const updatedMessages = [...prev];
+        const finalAssistantMsg = updatedMessages[assistantMessageIndex];
+        
+        if (finalAssistantMsg?.role === "assistant") {
+            // Recalcul du texte propre à partir de la variable 'text' accumulée
+            let finalCleanText = text
+                .replace(inspirationUrlRegex, '')
+                .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+                .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+                .replace(FETCH_FILE_REGEX, '') 
+                .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
+
+            finalAssistantMsg.content = finalCleanText;
+            
+            // S'assurer que les données d'artefact finales sont bien stockées
+            const finalArtifacts = extractFileArtifacts(text);
+            if (finalArtifacts.length > 0) {
+                finalAssistantMsg.artifactData = { 
+                    type: 'files', 
+                    parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })),
+                    rawJson: text 
+                } as any;
+            } else if (urlArtifact) {
+                finalAssistantMsg.artifactData = { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] } as any;
+            } else {
+                finalAssistantMsg.artifactData = { type: null, rawJson: "", parsedList: [] };
+            }
+        }
+        return updatedMessages;
+    });
+    // ---------------- FIN BLOC DE CORRECTION ----------------
+    
     // -------- POST STREAM ---------- 
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
@@ -2857,7 +2892,6 @@ const sendChat = async (promptOverride?: string) => {
     setLoading(false);
   }
 };
-      
 
             
        
