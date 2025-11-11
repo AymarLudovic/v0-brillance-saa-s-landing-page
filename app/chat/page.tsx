@@ -3999,7 +3999,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
 <div className="mb-1 pl-1 p-2 flex items-center gap-1">
     <div 
-        className="w-[22px] p-1 h-[22px] border border-black rounded-[8px] hidden items-center justify-center cursor-pointer hover:bg-gray-100"
+        className="w-[22px] relative -bottom-[3px] p-1 h-[22px] border border-black rounded-[8px] hidden items-center justify-center cursor-pointer hover:bg-gray-100"
         onClick={() => setIsPlusDropdownOpen(!isPlusDropdownOpen)}
     >
         <Plus size={16} />
@@ -4020,7 +4020,7 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
   <label className="flex pr-1 items-center gap-1  cursor-pointer">
     <div className="h-[22px] w-auto  flex text-[17px] items-center gap-[3px]">
         {/* L'icône du bouton d'upload (utiliser un simple SVG ou une icône) */}
-        <Image size={22} />
+        <Image size={18} />
       <p>attach</p>
     </div>
     <input 
