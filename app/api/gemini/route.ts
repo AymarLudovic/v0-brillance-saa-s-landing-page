@@ -1,23 +1,10 @@
-// app/api/gemini/route.ts 
-
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
-import { designs } from "@/lib/designlibrary"
-
+// import { designs } from "@/lib/designlibrary" // RETIRÉ
 
 // --- Déclaration du Contexte de Design pour l'IA ---
-const DESIGN_CONTEXT_INSTRUCTION = `
----
-**CONTEXTE DE STYLE/DESIGN : LIBRAIRIE DE THÈMES**
-
-Les données XML ci-dessous représentent une librairie de thèmes et de styles extraits de sites Web. Tu dois utiliser ces informations comme **référence de style** lorsque l'utilisateur te demande de générer ou de modifier des composants pour correspondre à un style existant. Fais référence aux thèmes et aux sites par leurs balises correspondantes (<theme_site_X>, <site_X>).
-
-${designs}
----
-`;
-
-const FULL_PROMPT_INJECTION = `${basePrompt}\n\n`;
+const FULL_PROMPT_INJECTION = `${basePrompt}\n\n`; // Le prompt de base subsiste
 
 
 // --- TYPES (inchangés) ---
@@ -94,12 +81,22 @@ export async function POST(req: Request) {
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
     const lastUserIndex = history.length - 1; 
 
+    const systemContextParts: Part[] = []; 
+
     for (let i = 0; i < history.length; i++) {
         const msg = history[i];
         const parts: Part[] = [];
-        const role = msg.role === 'assistant' ? 'model' : 'user'; 
+        let role: 'user' | 'model'; 
         let textContent = msg.content;
 
+        // 🔥 CORRECTION: Gérer le rôle 'system' (contexte des fichiers)
+        if (msg.role === 'system') {
+            systemContextParts.push({ text: textContent });
+            continue; // Le contexte système est traité séparément
+        }
+        
+        role = msg.role === 'assistant' ? 'model' : 'user'; 
+        
         // 🛑 TRAITEMENT DES RÉPONSES D'OUTILS
         if (msg.functionResponse) {
             parts.push({
@@ -112,11 +109,8 @@ export async function POST(req: Request) {
         // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT
         else {
             
-            // 1. Injection du prompt complet (basePrompt + designs) et des binaires (uniquement sur le DERNIER message utilisateur)
+            // 1. Injection des binaires (uniquement sur le DERNIER message utilisateur)
             if (i === lastUserIndex && role === 'user') {
-                
-                // Injection du prompt combiné (basePrompt existant + context de design)
-                textContent = FULL_PROMPT_INJECTION + "\n\n" + textContent; 
                 
                 // Gestion des images/fichiers binaires
                 if (uploadedImages && uploadedImages.length > 0) {
@@ -146,16 +140,27 @@ export async function POST(req: Request) {
             parts.push({ text: textContent || ' ' }); 
         }
         
-        // Ajoute le message à 'contents' seulement s'il y a des parties
         if (parts.length > 0) {
             contents.push({ role, parts });
         }
     }
+
+    // 🔥 CORRECTION: Construction et injection de la systemInstruction
+    const finalSystemInstruction = (
+        FULL_PROMPT_INJECTION + 
+        (systemContextParts.length > 0 
+            ? "\n\n--- CONTEXTE DE FICHIERS DE PROJET ---\n" + systemContextParts.map(p => p.text).join('\n')
+            : ""
+        )
+    );
     
     const response = await ai.models.generateContentStream({
       model,
       contents, 
       tools: [{ functionDeclarations: [readFileDeclaration] }],
+      config: {
+          systemInstruction: finalSystemInstruction // Utilisation de l'instruction système
+      }
     })
 
     // Streaming (inchangé)
@@ -212,4 +217,4 @@ export async function POST(req: Request) {
         details: err.message
     }, { status: 500 })
   }
-    }
+}
