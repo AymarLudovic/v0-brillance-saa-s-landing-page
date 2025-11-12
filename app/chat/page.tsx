@@ -2712,11 +2712,16 @@ const sendChat = async (promptOverride?: string) => {
 
       // ---------------- LOGIQUE DE FETCH FILE, URL ARTIFACT, FILE ARTIFACTS (inchangée) ----------------
       // ... (votre code pour extraire les artefacts et mettre à jour newArtifactData, textWithoutArtifacts) ...
-      
       // Mise à jour message assistant (pour l'affichage en streaming)
+      // 🔥 CORRECTION DU STREAMING: Mise à jour directe du tableau affiché
       setMessages((prev) => {
+        // Utiliser l'index que nous avons calculé au début basé sur persistentHistory
+        const lastMsgIndex = assistantMessageIndex; 
+        
         const updatedMessages = [...prev];
-        const lastMsg = updatedMessages[assistantMessageIndex];
+        const lastMsg = updatedMessages[lastMsgIndex];
+        
+        // S'assurer que nous mettons à jour le placeholder assistant
         if (lastMsg?.role === "assistant") {
           if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
           lastMsg.content = textWithoutArtifacts;
@@ -2770,23 +2775,27 @@ const sendChat = async (promptOverride?: string) => {
     saveHistory(updatedHistoryAfterError);
     setMessages(updatedHistoryAfterError);
     
-  } finally {
+} finally {
     
-    // 🔥 MISE À JOUR FINALE DANS FINALLY (CORRIGÉE AVEC LOCALSTORAGE)
+    // 🔥 CORRECTION DE LA FINALISATION: Utilisation du localStorage pour l'historique persistant
     if (finalAssistantMessage) {
         // 1. Mise à jour de l'historique persistant (localStorage)
+        // Ceci remplace le placeholder vide par le message final complet dans le localStorage.
         const updatedPersistentHistory = replaceLastHistoryMessage(finalAssistantMessage);
-        addLog(`[LOCALSTORAGE] Placeholder remplacé par la réponse finale. Taille finale: ${updatedPersistentHistory?.length}`);
         
-        // 2. Mise à jour de l'état React pour l'affichage (synchronisation)
+        // 2. Mise à jour de l'état React pour l'affichage (synchronisation finale)
         if (updatedPersistentHistory) {
             setMessages(updatedPersistentHistory);
+            addLog(`[LOCALSTORAGE] Placeholder remplacé par la réponse finale. Taille finale: ${updatedPersistentHistory?.length}`);
         }
+    } else {
+        // Logique pour s'assurer que loading est désactivé même en cas d'erreur précoce
+        const currentHistory = getHistory();
+        setMessages(currentHistory);
     }
     
     setLoading(false);
   }
-};
   
 
 
