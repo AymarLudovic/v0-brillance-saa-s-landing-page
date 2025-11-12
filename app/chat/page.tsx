@@ -2552,15 +2552,10 @@ const handleFetchFileAction = async (
 
 
   
-
-
-
-      
-      // ---------------------- DÉFINITIONS LOCALES ET GLOBALES ----------------------
+// ---------------------- DÉFINITIONS GLOBALES (À VÉRIFIER EN HAUT DE VOTRE FICHIER) ----------------------
 // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 10;
 const BASE_DELAY_MS = 500000;
-// Limite stricte de 6000 caractères pour inclure le contenu complet
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
 
 // Définitions de Regex rendues accessibles globalement pour la fonction
@@ -2568,48 +2563,8 @@ const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\
 // Assurez-vous que FETCH_FILE_REGEX est aussi définie ici si elle n'est pas globale
 // const FETCH_FILE_REGEX = /<fetch_file path=["']([^"']+)["'][^>]*\/>/g; 
 
-// 🔥 FONCTIONS LOCALSTORAGE INTÉGRÉES LOCALEMENT
-const HISTORY_STORAGE_KEY = 'chat_history_v1';
 
-const getHistory = (): Message[] => {
-    if (typeof window !== 'undefined') {
-        const storedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-        try {
-            return storedHistory ? JSON.parse(storedHistory) : [];
-        } catch (e) {
-            console.error("Failed to parse chat history from localStorage", e);
-            return [];
-        }
-    }
-    return [];
-};
-
-const saveHistory = (history: Message[]) => {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
-    }
-};
-
-const updateHistory = (newMsg: Message) => {
-    const history = getHistory();
-    const updatedHistory = [...history, newMsg];
-    saveHistory(updatedHistory);
-    return updatedHistory;
-};
-
-const replaceLastHistoryMessage = (finalMsg: Message) => {
-    const history = getHistory();
-    if (history.length === 0) return;
-
-    const updatedHistory = [...history];
-    updatedHistory[updatedHistory.length - 1] = finalMsg;
-    saveHistory(updatedHistory);
-    return updatedHistory;
-};
-// 🔥 FIN FONCTIONS LOCALSTORAGE INTÉGRÉES LOCALEMENT
-
-
-// ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
+// ---------------------- SEND CHAT (Gestion par État React) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
@@ -2642,24 +2597,27 @@ const sendChat = async (promptOverride?: string) => {
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  // 3. Logique de mise à jour de l'état (MISE À JOUR)
-  
-  // 🔥 Utiliser le localStorage comme source de vérité pour l'historique
-  updateHistory(userMsg); // Ajoute le message utilisateur
-  updateHistory(assistantPlaceholder); // Ajoute le placeholder
-  
-  const persistentHistory = getHistory(); // Récupère l'historique complet, y compris les nouveaux messages
-  const assistantMessageIndex = persistentHistory.length - 1; // L'index du placeholder
-  
-  // Met à jour l'état React pour l'affichage uniquement
-  setMessages(persistentHistory); 
-  
-  // L'historique pour l'API est basé sur le localStorage stable
-  let historyForApi = [...persistentHistory];
+  // 3. Logique de mise à jour de l'état (RETOUR À L'ÉTAT)
+  let assistantMessageIndex = -1;
+  let currentHistory: Message[] = []; // Doit être initialisé pour être utilisé dans historyForApi
 
-  if (!promptOverride) {
-    setChatInput("");
-  }
+  setMessages((prev) => {
+    // Calcul de l'index du placeholder AVANT la mise à jour
+    assistantMessageIndex = prev.length + 1; 
+    
+    // Mise à jour de l'historique pour obtenir currentHistory pour l'API
+    currentHistory = [...prev, userMsg, assistantPlaceholder]; 
+    
+    if (!promptOverride) {
+      setChatInput("");
+    }
+    return currentHistory;
+  });
+  
+  // Si le setMessages ci-dessus ne finit pas de s'exécuter avant l'appel API, 
+  // cela peut causer des problèmes de "stale state" (historique non complet).
+  // Une meilleure pratique serait de forcer un flush ou d'utiliser un hook useRef,
+  // mais en l'absence de cela, nous utilisons `currentHistory` calculé.
   
   const currentProjectFiles = currentProject
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
@@ -2677,10 +2635,7 @@ const sendChat = async (promptOverride?: string) => {
       
       let fileStatus = '';
 
-      // Ajout du contenu complet SEULEMENT si la taille est <= 6000
       if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
-          
-          // MODIFICATION POUR AJOUTER LES NUMÉROS DE LIGNE
           const lines = content.split('\n');
           const contentWithLineNumbers = lines.map((line, index) => 
               `${index + 1}: ${line}`
@@ -2688,22 +2643,19 @@ const sendChat = async (promptOverride?: string) => {
           
           filesContentSnapshots.push(
               `<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n` +
-              contentWithLineNumbers + // <-- Utiliser le contenu numéroté ici
+              contentWithLineNumbers +
               `\n</file_content_snapshot>`
           );
           fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
 
       } else if (size > CONTENT_SNAPSHOT_LIMIT) {
-          // Fichier exclu de l'injection de contenu
           filesExcludedCount++;
           fileStatus = `(Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)`;
           
       } else {
-          // Fichier vide
           fileStatus = `(EMPTY file)`;
       }
       
-      // La liste des chemins est toujours incluse avec le statut
       filesList.push(`<project_file path="${file.filePath}" ${fileStatus.trim()}/>`);
   });
 
@@ -2725,7 +2677,7 @@ const sendChat = async (promptOverride?: string) => {
   };
 
   // L'historique pour l'API commence avec le contexte système.
-  historyForApi = [systemFileContext, ...historyForApi]; // Utilise l'historique stable
+  let historyForApi = [systemFileContext, ...currentHistory]; // Utilise l'historique mis à jour par setMessages/currentHistory
 
   // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (inchangé) ----------------
   const readFilesCache = new Set<string>();
@@ -2757,7 +2709,7 @@ const sendChat = async (promptOverride?: string) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
-            history: historyForApi, // Utilise l'historique stable
+            history: historyForApi,
             currentProjectFiles,
             //projectEmbeddings,
             uploadedImages,
@@ -2831,6 +2783,7 @@ const sendChat = async (promptOverride?: string) => {
       }
 
       // ----------------- ARTIFACTS (URL, FILE) (inchangé) -----------------
+      const urlMatch = text.match(inspirationUrlRegex);
       // ... (Logique pour URL, FILE ARTIFACTS et mise à jour de newArtifactData et textWithoutArtifacts) ...
 
       // Mise à jour message assistant (pour l'affichage en streaming)
@@ -2844,18 +2797,31 @@ const sendChat = async (promptOverride?: string) => {
         return updatedMessages;
       });
     } // FIN STREAMING
+    addLog("[STREAMING] Fin du streaming. Préparation de la finalisation du message.");
+
 
     // ---------------- PRÉPARATION DU MESSAGE FINAL (inchangé) ----------------
     
     let finalCleanText = text
         .replace(inspirationUrlRegex, '')
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-        // ... (le reste des .replace)
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+        .replace(FETCH_FILE_REGEX, '') 
         .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
 
     const finalArtifacts = extractFileArtifacts(text);
     let artifactData: any;
-    // ... (Logique pour définir artifactData)
+    if (finalArtifacts.length > 0) {
+        artifactData = { 
+            type: 'files', 
+            parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })),
+            rawJson: text 
+        };
+    } else if (urlArtifact) {
+        artifactData = { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] };
+    } else {
+        artifactData = { type: null, rawJson: "", parsedList: [] };
+    }
 
     finalAssistantMessage = {
         role: "assistant",
@@ -2872,36 +2838,53 @@ const sendChat = async (promptOverride?: string) => {
       return; 
     }
     
-    // ... (Logique applyArtifactsToProject) ...
+    const isAnalysisMode = promptOverride?.includes("Analysis data from");
+    if (isAnalysisMode) {
+      addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
+    }
+          
+    if (finalArtifacts.length > 0) {
+      addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+      applyArtifactsToProject(finalArtifacts);
+
+      setTimeout(() => {
+        finalArtifacts.forEach(async (artifact) => {
+          const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
+          if (updatedFile) await reindexFile(updatedFile);
+        });
+      }, 100);
+    } else {
+      addLog("✅ Response received. No code artifacts detected to apply.");
+    }
     
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
     
-    // 🔥 CORRECTION ERREUR: Nettoyage du placeholder dans localStorage et setMessages
-    const historyAfterError = getHistory().filter((_, index) => index !== assistantMessageIndex);
-    saveHistory(historyAfterError);
-    setMessages([...historyAfterError, { role: "system", content: `Error: ${err.message}` }]);
+    // En cas d'erreur: Nettoyage du placeholder dans l'état React
+    setMessages((prev) => prev.filter((_, index) => index !== assistantMessageIndex)); 
+    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
     
   } finally {
     
-    // 🔥 MISE À JOUR FINALE DANS FINALLY (UTILISATION DU LOCALSTORAGE)
+    // 🔥 MISE À JOUR FINALE DANS FINALLY (FINALISATION DANS L'ÉTAT)
     if (finalAssistantMessage) {
-        // 1. Mise à jour de l'historique persistant (localStorage)
-        const updatedPersistentHistory = replaceLastHistoryMessage(finalAssistantMessage);
-        
-        // 2. Mise à jour de l'état React pour l'affichage (synchronisation finale)
-        if (updatedPersistentHistory) {
-            setMessages(updatedPersistentHistory);
-        }
+        setMessages((prev) => {
+            const updated = [...prev];
+            // On vérifie que le message à l'index est bien le placeholder, et on le remplace.
+            if (assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
+                 updated[assistantMessageIndex] = finalAssistantMessage as Message; 
+                 addLog(`[FINALIZATION] Placeholder remplacé par la réponse finale.`);
+            }
+            return updated;
+        });
     } else {
-        // Si finalAssistantMessage n'est pas défini (erreur précoce), resynchronisation de l'UI
-        setMessages(getHistory());
+        // En cas d'échec sans finalAssistantMessage, s'assurer que le placeholder a été retiré (fait dans le catch)
+        addLog("[FINALIZATION] Échec de la réponse. Nettoyage effectué dans le catch.");
     }
     
     setLoading(false);
   }
 };
-
             
        
 
