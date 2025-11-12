@@ -2552,19 +2552,22 @@ const handleFetchFileAction = async (
 
 
   
-  
+
+    
 // ---------------------- DÉFINITIONS GLOBALES (À VÉRIFIER EN HAUT DE VOTRE FICHIER) ----------------------
 // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 10;
 const BASE_DELAY_MS = 500000;
+// Limite stricte de 6000 caractères pour inclure le contenu complet
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
 
-// Définitions de Regex rendues accessibles globalement pour la fonction
+// Définitions de Regex rendues accessibles globalement pour la fonction (Correction de l'erreur de portée)
 const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-// Assurez-vous que FETCH_FILE_REGEX et les autres dépendances sont définies ou importées (ex: extractFileArtifacts, handleFetchFileAction, etc.)
+// Assurez-vous que FETCH_FILE_REGEX est aussi définie ici si elle n'est pas globale
+// const FETCH_FILE_REGEX = /<fetch_file path=["']([^"']+)["'][^>]*\/>/g; 
 
 
-// ---------------------- SEND CHAT (Gestion par État React) ----------------------
+// ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
@@ -2598,29 +2601,27 @@ const sendChat = async (promptOverride?: string) => {
   };
   
   // 3. Logique de mise à jour de l'état
+  let currentHistory: Message[] = []; // Initialisé ici
   let assistantMessageIndex = -1;
-  let currentHistory: Message[] = []; 
-
+  
   setMessages((prev) => {
-    // Calcul de l'index du placeholder AVANT la mise à jour
+    // assistantMessageIndex est l'index du placeholder APRES l'ajout de userMsg et du placeholder
     assistantMessageIndex = prev.length + 1; 
     
-    // Mise à jour de l'historique pour obtenir currentHistory pour l'API
-    currentHistory = [...prev, userMsg, assistantPlaceholder]; 
+    // Récupération de l'historique mis à jour pour l'appel API
+    currentHistory = [...prev, userMsg, assistantPlaceholder];
     
     if (!promptOverride) {
       setChatInput("");
     }
-    return currentHistory;
+    return currentHistory; // Retourne le nouveau tableau pour l'affichage
   });
-  
-  // Le tableau `currentHistory` est utilisé pour l'appel API.
   
   const currentProjectFiles = currentProject
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  // ---------------- INJECTION DU CONTEXTE SYSTÈME (numéros de ligne) ----------------
+  // ---------------- MODIFIÉ: INJECTION DU CONTEXTE SYSTÈME (FILTRE 6000 CHARS) ----------------
   
   const filesList: string[] = [];
   const filesContentSnapshots: string[] = [];
@@ -2633,6 +2634,7 @@ const sendChat = async (promptOverride?: string) => {
       let fileStatus = '';
 
       if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
+          
           const lines = content.split('\n');
           const contentWithLineNumbers = lines.map((line, index) => 
               `${index + 1}: ${line}`
@@ -2640,7 +2642,7 @@ const sendChat = async (promptOverride?: string) => {
           
           filesContentSnapshots.push(
               `<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n` +
-              contentWithLineNumbers +
+              contentWithLineNumbers + 
               `\n</file_content_snapshot>`
           );
           fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
@@ -2673,8 +2675,8 @@ const sendChat = async (promptOverride?: string) => {
     )
   };
 
-  // L'historique pour l'API commence avec le contexte système.
-  let historyForApi = [systemFileContext, ...currentHistory]; 
+  // 🔥 L'historique pour l'API commence avec le contexte système, SUIVI par les messages utilisateur/assistant.
+  let historyForApi = [systemFileContext, ...currentHistory];
 
   // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (inchangé) ----------------
   const readFilesCache = new Set<string>();
@@ -2686,7 +2688,7 @@ const sendChat = async (promptOverride?: string) => {
   let text = "";
   let retryCount = 0;
 
-  // Variable pour stocker le message final de l'assistant après le streaming
+  // Variable pour stocker le message final de l'assistant après le streaming (Nouveau)
   let finalAssistantMessage: Message | undefined = undefined; 
   
   try {
@@ -2706,7 +2708,7 @@ const sendChat = async (promptOverride?: string) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
-            history: historyForApi,
+            history: historyForApi, 
             currentProjectFiles,
             //projectEmbeddings,
             uploadedImages,
@@ -2761,12 +2763,12 @@ const sendChat = async (promptOverride?: string) => {
             text += `\n${fileContent}\n`; 
             readFilesCache.add(filePath); 
             
-            // Mise à jour du message assistant 
+            // Mise à jour du message assistant (inchangé)
             setMessages((prev) => {
               const updated = [...prev];
-              // 🔥 CORRECTION 1: Vérification d'indexation sécurisée
-              if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) { 
-                  updated[assistantMessageIndex].content = text; 
+              // 🔥 CORRECTION D'INDEXATION 1
+              if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
+                  updated[assistantMessageIndex].content = text;
               }
               return updated;
             });
@@ -2780,28 +2782,76 @@ const sendChat = async (promptOverride?: string) => {
         }
       }
 
-      // ----------------- ARTIFACTS (URL, FILE) (inchangé) -----------------
+      // ----------------- URL ARTIFACT ----------------- (inchangé)
       const urlMatch = text.match(inspirationUrlRegex);
-      // ... (Logique pour URL, FILE ARTIFACTS et mise à jour de newArtifactData et textWithoutArtifacts) ...
+      if (urlMatch) {
+        try {
+          const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
+          const parsedUrlData = JSON.parse(jsonString);
+
+          if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
+            urlArtifact = { url: parsedUrlData.url };
+          }
+        } catch (e) { console.error("Failed to parse URL JSON:", e); }
+      }
+
+      // ----------------- FILE ARTIFACTS ----------------- (inchangé)
+      const fileArtifacts = extractFileArtifacts(text);
+
+      fileArtifacts.forEach((artifact: any) => {
+        if (artifact.type === "changes" && artifact.content && !artifact.content.trim().endsWith("</file_changes>")) {
+          artifact.content += "\n</file_changes>";
+        }
+        if (artifact.type === "create" && artifact.content && !artifact.content.trim().endsWith("</create_file>")) {
+          artifact.content += "\n</create_file>";
+        }
+      });
+
+      const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
+      let incompleteMatches = [...text.matchAll(incompleteRegex)];
+
+      const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
+      let newArtifactData = undefined;
+      const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+
+      if (isGeneratingCode) {
+        fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
+        incompleteMatches.forEach(match => {
+          const path = match[2];
+          const type = match[1] === 'create_file' ? 'create' : 'changes';
+          if (!artifactList.some(a => a.path === path)) artifactList.push({ path, type });
+        });
+
+        if (currentProject) {
+          addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
+        }
+
+        newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
+      }
+
+      // Nettoyage texte pour affichage
+      let textWithoutArtifacts = text
+        .replace(inspirationUrlRegex, '')
+        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+        .replace(FETCH_FILE_REGEX, '') 
+        // Supprime l'artefact de contenu injecté (snapshot) pour l'affichage
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
 
       // Mise à jour message assistant (pour l'affichage en streaming)
       setMessages((prev) => {
         const updatedMessages = [...prev];
-        
-        // 🔥 CORRECTION 2: Vérification d'indexation sécurisée
+        // 🔥 CORRECTION D'INDEXATION 2
         if (assistantMessageIndex >= 0 && assistantMessageIndex < updatedMessages.length) {
-            const lastMsg = updatedMessages[assistantMessageIndex];
-            
-            if (lastMsg?.role === "assistant") {
-              if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
-              lastMsg.content = textWithoutArtifacts;
-            }
+          const lastMsg = updatedMessages[assistantMessageIndex];
+          if (lastMsg?.role === "assistant") {
+            if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
+            lastMsg.content = textWithoutArtifacts;
+          }
         }
         return updatedMessages;
       });
     } // FIN STREAMING
-    addLog("[STREAMING] Fin du streaming. Préparation de la finalisation du message.");
-
 
     // ---------------- PRÉPARATION DU MESSAGE FINAL (inchangé) ----------------
     
@@ -2859,36 +2909,36 @@ const sendChat = async (promptOverride?: string) => {
     } else {
       addLog("✅ Response received. No code artifacts detected to apply.");
     }
-    
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
     
-    // En cas d'erreur: Nettoyage du placeholder dans l'état React
-    setMessages((prev) => prev.filter((_, index) => index !== assistantMessageIndex)); 
+    // En cas d'erreur, on ajoute un message d'erreur dans l'historique
     setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
-    
+    // On efface le placeholder en cas d'erreur (si l'index est valide)
+    setMessages((prev) => {
+        const updated = [...prev];
+        if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
+            return updated.filter((_, index) => index !== assistantMessageIndex);
+        }
+        return prev;
+    }); 
   } finally {
     
-    // 🔥 MISE À JOUR FINALE DANS FINALLY (FINALISATION DANS L'ÉTAT)
+    // 🔥 MISE À JOUR FINALE DANS FINALLY
     if (finalAssistantMessage) {
         setMessages((prev) => {
             const updated = [...prev];
-            // 🔥 CORRECTION 3: Vérification d'indexation sécurisée
+            // 🔥 CORRECTION D'INDEXATION 3
             if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
                  updated[assistantMessageIndex] = finalAssistantMessage as Message; 
-                 addLog(`[FINALIZATION] Placeholder remplacé par la réponse finale.`);
             }
             return updated;
         });
-    } else {
-        addLog("[FINALIZATION] Échec de la réponse. Nettoyage effectué dans le catch.");
     }
     
     setLoading(false);
   }
 };
-       
-
  
              
 
