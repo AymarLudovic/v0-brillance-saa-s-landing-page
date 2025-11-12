@@ -2787,12 +2787,22 @@ const sendChat = async (promptOverride?: string) => {
       // ... (Logique pour URL, FILE ARTIFACTS et mise à jour de newArtifactData et textWithoutArtifacts) ...
 
       // Mise à jour message assistant (pour l'affichage en streaming)
+      // Mise à jour message assistant (pour l'affichage en streaming)
       setMessages((prev) => {
         const updatedMessages = [...prev];
-        const lastMsg = updatedMessages[assistantMessageIndex];
-        if (lastMsg?.role === "assistant") {
-          if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
-          lastMsg.content = textWithoutArtifacts;
+        
+        // 🔥 CORRECTION: Vérifiez que l'index existe avant d'essayer d'y accéder
+        if (assistantMessageIndex >= 0 && assistantMessageIndex < updatedMessages.length) {
+            
+            const lastMsg = updatedMessages[assistantMessageIndex];
+            
+            if (lastMsg?.role === "assistant") {
+              if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
+              lastMsg.content = textWithoutArtifacts;
+            }
+        } else {
+            // Optionnel: Log d'erreur si l'index est invalide pendant le streaming
+            console.error("Erreur de streaming: Index assistantMessageIndex est invalide.", assistantMessageIndex, updatedMessages.length);
         }
         return updatedMessages;
       });
