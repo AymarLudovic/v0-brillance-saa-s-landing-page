@@ -251,7 +251,7 @@ Vous avez raison, bien que dynamique, la plateforme repose sur un squelette de p
 
 Ces pages sont la vitrine de Spotify. Leur objectif est d'informer, de convaincre et de convertir le visiteur en utilisateur.
 
-#### **Page 1 : La Page d'Accueil Publique (`spotify.com`)**
+#### **Page 1 : La Page d'Accueil Publique (\`spotify.com\`)**
 
 **Objectif principal :** Inciter les nouveaux visiteurs à s'inscrire (gratuitement ou en Premium).
 
@@ -263,7 +263,7 @@ Ces pages sont la vitrine de Spotify. Leur objectif est d'informer, de convaincr
 | **Bannière de consentement aux cookies** | Bandeau en bas de l'écran avec un texte explicatif sur l'utilisation des cookies et des boutons "Refuser", "Accepter" et "Paramètres des cookies". | **Obligation Légale (RGPD/CCPA).** C'est une exigence légale non négociable dans de nombreuses régions. Son design est intentionnellement sobre pour ne pas détourner de l'objectif principal de la page, tout en étant suffisamment visible pour être conforme. |
 | **Pied de Page (Footer)** | Section dense en bas de page, organisée en colonnes : "ENTREPRISE" (À propos, Offres d'emploi), "COMMUNAUTÉS" (Pour les artistes), "LIENS UTILES" (Aide), et les icônes des réseaux sociaux. En bas à droite, le lien "France (Français)" et en bas, les liens légaux ("Légal", "Centre de confidentialité", "Cookies"). | **Navigation exhaustive et informations de confiance.** C'est un plan du site organisé. Les colonnes structurent l'information pour la rendre digestible. Les liens légaux sont fondamentaux pour la transparence et la confiance. Les icônes de réseaux sociaux sont des preuves sociales et des canaux d'engagement. |
 
-#### **Page 2 : La Page d'Inscription (`spotify.com/signup`)**
+#### **Page 2 : La Page d'Inscription (\`spotify.com/signup\`)**
 
 **Objectif principal :** Obtenir les informations minimales pour créer un compte utilisateur.
 
