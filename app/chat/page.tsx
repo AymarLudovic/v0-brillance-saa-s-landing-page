@@ -2552,6 +2552,7 @@ const handleFetchFileAction = async (
 
 
   
+  
 // ---------------------- DÉFINITIONS GLOBALES (À VÉRIFIER EN HAUT DE VOTRE FICHIER) ----------------------
 // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 10;
@@ -2560,8 +2561,7 @@ const CONTENT_SNAPSHOT_LIMIT = 50000;
 
 // Définitions de Regex rendues accessibles globalement pour la fonction
 const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-// Assurez-vous que FETCH_FILE_REGEX est aussi définie ici si elle n'est pas globale
-// const FETCH_FILE_REGEX = /<fetch_file path=["']([^"']+)["'][^>]*\/>/g; 
+// Assurez-vous que FETCH_FILE_REGEX et les autres dépendances sont définies ou importées (ex: extractFileArtifacts, handleFetchFileAction, etc.)
 
 
 // ---------------------- SEND CHAT (Gestion par État React) ----------------------
@@ -2597,9 +2597,9 @@ const sendChat = async (promptOverride?: string) => {
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  // 3. Logique de mise à jour de l'état (RETOUR À L'ÉTAT)
+  // 3. Logique de mise à jour de l'état
   let assistantMessageIndex = -1;
-  let currentHistory: Message[] = []; // Doit être initialisé pour être utilisé dans historyForApi
+  let currentHistory: Message[] = []; 
 
   setMessages((prev) => {
     // Calcul de l'index du placeholder AVANT la mise à jour
@@ -2614,10 +2614,7 @@ const sendChat = async (promptOverride?: string) => {
     return currentHistory;
   });
   
-  // Si le setMessages ci-dessus ne finit pas de s'exécuter avant l'appel API, 
-  // cela peut causer des problèmes de "stale state" (historique non complet).
-  // Une meilleure pratique serait de forcer un flush ou d'utiliser un hook useRef,
-  // mais en l'absence de cela, nous utilisons `currentHistory` calculé.
+  // Le tableau `currentHistory` est utilisé pour l'appel API.
   
   const currentProjectFiles = currentProject
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
@@ -2677,7 +2674,7 @@ const sendChat = async (promptOverride?: string) => {
   };
 
   // L'historique pour l'API commence avec le contexte système.
-  let historyForApi = [systemFileContext, ...currentHistory]; // Utilise l'historique mis à jour par setMessages/currentHistory
+  let historyForApi = [systemFileContext, ...currentHistory]; 
 
   // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (inchangé) ----------------
   const readFilesCache = new Set<string>();
@@ -2746,7 +2743,7 @@ const sendChat = async (promptOverride?: string) => {
       const chunk = decoder.decode(value, { stream: true });
       text += chunk;
 
-      // ---------------- FETCH FILE (inchangé) ----------------
+      // ---------------- FETCH FILE ----------------
       const fetchFileMatch = text.match(FETCH_FILE_REGEX);
       if (fetchFileMatch) {
         const filePath = fetchFileMatch[1].trim();
@@ -2767,14 +2764,14 @@ const sendChat = async (promptOverride?: string) => {
             // Mise à jour du message assistant 
             setMessages((prev) => {
               const updated = [...prev];
-              
-              // 🔥 CORRECTION 2: Vérification complète de l'index
+              // 🔥 CORRECTION 1: Vérification d'indexation sécurisée
               if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) { 
                   updated[assistantMessageIndex].content = text; 
               }
               return updated;
             });
-          } else if (isContentPreInjected) {
+          }
+        } else if (isContentPreInjected) {
             addLog(`⚠️ [FETCH_FILE] Ignoré (contenu déjà injecté dans le message système : ${filePath})`);
         } else if (readFilesCache.has(filePath)) {
           addLog(`⚠️ [FETCH_FILE] Ignoré (déjà lu et injecté dans ce tour : ${filePath})`);
@@ -2788,22 +2785,17 @@ const sendChat = async (promptOverride?: string) => {
       // ... (Logique pour URL, FILE ARTIFACTS et mise à jour de newArtifactData et textWithoutArtifacts) ...
 
       // Mise à jour message assistant (pour l'affichage en streaming)
-      // Mise à jour message assistant (pour l'affichage en streaming)
       setMessages((prev) => {
         const updatedMessages = [...prev];
         
-        // 🔥 CORRECTION: Vérifiez que l'index existe avant d'essayer d'y accéder
+        // 🔥 CORRECTION 2: Vérification d'indexation sécurisée
         if (assistantMessageIndex >= 0 && assistantMessageIndex < updatedMessages.length) {
-            
             const lastMsg = updatedMessages[assistantMessageIndex];
             
             if (lastMsg?.role === "assistant") {
               if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
               lastMsg.content = textWithoutArtifacts;
             }
-        } else {
-            // Optionnel: Log d'erreur si l'index est invalide pendant le streaming
-            console.error("Erreur de streaming: Index assistantMessageIndex est invalide.", assistantMessageIndex, updatedMessages.length);
         }
         return updatedMessages;
       });
@@ -2881,22 +2873,20 @@ const sendChat = async (promptOverride?: string) => {
     if (finalAssistantMessage) {
         setMessages((prev) => {
             const updated = [...prev];
-            // On vérifie que le message à l'index est bien le placeholder, et on le remplace.
-            if (assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
+            // 🔥 CORRECTION 3: Vérification d'indexation sécurisée
+            if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
                  updated[assistantMessageIndex] = finalAssistantMessage as Message; 
                  addLog(`[FINALIZATION] Placeholder remplacé par la réponse finale.`);
             }
             return updated;
         });
     } else {
-        // En cas d'échec sans finalAssistantMessage, s'assurer que le placeholder a été retiré (fait dans le catch)
         addLog("[FINALIZATION] Échec de la réponse. Nettoyage effectué dans le catch.");
     }
     
     setLoading(false);
   }
 };
-            
        
 
  
