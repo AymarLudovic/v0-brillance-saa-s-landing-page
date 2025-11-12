@@ -2548,18 +2548,23 @@ const handleFetchFileAction = async (
 
 // ---------------------- SEND CHAT ----------------------
 
-    
-// ---------------------- DÉFINITIONS GLOBALES (À VÉRIFIER) ----------------------
-// Ces constantes doivent être définies en haut de votre composant/fichier.
+  
+
+
+  
+
+
+
+    // Assurez-vous d'importer ces fonctions depuis '@/utils/history' :
+// import { getHistory, updateHistory, replaceLastHistoryMessage } from '@/utils/history'; 
+
+// Ces constantes doivent être définies en haut de votre composant/fichier :
 const MAX_RETRIES = 10;
 const BASE_DELAY_MS = 500000;
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
 const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
-// Assurez-vous que FETCH_FILE_REGEX est bien définie dans votre fichier.
+// Assurez-vous que FETCH_FILE_REGEX est bien définie.
 
-// Assurez-vous d'IMPORTER getHistory, updateHistory, replaceLastHistoryMessage depuis '@/utils/history'
-
-// ---------------------- SEND CHAT (AVEC LOCALSTORAGE) ----------------------
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
@@ -2592,7 +2597,7 @@ const sendChat = async (promptOverride?: string) => {
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  // 3. Logique de mise à jour de l'état (CORRIGÉE AVEC LOCALSTORAGE)
+  // 3. Logique de mise à jour de l'état (LOCALSTORAGE)
   
   // 🔥 ÉTAPE 1: Mise à jour du localStorage AVANT tout fetch
   updateHistory(userMsg); // Ajout message utilisateur dans localStorage
@@ -2695,8 +2700,11 @@ const sendChat = async (promptOverride?: string) => {
     let apiCallSuccessful = false;
 
     // ---------------- BOUCLE DE RETRY ROBUSTE (inchangée) ----------------
-    // ... (votre boucle de retry) ...
-    
+    while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
+      // ... (contenu de la boucle de retry)
+    }
+    // ---------------- FIN BOUCLE DE RETRY ----------------
+
     if (!res || !res.body) return;
 
     const reader = res.body.getReader();
@@ -2712,16 +2720,15 @@ const sendChat = async (promptOverride?: string) => {
 
       // ---------------- LOGIQUE DE FETCH FILE, URL ARTIFACT, FILE ARTIFACTS (inchangée) ----------------
       // ... (votre code pour extraire les artefacts et mettre à jour newArtifactData, textWithoutArtifacts) ...
+      
       // Mise à jour message assistant (pour l'affichage en streaming)
       // 🔥 CORRECTION DU STREAMING: Mise à jour directe du tableau affiché
       setMessages((prev) => {
-        // Utiliser l'index que nous avons calculé au début basé sur persistentHistory
         const lastMsgIndex = assistantMessageIndex; 
         
         const updatedMessages = [...prev];
         const lastMsg = updatedMessages[lastMsgIndex];
         
-        // S'assurer que nous mettons à jour le placeholder assistant
         if (lastMsg?.role === "assistant") {
           if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
           lastMsg.content = textWithoutArtifacts;
@@ -2764,23 +2771,44 @@ const sendChat = async (promptOverride?: string) => {
     // ---------------- FIN PRÉPARATION MESSAGE FINAL ----------------
 
     // -------- POST STREAM ---------- 
-    // ... (Logique d'analyse d'URL et application des artifacts) ...
+    if (urlArtifact) {
+      addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
+      await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
+      return; 
+    }
+    
+    const isAnalysisMode = promptOverride?.includes("Analysis data from");
+    if (isAnalysisMode) {
+      addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
+    }
+          
+    if (finalArtifacts.length > 0) {
+      addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+      applyArtifactsToProject(finalArtifacts);
+
+      setTimeout(() => {
+        finalArtifacts.forEach(async (artifact) => {
+          const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
+          if (updatedFile) await reindexFile(updatedFile);
+        });
+      }, 100);
+    } else {
+      addLog("✅ Response received. No code artifacts detected to apply.");
+    }
 
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
-    // En cas d'erreur, on ajoute un message d'erreur dans l'historique
-    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
-    // Si l'erreur arrive après le placeholder, on le supprime (et dans localStorage)
+    
+    // En cas d'erreur, nettoyage de l'historique dans localStorage et dans l'état
     const updatedHistoryAfterError = getHistory().filter((_, index) => index !== assistantMessageIndex);
     saveHistory(updatedHistoryAfterError);
-    setMessages(updatedHistoryAfterError);
+    setMessages([...updatedHistoryAfterError, { role: "system", content: `Error: ${err.message}` }]);
     
-} finally {
+  } finally {
     
-    // 🔥 CORRECTION DE LA FINALISATION: Utilisation du localStorage pour l'historique persistant
+    // 🔥 MISE À JOUR FINALE DANS FINALLY (LOCALSTORAGE ET SYNCHRONISATION ÉTAT)
     if (finalAssistantMessage) {
         // 1. Mise à jour de l'historique persistant (localStorage)
-        // Ceci remplace le placeholder vide par le message final complet dans le localStorage.
         const updatedPersistentHistory = replaceLastHistoryMessage(finalAssistantMessage);
         
         // 2. Mise à jour de l'état React pour l'affichage (synchronisation finale)
@@ -2789,21 +2817,14 @@ const sendChat = async (promptOverride?: string) => {
             addLog(`[LOCALSTORAGE] Placeholder remplacé par la réponse finale. Taille finale: ${updatedPersistentHistory?.length}`);
         }
     } else {
-        // Logique pour s'assurer que loading est désactivé même en cas d'erreur précoce
+        // Si finalAssistantMessage n'est pas défini (ex: erreur précoce), on resynchronise l'UI avec l'historique stable.
         const currentHistory = getHistory();
         setMessages(currentHistory);
     }
     
     setLoading(false);
   }
-  
-
-
-  
-
-
-
-    
+};
 
       
 
