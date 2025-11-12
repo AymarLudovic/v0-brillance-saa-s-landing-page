@@ -2764,16 +2764,17 @@ const sendChat = async (promptOverride?: string) => {
             text += `\n${fileContent}\n`; 
             readFilesCache.add(filePath); 
             
-            // Mise à jour du message assistant (inchangé)
+            // Mise à jour du message assistant 
             setMessages((prev) => {
               const updated = [...prev];
-              if (assistantMessageIndex < updated.length) { // Utilise l'index stable
-                  updated[assistantMessageIndex].content = text;
+              
+              // 🔥 CORRECTION 2: Vérification complète de l'index
+              if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) { 
+                  updated[assistantMessageIndex].content = text; 
               }
               return updated;
             });
-          }
-        } else if (isContentPreInjected) {
+          } else if (isContentPreInjected) {
             addLog(`⚠️ [FETCH_FILE] Ignoré (contenu déjà injecté dans le message système : ${filePath})`);
         } else if (readFilesCache.has(filePath)) {
           addLog(`⚠️ [FETCH_FILE] Ignoré (déjà lu et injecté dans ce tour : ${filePath})`);
