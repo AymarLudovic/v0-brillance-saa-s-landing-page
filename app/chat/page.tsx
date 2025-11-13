@@ -2548,20 +2548,16 @@ const handleFetchFileAction = async (
 
 // ---------------------- SEND CHAT ----------------------
 
-  
 
-
-  
-
-    
-// ---------------------- DÉFINITIONS GLOBALES (À VÉRIFIER EN HAUT DE VOTRE FICHIER) ----------------------
+     // ---------------------- DÉFINITIONS GLOBALES (VÉRIFIEZ BASE_DELAY_MS) ----------------------
 // Définir ces constantes au début du composant, en dehors de sendChat
-const MAX_RETRIES = 20;
-const BASE_DELAY_MS = 5_000_000;
+const MAX_RETRIES = 10;
+// 🔥 CORRECTION DE LA BASE DE DÉLAI: Utilisable pour le backoff exponentiel
+const BASE_DELAY_MS = 500; 
 // Limite stricte de 6000 caractères pour inclure le contenu complet
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
 
-// Définitions de Regex rendues accessibles globalement pour la fonction (Correction de l'erreur de portée)
+// Définitions de Regex rendues accessibles globalement pour la fonction
 const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
 // Assurez-vous que FETCH_FILE_REGEX est aussi définie ici si elle n'est pas globale
 // const FETCH_FILE_REGEX = /<fetch_file path=["']([^"']+)["'][^>]*\/>/g; 
@@ -2601,20 +2597,15 @@ const sendChat = async (promptOverride?: string) => {
   };
   
   // 3. Logique de mise à jour de l'état
-  let currentHistory: Message[] = []; // Initialisé ici
+  let currentHistory = [...messages, userMsg];
   let assistantMessageIndex = -1;
   
   setMessages((prev) => {
-    // assistantMessageIndex est l'index du placeholder APRES l'ajout de userMsg et du placeholder
     assistantMessageIndex = prev.length + 1; 
-    
-    // Récupération de l'historique mis à jour pour l'appel API
-    currentHistory = [...prev, userMsg, assistantPlaceholder];
-    
     if (!promptOverride) {
       setChatInput("");
     }
-    return currentHistory; // Retourne le nouveau tableau pour l'affichage
+    return [...prev, userMsg, assistantPlaceholder];
   });
   
   const currentProjectFiles = currentProject
@@ -2633,8 +2624,10 @@ const sendChat = async (promptOverride?: string) => {
       
       let fileStatus = '';
 
+      // Ajout du contenu complet SEULEMENT si la taille est <= 6000
       if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
           
+          // MODIFICATION POUR AJOUTER LES NUMÉROS DE LIGNE
           const lines = content.split('\n');
           const contentWithLineNumbers = lines.map((line, index) => 
               `${index + 1}: ${line}`
@@ -2642,19 +2635,22 @@ const sendChat = async (promptOverride?: string) => {
           
           filesContentSnapshots.push(
               `<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n` +
-              contentWithLineNumbers + 
+              contentWithLineNumbers + // <-- Utiliser le contenu numéroté ici
               `\n</file_content_snapshot>`
           );
           fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
 
       } else if (size > CONTENT_SNAPSHOT_LIMIT) {
+          // Fichier exclu de l'injection de contenu
           filesExcludedCount++;
           fileStatus = `(Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)`;
           
       } else {
+          // Fichier vide
           fileStatus = `(EMPTY file)`;
       }
       
+      // La liste des chemins est toujours incluse avec le statut
       filesList.push(`<project_file path="${file.filePath}" ${fileStatus.trim()}/>`);
   });
 
@@ -2675,7 +2671,7 @@ const sendChat = async (promptOverride?: string) => {
     )
   };
 
-  // 🔥 L'historique pour l'API commence avec le contexte système, SUIVI par les messages utilisateur/assistant.
+  // L'historique pour l'API commence avec le contexte système.
   let historyForApi = [systemFileContext, ...currentHistory];
 
   // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (inchangé) ----------------
@@ -2695,12 +2691,15 @@ const sendChat = async (promptOverride?: string) => {
     let res: Response | null = null;
     let apiCallSuccessful = false;
 
-    // ---------------- BOUCLE DE RETRY ROBUSTE (inchangée) ----------------
+    // ---------------- BOUCLE DE RETRY ROBUSTE (CORRIGÉE) ----------------
     while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
       try {
         if (retryCount > 0) {
+          // Calcul du délai (exponentiel backoff, plafonné à 5000ms)
           const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000); 
+          
           addLog(`[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES} après erreur... Attente de ${delay}ms.`);
+          // 🔥 L'attente asynchrone est maintenant correcte
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
@@ -2763,10 +2762,10 @@ const sendChat = async (promptOverride?: string) => {
             text += `\n${fileContent}\n`; 
             readFilesCache.add(filePath); 
             
-            // Mise à jour du message assistant (inchangé)
+            // Mise à jour du message assistant 
             setMessages((prev) => {
               const updated = [...prev];
-              // 🔥 CORRECTION D'INDEXATION 1
+              // 🔥 CORRECTION D'INDEXATION 1 (Sécurisée)
               if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
                   updated[assistantMessageIndex].content = text;
               }
@@ -2841,7 +2840,7 @@ const sendChat = async (promptOverride?: string) => {
       // Mise à jour message assistant (pour l'affichage en streaming)
       setMessages((prev) => {
         const updatedMessages = [...prev];
-        // 🔥 CORRECTION D'INDEXATION 2
+        // 🔥 CORRECTION D'INDEXATION 2 (Sécurisée)
         if (assistantMessageIndex >= 0 && assistantMessageIndex < updatedMessages.length) {
           const lastMsg = updatedMessages[assistantMessageIndex];
           if (lastMsg?.role === "assistant") {
@@ -2852,6 +2851,7 @@ const sendChat = async (promptOverride?: string) => {
         return updatedMessages;
       });
     } // FIN STREAMING
+    addLog("[STREAMING] Fin du streaming. Préparation de la finalisation du message.");
 
     // ---------------- PRÉPARATION DU MESSAGE FINAL (inchangé) ----------------
     
@@ -2884,7 +2884,7 @@ const sendChat = async (promptOverride?: string) => {
 
     // ---------------- FIN PRÉPARATION MESSAGE FINAL ----------------
 
-    // -------- POST STREAM (inchangé) ---------- 
+    // -------- POST STREAM ---------- 
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
@@ -2912,25 +2912,26 @@ const sendChat = async (promptOverride?: string) => {
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
     
-    // En cas d'erreur, on ajoute un message d'erreur dans l'historique
-    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
-    // On efface le placeholder en cas d'erreur (si l'index est valide)
+    // En cas d'erreur: Nettoyage du placeholder dans l'état React
     setMessages((prev) => {
         const updated = [...prev];
         if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
-            return updated.filter((_, index) => index !== assistantMessageIndex);
+             return updated.filter((_, index) => index !== assistantMessageIndex);
         }
         return prev;
     }); 
+    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
+    
   } finally {
     
     // 🔥 MISE À JOUR FINALE DANS FINALLY
     if (finalAssistantMessage) {
         setMessages((prev) => {
             const updated = [...prev];
-            // 🔥 CORRECTION D'INDEXATION 3
+            // 🔥 CORRECTION D'INDEXATION 3 (Sécurisée)
             if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
                  updated[assistantMessageIndex] = finalAssistantMessage as Message; 
+                 addLog(`[FINALIZATION] Placeholder remplacé par la réponse finale.`);
             }
             return updated;
         });
