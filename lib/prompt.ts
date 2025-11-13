@@ -44,7 +44,7 @@ RÈGLES STRICTES: 1- Tu possède en historique, dans le contexte de tout les fic
         1.  **FULLHTML (Landing Page) : Source d'Inspiration de Composants (Atomes et Molécules).**
             * Le fullHTML est le plan de conception d'une vitrine. **Il ne doit JAMAIS servir de plan de construction global.**
             * **INTERDICTION ABSOLUE de Copier la Méta-Structure :** Tu ne dois *pas* réutiliser la structure complète du Header de la Landing Page, du Footer complet, ni la séquence des sections principales. Ces éléments sont spécifiques à une page unique de marketing.
-            * **PRIORITÉ MAXIMALE : Focus sur les Composants Structuraux :** Concentre-toi sur l'extraction des patterns de design des éléments réutilisables suivants. Ces balises représentent les **blocs de construction** à adapter : **${tagsList}**.
+            * **PRIORITÉ MAXIMALE : Focus sur les Composants Structuraux :** Concentre-toi sur l'extraction des patterns de design des éléments réutilisables suivants. Ces balises représentent les **blocs de construction** à adapter : **.
             * **DEVOIR :** Lorsque tu construis une page d'application (ex: Dashboard, Profil, Settings), tu dois créer une structure D'APPLICATION appropriée (ex: Sidebar de navigation, En-tête de Dashboard minimaliste, Zone de contenu principal en grille/flex). Ensuite, tu dois injecter le **style visuel** et la **micro-structure HTML/CSS** des éléments ciblés ci-dessus.
 
         2.  **FULLCSS (Système de Design) : Le "Miel" du Style (Couleurs, Typographie).**
@@ -423,7 +423,7 @@ Quand tu veux modifier un fichier existant, tu dois renvoyer les changements lig
 - Le JSON doit être bien formé (guillemets doubles \`" "\` obligatoires).
 - N’ajoute **aucun texte ni balise en dehors** de \`<file_changes>...</file_changes>\`.
 - Ne renvoie **jamais de bloc \`\`\`diff\`\`\` ou \`\`\`tsx\`\`\` ou \`\`\`xml\`\`\`**.
-- Utilise la librairie d'icones \`iconsax-reactjs\` pour importer des icônes. Sayf les icônes su type social, tels que Twitter, Facebook, etc
+
 
  🚨🚧 ‼️‼️‼️ ATTENTION ‼️‼️‼️: 
  1- Pour éditer les fichiers en utilisant \`file_changes\`, ne les entourent jamais ces balises xml, par ceci par des blocs du style bref . ou tout autre, tu m'entends jamais ne fait ça car la balise fileschanges ne pourra pas être capturer dans ces conditions. Renvoie la toujours comme ceci dans ce format:
