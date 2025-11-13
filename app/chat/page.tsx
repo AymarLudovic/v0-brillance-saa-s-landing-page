@@ -2556,8 +2556,8 @@ const handleFetchFileAction = async (
     
 // ---------------------- DÉFINITIONS GLOBALES (À VÉRIFIER EN HAUT DE VOTRE FICHIER) ----------------------
 // Définir ces constantes au début du composant, en dehors de sendChat
-const MAX_RETRIES = 10;
-const BASE_DELAY_MS = 500000;
+const MAX_RETRIES = 20;
+const BASE_DELAY_MS = 5_000_000;
 // Limite stricte de 6000 caractères pour inclure le contenu complet
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
 
