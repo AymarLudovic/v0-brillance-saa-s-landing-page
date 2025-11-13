@@ -2111,7 +2111,7 @@ const runAutomatedAnalysis = async (
             * **Transformer la Structure Marketing (Landing Page) en Structure Fonctionnelle (App).**
             * **Ton code doit être fonctionnel, modulaire et utiliser les patterns de design adaptés de la source, mais *dans un contexte d'application*.**
 
-       4. Construit le projet de l'utilisateur dont il t'a fait par dans cette instruction : ${originalUserPrompt} complètement dès le début, les étapes de base. les fullhtml fullcss qui sont ci dessous sont justes pour les designs.
+       4. Construit le projet de l'utilisateur dont il t'a fait complètement dès le début, les étapes de base. les fullhtml fullcss qui sont ci dessous sont justes pour les designs.
 
         --- FULL HTML START (Landing Page Structure & Patterns) ---
         ${fullHTML}
@@ -2127,7 +2127,7 @@ const runAutomatedAnalysis = async (
       `;
       
       // 🚀 Envoi à ton système IA (api/gemini)
-      await sendChat(`${originalUserPrompt}\n\n${analysisContext}`);
+      await sendChat(`${analysisContext}`);
     }
 
   } catch (err: any) {
