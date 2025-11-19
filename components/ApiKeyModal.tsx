@@ -5,17 +5,26 @@ import { X, ArrowUp, Copy } from 'lucide-react'
 // --- UTILITAIRES INDEXEDDB ---
 const DB_NAME = 'StudioCodeDB';
 const STORE_NAME = 'settings';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // IMPORTANT : Version 2 pour matcher celle des projets
 
 const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
+    
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
+    
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
+      
+      // 1. Store pour la clé API
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+      
+      // 2. Store pour les projets (indispensable pour éviter le conflit de version)
+      if (!db.objectStoreNames.contains('projects')) {
+        db.createObjectStore('projects', { keyPath: 'id' });
       }
     };
   });
@@ -74,13 +83,17 @@ export default function ApiKeyModal() {
   useEffect(() => {
     const checkKey = async () => {
         try {
+            // 1. Vérifier la DB (Version 2)
             let key = await getApiKeyFromIDB();
+            
+            // 2. Migration de secours (LocalStorage -> DB)
             if (!key) {
                 key = localStorage.getItem("gemini_api_key");
                 if (key) {
                     await saveApiKeyToIDB(key);
                 }
             }
+
             if (key) {
                 setHasKey(true);
                 setIsOpen(false);
@@ -90,7 +103,9 @@ export default function ApiKeyModal() {
                 setIsOpen(true);
             }
         } catch (e) {
-            setIsOpen(true);
+            console.error("Erreur init Key:", e);
+            // Si erreur, on ouvre le modal pour permettre à l'utilisateur de réessayer
+            setIsOpen(true); 
         }
     };
     checkKey();
@@ -102,25 +117,26 @@ export default function ApiKeyModal() {
         return;
     }
     try {
-        addLog("Sauvegarde dans IndexedDB...", "info");
+        addLog("Sauvegarde sécurisée...", "info");
         await saveApiKeyToIDB(inputValue.trim());
         
+        // Backup LocalStorage (Best effort)
         try {
             localStorage.setItem("gemini_api_key", inputValue.trim());
         } catch (e) {
-            console.warn("LocalStorage plein, mais clé sécurisée dans IDB.");
+            // Ignorer erreur quota ici
         }
         
         const verify = await getApiKeyFromIDB();
         if (verify === inputValue.trim()) {
-            addLog("Succès ! Clé sécurisée. Rechargement...", "success");
+            addLog("Succès ! Clé validée. Rechargement...", "success");
             setHasKey(true);
             setTimeout(() => {
                 setIsOpen(false); 
                 window.location.reload();
             }, 1500); 
         } else {
-            throw new Error("Échec vérification IDB");
+            throw new Error("Échec vérification DB");
         }
     } catch (error: any) {
         addLog("Erreur Critique : " + (error.message || error), "error");
@@ -255,4 +271,4 @@ export default function ApiKeyModal() {
       </div>
     </div>
   )
-    }
+                             }
