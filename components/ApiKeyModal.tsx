@@ -2,7 +2,48 @@ import React, { useEffect, useState } from 'react'
 import { ShieldSecurity, Lock1 } from 'iconsax-reactjs'
 import { X, ArrowUp, Copy } from 'lucide-react'
 
-// Type pour nos logs visuels
+// --- UTILITAIRES INDEXEDDB ---
+const DB_NAME = 'StudioCodeDB';
+const STORE_NAME = 'settings';
+const DB_VERSION = 1;
+
+const initDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+  });
+};
+
+const saveApiKeyToIDB = async (key: string) => {
+  const db = await initDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.put(key, 'gemini_api_key');
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const getApiKeyFromIDB = async (): Promise<string | null> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.get('gemini_api_key');
+    request.onsuccess = () => resolve(request.result ? request.result as string : null);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// --- COMPOSANT ---
 type LogMessage = {
     id: number;
     text: string;
@@ -14,19 +55,13 @@ export default function ApiKeyModal() {
   const [hasKey, setHasKey] = useState(false)
   const [isInputMode, setIsInputMode] = useState(false)
   const [inputValue, setInputValue] = useState("")
-  
-  // État pour stocker les logs à afficher
   const [visibleLogs, setVisibleLogs] = useState<LogMessage[]>([])
 
-  // Fonction utilitaire pour ajouter un log visuel
   const addLog = (text: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now()
     const newLog = { id, text, type }
-    
     setVisibleLogs(prev => [...prev, newLog])
     console.log(`[${type.toUpperCase()}] ${text}`) 
-
-    // Augmenté à 10 secondes pour te laisser le temps de copier
     setTimeout(() => {
         setVisibleLogs(prev => prev.filter(log => log.id !== id))
     }, 10000)
@@ -34,47 +69,61 @@ export default function ApiKeyModal() {
 
   const handleCopyLog = (text: string) => {
     navigator.clipboard.writeText(text)
-    // Petit feedback visuel optionnel (pas de log pour éviter une boucle)
   }
 
   useEffect(() => {
-    const storedKey = localStorage.getItem("gemini_api_key")
-    if (storedKey) {
-      setHasKey(true)
-      setIsOpen(false)
-    } else {
-      setHasKey(false)
-      setIsOpen(true)
-    }
+    const checkKey = async () => {
+        try {
+            let key = await getApiKeyFromIDB();
+            if (!key) {
+                key = localStorage.getItem("gemini_api_key");
+                if (key) {
+                    await saveApiKeyToIDB(key);
+                }
+            }
+            if (key) {
+                setHasKey(true);
+                setIsOpen(false);
+                setInputValue(key);
+            } else {
+                setHasKey(false);
+                setIsOpen(true);
+            }
+        } catch (e) {
+            setIsOpen(true);
+        }
+    };
+    checkKey();
   }, [])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!inputValue.trim()) {
         addLog("Erreur : Le champ API Key est vide.", "error");
         return;
     }
-
     try {
-        addLog("Tentative d'enregistrement...", "info");
+        addLog("Sauvegarde dans IndexedDB...", "info");
+        await saveApiKeyToIDB(inputValue.trim());
         
-        localStorage.setItem("gemini_api_key", inputValue.trim());
+        try {
+            localStorage.setItem("gemini_api_key", inputValue.trim());
+        } catch (e) {
+            console.warn("LocalStorage plein, mais clé sécurisée dans IDB.");
+        }
         
-        // Vérification immédiate
-        const verify = localStorage.getItem("gemini_api_key");
+        const verify = await getApiKeyFromIDB();
         if (verify === inputValue.trim()) {
-            addLog("Succès ! Clé sauvegardée. Rechargement...", "success");
-            
+            addLog("Succès ! Clé sécurisée. Rechargement...", "success");
             setHasKey(true);
             setTimeout(() => {
                 setIsOpen(false); 
                 window.location.reload();
             }, 1500); 
         } else {
-            addLog("Erreur : La vérification du stockage a échoué.", "error");
+            throw new Error("Échec vérification IDB");
         }
-        
     } catch (error: any) {
-        addLog("Exception : " + (error.message || error), "error");
+        addLog("Erreur Critique : " + (error.message || error), "error");
     }
   }
 
@@ -98,7 +147,6 @@ export default function ApiKeyModal() {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       
-      {/* --- SYSTEME DE LOGS VISUELS (Toaster) --- */}
       <div className="fixed top-10 left-0 right-0 z-[10000] flex flex-col items-center gap-2 pointer-events-auto px-4">
         {visibleLogs.map((log) => (
             <div 
@@ -116,18 +164,15 @@ export default function ApiKeyModal() {
                     {log.type === 'info' && 'ℹ️ '}
                     {log.text}
                 </span>
-                
                 <button 
                     onClick={() => handleCopyLog(log.text)}
                     className="p-2 bg-white/20 hover:bg-white/30 rounded text-white transition-colors"
-                    title="Copier le message"
                 >
                     <Copy size={14} />
                 </button>
             </div>
         ))}
       </div>
-      {/* ------------------------------------------- */}
 
       <div className="relative w-[380px] h-[450px] bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col">
         
@@ -141,8 +186,6 @@ export default function ApiKeyModal() {
         )}
 
         <div className="flex-1 p-6 flex flex-col relative">
-          
-          {/* Header */}
           <div className="flex justify-between items-start bg-[#111] rounded-[12px] mb-6 h-auto p-3 border border-white/5">
             <div>
               <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#000] border border-white/10 text-[10px] font-medium text-[#e4e4e4] mb-2">
@@ -158,14 +201,12 @@ export default function ApiKeyModal() {
             <img className="h-[80px] object-cover" src="/3dicons-key-front-color.png" alt="Logo images" />
           </div>
 
-          {/* Main Content (Welcome Message) */}
           <div className="mb-auto mt-2">
             <p className="text-sm text-[#888] leading-relaxed font-medium">
               Welcome to Studio Code 1.0, the AI-powered software creation platform that lets you generate your biggest web application projects. To get started, please enter your Gemini API key.
             </p>
           </div>
 
-          {/* Input Section */}
           <div className="mt-6">
             {!isInputMode ? (
               <button 
@@ -177,7 +218,6 @@ export default function ApiKeyModal() {
             ) : (
               <div className="flex items-center gap-2 w-full h-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex-1 h-full bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
-                    
                     <input 
                         type="password"
                         value={inputValue}
@@ -196,7 +236,6 @@ export default function ApiKeyModal() {
               </div>
             )}
 
-            {/* Footer / Helper Text */}
             <div className="mt-4 flex flex-col items-center justify-center gap-1 text-center">
                 <p className="text-[10px] text-[#666]">
                     You need to enter your Gemini API key. Don't worry, Gemini is free.
@@ -212,9 +251,8 @@ export default function ApiKeyModal() {
                 </a>
             </div>
           </div>
-
         </div>
       </div>
     </div>
   )
-        }
+    }
