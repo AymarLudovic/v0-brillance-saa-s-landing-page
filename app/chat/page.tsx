@@ -501,7 +501,58 @@ const extractRawJson = (content: string): string | null => {
   }
 }
   
+// --- LOGIQUE INDEXEDDB (À placer hors du composant) ---
+const DB_NAME = 'StudioCodeDB';
+const DB_VERSION = 2; // On augmente la version pour ajouter le store 'projects'
 
+const initDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      
+      // Création du store pour les clés API (si pas déjà fait)
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings');
+      }
+      
+      // CRUCIAL : Création du store pour les projets
+      // keyPath: 'id' signifie que chaque projet sera indexé par son champ .id unique
+      if (!db.objectStoreNames.contains('projects')) {
+        db.createObjectStore('projects', { keyPath: 'id' });
+      }
+    };
+  });
+};
+
+// Sauvegarder un seul projet (Ajout ou Mise à jour)
+const saveProjectToIDB = async (project: any) => {
+  const db = await initDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('projects', 'readwrite');
+    const store = tx.objectStore('projects');
+    const request = store.put(project); // .put met à jour si l'ID existe, sinon crée
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// Récupérer tous les projets (pour la sidebar)
+const getAllProjectsFromIDB = async (): Promise<any[]> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('projects', 'readonly');
+    const store = tx.objectStore('projects');
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+};
+// ------------------------------------------------------
 
 
 // --- LOGIQUE D'ANALYSE (Fonctions pures) ---
@@ -1336,27 +1387,7 @@ useEffect(() => {
 
 // DANS VOTRE COMPOSANT PRINCIPAL
 
-// Fonction utilitaire pour normaliser le nom Vercel
 
-
-// DANS VOTRE COMPOSANT PRINCIPAL
-
-const createNewProject = () => {
-    const projectName = prompt("Enter project name:", `Project ${projects.length + 1}`)
-    if (!projectName) return
-    const newProject = { // Note: Suppression de ': Project' pour éviter les erreurs de syntaxe TypeScript dans un contexte JS pur
-      id: crypto.randomUUID(),
-      name: projectName,
-      createdAt: new Date().toISOString(),
-      files: [],
-      messages: [{ role: "assistant", content: `Project "${projectName}" is ready. What should we build?` }],
-    }
-    const updatedProjects = [...projects, newProject]
-    setProjects(updatedProjects)
-    saveProjectsToLocalStorage(updatedProjects)
-    loadProject(newProject.id)
-    addLog(`Project "${projectName}" created.`)
-      }
   
   
 
@@ -1470,30 +1501,6 @@ const handleDeploy = async () => {
       
 
 
-  const saveProject = () => {
-    // Vérifie si un projet est actif
-    if (!currentProject) {
-      addLog("Cannot save: No active project.")
-      return
-    }
-
-    // 🛑 Le projet actuel (currentProject) est déjà à jour (fichiers et messages).
-    const updatedProject = currentProject 
-
-    // Met à jour le tableau global 'projects'
-    const updatedProjects = projects.map((p) => (p.id === currentProject.id ? updatedProject : p))
-
-    // Met à jour les états globaux et le stockage local
-    setProjects(updatedProjects)
-    // Ici, nous n'avons pas besoin de setCurrentProject(updatedProject) car updatedProject === currentProject 
-    // et l'état a déjà été mis à jour par les fonctions d'application/d'envoi précédentes.
-    saveProjectsToLocalStorage(updatedProjects)
-    
-    addLog(`Projet "${currentProject.name}" sauvegardé.`)
-      }
-  
-
-
 
 const parseMessageContent = (content: string) => {
   
@@ -1557,8 +1564,87 @@ const parseMessageContent = (content: string) => {
 }
   
 
+
+    // 1. CHARGEMENT INITIAL (Ajoute ceci dans tes useEffect)
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const storedProjects = await getAllProjectsFromIDB();
+        if (storedProjects && storedProjects.length > 0) {
+           setProjects(storedProjects);
+           // Optionnel : Charger le dernier projet modifié ou le premier
+           // loadProject(storedProjects[0].id); 
+        }
+      } catch (error) {
+        console.error("Erreur chargement IDB:", error);
+        addLog("Failed to load projects from database.");
+      }
+    };
+    loadInitialData();
+  }, []);
+
+
+  // 2. FONCTION DE SAUVEGARDE GLOBALE
+  // Remplace ton ancienne fonction saveProjectsToLocalStorage par celle-ci
+  const saveProject = async () => {
+    if (!currentProject) return;
+    
+    // On crée l'objet à jour
+    const updatedProject = {
+        ...currentProject,
+        files: files,      // État actuel des fichiers
+        messages: messages // État actuel du chat
+    };
+
+    try {
+        // 1. Sauvegarde dans la DB (Persistance réelle)
+        await saveProjectToIDB(updatedProject);
+        
+        // 2. Mise à jour de la liste locale (UI)
+        setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+        
+        // (Optionnel) addLog("Project saved.");
+    } catch (error) {
+        addLog("Error saving project!");
+        console.error(error);
+    }
+  }
+
+
+  // 3. CRÉATION DE PROJET
+  const createNewProject = async () => {
+    const projectName = prompt("Enter project name:", `Project ${projects.length + 1}`)
+    if (!projectName) return
+    
+    const newProject = { 
+      id: crypto.randomUUID(),
+      name: projectName,
+      createdAt: new Date().toISOString(),
+      files: [],
+      messages: [{ role: "assistant", content: `Project "${projectName}" is ready. What should we build?` }],
+    }
+
+    try {
+        // On sauvegarde d'abord dans la DB pour être sûr
+        await saveProjectToIDB(newProject);
+        
+        // Ensuite on met à jour l'UI
+        const updatedProjects = [...projects, newProject]
+        setProjects(updatedProjects)
+        
+        // Et on charge
+        loadProject(newProject.id)
+        addLog(`Project "${projectName}" created.`)
+        
+    } catch (err) {
+        addLog("Error creating project in DB.")
+    }
+  }
   
 
+  // 4. CHARGEMENT D'UN PROJET
+  // Note : loadProject reste synchrone ici car on lit depuis l'état 'projects' 
+  // qui a été peuplé par le useEffect au démarrage.
   const loadProject = (projectId: string) => {
     const projectToLoad = projects.find((p) => p.id === projectId)
     if (!projectToLoad) return
@@ -1566,6 +1652,7 @@ const parseMessageContent = (content: string) => {
     setSandboxId(null)
     setPreviewUrl(null)
     addLog("Sandbox reset for new project.")
+    
     setCurrentProject(projectToLoad)
     setFiles(projectToLoad.files)
     setMessages(projectToLoad.messages)
@@ -1575,14 +1662,15 @@ const parseMessageContent = (content: string) => {
   }
 
 
-    
-  const handleProjectClick = (projectId: string) => {
-  if (currentProject) {
-    saveProject()
-  }
-  loadProject(projectId)
-  setShowSidebar(false)
+  // 5. CHANGEMENT DE PROJET (CLICK)
+  const handleProjectClick = async (projectId: string) => {
+    if (currentProject) {
+      // On attend que la sauvegarde soit finie avant de changer
+      await saveProject() 
     }
+    loadProject(projectId)
+    setShowSidebar(false)
+        }
     
 
   const updateFile = (value: string, viewUpdate: any) => {
