@@ -2,11 +2,35 @@ import React, { useEffect, useState } from 'react'
 import { ShieldSecurity, Lock1 } from 'iconsax-reactjs'
 import { X, ArrowUp } from 'lucide-react'
 
+// Type pour nos logs visuels
+type LogMessage = {
+    id: number;
+    text: string;
+    type: 'success' | 'error' | 'info';
+}
+
 export default function ApiKeyModal() {
   const [isOpen, setIsOpen] = useState(false)
   const [hasKey, setHasKey] = useState(false)
   const [isInputMode, setIsInputMode] = useState(false)
   const [inputValue, setInputValue] = useState("")
+  
+  // État pour stocker les logs à afficher
+  const [visibleLogs, setVisibleLogs] = useState<LogMessage[]>([])
+
+  // Fonction utilitaire pour ajouter un log visuel
+  const addLog = (text: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Date.now()
+    const newLog = { id, text, type }
+    
+    setVisibleLogs(prev => [...prev, newLog])
+    console.log(`[${type.toUpperCase()}] ${text}`) // Garde aussi le log console classique
+
+    // Supprime le log après 3 secondes
+    setTimeout(() => {
+        setVisibleLogs(prev => prev.filter(log => log.id !== id))
+    }, 3000)
+  }
 
   useEffect(() => {
     const storedKey = localStorage.getItem("gemini_api_key")
@@ -21,25 +45,32 @@ export default function ApiKeyModal() {
 
   const handleSave = () => {
     if (!inputValue.trim()) {
-        console.error("Erreur : Le champ API Key est vide.");
+        addLog("Erreur : Le champ API Key est vide.", "error");
         return;
     }
 
     try {
-        console.log("Tentative d'enregistrement de la clé API...");
+        addLog("Tentative d'enregistrement...", "info");
+        
         localStorage.setItem("gemini_api_key", inputValue.trim());
-        console.log("Clé API enregistrée avec succès dans le localStorage.");
         
-        setHasKey(true);
-        setIsOpen(false); // Ferme le modal immédiatement pour confirmer visuellement
+        // Vérification immédiate
+        const verify = localStorage.getItem("gemini_api_key");
+        if (verify === inputValue.trim()) {
+            addLog("Succès ! Clé sauvegardée. Rechargement...", "success");
+            
+            setHasKey(true);
+            // On attend un peu pour que tu aies le temps de voir le message "Succès"
+            setTimeout(() => {
+                setIsOpen(false); 
+                window.location.reload();
+            }, 1500); 
+        } else {
+            addLog("Erreur : La vérification du stockage a échoué.", "error");
+        }
         
-        // Rechargement pour que toute l'app prenne en compte la nouvelle clé
-        setTimeout(() => {
-            window.location.reload();
-        }, 500);
-        
-    } catch (error) {
-        console.error("Erreur lors de la sauvegarde dans le localStorage:", error);
+    } catch (error: any) {
+        addLog("Exception : " + (error.message || error), "error");
     }
   }
 
@@ -62,6 +93,28 @@ export default function ApiKeyModal() {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      
+      {/* --- SYSTEME DE LOGS VISUELS (Toaster) --- */}
+      <div className="fixed top-10 left-0 right-0 z-[10000] flex flex-col items-center gap-2 pointer-events-none px-4">
+        {visibleLogs.map((log) => (
+            <div 
+                key={log.id} 
+                className={`
+                    px-4 py-3 rounded-lg shadow-2xl border border-white/10 backdrop-blur-md text-xs font-mono font-medium animate-in slide-in-from-top-5 fade-in duration-300
+                    ${log.type === 'error' ? 'bg-red-500/90 text-white' : 
+                      log.type === 'success' ? 'bg-green-500/90 text-white' : 
+                      'bg-blue-500/90 text-white'}
+                `}
+            >
+                {log.type === 'error' && '❌ '}
+                {log.type === 'success' && '✅ '}
+                {log.type === 'info' && 'ℹ️ '}
+                {log.text}
+            </div>
+        ))}
+      </div>
+      {/* ------------------------------------------- */}
+
       <div className="relative w-[380px] h-[450px] bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col">
         
         {hasKey && (
@@ -150,4 +203,4 @@ export default function ApiKeyModal() {
       </div>
     </div>
   )
-      }
+          }
