@@ -17,7 +17,7 @@ import {
     updateHistory, 
     replaceLastHistoryMessage 
 } from '@/utils/history'; // Ajustez le chemin si nécessaire
-
+import VercelDeployModal from '@/components/VercelDeployModal';
 
 // Imports à ajouter dans votre liste d'imports existante
 import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
@@ -1261,7 +1261,7 @@ const toggleViewMode = (mode) => {
   setViewMode(mode);
 };
   
-  
+  const [isDeployOpen, setIsDeployOpen] = useState(false);
   
 
 const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ CET ÉTAT
@@ -4375,7 +4375,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 {/* ---------------------------------------------------- */}
 
 <Button
-    onClick={handleVercelDeploy}
+    onClick={() => {
+    if (!currentProject) {
+      alert("Veuillez d'abord créer ou sélectionner un projet.");
+      return;
+    }
+    setIsDeployOpen(true); 
+  }}
     disabled={deploying}
     className="bg-[#37322F] text-white px-1 py-1 rounded-[12px]  transition flex items-center "
   >
@@ -4386,6 +4392,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
          </span>     
     
   </Button>
+
+                <VercelDeployModal 
+    isOpen={isDeployOpen} 
+    onClose={() => setIsDeployOpen(false)} 
+    currentProject={currentProject} 
+/>
               
 {showDeploymentStatus && deploymentDetails.status !== 'idle' && (
     <div 
