@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ShieldSecurity, Lock1 } from 'iconsax-reactjs'
-import { X, ArrowUp } from 'lucide-react'
+import { X, ArrowUp, Copy } from 'lucide-react'
 
 // Type pour nos logs visuels
 type LogMessage = {
@@ -24,12 +24,17 @@ export default function ApiKeyModal() {
     const newLog = { id, text, type }
     
     setVisibleLogs(prev => [...prev, newLog])
-    console.log(`[${type.toUpperCase()}] ${text}`) // Garde aussi le log console classique
+    console.log(`[${type.toUpperCase()}] ${text}`) 
 
-    // Supprime le log après 3 secondes
+    // Augmenté à 10 secondes pour te laisser le temps de copier
     setTimeout(() => {
         setVisibleLogs(prev => prev.filter(log => log.id !== id))
-    }, 3000)
+    }, 10000)
+  }
+
+  const handleCopyLog = (text: string) => {
+    navigator.clipboard.writeText(text)
+    // Petit feedback visuel optionnel (pas de log pour éviter une boucle)
   }
 
   useEffect(() => {
@@ -60,7 +65,6 @@ export default function ApiKeyModal() {
             addLog("Succès ! Clé sauvegardée. Rechargement...", "success");
             
             setHasKey(true);
-            // On attend un peu pour que tu aies le temps de voir le message "Succès"
             setTimeout(() => {
                 setIsOpen(false); 
                 window.location.reload();
@@ -95,21 +99,31 @@ export default function ApiKeyModal() {
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       
       {/* --- SYSTEME DE LOGS VISUELS (Toaster) --- */}
-      <div className="fixed top-10 left-0 right-0 z-[10000] flex flex-col items-center gap-2 pointer-events-none px-4">
+      <div className="fixed top-10 left-0 right-0 z-[10000] flex flex-col items-center gap-2 pointer-events-auto px-4">
         {visibleLogs.map((log) => (
             <div 
                 key={log.id} 
                 className={`
-                    px-4 py-3 rounded-lg shadow-2xl border border-white/10 backdrop-blur-md text-xs font-mono font-medium animate-in slide-in-from-top-5 fade-in duration-300
+                    pl-4 pr-2 py-3 rounded-lg shadow-2xl border border-white/10 backdrop-blur-md text-xs font-mono font-medium animate-in slide-in-from-top-5 fade-in duration-300 max-w-full w-auto flex items-center gap-3
                     ${log.type === 'error' ? 'bg-red-500/90 text-white' : 
                       log.type === 'success' ? 'bg-green-500/90 text-white' : 
                       'bg-blue-500/90 text-white'}
                 `}
             >
-                {log.type === 'error' && '❌ '}
-                {log.type === 'success' && '✅ '}
-                {log.type === 'info' && 'ℹ️ '}
-                {log.text}
+                <span className="flex-1">
+                    {log.type === 'error' && '❌ '}
+                    {log.type === 'success' && '✅ '}
+                    {log.type === 'info' && 'ℹ️ '}
+                    {log.text}
+                </span>
+                
+                <button 
+                    onClick={() => handleCopyLog(log.text)}
+                    className="p-2 bg-white/20 hover:bg-white/30 rounded text-white transition-colors"
+                    title="Copier le message"
+                >
+                    <Copy size={14} />
+                </button>
             </div>
         ))}
       </div>
@@ -203,4 +217,4 @@ export default function ApiKeyModal() {
       </div>
     </div>
   )
-          }
+        }
