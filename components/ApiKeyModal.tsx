@@ -59,7 +59,7 @@ export default function ApiKeyModal() {
 
         <div className="flex-1 p-6 flex flex-col relative">
           
-          <div className="flex justify-between items-start bg-[#111] rounded-[12px] mb-7 h-auto p-1">
+          <div className="flex justify-between items-start bg-[#222] rounded-[12px] mb-7 h-auto p-1">
             <div>
               <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#111] border border-black/5 text-[10px] font-medium text-[#e4e4e4] mb-2">
                 NEW
@@ -71,7 +71,7 @@ export default function ApiKeyModal() {
                 Now more powerful than ever.
               </p>
             </div>
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 blur-md opacity-80 animate-pulse" />
+            <img src="/3dicons-key-front-color.png" className="h-[80px] object-cover" alt="logo key" />
           </div>
 
           <div className="space-y-5 mt-1 mb-auto">
