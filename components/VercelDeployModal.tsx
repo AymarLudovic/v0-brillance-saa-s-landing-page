@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Zap, Loader, Check, Terminal } from 'lucide-react'; 
+import { X, Zap, Loader, Check, Terminal, AlertCircle } from 'lucide-react'; 
 
 interface VercelDeployModalProps {
     currentProject: any;
@@ -12,7 +12,7 @@ interface VercelDeployModalProps {
 interface LogEntry {
     timestamp: string;
     message: string;
-    type: 'info' | 'error' | 'success' | 'warning';
+    type: 'info' | 'error' | 'success' | 'warning' | 'system';
 }
 
 export default function VercelDeployModal({ currentProject, isOpen, onClose }: VercelDeployModalProps) {
@@ -22,13 +22,14 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
     const [deployUrl, setDeployUrl] = useState<string | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
     
-    // Chargement du token depuis localStorage au montage
+    // Pour éviter d'afficher les logs en double, on garde une trace des IDs d'événements Vercel
+    const processedEventIds = useRef<Set<string>>(new Set());
+
     useEffect(() => {
         const storedToken = localStorage.getItem('vercel_token');
         if (storedToken) setToken(storedToken);
     }, []);
 
-    // Scroll automatique vers le bas des logs
     useEffect(() => {
         logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
@@ -43,10 +44,55 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
         localStorage.setItem('vercel_token', val);
     };
 
-    // FONCTION POUR SUIVRE L'ÉTAT DU DÉPLOIEMENT (Simule le stream de logs)
+    // --- FONCTION CRUCIALE : RÉCUPÉRER LES VRAIS LOGS ---
+    const fetchBuildLogs = async (deploymentId: string) => {
+        try {
+            const res = await fetch(`https://api.vercel.com/v2/deployments/${deploymentId}/events`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            if (!res.ok) return;
+
+            const events = await res.json();
+            
+            // L'API renvoie une liste d'événements. On filtre ceux qu'on a déjà affichés.
+            events.forEach((event: any) => {
+                if (processedEventIds.current.has(event.id)) return;
+                
+                processedEventIds.current.add(event.id);
+                
+                let type: LogEntry['type'] = 'info';
+                const text = event.payload?.text || event.text || '';
+                
+                // Détection basique du type de log basé sur le contenu
+                if (event.type === 'error' || text.toLowerCase().includes('error') || text.toLowerCase().includes('failed')) {
+                    type = 'error';
+                } else if (text.toLowerCase().includes('warning')) {
+                    type = 'warning';
+                } else if (event.type === 'command-output') {
+                    type = 'system'; // Output standard de la console
+                }
+
+                if (text) {
+                    // Nettoyage du timestamp Vercel pour l'affichage
+                    const time = new Date(event.created).toLocaleTimeString();
+                    setLogs(prev => [...prev, { timestamp: time, message: text, type }]);
+                }
+            });
+
+        } catch (e) {
+            console.error("Erreur fetch logs:", e);
+        }
+    };
+
+    // BOUCLE DE POLLING (Statut + Logs)
     const pollDeploymentStatus = async (deploymentId: string) => {
         const checkStatus = async () => {
             try {
+                // 1. On récupère les logs d'abord
+                await fetchBuildLogs(deploymentId);
+
+                // 2. On vérifie le statut global
                 const res = await fetch(`https://api.vercel.com/v13/deployments/${deploymentId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -54,28 +100,24 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                 
                 if (data.readyState === 'READY') {
                     addLog('Build completed successfully.', 'success');
-                    addLog('Finalizing deployment...', 'info');
                     addLog(`Available at: https://${data.url}`, 'success');
                     setDeployUrl(`https://${data.url}`);
                     setIsDeploying(false);
                     return true; // Stop polling
-                } else if (data.readyState === 'ERROR') {
-                    addLog('Deployment failed on Vercel side.', 'error');
+                } 
+                else if (data.readyState === 'ERROR' || data.readyState === 'CANCELED') {
+                    addLog('❌ Deployment failed. Check the logs above for details.', 'error');
                     setIsDeploying(false);
                     return true; // Stop polling
-                } else if (data.readyState === 'BUILDING') {
-                    // Astuce pour simuler de l'activité si on est toujours en building
-                    if (Math.random() > 0.7) addLog('Running build command (bun run build)...', 'info');
-                } else {
-                    addLog(`Current Status: ${data.readyState}`, 'warning');
-                }
+                } 
+                
                 return false; // Continue polling
             } catch (e) {
                 return false;
             }
         };
 
-        // Boucle de polling toutes les 2 secondes
+        // Boucle toutes les 2 secondes
         const interval = setInterval(async () => {
             const finished = await checkStatus();
             if (finished) clearInterval(interval);
@@ -89,12 +131,12 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
         }
         
         setIsDeploying(true);
-        setLogs([]); // Reset logs
+        setLogs([]); 
+        processedEventIds.current.clear(); // Reset des logs vus
         setDeployUrl(null);
-        addLog('Preparing files for upload...', 'info');
+        addLog('Uploading files and creating deployment...', 'info');
 
         try {
-            // 1. Appel à notre route API Next.js
             const response = await fetch('/api/deploy/vercel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -109,11 +151,9 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
 
             if (!response.ok) throw new Error(data.error || 'Deployment creation failed');
 
-            addLog('Project files uploaded to Vercel.', 'success');
-            addLog(`Deployment ID: ${data.deploymentId}`, 'info');
-            addLog('Waiting for build pipeline...', 'warning');
-
-            // 2. Commencer le suivi (Polling)
+            addLog('Files uploaded. Waiting for Vercel build...', 'success');
+            
+            // Démarrage du polling
             pollDeploymentStatus(data.deploymentId);
 
         } catch (error: any) {
@@ -126,7 +166,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-[600px] bg-[#0f0f0f] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+            <div className="relative w-[700px] bg-[#0f0f0f] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
                 
                 {/* Header */}
                 <div className="flex justify-between items-center p-5 border-b border-white/5 bg-[#141414]">
@@ -136,7 +176,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-white">Deploy to Vercel</h2>
-                            <p className="text-xs text-gray-500">Production deployment pipeline</p>
+                            <p className="text-xs text-gray-500">Real-time build logs</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
@@ -147,7 +187,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                 {/* Body */}
                 <div className="p-6 flex flex-col gap-6">
                     
-                    {/* Token Input (si pas défini ou pour changer) */}
+                    {/* Token Input */}
                     <div className="flex flex-col gap-2">
                         <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Vercel Access Token</label>
                         <input 
@@ -157,30 +197,26 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                             placeholder="Paste your token (ey...)"
                             className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-700"
                         />
-                        <p className="text-[10px] text-gray-600">
-                            Settings {'>'} Tokens on Vercel Dashboard. Saved locally.
-                        </p>
                     </div>
 
-                    {/* Terminal / Logs Container */}
-                    <div className="flex-1 bg-black rounded-lg border border-white/10 p-4 font-mono text-xs h-[250px] overflow-y-auto shadow-inner flex flex-col gap-1">
+                    {/* Terminal / Logs Container - TAILLE AGRANDIE POUR MIEUX LIRE */}
+                    <div className="flex-1 bg-black rounded-lg border border-white/10 p-4 font-mono text-xs h-[350px] overflow-y-auto shadow-inner flex flex-col gap-1">
                         {logs.length === 0 && (
                             <div className="text-gray-700 italic flex items-center gap-2">
                                 <Terminal size={12} /> Ready to deploy...
                             </div>
                         )}
                         {logs.map((log, i) => (
-                            <div key={i} className="flex gap-3 items-start animate-in slide-in-from-left-2 duration-300">
-                                <span className="text-gray-600 shrink-0 select-none">[{log.timestamp}]</span>
-                                <span className={`break-all ${
-                                    log.type === 'error' ? 'text-red-400' :
+                            <div key={i} className="flex gap-3 items-start border-b border-white/5 pb-1 mb-1 last:border-0">
+                                <span className="text-gray-600 shrink-0 select-none w-[60px] text-[10px] pt-0.5">{log.timestamp}</span>
+                                <span className={`break-all whitespace-pre-wrap ${
+                                    log.type === 'error' ? 'text-red-400 font-bold' :
                                     log.type === 'success' ? 'text-green-400' :
                                     log.type === 'warning' ? 'text-yellow-400' :
-                                    'text-gray-300'
+                                    log.type === 'system' ? 'text-gray-300' : // Pour les outputs de commande standards
+                                    'text-blue-300' // Pour les infos générales
                                 }`}>
-                                    {log.type === 'success' && '✓ '}
-                                    {log.type === 'error' && '✕ '}
-                                    {log.type === 'warning' && '⚠ '}
+                                    {log.type === 'error' && <AlertCircle size={12} className="inline mr-1 mb-0.5"/>}
                                     {log.message}
                                 </span>
                             </div>
@@ -190,7 +226,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
 
                 </div>
 
-                {/* Footer / Actions */}
+                {/* Footer */}
                 <div className="p-5 border-t border-white/5 bg-[#141414] flex justify-between items-center">
                     <div>
                         {deployUrl && (
@@ -217,7 +253,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                         {isDeploying ? (
                             <>
                                 <Loader size={16} className="animate-spin" />
-                                Deploying...
+                                Building...
                             </>
                         ) : (
                             <>
@@ -230,4 +266,4 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
             </div>
         </div>
     );
-                    }
+}
