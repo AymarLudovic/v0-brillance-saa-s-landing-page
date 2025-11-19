@@ -1,75 +1,68 @@
-// app/api/deploy/vercel/route.ts
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
+
+// Type défini par Vercel pour l'upload de fichiers
+interface VercelFile {
+  file: string;
+  data: string;
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { token, files, projectName } = body || {};
+    const { projectName, token, files } = await req.json();
 
-    // Vérification basique
-    if (!token || !files || !projectName) {
-      return NextResponse.json(
-        { success: false, error: "Missing parameters: token, files or projectName" },
-        { status: 400 }
-      );
+    if (!projectName || !token || !files) {
+      return NextResponse.json({ error: 'Données manquantes (nom, token ou fichiers)' }, { status: 400 });
     }
 
-    // Formatage des fichiers pour l'API Vercel
-    const formattedFiles = Object.entries(files).map(([path, data]) => ({
-      file: path,
-      data,
+    // 1. Transformation des fichiers pour l'API Vercel
+    // L'API Vercel attend un tableau d'objets { file: 'path', data: 'content' }
+    const deployFiles: VercelFile[] = files.map((f: any) => ({
+      file: f.filePath, // ex: "app/page.tsx"
+      data: f.content
     }));
 
-    // Création du déploiement sur Vercel
-    const vercelRes = await fetch("https://api.vercel.com/v13/deployments", {
-      method: "POST",
+    // Ajout indispensable de vercel.json pour forcer la config (optionnel mais recommandé)
+    deployFiles.push({
+        file: 'vercel.json',
+        data: JSON.stringify({
+            framework: "nextjs",
+            buildCommand: "npm run build", // ou bun run build
+            installCommand: "npm install"  // ou bun install
+        })
+    });
+
+    // 2. Création du déploiement via l'API Vercel
+    const response = await fetch('https://api.vercel.com/v13/deployments', {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        name: projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-        files: formattedFiles,
-        target: "production",
+        name: projectName.toLowerCase().replace(/\s+/g, '-'), // Slugify le nom
+        files: deployFiles,
+        projectSettings: {
+          framework: 'nextjs',
+        },
+        target: 'production', // Déploie directement en prod
       }),
     });
 
-    // Essaie de lire la réponse JSON, même si elle est vide
-    let data: any = null;
-    try {
-      data = await vercelRes.json();
-    } catch {
-      // Si la réponse est vide, on renvoie une erreur contrôlée
-      return NextResponse.json(
-        { success: false, error: "Vercel API returned an empty response" },
-        { status: 502 }
-      );
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Vercel Error:", data);
+      return NextResponse.json({ success: false, error: data.error?.message || 'Erreur Vercel inconnue' }, { status: 500 });
     }
 
-    // Vérification du succès côté Vercel
-    if (!vercelRes.ok || !data || data.error) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: data?.error?.message || `Vercel API Error (${vercelRes.status})`,
-          details: data,
-        },
-        { status: vercelRes.status || 500 }
-      );
-    }
-
-    // ✅ Succès
-    return NextResponse.json({
-      success: true,
-      deploymentId: data.id,
-      url: `https://${data.url}`,
+    // Succès : on renvoie l'ID du déploiement et l'URL
+    return NextResponse.json({ 
+        success: true, 
+        deploymentId: data.id,
+        url: data.url 
     });
-  } catch (err: any) {
-    console.error("🚨 Deploy route error:", err);
-    return NextResponse.json(
-      { success: false, error: err.message || "Internal Server Error" },
-      { status: 500 }
-    );
+
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
-}
-  
+                               }
