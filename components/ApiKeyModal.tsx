@@ -88,7 +88,7 @@ export default function ApiKeyModal() {
                 Now more powerful than ever.
               </p>
             </div>
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 blur-md opacity-80 animate-pulse" />
+            <img className="h-[80px] object-cover" src="/3dicons-key-front-color.png" alt="Logo images" />
           </div>
 
           {/* Main Content (Welcome Message) */}
@@ -110,21 +110,21 @@ export default function ApiKeyModal() {
             ) : (
               <div className="flex items-center gap-2 w-full h-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex-1 h-full bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
-                    <Lock1 size={16} variant="Bold" className="text-[#666] shrink-0"/>
+                    
                     <input 
                         type="password"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="sk-..."
+                        placeholder="your API Key...."
                         className="bg-transparent border-none outline-none text-xs text-white w-full placeholder:text-[#444]"
                         autoFocus
                     />
                 </div>
                 <button 
                     onClick={handleSave}
-                    className="h-full px-5 bg-white text-black rounded-[10px] text-xs font-bold hover:bg-gray-200 transition-colors shrink-0 shadow-lg shadow-white/5"
+                    className="h-full text-sm px-5 bg-white text-black rounded-[14px] text-xs font-semibold hover:bg-gray-200 transition-colors shrink-0 shadow-lg shadow-white/5"
                 >
-                    SET
+                    Set
                 </button>
               </div>
             )}
