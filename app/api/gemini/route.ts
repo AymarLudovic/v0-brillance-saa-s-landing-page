@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
-// import { designs } from "@/lib/designlibrary" // RETIRÉ
 
-// --- Déclaration du Contexte de Design pour l'IA ---
-const FULL_PROMPT_INJECTION = `${basePrompt}\n\n`; // Le prompt de base subsiste
+const FULL_PROMPT_INJECTION = `${basePrompt}\n\n`; 
 
-
-// --- TYPES (inchangés) ---
 interface Message { 
     role: "user" | "assistant" | "system"; 
     content: string; 
@@ -19,12 +15,7 @@ interface Message {
         response: any;
     }
 }
-interface ProjectFile { 
-    filePath: string; 
-    content: string; 
-}
 
-// Utilitaires (inchangés)
 function getMimeTypeFromBase64(dataUrl: string): string {
     const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
     return match ? match[1] : 'application/octet-stream';
@@ -36,7 +27,6 @@ function cleanBase64Data(dataUrl: string): string {
 
 const BATCH_SIZE = 256; 
 
-// 🛑 DÉCLARATION DE L'OUTIL readFile (inchangée) 🛑
 const readFileDeclaration: FunctionDeclaration = {
   name: "readFile",
   description: "Lit le contenu d'un fichier du projet par son chemin d'accès (e.g., app/page.tsx, components/button.tsx). Doit être appelé avant de modifier ou d'analyser le contenu d'un fichier. Retourne le contenu du fichier sous forme de chaîne.",
@@ -54,6 +44,13 @@ const readFileDeclaration: FunctionDeclaration = {
 
 export async function POST(req: Request) {
   try {
+    const authHeader = req.headers.get('x-gemini-api-key');
+    const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+        return NextResponse.json({ error: "Clé API Gemini non configurée (ni dans ENV, ni dans LocalStorage)" }, { status: 401 })
+    }
+
     const body = await req.json();
     const { 
         history, 
@@ -68,12 +65,9 @@ export async function POST(req: Request) {
     if (!history || history.length === 0) {
         return NextResponse.json({ error: "Historique de conversation manquant" }, { status: 400 })
     }
-    if (!process.env.GEMINI_API_KEY) {
-        return NextResponse.json({ error: "Clé API Gemini non configurée" }, { status: 500 })
-    }
 
     const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: apiKey,
     })
 
     const model = "gemini-2.5-flash"
@@ -89,15 +83,13 @@ export async function POST(req: Request) {
         let role: 'user' | 'model'; 
         let textContent = msg.content;
 
-        // 🔥 CORRECTION: Gérer le rôle 'system' (contexte des fichiers)
         if (msg.role === 'system') {
             systemContextParts.push({ text: textContent });
-            continue; // Le contexte système est traité séparément
+            continue; 
         }
         
         role = msg.role === 'assistant' ? 'model' : 'user'; 
         
-        // 🛑 TRAITEMENT DES RÉPONSES D'OUTILS
         if (msg.functionResponse) {
             parts.push({
                 functionResponse: {
@@ -106,13 +98,8 @@ export async function POST(req: Request) {
                 }
             });
         } 
-        // 🛑 TRAITEMENT DU MESSAGE UTILISATEUR/ASSISTANT
         else {
-            
-            // 1. Injection des binaires (uniquement sur le DERNIER message utilisateur)
             if (i === lastUserIndex && role === 'user') {
-                
-                // Gestion des images/fichiers binaires
                 if (uploadedImages && uploadedImages.length > 0) {
                     uploadedImages.forEach((dataUrl) => {
                         parts.push({
@@ -135,8 +122,6 @@ export async function POST(req: Request) {
                     });
                 }
             }
-            
-            // 2. Assurer que le message texte est toujours présent
             parts.push({ text: textContent || ' ' }); 
         }
         
@@ -145,7 +130,6 @@ export async function POST(req: Request) {
         }
     }
 
-    // 🔥 CORRECTION: Construction et injection de la systemInstruction
     const finalSystemInstruction = (
         FULL_PROMPT_INJECTION + 
         (systemContextParts.length > 0 
@@ -159,11 +143,10 @@ export async function POST(req: Request) {
       contents, 
       tools: [{ functionDeclarations: [readFileDeclaration] }],
       config: {
-          systemInstruction: finalSystemInstruction // Utilisation de l'instruction système
+          systemInstruction: finalSystemInstruction 
       }
     })
 
-    // Streaming (inchangé)
     const encoder = new TextEncoder()
     let batchBuffer = ""; 
 
@@ -173,10 +156,8 @@ export async function POST(req: Request) {
 
         for await (const chunk of response) {
             
-            // 🛑 VÉRIFICATION DES APPELS DE FONCTIONS 🛑
             if (chunk.functionCalls && chunk.functionCalls.length > 0) {
                 functionCall = true; 
-                
                 controller.enqueue(encoder.encode(JSON.stringify({ 
                     functionCall: chunk.functionCalls[0]
                 })));
@@ -217,4 +198,4 @@ export async function POST(req: Request) {
         details: err.message
     }, { status: 500 })
   }
-}
+        }
