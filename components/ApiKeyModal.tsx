@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Hierarchy, Message, ShieldSecurity, Flash, Edit, Lock1 } from 'iconsax-react'
+import { Hierarchy, Message, ShieldSecurity, Flash, Edit, Lock1 } from 'iconsax-reactjs'
 import { X } from 'lucide-react'
 
 export default function ApiKeyModal() {
