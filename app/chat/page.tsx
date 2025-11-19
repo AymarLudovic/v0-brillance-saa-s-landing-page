@@ -502,9 +502,12 @@ const extractRawJson = (content: string): string | null => {
   }
 }
   
+
+
+// ------------------------------------------------------
 // --- LOGIQUE INDEXEDDB (À placer hors du composant) ---
 const DB_NAME = 'StudioCodeDB';
-const DB_VERSION = 2; // On augmente la version pour ajouter le store 'projects'
+const DB_VERSION = 2; 
 
 const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -516,13 +519,12 @@ const initDB = (): Promise<IDBDatabase> => {
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       
-      // Création du store pour les clés API (si pas déjà fait)
+      // Store pour les clés API
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings');
       }
       
-      // CRUCIAL : Création du store pour les projets
-      // keyPath: 'id' signifie que chaque projet sera indexé par son champ .id unique
+      // Store pour les projets
       if (!db.objectStoreNames.contains('projects')) {
         db.createObjectStore('projects', { keyPath: 'id' });
       }
@@ -530,19 +532,29 @@ const initDB = (): Promise<IDBDatabase> => {
   });
 };
 
-// Sauvegarder un seul projet (Ajout ou Mise à jour)
+// Récupérer la Clé API (NÉCESSAIRE POUR SENDCHAT)
+const getApiKeyFromIDB = async (): Promise<string | null> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('settings', 'readonly');
+    const store = tx.objectStore('settings');
+    const request = store.get('gemini_api_key');
+    request.onsuccess = () => resolve(request.result ? request.result as string : null);
+    request.onerror = () => reject(request.error);
+  });
+};
+
 const saveProjectToIDB = async (project: any) => {
   const db = await initDB();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction('projects', 'readwrite');
     const store = tx.objectStore('projects');
-    const request = store.put(project); // .put met à jour si l'ID existe, sinon crée
+    const request = store.put(project); 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
 };
 
-// Récupérer tous les projets (pour la sidebar)
 const getAllProjectsFromIDB = async (): Promise<any[]> => {
   const db = await initDB();
   return new Promise((resolve, reject) => {
@@ -554,7 +566,6 @@ const getAllProjectsFromIDB = async (): Promise<any[]> => {
   });
 };
 
-// Supprimer un projet de la DB
 const deleteProjectFromIDB = async (projectId: string) => {
   const db = await initDB();
   return new Promise<void>((resolve, reject) => {
@@ -566,7 +577,6 @@ const deleteProjectFromIDB = async (projectId: string) => {
   });
 };
 // ------------------------------------------------------
-
 
 // --- LOGIQUE D'ANALYSE (Fonctions pures) ---
 const parseRootVariables = (css: string): { name: string; value: string }[] => {
@@ -2693,6 +2703,8 @@ const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\
 
 
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
+
+
 const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
@@ -2741,7 +2753,7 @@ const sendChat = async (promptOverride?: string) => {
     ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
     : [];
 
-  // ---------------- MODIFIÉ: INJECTION DU CONTEXTE SYSTÈME (FILTRE 6000 CHARS) ----------------
+  // ---------------- INJECTION DU CONTEXTE SYSTÈME ----------------
   
   const filesList: string[] = [];
   const filesContentSnapshots: string[] = [];
@@ -2750,36 +2762,25 @@ const sendChat = async (promptOverride?: string) => {
   currentProjectFiles.forEach(file => {
       const content = file.content || "";
       const size = content.length;
-      
       let fileStatus = '';
 
-      // Ajout du contenu complet SEULEMENT si la taille est <= 6000
       if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
-          
-          // MODIFICATION POUR AJOUTER LES NUMÉROS DE LIGNE
           const lines = content.split('\n');
-          const contentWithLineNumbers = lines.map((line, index) => 
-              `${index + 1}: ${line}`
-          ).join('\n');
+          const contentWithLineNumbers = lines.map((line, index) => `${index + 1}: ${line}`).join('\n');
           
           filesContentSnapshots.push(
               `<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n` +
-              contentWithLineNumbers + // <-- Utiliser le contenu numéroté ici
+              contentWithLineNumbers + 
               `\n</file_content_snapshot>`
           );
           fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
 
       } else if (size > CONTENT_SNAPSHOT_LIMIT) {
-          // Fichier exclu de l'injection de contenu
           filesExcludedCount++;
           fileStatus = `(Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)`;
-          
       } else {
-          // Fichier vide
           fileStatus = `(EMPTY file)`;
       }
-      
-      // La liste des chemins est toujours incluse avec le statut
       filesList.push(`<project_file path="${file.filePath}" ${fileStatus.trim()}/>`);
   });
 
@@ -2788,57 +2789,55 @@ const sendChat = async (promptOverride?: string) => {
     content: (
         `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
         `[Use the <fetch_file path="..."/> artifact to read content for files excluded or not included below.]\n` +
-        (filesExcludedCount > 0 
-            ? `⚠️ ${filesExcludedCount} files were EXCLUDED from initial context injection (size > ${CONTENT_SNAPSHOT_LIMIT} chars).\n`
-            : ''
-        ) +
+        (filesExcludedCount > 0 ? `⚠️ ${filesExcludedCount} files were EXCLUDED from initial context injection.\n` : '') +
         filesList.join("\n") +
-        (filesContentSnapshots.length > 0 
-            ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS (Size <= ${CONTENT_SNAPSHOT_LIMIT} chars)\n` + filesContentSnapshots.join("\n\n")
-            : ""
-        )
+        (filesContentSnapshots.length > 0 ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS\n` + filesContentSnapshots.join("\n\n") : "")
     )
   };
 
-  // L'historique pour l'API commence avec le contexte système.
   let historyForApi = [systemFileContext, ...currentHistory];
-
-  // ---------------- CACHE LOCAL POUR LECTURE DE FICHIER (inchangé) ----------------
   const readFilesCache = new Set<string>();
 
   setLoading(true);
   addLog(`Sending prompt to Gemini...`);
   
+  // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
+  let apiKey = "";
+  try {
+      const dbKey = await getApiKeyFromIDB();
+      if (dbKey) apiKey = dbKey;
+      else console.warn("Aucune clé API trouvée dans la base de données.");
+  } catch (e) {
+      console.warn("Erreur lecture clé API:", e);
+  }
+  
   let urlArtifact: any = null;
   let text = "";
   let retryCount = 0;
-
-  // Variable pour stocker le message final de l'assistant après le streaming (Nouveau)
   let finalAssistantMessage: Message | undefined = undefined; 
   
   try {
     let res: Response | null = null;
     let apiCallSuccessful = false;
 
-    // ---------------- BOUCLE DE RETRY ROBUSTE (CORRIGÉE) ----------------
+    // ---------------- BOUCLE DE RETRY ----------------
     while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
       try {
         if (retryCount > 0) {
-          // Calcul du délai (exponentiel backoff, plafonné à 5000ms)
           const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000); 
-          
-          addLog(`[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES} après erreur... Attente de ${delay}ms.`);
-          // 🔥 L'attente asynchrone est maintenant correcte
+          addLog(`[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES}... Attente ${delay}ms.`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
         res = await fetch("/api/gemini", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+              "Content-Type": "application/json",
+              "x-gemini-api-key": apiKey // 🔥 Envoi de la clé dans les headers
+          },
           body: JSON.stringify({ 
             history: historyForApi, 
             currentProjectFiles,
-            //projectEmbeddings,
             uploadedImages,
             uploadedFiles
           }),
@@ -2852,13 +2851,10 @@ const sendChat = async (promptOverride?: string) => {
       } catch (e: any) {
         console.error(`API Call failed on attempt ${retryCount + 1}:`, e.message);
         retryCount++;
-        if (retryCount >= MAX_RETRIES) {
-          throw new Error(`Gemini API failed after ${MAX_RETRIES} retries. Veuillez réessayer.`);
-        }
+        if (retryCount >= MAX_RETRIES) throw new Error(`Gemini API failed after ${MAX_RETRIES} retries.`);
         res = null; 
       }
     }
-    // ---------------- FIN BOUCLE DE RETRY ----------------
 
     if (!res || !res.body) return;
 
@@ -2877,53 +2873,42 @@ const sendChat = async (promptOverride?: string) => {
       const fetchFileMatch = text.match(FETCH_FILE_REGEX);
       if (fetchFileMatch) {
         const filePath = fetchFileMatch[1].trim();
-        addLog(`[ACTION] Gemini requested file via new artifact: ${filePath}`);
+        addLog(`[ACTION] Gemini requested file: ${filePath}`);
 
         const isContentPreInjected = currentProjectFiles.some(
             f => f.filePath === filePath && (f.content || "").length <= CONTENT_SNAPSHOT_LIMIT
         );
         
         if (!isFetchInProgress && !readFilesCache.has(filePath) && !isContentPreInjected) {
-          
           const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
-          
           if (fileContent) {
             text += `\n${fileContent}\n`; 
             readFilesCache.add(filePath); 
             
-            // Mise à jour du message assistant 
             setMessages((prev) => {
               const updated = [...prev];
-              // 🔥 CORRECTION D'INDEXATION 1 (Sécurisée)
               if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
                   updated[assistantMessageIndex].content = text;
               }
               return updated;
             });
           }
-        } else if (isContentPreInjected) {
-            addLog(`⚠️ [FETCH_FILE] Ignoré (contenu déjà injecté dans le message système : ${filePath})`);
-        } else if (readFilesCache.has(filePath)) {
-          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà lu et injecté dans ce tour : ${filePath})`);
-        } else {
-          addLog(`⚠️ [FETCH_FILE] Ignoré (déjà en cours via isFetchInProgress)`);
         }
       }
 
-      // ----------------- URL ARTIFACT ----------------- (inchangé)
+      // ----------------- URL ARTIFACT -----------------
       const urlMatch = text.match(inspirationUrlRegex);
       if (urlMatch) {
         try {
           const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
           const parsedUrlData = JSON.parse(jsonString);
-
           if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
             urlArtifact = { url: parsedUrlData.url };
           }
         } catch (e) { console.error("Failed to parse URL JSON:", e); }
       }
 
-      // ----------------- FILE ARTIFACTS ----------------- (inchangé)
+      // ----------------- FILE ARTIFACTS -----------------
       const fileArtifacts = extractFileArtifacts(text);
 
       fileArtifacts.forEach((artifact: any) => {
@@ -2963,13 +2948,10 @@ const sendChat = async (promptOverride?: string) => {
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
         .replace(FETCH_FILE_REGEX, '') 
-        // Supprime l'artefact de contenu injecté (snapshot) pour l'affichage
         .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
 
-      // Mise à jour message assistant (pour l'affichage en streaming)
       setMessages((prev) => {
         const updatedMessages = [...prev];
-        // 🔥 CORRECTION D'INDEXATION 2 (Sécurisée)
         if (assistantMessageIndex >= 0 && assistantMessageIndex < updatedMessages.length) {
           const lastMsg = updatedMessages[assistantMessageIndex];
           if (lastMsg?.role === "assistant") {
@@ -2980,9 +2962,8 @@ const sendChat = async (promptOverride?: string) => {
         return updatedMessages;
       });
     } // FIN STREAMING
-    addLog("[STREAMING] Fin du streaming. Préparation de la finalisation du message.");
 
-    // ---------------- PRÉPARATION DU MESSAGE FINAL (inchangé) ----------------
+    addLog("[STREAMING] Fin du streaming.");
     
     let finalCleanText = text
         .replace(inspirationUrlRegex, '')
@@ -3011,24 +2992,15 @@ const sendChat = async (promptOverride?: string) => {
         artifactData: artifactData
     };
 
-    // ---------------- FIN PRÉPARATION MESSAGE FINAL ----------------
-
-    // -------- POST STREAM ---------- 
     if (urlArtifact) {
       addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
       return; 
     }
-    
-    const isAnalysisMode = promptOverride?.includes("Analysis data from");
-    if (isAnalysisMode) {
-      addLog(`[AUTO-FLOW] Mode d'analyse détecté — désactivation de la recherche d'URL inspiration.`);
-    }
           
     if (finalArtifacts.length > 0) {
-      addLog(`Response contains code. Applying ${finalArtifacts.length} changes.`);
+      addLog(`Applying ${finalArtifacts.length} changes.`);
       applyArtifactsToProject(finalArtifacts);
-
       setTimeout(() => {
         finalArtifacts.forEach(async (artifact) => {
           const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
@@ -3036,12 +3008,10 @@ const sendChat = async (promptOverride?: string) => {
         });
       }, 100);
     } else {
-      addLog("✅ Response received. No code artifacts detected to apply.");
+      addLog("✅ Response received. No code artifacts.");
     }
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`);
-    
-    // En cas d'erreur: Nettoyage du placeholder dans l'état React
     setMessages((prev) => {
         const updated = [...prev];
         if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
@@ -3050,26 +3020,20 @@ const sendChat = async (promptOverride?: string) => {
         return prev;
     }); 
     setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
-    
   } finally {
-    
-    // 🔥 MISE À JOUR FINALE DANS FINALLY
     if (finalAssistantMessage) {
         setMessages((prev) => {
             const updated = [...prev];
-            // 🔥 CORRECTION D'INDEXATION 3 (Sécurisée)
             if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
                  updated[assistantMessageIndex] = finalAssistantMessage as Message; 
-                 addLog(`[FINALIZATION] Placeholder remplacé par la réponse finale.`);
             }
             return updated;
         });
     }
-    
     setLoading(false);
   }
 };
- 
+      
              
 
          
@@ -3746,12 +3710,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
 
-        
 
-              
 
-              
-          {messages.map((msg, index) => {
+
+                {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
   const isCopied = copiedMessageIndex === index;
@@ -3761,34 +3723,26 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       key={index}
       className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
     >
-      {/* Affichage de l'icône de l'assistant (inchangé) */}
+      {/* Affichage de l'icône de l'assistant */}
       {msg.role === "assistant" && (
         <div className="flex items-center gap-3">
           <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
-            <svg
-              className="h-[18px] w-[18px]"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
+            <svg className="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="12" cy="12" r="10" />
             </svg>
           </div>
 
-          {/* NOUVEAU: Indicateur "Thinking..." */}
+          {/* Indicateur "Thinking..." */}
           {loading && index === messages.length - 1 && (
-            
           <div className="flex items-center gap-[3px]">
-            <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">
-              Thinking...
-            </p>
+            <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
             <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
           </div>
           )}
         </div>
       )}
       
-      {/* Conteneur du message (bulle) */}
+      {/* Conteneur du message */}
       <div
         className={`p-2 rounded-xl max-w-xl group relative ${
           msg.role === "user"
@@ -3797,17 +3751,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         }`}
       >
         {(() => {
-          
           const rawTextContent = msg.content; 
           const isFileArtifact = artifact && (artifact.type === 'files');
           const isUrlArtifact = artifact && (artifact.type === 'url');
           const displayElements = [];
           
-          // ----------------------------------------------------
-          // LOGIQUE DE NETTOYAGE DU CONTENU TEXTUEL (POUR L'IA ET LA COPIE)
-          // ----------------------------------------------------
-          
-          let finalContentToDisplay = rawTextContent
+          // 🔥 LOGIQUE DE MASQUAGE (Split sur |||)
+          const contentForTextDisplay = rawTextContent.split('|||')[0];
+
+          let finalContentToDisplay = contentForTextDisplay
               .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
               .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
               .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
@@ -3816,22 +3768,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           
           const hasTextContent = finalContentToDisplay.length > 0;
           
-          // ----------------------------------------------------
-          // RENDU DU MESSAGE UTILISATEUR (EXPANSION SIMPLIFIÉE)
-          // ----------------------------------------------------
-          
+          // --- RENDU MESSAGE UTILISATEUR ---
           if (msg.role === "user") {
               const MAX_HEIGHT = 150; 
-              // DÉCLENCHEUR : Message de plus de 10 000 caractères (ou 20 lignes pour les logs)
               const isLongMessage = msg.content.length > 10000 || rawTextContent.split('\n').length > 20; 
               
               const userContent = (
                   <pre 
                       className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
-                      style={{
-                          maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`,
-                          overflow: 'hidden',
-                      }}
+                      style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`, overflow: 'hidden' }}
                   >
                       {msg.content}
                   </pre>
@@ -3840,53 +3785,30 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               displayElements.push(
                   <div key="user-content-wrapper" className="relative">
                       {userContent}
-                      
-                      {/* Overlay et bouton Expand (Visible et Cliquable) */}
                       {!isExpanded && isLongMessage && (
                           <div 
-                              className="absolute inset-x-0 bottom-0 h-[60px] 
-                                         flex flex-col justify-end items-center 
-                                         p-2 rounded-b-xl cursor-pointer z-10" // AJOUT z-10 pour garantir le clic
-                              style={{ 
-                                  background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' 
-                              }}
+                              className="absolute inset-x-0 bottom-0 h-[60px] flex flex-col justify-end items-center p-2 rounded-b-xl cursor-pointer z-10"
+                              style={{ background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' }}
                               onClick={() => setExpandedMessageIndex(index)} 
-                              title="Afficher le message complet"
                           >
-                              <button
-                                  className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80"
-                                  // Le clic est géré par le DIV parent (l'overlay entier)
-                              >
-                                  <ArrowUp className="h-3 w-3 inline-block mr-1 rotate-180" />
-                                  Expand
+                              <button className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
+                                  <ArrowUp className="h-3 w-3 inline-block mr-1 rotate-180" /> Expand
                               </button>
                           </div>
                       )}
-                      
-                      {/* Bouton Collapse */}
                       {isExpanded && isLongMessage && (
                           <div className="flex justify-center mt-2">
-                              <button
-                                  onClick={() => setExpandedMessageIndex(null)}
-                                  className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80"
-                                  title="Masquer le message"
-                              >
-                                  <ArrowUp className="h-3 w-3 inline-block mr-1" />
-                                  Collapse
+                              <button onClick={() => setExpandedMessageIndex(null)} className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
+                                  <ArrowUp className="h-3 w-3 inline-block mr-1" /> Collapse
                               </button>
                           </div>
                       )}
                   </div>
               );
-              
               return displayElements; 
           }
           
-          // ----------------------------------------------------
-          // RENDU DU MESSAGE ASSISTANT
-          // ----------------------------------------------------
-          
-          // 2. AFFICHAGE DU TEXTE EXPLICATIF (Nettoyé)
+          // --- RENDU MESSAGE ASSISTANT (TEXTE) ---
           if (hasTextContent) {
               displayElements.push(
                   <pre key="text" className="whitespace-pre-wrap font-sans text-sm leading-relaxed mb-1">
@@ -3894,118 +3816,74 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                   </pre>
               );
           }
-        // ----------------------------------------------------
-// DÉFINITIONS DES CONSTANTES POUR LE RENDU DE L'ARTEFACT
-// ----------------------------------------------------
-// (À placer dans la fonction de rendu, avant la vérification isFileArtifact)
 
-const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
-const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
-const isBuilding = isCreating || isEditing;
-const totalItems = artifact?.parsedList?.length || 0;
+          // --- LOGIQUE ARTEFACT ---
+          const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+          const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
+          const isBuilding = isCreating || isEditing;
+          const totalItems = artifact?.parsedList?.length || 0;
+          const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
+          const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
 
-// Chemin SVG du fichier (utilisé pour les listes d'artefacts)
-const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
-const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
-
-          // 3. AFFICHAGE DE L'ARTEFACT DE CODE (en temps réel)
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
-              
-              const pathsToDisplay = artifact.parsedList.length;
-              const artifactClasses = hasTextContent ? "mt-1 pt-1  border-[rgba(55,50,47,0.1)]" : "pt-0";
-
+              const artifactClasses = hasTextContent ? "mt-1 pt-1 border-[rgba(55,50,47,0.1)]" : "pt-0";
               displayElements.push(
-                  <div key="code-artifact" className={`   border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
+                  <div key="code-artifact" className={`border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
                       <ul className="list-disc pl-5 w-[100%] space-y-1">
-    {artifact.parsedList
-        .map((item: {path: string, type: 'create' | 'changes'}, i) => {
-            
-            // Détermine si cet élément est le dernier et si le streaming est toujours actif
-            const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
-            
-            // Détermine le texte du statut : Creating/Editing si en streaming, sinon created/edited
-            const statusText = item.type === 'create' 
-                ? (isCurrentlyStreaming ? 'Creating' : 'created')
-                : (isCurrentlyStreaming ? 'Editing' : 'edited');
-            
-            return (
-                <li 
-                    key={i} 
-                    // Ajoute l'effet d'animation sur l'élément en cours de traitement
-                    className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}
-                >
-                    <span>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F">
-                            <path d={svgPath}/>
-                        </svg>
-                    </span>
-                    <p className="font-semibold">{statusText}</p>
-                    <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
-                </li>
-            );
-        })}
-    
-    {/* Indicateur de chargement global pour le "Building..." en fin de liste */}
-    {isBuilding ? (
-        <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1">
-          <span className="animate-spin">
-            {/* SVG d'icône de chargement */}
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" height="24px" viewBox="0 0 24 24" width="24px" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
-          </span>
-          {/* Affiche Creating... ou Editing... */}
-          <span className="font-semibold">{currentStatusText}...</span>
-        </li>
-    ) : null}
-</ul>
+                          {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i) => {
+                              const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
+                              const statusText = item.type === 'create' 
+                                  ? (isCurrentlyStreaming ? 'Creating' : 'created')
+                                  : (isCurrentlyStreaming ? 'Editing' : 'edited');
+                              
+                              return (
+                                  <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
+                                      <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
+                                      <p className="font-semibold">{statusText}</p>
+                                      <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
+                                  </li>
+                              );
+                          })}
+                          {isBuilding ? (
+                              <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1">
+                                <span className="animate-spin">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
+                                </span>
+                                <span className="font-semibold">{currentStatusText}...</span>
+                              </li>
+                          ) : null}
+                      </ul>
                   </div>
               );
           }
 
-          // 4. AFFICHAGE DE L'ARTEFACT URL
+          // --- RENDU URL ARTIFACT ---
           if (isUrlArtifact) {
               const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
               displayElements.push(
                   <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
-                      <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">
-                          Designing process
-                      </p>
+                      <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
                       <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
                   </div>
               );
           }
           
-          // 5. AFFICHAGE DU BOUTON COPIER (FORCÉMENT VISIBLE)
-          // 5. AFFICHAGE DU BOUTON COPIER (CONDITION ULTRA SIMPLIFIÉE)
-          // La seule condition est que ce soit l'assistant.
-
-
-          // LOGIQUE DE RETOUR FINAL
           return displayElements.length > 0 
                  ? displayElements 
-                 : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>;
-
+                 : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{finalContentToDisplay}</pre>;
         })()}
       </div>
-
-      {/* 🛑 LOGIQUE D'AFFICHAGE DES IMAGES, FICHIERS EXTERNES ET MENTIONS (INCHANGÉE) 🛑 */}
+      
+      {/* Fichiers uploadés & Mentions */}
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
           <div className="flex gap-1 mt-1">
               {msg.images.map((base64Src, imgIndex) => (
-                  <div 
-                      key={imgIndex} 
-                      className="w-[25px] h-[25px] rounded-[8px] overflow-hidden" 
-                      title="Image fournie par l'utilisateur"
-                  >
-                      <img 
-                          src={base64Src} 
-                          alt={`User input image ${imgIndex + 1}`} 
-                          className="w-full h-full object-cover" 
-                      />
+                  <div key={imgIndex} className="w-[25px] h-[25px] rounded-[8px] overflow-hidden" title="Image utilisateur">
+                      <img src={base64Src} alt="User input" className="w-full h-full object-cover" />
                   </div>
               ))}
           </div>
       )}
-      
       {msg.role === "user" && msg.externalFiles && msg.externalFiles.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1">
               {msg.externalFiles.map((file, fileIndex) => (
@@ -4015,7 +3893,6 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
               ))}
           </div>
       )}
-
       {msg.role === "user" && msg.mentionedFiles && msg.mentionedFiles.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1">
               {msg.mentionedFiles.map((filePath, mentionIndex) => (
@@ -4024,10 +3901,15 @@ const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Bu
                   </div>
               ))}
           </div>
-      )}
-      </div>
+     )}
+    </div>
   );
 })}
+
+              
+
+              
+
                 
 
           
