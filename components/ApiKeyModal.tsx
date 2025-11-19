@@ -60,8 +60,8 @@ export default function ApiKeyModal() {
         <div className="flex-1 p-6 flex flex-col relative">
           
           <div className="flex justify-between items-start bg-[#222] rounded-[12px] mb-7 h-auto p-1">
-            <div className="flex flex-col gap-[3px]">
-              <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#e4e4e4] border border-black/5 text-[10px] font-medium text-[#e4e4e4] mb-2">
+            <div className="flex p-1 flex-col gap-[3px]">
+              <div className="inline-flex items-center justify-center px-2 py-1 w-[30px] rounded-md bg-[#e4e4e4] border border-black/5 text-[10px] font-medium text-[#000]">
                 NEW
               </div>
               <h2 className="text-2xl font-bold text-white leading-tight">
