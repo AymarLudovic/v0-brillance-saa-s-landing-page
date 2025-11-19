@@ -13,34 +13,81 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Données manquantes' }, { status: 400 });
     }
 
-    // 1. Préparation des fichiers
+    const cleanProjectName = projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+
+    // =================================================================================
+    // ÉTAPE 1 : GESTION DU PROJET (Inspiré de ton code fonctionnel)
+    // On doit s'assurer que le projet existe sur Vercel pour avoir son ID et forcer le framework Next.js
+    // =================================================================================
+    
+    let projectId = '';
+    
+    // 1.A. On essaie de récupérer le projet existant
+    // Note: On utilise /v9/projects avec le nom pour voir s'il existe
+    const getProjectRes = await fetch(`https://api.vercel.com/v9/projects/${cleanProjectName}`, {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (getProjectRes.ok) {
+        const projectData = await getProjectRes.json();
+        projectId = projectData.id;
+    } else {
+        // 1.B. S'il n'existe pas, on le CRÉE explicitement avec le framework Next.js
+        console.log("Projet introuvable, création en cours...");
+        const createProjectRes = await fetch('https://api.vercel.com/v9/projects', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: cleanProjectName,
+                framework: 'nextjs', // <--- CRUCIAL : On dit à Vercel "C'est du Next.js !"
+                gitRepository: null // Pas de git lié
+            }),
+        });
+
+        if (!createProjectRes.ok) {
+            const err = await createProjectRes.json();
+            throw new Error(`Impossible de créer le projet : ${err.error?.message}`);
+        }
+
+        const newProject = await createProjectRes.json();
+        projectId = newProject.id;
+    }
+
+    // =================================================================================
+    // ÉTAPE 2 : PRÉPARATION DES FICHIERS & AUTO-RÉPARATION
+    // =================================================================================
+
     const deployFiles: VercelFile[] = files.map((f: any) => ({
-      file: f.filePath,
+      // On retire le slash initial s'il existe (ex: /app/page.tsx -> app/page.tsx)
+      file: f.filePath.startsWith('/') ? f.filePath.substring(1) : f.filePath,
       data: f.content
     }));
 
-    // --- AUTO-RÉPARATION : Injection des fichiers système manquants ---
-    
-    // A. package.json (Si manquant)
+    // --- INJECTION DES FICHIERS MANQUANTS (Pour éviter le crash du build) ---
+
+    // A. package.json
     if (!deployFiles.some(f => f.file === 'package.json')) {
         deployFiles.push({
             file: 'package.json',
             data: JSON.stringify({
-                name: projectName.toLowerCase().replace(/\s+/g, '-'),
+                name: cleanProjectName,
                 version: "0.1.0",
                 scripts: {
                     "dev": "next dev",
                     "build": "next build",
-                    "start": "next start",
-                    "lint": "next lint"
+                    "start": "next start"
                 },
                 dependencies: {
                     "react": "^18",
                     "react-dom": "^18",
-                    "next": "14.2.3", // Version stable
+                    "next": "14.2.3",
                     "lucide-react": "latest",
                     "clsx": "latest",
-                    "tailwind-merge": "latest"
+                    "tailwind-merge": "latest",
+                    "framer-motion": "latest"
                 },
                 devDependencies: {
                     "typescript": "^5",
@@ -56,7 +103,7 @@ export async function POST(req: Request) {
         });
     }
 
-    // B. next.config.mjs (Si manquant)
+    // B. next.config.mjs
     if (!deployFiles.some(f => f.file.includes('next.config'))) {
         deployFiles.push({
             file: 'next.config.mjs',
@@ -70,21 +117,14 @@ export default nextConfig;`
         });
     }
 
-    // C. app/layout.tsx (CRUCIAL : Obligatoire pour Next.js App Router)
-    // On vérifie si un layout existe déjà dans app/ ou src/app/
-    const hasLayout = deployFiles.some(f => f.file.includes('layout.tsx') || f.file.includes('layout.js'));
-    
+    // C. app/layout.tsx (Obligatoire pour Next.js App Router)
+    const hasLayout = deployFiles.some(f => f.file.includes('app/layout') || f.file === 'app/layout.tsx');
     if (!hasLayout) {
         deployFiles.push({
-            file: 'app/layout.tsx', // On force le chemin App Router
+            file: 'app/layout.tsx',
             data: `import React from 'react';
 import './globals.css';
-
-export const metadata = {
-  title: '${projectName}',
-  description: 'Generated by Studio Code',
-};
-
+export const metadata = { title: '${projectName}' };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -94,52 +134,52 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }`
         });
     }
-    
-    // D. app/globals.css (Si manquant, pour le style de base)
+
+    // D. app/globals.css
     if (!deployFiles.some(f => f.file.includes('globals.css'))) {
          deployFiles.push({
             file: 'app/globals.css',
-            data: `@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-body {
-  background: #ffffff;
-  color: #000000;
-}`
+            data: `@tailwind base; @tailwind components; @tailwind utilities; body { background: #fff; color: #000; }`
          });
     }
 
-    // 2. Création du déploiement sur Vercel
-    const response = await fetch('https://api.vercel.com/v13/deployments', {
+    // =================================================================================
+    // ÉTAPE 3 : CRÉATION DU DÉPLOIEMENT DANS LE PROJET CIBLÉ
+    // =================================================================================
+
+    const deployResponse = await fetch('https://api.vercel.com/v13/deployments', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        name: projectName.toLowerCase().replace(/\s+/g, '-'),
+        name: cleanProjectName,
+        project: projectId, // <--- C'est la clé ! On lie le déploiement au projet configuré
+        target: 'production',
         files: deployFiles,
         projectSettings: {
-          framework: 'nextjs',
-        },
-        target: 'production',
+          framework: 'nextjs', // On force encore pour être sûr
+        }
       }),
     });
 
-    const data = await response.json();
+    const data = await deployResponse.json();
 
-    if (!response.ok) {
-      return NextResponse.json({ success: false, error: data.error?.message || 'Erreur Vercel' }, { status: 500 });
+    if (!deployResponse.ok) {
+      console.error("Vercel Error:", data);
+      return NextResponse.json({ success: false, error: data.error?.message || 'Erreur déploiement Vercel' }, { status: 500 });
     }
 
     return NextResponse.json({ 
         success: true, 
         deploymentId: data.id,
-        url: data.url 
+        url: data.url,
+        projectId: projectId
     });
 
   } catch (error: any) {
+    console.error("Server Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
-      }
+                                                                            }
