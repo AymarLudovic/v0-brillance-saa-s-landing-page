@@ -61,6 +61,9 @@ import {
   Trash2
 } from "lucide-react"
 
+
+import GitHubDeployModal from '@/components/GitHubDeployModal';
+
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
 interface CommandResult {
   stdout: string
@@ -946,7 +949,7 @@ const [cloneUrl, setCloneUrl] = useState("")
 // Assurez-vous d'importer les icônes nécessaires de Lucide React
   // Dans votre composant principal (e.g., SandboxPage)
 const [copiedFileIndex, setCopiedFileIndex] = useState(null);
-
+const [isGitHubOpen, setIsGitHubOpen] = useState(false);
 
 // ... et d'ajouter ces états dans votre composant principal (e.g., SandboxPage)
 const [copiedMessageIndex, setCopiedMessageIndex] = useState(null);
@@ -4357,6 +4360,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <button
+                  onClick={() => {
+    if (!currentProject) return alert("Select a project first");
+    setIsGitHubOpen(true);
+  }}
                 className="flex items-center justify-center rounded-[8px] border border-[rgba(55,50,47,0.12)] bg-white p-2 hover:bg-[#F7F5F3] transition-colors h-8 w-8"
                 aria-label="GitHub"
               >
@@ -4365,6 +4372,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 </svg>
                 
               </button>
+
+                <GitHubDeployModal 
+  isOpen={isGitHubOpen} 
+  onClose={() => setIsGitHubOpen(false)} 
+  currentProject={currentProject} 
+/>
 
 {/* ⚠️ Assurez-vous d'importer l'icône Zap et Loader de Lucide React */}
 
