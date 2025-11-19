@@ -57,7 +57,8 @@ import {
   Check,
   Download,
   Loader,
-  LogOut
+  LogOut,
+  Trash2
 } from "lucide-react"
 
 // --- INTERFACES ET TYPES (SIMPLIFIÉS) ---
@@ -549,6 +550,18 @@ const getAllProjectsFromIDB = async (): Promise<any[]> => {
     const store = tx.objectStore('projects');
     const request = store.getAll();
     request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// Supprimer un projet de la DB
+const deleteProjectFromIDB = async (projectId: string) => {
+  const db = await initDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('projects', 'readwrite');
+    const store = tx.objectStore('projects');
+    const request = store.delete(projectId);
+    request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
 };
@@ -1671,6 +1684,34 @@ const parseMessageContent = (content: string) => {
     loadProject(projectId)
     setShowSidebar(false)
         }
+
+const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation(); // Empêche le clic de charger le projet alors qu'on veut le supprimer
+    
+    if (!confirm("Voulez-vous vraiment supprimer ce projet définitivement ?")) return;
+
+    try {
+        // 1. Supprimer de la DB
+        await deleteProjectFromIDB(projectId);
+        
+        // 2. Mettre à jour l'interface (liste locale)
+        const updatedList = projects.filter(p => p.id !== projectId);
+        setProjects(updatedList);
+
+        // 3. Si on supprime le projet en cours, on réinitialise
+        if (currentProject?.id === projectId) {
+            setCurrentProject(null);
+            setFiles([]);
+            setMessages([]);
+            setSandboxId(null);
+        }
+        
+        addLog("Projet supprimé avec succès.", "success");
+    } catch (err) {
+        console.error(err);
+        addLog("Erreur lors de la suppression.", "error");
+    }
+            }
     
 
   const updateFile = (value: string, viewUpdate: any) => {
@@ -3615,51 +3656,63 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
+{/* Import nécessaire en haut : import { Trash2, ChevronsUpDown } from 'lucide-react' */}
+
 <div className="relative">
-  {/* Bouton AFFICHEUR/Déclencheur (Imite le champ select) */}
+  {/* Bouton AFFICHEUR */}
   <button
     onClick={() => setShowProjectSelect(!showProjectSelect)}
     className="flex items-center w-[80%] gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium max-w-[150px] text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
   >
-    {/* Affiche le nom du projet actuel ou le texte par défaut */}
-    <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px]">
-                            <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
-                          </div>
-    <span className="truncate">
+    <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px] shrink-0">
+        <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
+    </div>
+    <span className="truncate flex-1 x-fukl text-left">
       {currentProject?.name || "Select a Project"}
     </span>
-    <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)]" />
+    <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
   </button>
 
-  {/* Conteneur du Menu Déroulant (Imite les <option>) */}
+  {/* Conteneur du Menu Déroulant */}
   {showProjectSelect && (
-    <div className="absolute z-50 top-full mt-1 left-0 bg-[#E3DFDB] border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] min-w-[300px] max-h-70 overflow-y-auto">
+    <div className="absolute z-50 top-full mt-1 left-0 bg-[#E3DFDB] border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] min-w-[300px] max-h-70 overflow-y-auto flex flex-col p-1">
       {projects.map((p) => (
-        <button
+        <div
           key={p.id}
-          // LOGIQUE CLÉ : Appelle loadProject directement, puis ferme le menu
-          onClick={() => {
-            if (currentProject) {
-              saveProject()
-            }
-            loadProject(p.id)
-            setShowProjectSelect(false) // Ferme le menu après la sélection
-          }}
-          className={`w-full text-left p-3 text-sm hover:bg-[#F7F5F3] flex items-center gap-1 ${
+          className={`group w-full p-2 text-sm hover:bg-[#F7F5F3] rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
             currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : ""
           }`}
+          // LOGIQUE CLÉ : Click sur le conteneur pour charger
+          onClick={async () => {
+            if (currentProject) {
+              await saveProject() // On attend la sauvegarde IDB
+            }
+            loadProject(p.id)
+            setShowProjectSelect(false)
+          }}
         >
-          <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px]">
-                            <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
-                          </div>
-          {p.name}
-        </button>
+          {/* Partie Gauche : Icone + Nom */}
+          <div className="flex items-center gap-2 flex-1 overflow-hidden">
+              <div className="w-5 h-5 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
+                <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
+              </div>
+              <span className="truncate">{p.name}</span>
+          </div>
+
+          {/* Partie Droite : Bouton Supprimer (Visible au survol uniquement) */}
+          <button
+            onClick={(e) => handleDeleteProject(e, p.id)}
+            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-100 text-gray-400 hover:text-red-600 rounded-md transition-all"
+            title="Delete project"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       ))}
       
-      {/* Option "Select a Project" désactivée/par défaut */}
       {projects.length === 0 && (
-        <div className="p-3 text-sm text-[rgba(55,50,47,0.6)]">
-          No projects available.
+        <div className="p-3 text-sm text-[rgba(55,50,47,0.6)] text-center">
+          No projects yet. Create one!
         </div>
       )}
     </div>
