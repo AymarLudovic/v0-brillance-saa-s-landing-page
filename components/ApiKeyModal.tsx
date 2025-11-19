@@ -46,7 +46,7 @@ export default function ApiKeyModal() {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-[360px] h-[450px] bg-[#0a0a0a] rounded-3xl border border-black/10 overflow-hidden shadow-2xl flex flex-col">
+      <div className="relative w-[330px] h-[430px] bg-[#0a0a0a] rounded-3xl border border-black/10 overflow-hidden  flex flex-col">
         
         {hasKey && (
           <button 
@@ -61,7 +61,7 @@ export default function ApiKeyModal() {
           
           <div className="flex justify-between items-start bg-[#222] rounded-[12px] mb-7 h-auto p-1">
             <div className="flex p-1 flex-col gap-[3px]">
-              <div className="inline-flex items-center justify-center px-2 py-1 w-[30px] rounded-md bg-[#e4e4e4] border border-black/5 text-[10px] font-medium text-[#000]">
+              <div className="flex items-center justify-center px-3 h-[25px] w-[80px] rounded-md bg-[#e4e4e4] border border-black/5 text-[10px] font-medium text-[#000]">
                 NEW
               </div>
               <h2 className="text-2xl font-bold text-white leading-tight">
@@ -86,7 +86,7 @@ export default function ApiKeyModal() {
             {!isInputMode ? (
               <button 
                 onClick={() => setIsInputMode(true)}
-                className="w-full h-10 bg-white text-black rounded-[10px] text-sm font-semibold hover:bg-gray-200 transition-colors"
+                className="w-full h-8 bg-white text-black rounded-[10px] text-sm font-semibold hover:bg-gray-200 transition-colors"
               >
                 Set your API key
               </button>
