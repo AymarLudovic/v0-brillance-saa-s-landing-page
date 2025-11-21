@@ -638,6 +638,24 @@ const getRefImageById = async (id: string): Promise<string | null> => {
     request.onerror = () => resolve(null);
   });
 };
+
+
+// --- RÉCUPÉRER TOUTES LES IMAGES DU SHOP ---
+const getAllShopImages = async (): Promise<string[]> => {
+  const db = await initImageDB(); // Ta fonction initImageDB existante
+  return new Promise((resolve) => {
+    const tx = db.transaction('refs', 'readonly');
+    const store = tx.objectStore('refs');
+    const request = store.getAll();
+    
+    request.onsuccess = () => {
+      // On renvoie un tableau contenant uniquement les chaînes Base64
+      const images = request.result.map((img: any) => img.base64);
+      resolve(images);
+    };
+    request.onerror = () => resolve([]);
+  });
+};
 // ------------------------------------------------------
 
 // --- LOGIQUE D'ANALYSE (Fonctions pures) ---
@@ -2865,52 +2883,15 @@ const sendChat = async (promptOverride?: string) => {
 
       
 
-let imageToInject = null;
-
-try {
-    const manualSelection = await getActiveShopImage();
-    if (manualSelection) {
-        imageToInject = manualSelection;
-        addLog("🎨 Using manually selected design reference.");
-    } else {
-        addLog("🎨 AI is looking for the perfect design style...");
-        
-        const availableStyles = await getReferenceMetadata();
-        
-        if (availableStyles.length > 0) {
-            const selectionRes = await fetch("/api/design/select", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    userPrompt: userPrompt || chatInput, 
-                    availableStyles 
-                })
-            });
-            
-            const { selectedId } = await selectionRes.json();
-            
-            if (selectedId) {
-                const bestImageBase64 = await getRefImageById(selectedId);
-                if (bestImageBase64) {
-                    imageToInject = bestImageBase64;
-                    const styleName = availableStyles.find(s => s.id === selectedId)?.name || "Expert";
-                    addLog(`✨ AI selected style: "${styleName}" for this project.`);
-                }
-            }
-        }
-    }
-} catch (e) {
-    console.warn("Auto-design skipped:", e);
-}
 
 // 1. ON RÉCUPÈRE L'IMAGE DU SHOP (SILENCIEUSEMENT)
-  let activeShopImage = null;
+let shopImages: string[] = [];
   try {
-      activeShopImage = await getActiveShopImage();
-      if (activeShopImage) {
-          addLog("🎨 Applying visual style from Design Shop...");
+      shopImages = await getAllShopImages();
+      if (shopImages.length > 0) {
+          addLog(`🎨 Sending ${shopImages.length} design references to AI...`);
       }
-  } catch (e) { console.error("Erreur image shop", e); }
+  } catch (e) { console.error("Erreur chargement images", e); }
   
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
@@ -2951,7 +2932,7 @@ try {
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            referenceImageBase64: imageToInject
+            allReferenceImages: shopImages
           }),
         });
 
