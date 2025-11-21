@@ -641,21 +641,27 @@ const getRefImageById = async (id: string): Promise<string | null> => {
 
 
 // --- RÉCUPÉRER TOUTES LES IMAGES DU SHOP ---
+// --- UTILITAIRE : RÉCUPÉRER TOUS LES STYLES ---
 const getAllShopImages = async (): Promise<string[]> => {
-  const db = await initImageDB(); // Ta fonction initImageDB existante
   return new Promise((resolve) => {
-    const tx = db.transaction('refs', 'readonly');
-    const store = tx.objectStore('refs');
-    const request = store.getAll();
-    
-    request.onsuccess = () => {
-      // On renvoie un tableau contenant uniquement les chaînes Base64
-      const images = request.result.map((img: any) => img.base64);
-      resolve(images);
-    };
+    const request = indexedDB.open('StudioCode_Assets', 1);
     request.onerror = () => resolve([]);
+    request.onsuccess = (event: any) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('refs')) { resolve([]); return; }
+      const tx = db.transaction('refs', 'readonly');
+      const store = tx.objectStore('refs');
+      const req = store.getAll();
+      req.onsuccess = () => {
+          // On retourne juste un tableau de chaînes Base64
+          resolve(req.result.map((img: any) => img.base64));
+      };
+      req.onerror = () => resolve([]);
+    };
   });
 };
+
+        
 // ------------------------------------------------------
 
 // --- LOGIQUE D'ANALYSE (Fonctions pures) ---
@@ -2892,6 +2898,15 @@ let shopImages: string[] = [];
           addLog(`🎨 Sending ${shopImages.length} design references to AI...`);
       }
   } catch (e) { console.error("Erreur chargement images", e); }
+
+
+let allStyles: string[] = [];
+  try {
+      allStyles = await getAllShopImages();
+      if (allStyles.length > 0) {
+          addLog(`🎨 Library loaded: ${allStyles.length} reference styles sent to AI.`);
+      }
+  } catch (e) { console.error("Erreur chargement styles", e); }
   
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
@@ -2932,7 +2947,7 @@ let shopImages: string[] = [];
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            allReferenceImages: shopImages
+            allReferenceImages: allStyles
           }),
         });
 
