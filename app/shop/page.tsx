@@ -1,11 +1,10 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Image as ImageIcon, Plus, Trash2, CheckCircle, ArrowLeft, Loader, ShoppingBag } from 'lucide-react';
+import { Image as ImageIcon, Plus, Trash2, ArrowLeft, Loader, ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
 
 // --- LOGIQUE DB DÉDIÉE (ISOLÉE) ---
-// On utilise une base séparée pour ne pas toucher à ta v2 existante
 const IMAGES_DB_NAME = 'StudioCode_Assets';
 const IMAGES_DB_VERSION = 1;
 
@@ -23,7 +22,7 @@ const initImageDB = (): Promise<IDBDatabase> => {
   });
 };
 
-const saveRefImage = async (img: { id: string, name: string, base64: string, isActive: boolean }) => {
+const saveRefImage = async (img: { id: string, name: string, base64: string }) => {
   const db = await initImageDB();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction('refs', 'readwrite');
@@ -56,28 +55,7 @@ const deleteRefImage = async (id: string) => {
   });
 };
 
-const setAsActiveImage = async (id: string) => {
-  const db = await initImageDB();
-  const tx = db.transaction('refs', 'readwrite');
-  const store = tx.objectStore('refs');
-  
-  const allImagesRequest = store.getAll();
-  
-  allImagesRequest.onsuccess = () => {
-      const images = allImagesRequest.result;
-      images.forEach((img: any) => {
-          // On active celle choisie, on désactive les autres
-          img.isActive = (img.id === id);
-          store.put(img);
-      });
-  };
-  
-  return new Promise<void>((resolve) => {
-      tx.oncomplete = () => resolve();
-  });
-};
-
-// --- COMPOSANT DE PAGE ---
+// --- PAGE COMPONENT ---
 
 export default function ShopPage() {
     const [images, setImages] = useState<any[]>([]);
@@ -90,8 +68,8 @@ export default function ShopPage() {
     const loadImages = async () => {
         try {
             const imgs = await getRefImages();
-            // Tri : Active en premier, puis par date
-            setImages(imgs.sort((a, b) => (b.isActive === a.isActive) ? b.createdAt - a.createdAt : b.isActive ? 1 : -1));
+            // Tri par date de création (plus récent en premier)
+            setImages(imgs.sort((a, b) => b.createdAt - a.createdAt));
         } catch (e) { console.error(e); }
     };
 
@@ -108,7 +86,7 @@ export default function ShopPage() {
             img.onload = async () => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                // Optimisation : max 1000px pour ne pas tuer la DB
+                // Optimisation : max 1000px
                 const scale = Math.min(1, 1000 / img.width);
                 canvas.width = img.width * scale;
                 canvas.height = img.height * scale;
@@ -119,8 +97,7 @@ export default function ShopPage() {
                 const newImage = {
                     id: crypto.randomUUID(),
                     name: file.name,
-                    base64: optimizedBase64,
-                    isActive: false // Par défaut non active
+                    base64: optimizedBase64
                 };
                 
                 await saveRefImage(newImage);
@@ -139,11 +116,6 @@ export default function ShopPage() {
         }
     };
 
-    const handleActivate = async (id: string) => {
-        await setAsActiveImage(id);
-        loadImages();
-    };
-
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10 font-sans">
             
@@ -153,10 +125,10 @@ export default function ShopPage() {
                         <ArrowLeft size={16} /> Retour au Chat
                     </Link>
                     <h1 className="text-4xl font-bold flex items-center gap-3">
-                        <ShoppingBag className="text-purple-500" size={36} /> Design Shop
+                        <ShoppingBag className="text-purple-500" size={36} /> Design Library
                     </h1>
                     <p className="text-gray-500 mt-2 max-w-xl">
-                        Activez un style ici. L'IA l'utilisera automatiquement pour vos prochaines créations dans le chat.
+                        Ajoutez ici vos références visuelles. L'IA utilisera automatiquement cette bibliothèque pour s'inspirer lors de la création de vos projets.
                     </p>
                 </div>
                 
@@ -171,28 +143,16 @@ export default function ShopPage() {
                 {images.map((img) => (
                     <div 
                         key={img.id} 
-                        onClick={() => handleActivate(img.id)}
-                        className={`group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 cursor-pointer transition-all duration-300 bg-[#111] ${
-                            img.isActive 
-                            ? 'border-purple-500 ring-4 ring-purple-500/20 scale-[1.02] shadow-2xl shadow-purple-900/20' 
-                            : 'border-white/5 hover:border-white/20 hover:-translate-y-1'
-                        }`}
+                        className="group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-white/5 hover:border-white/20 transition-all duration-300 bg-[#111]"
                     >
                         <img src={img.base64} alt={img.name} className="w-full h-full object-cover" />
                         
-                        <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-5 transition-opacity ${img.isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-5 opacity-0 group-hover:opacity-100 transition-opacity">
                             <div className="flex justify-between items-end">
                                 <div>
                                     <p className="font-bold text-white truncate pr-4">{img.name}</p>
-                                    <p className="text-xs text-gray-400">
-                                        {img.isActive ? 'Style Actif' : 'Cliquer pour activer'}
-                                    </p>
+                                    <p className="text-xs text-gray-400">Dispo pour l'IA</p>
                                 </div>
-                                {img.isActive && (
-                                    <div className="bg-purple-600 text-white p-1.5 rounded-full shadow-lg">
-                                        <CheckCircle size={20} fill="currentColor" />
-                                    </div>
-                                )}
                             </div>
                         </div>
 
@@ -204,7 +164,13 @@ export default function ShopPage() {
                         </button>
                     </div>
                 ))}
+                
+                {images.length === 0 && !isUploading && (
+                    <div className="col-span-full py-20 text-center text-gray-500 border-2 border-dashed border-white/5 rounded-xl">
+                        Aucun style disponible. L'IA utilisera son imagination par défaut.
+                    </div>
+                )}
             </div>
         </div>
     );
-  }
+                           }
