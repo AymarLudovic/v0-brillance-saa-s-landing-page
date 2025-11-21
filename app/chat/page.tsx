@@ -2863,6 +2863,46 @@ const sendChat = async (promptOverride?: string) => {
   setLoading(true);
   addLog(`Sending prompt to Gemini...`);
 
+      
+
+let imageToInject = null;
+
+try {
+    const manualSelection = await getActiveShopImage();
+    if (manualSelection) {
+        imageToInject = manualSelection;
+        addLog("🎨 Using manually selected design reference.");
+    } else {
+        addLog("🎨 AI is looking for the perfect design style...");
+        
+        const availableStyles = await getReferenceMetadata();
+        
+        if (availableStyles.length > 0) {
+            const selectionRes = await fetch("/api/design/select", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    userPrompt: userPrompt || chatInput, 
+                    availableStyles 
+                })
+            });
+            
+            const { selectedId } = await selectionRes.json();
+            
+            if (selectedId) {
+                const bestImageBase64 = await getRefImageById(selectedId);
+                if (bestImageBase64) {
+                    imageToInject = bestImageBase64;
+                    const styleName = availableStyles.find(s => s.id === selectedId)?.name || "Expert";
+                    addLog(`✨ AI selected style: "${styleName}" for this project.`);
+                }
+            }
+        }
+    }
+} catch (e) {
+    console.warn("Auto-design skipped:", e);
+}
+
 // 1. ON RÉCUPÈRE L'IMAGE DU SHOP (SILENCIEUSEMENT)
   let activeShopImage = null;
   try {
@@ -2911,7 +2951,7 @@ const sendChat = async (promptOverride?: string) => {
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            referenceImageBase64: activeShopImage
+            referenceImageBase64: imageToInject
           }),
         });
 
