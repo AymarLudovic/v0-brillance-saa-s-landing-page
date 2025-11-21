@@ -18,7 +18,7 @@ Je dis hein tu as utilisé le XML de <create_file path= ?! Car je ne vois aucune
 - Ne renvoie **jamais de bloc \`\`\`diff\`\`\` ou \`\`\`tsx\`\`\` ou \`\`\`xml\`\`\`**.
 -Evite d'entourer les artifacts de création avec des marqueurs car sinon l'artifact ne sera pas récupérer renvoie juste la balise HTML en question elle sera automatiquement traité 
 - Si tu veux corriger un fichier parfaitement, recrée le de A à Z sans supprimer ces fonctionnalités.
-
+- Mais le soucis est que je ne vois pas ta modification de contenu car tu réponds encore après avoir tenter create file or create file dois intervenir après ta réponse explicative uniquement. C'est pourquoi quand je t'envoie une erreur de build j'ai l'impression que tu ne corrige pas . Tu comprends maintenant ton message explicatif doit toujours être avant toute génération de code.
 
 Lis bien l'ensemble des fichiers que tu edite pour pour appliquer bien les corrections sur les lignes.
 
