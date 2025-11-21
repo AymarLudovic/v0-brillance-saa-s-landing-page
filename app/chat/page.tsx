@@ -579,6 +579,31 @@ const deleteProjectFromIDB = async (projectId: string) => {
     request.onerror = () => reject(request.error);
   });
 };
+
+// --- FONCTION SILENCIEUSE : RÉCUPÉRER L'IMAGE ACTIVE DU SHOP ---
+const getActiveShopImage = async (): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open('StudioCode_Assets', 1); // On ouvre la DB du Shop
+    
+    request.onerror = () => resolve(null);
+    
+    request.onsuccess = (event: any) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('refs')) { resolve(null); return; }
+      
+      const tx = db.transaction('refs', 'readonly');
+      const store = tx.objectStore('refs');
+      const getAll = store.getAll();
+      
+      getAll.onsuccess = () => {
+        // On cherche l'image marquée comme active
+        const activeImg = getAll.result.find((img: any) => img.isActive);
+        resolve(activeImg ? activeImg.base64 : null);
+      };
+      getAll.onerror = () => resolve(null);
+    };
+  });
+};
 // ------------------------------------------------------
 
 // --- LOGIQUE D'ANALYSE (Fonctions pures) ---
@@ -2803,6 +2828,15 @@ const sendChat = async (promptOverride?: string) => {
 
   setLoading(true);
   addLog(`Sending prompt to Gemini...`);
+
+// 1. ON RÉCUPÈRE L'IMAGE DU SHOP (SILENCIEUSEMENT)
+  let activeShopImage = null;
+  try {
+      activeShopImage = await getActiveShopImage();
+      if (activeShopImage) {
+          addLog("🎨 Applying visual style from Design Shop...");
+      }
+  } catch (e) { console.error("Erreur image shop", e); }
   
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
@@ -2842,7 +2876,8 @@ const sendChat = async (promptOverride?: string) => {
             history: historyForApi, 
             currentProjectFiles,
             uploadedImages,
-            uploadedFiles
+            uploadedFiles,
+            referenceImageBase64: activeShopImage
           }),
         });
 
