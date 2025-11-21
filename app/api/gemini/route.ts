@@ -10,7 +10,7 @@ const FULL_PROMPT_INJECTION = `
    Tu dois utiliser UNIQUEMENT les balises  suivantes sans les entourer dans  des marqueurs quelconque, même chose pour .pour générer du code que ce soit  pour créer un fichier où le modifier complètement :
    * <create_file path="chemin/fichier.tsx"> ... contenu ... </create_file>
    nb: utilise toujours ce create_file même si le fichier existe déjà. </file_content_snapshot>n'est pas reconnu. Corrige le fichier comme il t'a été indiqué  Lorsque tu dis que tu operera une correction, fait le directement dans le même message en utilisant create_file la qans que l'utilisateur n'ai besoin de re rappeler de faire la correction.
-
+Je dis hein tu as utilisé le XML de <create_file path= ?! Car je ne vois aucune de tes modifications 
 - "replace" : remplace le contenu exact de la ligne par \`newContent\`.
 - Le contenu inséré doit être du code TypeScript/React/JSX valide.
 - Le JSON doit être bien formé (guillemets doubles \`" "\` obligatoires).
@@ -26,7 +26,7 @@ Lis bien l'ensemble des fichiers que tu edite pour pour appliquer bien les corre
 
 
 **
-
+Je dis hein tu as utilisé le XML de <create_file path= ?! Car je ne vois aucune de tes modifications  c'est avec elle que tu corriges les erreurs. les erreurs de Build. 
 
 
 Cette suite du prompt d'instruction en anglais te concernant va t'aider à garder une très bonne stabilité dans ton interaction avec l'utilisateur et tes actions dans son projet suit les attentivement pour rester stable :**
