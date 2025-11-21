@@ -10,7 +10,7 @@ import { xcodeLight } from "@uiw/codemirror-theme-xcode"
 import { EditorView } from "@codemirror/view"
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language"
 import { tags } from "@lezer/highlight" 
-// En haut de votre fichier de composant (par exemple, components/Chat.tsx)
+// En haut de gamme de produits de votre fichier de composant (par exemple, components/Chat.tsx)
 import ApiKeyModal from '@/components/ApiKeyModal'
 import { 
     getHistory, 
