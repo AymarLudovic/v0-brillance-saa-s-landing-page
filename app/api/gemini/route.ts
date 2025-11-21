@@ -26,7 +26,7 @@ const BATCH_SIZE = 256;
 
 const readFileDeclaration: FunctionDeclaration = {
   name: "readFile",
-  description: "Lit le contenu d'un fichier du projet par son chemin d'accès (e.g., app/page.tsx).",
+  description: "Lit le contenu d'un fichier du projet.",
   parameters: {
     type: Type.OBJECT,
     properties: { path: { type: Type.STRING } },
@@ -46,12 +46,13 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
-        referenceImageBase64 // <-- On reçoit l'image ici
+        // 🔥 ON REÇOIT UN TABLEAU D'IMAGES MAINTENANT
+        allReferenceImages 
     } = body as { 
         history: Message[], 
         uploadedImages: string[],
         uploadedFiles: any[],
-        referenceImageBase64?: string 
+        allReferenceImages?: string[] 
     }
 
     if (!history || history.length === 0) return NextResponse.json({ error: "Historique manquant" }, { status: 400 });
@@ -63,40 +64,53 @@ export async function POST(req: Request) {
     const lastUserIndex = history.length - 1; 
     const systemContextParts: Part[] = []; 
 
-    // --- INJECTION DU DESIGN SYSTÈME (IMAGE REFERENCE) ---
-    if (referenceImageBase64) {
+    // ============================================================
+    // 🔥 INJECTION MULTI-IMAGES (LOGIQUE INTELLIGENTE) 🔥
+    // ============================================================
+    if (allReferenceImages && allReferenceImages.length > 0) {
+        console.log(`🎨 [API] Injection de ${allReferenceImages.length} images de style.`);
+        
+        const styleParts: Part[] = [];
+
+        // 1. On ajoute toutes les images
+        allReferenceImages.forEach((imgBase64) => {
+            styleParts.push({
+                inlineData: {
+                    data: cleanBase64Data(imgBase64),
+                    mimeType: getMimeTypeFromBase64(imgBase64)
+                }
+            });
+        });
+
+        // 2. On ajoute l'instruction de sélection intelligente
+        styleParts.push({
+            text: `[SYSTEM DIRECTIVE: AUTOMATIC STYLE SELECTION]
+The images attached above represent your "Design System Library".
+
+YOUR MISSION:
+1. Analyze the User's Request below.
+2. Review the attached reference images.
+3. SELECT the single best image that fits the user's project intent (e.g., pick the dark/tech one for Crypto, the soft/light one for Bakery).
+4. EXTRACT that chosen image's style (Colors, Shapes, Layout, Typography).
+5. APPLY that style strictly to the code you generate.
+
+You are an expert Art Director. Choose the best vibe implicitly and build the UI.`
+        });
+
+        // 3. Injection dans l'historique
         contents.push({
             role: 'user',
-            parts: [
-                { 
-                    inlineData: { 
-                        data: cleanBase64Data(referenceImageBase64), 
-                        mimeType: getMimeTypeFromBase64(referenceImageBase64) 
-                    } 
-                },
-                { 
-                    text: `[SYSTEM DIRECTIVE: VISUAL CLONING REQUIRED]
-The image above is your VISUAL MASTER REFERENCE (The "Design System").
-Ignore your default style preferences. You MUST adopt the style of this image.
-
-ANALYZE AND REPLICATE:
-1. Color Palette (Backgrounds, Accents, Text).
-2. Component Shapes (Border-radius, Shadow depth, Borders).
-3. Layout Density (Spacing, Margins).
-4. Typography Vibe (Serif/Sans, Weights).
-
-Apply this EXACT visual style to the code you generate below, regardless of the functional request.`
-                }
-            ]
+            parts: styleParts
         });
         
         contents.push({
             role: 'model',
-            parts: [{ text: "Understood. I have analyzed the visual master reference. I will strictly clone its design system (colors, shapes, spacing) for all generated code." }]
+            parts: [{ text: "Understood. I have reviewed the design library. I will select the most appropriate reference image based on your request and strictly apply its visual system (colors, shapes, typography) to the generated code." }]
         });
     }
-    // ----------------------------------------------------
+    // ============================================================
 
+    // Le reste est inchangé...
     for (let i = 0; i < history.length; i++) {
         const msg = history[i];
         const parts: Part[] = [];
@@ -119,7 +133,7 @@ Apply this EXACT visual style to the code you generate below, regardless of the 
                 if (uploadedFiles && uploadedFiles.length > 0) {
                      uploadedFiles.forEach((file) => {
                         parts.push({ inlineData: { data: file.base64Content, mimeType: 'text/plain' } });
-                        parts.push({ text: `\n[Fichier joint: "${file.fileName}"]` });
+                        parts.push({ text: `\n[Fichier: "${file.fileName}"]` });
                     });
                 }
             }
@@ -131,7 +145,7 @@ Apply this EXACT visual style to the code you generate below, regardless of the 
 
     const finalSystemInstruction = (
         FULL_PROMPT_INJECTION + 
-        (systemContextParts.length > 0 ? "\n\n--- CONTEXTE ---\n" + systemContextParts.map(p => p.text).join('\n') : "")
+        (systemContextParts.length > 0 ? "\n\n--- CONTEXTE PROJET ---\n" + systemContextParts.map(p => p.text).join('\n') : "")
     );
     
     const response = await ai.models.generateContentStream({
@@ -170,4 +184,4 @@ Apply this EXACT visual style to the code you generate below, regardless of the 
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-}
+        }
