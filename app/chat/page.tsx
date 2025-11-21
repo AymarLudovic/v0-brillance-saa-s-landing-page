@@ -604,6 +604,40 @@ const getActiveShopImage = async (): Promise<string | null> => {
     };
   });
 };
+
+
+// Récupérer seulement les métadonnées (ID et Nom) pour que l'IA choisisse vite
+const getReferenceMetadata = async (): Promise<{id: string, name: string}[]> => {
+  const db = await initImageDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction('refs', 'readonly');
+    const store = tx.objectStore('refs');
+    const request = store.getAll();
+    
+    request.onsuccess = () => {
+      // On mappe pour ne renvoyer que ce qui est nécessaire à la décision
+      const metadata = request.result.map((img: any) => ({
+        id: img.id,
+        name: img.name
+      }));
+      resolve(metadata);
+    };
+    request.onerror = () => resolve([]);
+  });
+};
+
+// Récupérer une image spécifique par son ID (une fois choisie)
+const getRefImageById = async (id: string): Promise<string | null> => {
+  const db = await initImageDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction('refs', 'readonly');
+    const store = tx.objectStore('refs');
+    const request = store.get(id);
+    
+    request.onsuccess = () => resolve(request.result ? request.result.base64 : null);
+    request.onerror = () => resolve(null);
+  });
+};
 // ------------------------------------------------------
 
 // --- LOGIQUE D'ANALYSE (Fonctions pures) ---
