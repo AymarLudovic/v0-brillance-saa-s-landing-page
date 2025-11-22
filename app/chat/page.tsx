@@ -652,15 +652,40 @@ const getAllShopImages = async (): Promise<string[]> => {
       const tx = db.transaction('refs', 'readonly');
       const store = tx.objectStore('refs');
       const req = store.getAll();
-      req.onsuccess = () => {
-          // On retourne juste un tableau de chaînes Base64
-          resolve(req.result.map((img: any) => img.base64));
-      };
+      req.onsuccess = () => resolve(req.result.map((img: any) => img.base64));
       req.onerror = () => resolve([]);
     };
   });
 };
 
+const getShopCssUrl = async (): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open('StudioCode_Assets', 1);
+    request.onerror = () => resolve(null);
+    request.onsuccess = (event: any) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('settings')) { resolve(null); return; }
+      const tx = db.transaction('settings', 'readonly');
+      const store = tx.objectStore('settings');
+      const req = store.get('master_css_url');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    };
+  });
+};
+
+const fetchInspirationCSS = async (url: string): Promise<string> => {
+  if (!url) return "";
+  try {
+    const res = await fetch("/api/analyse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    return data.success && data.fullCSS ? data.fullCSS : "";
+  } catch (e) { return ""; }
+};
         
 // ------------------------------------------------------
 
@@ -2907,6 +2932,39 @@ let allStyles: string[] = [];
           addLog(`🎨 Library loaded: ${allStyles.length} reference styles sent to AI.`);
       }
   } catch (e) { console.error("Erreur chargement styles", e); }
+
+
+
+    
+  
+  // --- INITIALISATION DES RESSOURCES DESIGN ---
+  let shopImages: string[] = [];
+  let inspirationCSS = "";
+  
+  try {
+      addLog("🎨 Gathering design resources...");
+
+      // Récupération parallèle des images et de l'URL CSS
+      const [images, cssUrl] = await Promise.all([
+          getAllShopImages(),
+          getShopCssUrl()
+      ]);
+
+      shopImages = images;
+
+      // Si une URL CSS est définie, on va chercher son code
+      if (cssUrl) {
+          addLog(`🔗 Fetching CSS from source: ${cssUrl}`);
+          inspirationCSS = await fetchInspirationCSS(cssUrl);
+      }
+
+      if (shopImages.length > 0) addLog(`✅ Loaded ${shopImages.length} visual references.`);
+      if (inspirationCSS) addLog(`✅ Loaded CSS Design System.`);
+
+  } catch (e) { 
+      console.error("Design load error", e); 
+      // On continue même si ça échoue, pour ne pas bloquer le chat
+  }
   
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
@@ -2947,7 +3005,8 @@ let allStyles: string[] = [];
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            allReferenceImages: allStyles
+            allReferenceImages: shopImages, // Envoi de toutes les images du Shop
+            injectedCSS: inspirationCSS
           }),
         });
 
