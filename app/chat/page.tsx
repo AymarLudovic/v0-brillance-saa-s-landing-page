@@ -3005,7 +3005,7 @@ let allStyles: string[] = [];
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            allReferenceImages: shopImages, // Envoi de toutes les images du Shop
+            allReferenceImages: allStyles, // Envoi de toutes les images du Shop
             injectedCSS: inspirationCSS
           }),
         });
