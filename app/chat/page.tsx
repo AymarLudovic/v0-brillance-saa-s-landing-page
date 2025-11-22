@@ -2938,7 +2938,7 @@ let allStyles: string[] = [];
     
   
   // --- INITIALISATION DES RESSOURCES DESIGN ---
-  let shopImages: string[] = [];
+
   let inspirationCSS = "";
   
   try {
