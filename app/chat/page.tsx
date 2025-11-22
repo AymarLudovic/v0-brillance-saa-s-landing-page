@@ -2361,44 +2361,11 @@ const runAutomatedAnalysis = async (
       addLog("[AUTO-FLOW] Sending FULL HTML + FULL CSS with maximum reinforced application instructions to Gemini.");
       
       const analysisContext = `
-        Voici les fullhtml et fullcss reçu après que toi Gemini est lancée l'inspirationUrl, ne la relance plus, sert toi de ces fullhtml et fullcss  :
-        - fullHTML (Code source complet de la Landing Page)
-        - fullCSS (Styles globaux et variables du Système de Design)
-
-        OBJECTIF FINAL: Ton but est de construire le logiciel complet demandé par l'utilisateur avec un **ultra design** basé sur l'esthétique du fullCSS/fullHTML, mais avec une **structure logique et fonctionnelle** pour des pages d'application modernes.
-
-        ### 🚨 RÈGLES D'ADAPTATION STRUCTURELLE CRITIQUES 🚨
         
-        La différence entre une Landing Page et une Page d'Application est **structurelle** et **fonctionnelle**.
 
-        1.  **FULLHTML (Landing Page) : Source d'Inspiration de Composants (Atomes et Molécules).**
-            * Le fullHTML est le plan de conception d'une vitrine. **Il ne doit JAMAIS servir de plan de construction global.**
-            * **INTERDICTION ABSOLUE de Copier la Méta-Structure :** Tu ne dois *pas* réutiliser la structure complète du Header de la Landing Page, du Footer complet, ni la séquence des sections principales. Ces éléments sont spécifiques à une page unique de marketing.
-            * **PRIORITÉ MAXIMALE : Focus sur les Composants Structuraux :** Concentre-toi sur l'extraction des patterns de design des éléments réutilisables suivants. Ces balises représentent les **blocs de construction** à adapter : **${tagsList}**.
-            * **DEVOIR :** Lorsque tu construis une page d'application (ex: Dashboard, Profil, Settings), tu dois créer une structure D'APPLICATION appropriée (ex: Sidebar de navigation, En-tête de Dashboard minimaliste, Zone de contenu principal en grille/flex). Ensuite, tu dois injecter le **style visuel** et la **micro-structure HTML/CSS** des éléments ciblés ci-dessus.
+        Voici le fullcss que tu as demandé : 
 
-        2.  **FULLCSS (Système de Design) : Le "Miel" du Style (Couleurs, Typographie).**
-            * Le fullCSS est ton guide de style. Il garantit la cohérence visuelle.
-            * **Extraction sélective stricte :** N'utilise que les déclarations CSS vitales (Variables de couleur, Polices, Mixins/Fonctions clés). **Ne copie pas plus de 45% du code total** dans \`app/globals.css\`.
-            * **Maintien du Style :** Même en adaptant la structure, le **rendu visuel final** (couleurs, ombres, coins arrondis, polices) doit être cohérent avec l'esthétique fournie par le fullCSS.
-
-        3.  **SYNTHÈSE : Objectif de Transformation.**
-            * **Transformer la Structure Marketing (Landing Page) en Structure Fonctionnelle (App).**
-            * **Ton code doit être fonctionnel, modulaire et utiliser les patterns de design adaptés de la source, mais *dans un contexte d'application*.**
-
-       4. Construit le projet de l'utilisateur dont il t'a fait complètement dès le début: celle ci: ${originalUserPrompt}, les étapes de base. les fullhtml fullcss qui sont ci dessous sont justes pour les designs.
-
-        --- FULL HTML START (Landing Page Structure & Patterns) ---
-        ${fullHTML}
-        --- FULL HTML END ---
-
-        --- FULL CSS START (Système de Design) ---
         ${fullCSS}
-        --- FULL CSS END ---
-
-        génère des fichiers complets et sans donner d'instructions ou explications sur le code que tu as généré. Génère au bon format comme il t'a été instruit dans tes instructions.
-        Surtout, ne lance plus une autre InspirationUrl car celle-ci est largement suffisante.
-        
       `;
       
       // 🚀 Envoi à ton système IA (api/gemini)
@@ -2941,16 +2908,21 @@ const sendChat = async (promptOverride?: string) => {
 
 
 // 1. ON RÉCUPÈRE L'IMAGE DU SHOP (SILENCIEUSEMENT)
+
 let shopImages: string[] = [];
+  
   try {
+      // On récupère uniquement les images du Shop
       shopImages = await getAllShopImages();
+
       if (shopImages.length > 0) {
-          addLog(`🎨 Sending ${shopImages.length} design references to AI...`);
+          // Log simple pour confirmer le chargement visuel
+          addLog(`[Design] ${shopImages.length} références visuelles chargées.`);
       }
-  } catch (e) { console.error("Erreur chargement images", e); }
 
-
-    setLoading(true);
+  } catch (e) { 
+      console.error("Erreur chargement design", e); 
+      }
   
   // --- LOGIQUE DEBUG DESIGN ---
   
@@ -3029,8 +3001,8 @@ let shopImages: string[] = [];
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            allReferenceImages: allStyles, // Envoi de toutes les images du Shop
-            injectedCSS: inspirationCSS
+            allReferenceImages: shopImages
+         
           }),
         });
 
