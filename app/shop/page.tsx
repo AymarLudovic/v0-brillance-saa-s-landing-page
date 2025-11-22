@@ -1,12 +1,12 @@
 "use client"
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Image as ImageIcon, Plus, Trash2, ArrowLeft, Loader, ShoppingBag, Link as LinkIcon, CheckCircle, X, Terminal, Copy, AlertTriangle } from 'lucide-react';
+import { Image as ImageIcon, Plus, Trash2, ArrowLeft, Loader, ShoppingBag, Link as LinkIcon, CheckCircle, X, Terminal, Copy, AlertTriangle, RefreshCcw } from 'lucide-react';
 import Link from 'next/link';
 
-// --- LOGIQUE DB DÉDIÉE (ISOLÉE) ---
+// --- LOGIQUE DB DÉDIÉE ---
 const IMAGES_DB_NAME = 'StudioCode_Assets';
-const IMAGES_DB_VERSION = 1;
+const IMAGES_DB_VERSION = 2; // 🔥 PASSAGE EN V2 POUR CORRIGER L'ERREUR DE STORE MANQUANT
 
 // Interface pour les logs
 interface LogEntry {
@@ -26,6 +26,7 @@ const initImageDB = (): Promise<IDBDatabase> => {
     
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
+      // Création ou vérification des stores
       if (!db.objectStoreNames.contains('refs')) {
         db.createObjectStore('refs', { keyPath: 'id' });
       }
@@ -36,12 +37,21 @@ const initImageDB = (): Promise<IDBDatabase> => {
   });
 };
 
+// Fonction d'urgence pour tout effacer si "NO SPACE"
+const hardResetDB = async () => {
+    return new Promise<void>((resolve, reject) => {
+        const req = indexedDB.deleteDatabase(IMAGES_DB_NAME);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+        req.onblocked = () => console.warn("DB Delete Blocked: Fermez les autres onglets.");
+    });
+};
+
 const saveRefImage = async (img: { id: string, name: string, base64: string }) => {
   const db = await initImageDB();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction('refs', 'readwrite');
     const store = tx.objectStore('refs');
-    // On utilise put qui écrase ou crée
     const request = store.put({ ...img, createdAt: Date.now() });
     
     tx.oncomplete = () => resolve();
@@ -121,7 +131,6 @@ export default function ShopPage() {
     const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
         const id = Math.random().toString(36).substr(2, 9);
         const timestamp = new Date().toLocaleTimeString();
-        console.log(`[SHOP] ${message}`);
         setLogs(prev => [...prev, { id, timestamp, message, type }]);
     };
 
@@ -139,7 +148,7 @@ export default function ShopPage() {
 
     const loadData = async () => {
         try {
-            addLog("Chargement des données...", "info");
+            addLog("Connexion à la DB (V2)...", "info");
             const imgs = await getRefImages();
             setImages(imgs.sort((a, b) => b.createdAt - a.createdAt));
             
@@ -147,11 +156,26 @@ export default function ShopPage() {
             if (url) {
                 setCssUrl(url);
                 setSavedCssUrl(url);
-                addLog("URL CSS chargée.", "success");
             }
-            addLog(`${imgs.length} images chargées.`, "success");
+            addLog(`${imgs.length} images chargées avec succès.`, "success");
         } catch (e: any) { 
-            addLog(`Erreur chargement: ${e.message}`, "error");
+            addLog(`Erreur critique DB: ${e.message}`, "error");
+            if (e.message.includes("store")) {
+                addLog("⚠️ La structure de la DB semble corrompue. Essayez le bouton 'Réinitialiser' en bas.", "warning");
+            }
+        }
+    };
+
+    const handleResetDB = async () => {
+        if (confirm("ATTENTION : Cela va effacer toutes les images du Shop pour réparer l'erreur 'No Space' ou 'Store Not Found'. Continuer ?")) {
+            try {
+                addLog("Suppression de la base de données...", "warning");
+                await hardResetDB();
+                addLog("Base supprimée. Rechargement de la page...", "success");
+                setTimeout(() => window.location.reload(), 1000);
+            } catch (e: any) {
+                addLog(`Erreur Reset: ${e.message}`, "error");
+            }
         }
     };
 
@@ -159,13 +183,13 @@ export default function ShopPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        addLog(`Début upload: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, "info");
+        addLog(`Upload: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, "info");
         setIsUploading(true);
         
         const reader = new FileReader();
         
         reader.onerror = () => {
-            addLog("Erreur lecture fichier (FileReader)", "error");
+            addLog("Erreur lecture fichier", "error");
             setIsUploading(false);
         };
 
@@ -176,16 +200,16 @@ export default function ShopPage() {
                 
                 img.onload = async () => {
                     try {
-                        addLog("Compression de l'image...", "info");
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d');
-                        const scale = Math.min(1, 1000 / img.width);
+                        // On réduit encore un peu la taille pour éviter le "NO SPACE"
+                        const scale = Math.min(1, 800 / img.width); 
                         canvas.width = img.width * scale;
                         canvas.height = img.height * scale;
                         ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
                         
-                        const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                        addLog(`Image compressée. Taille: ${optimizedBase64.length} chars`, "info");
+                        // Compression plus agressive (0.6) pour économiser de la place
+                        const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.6);
                         
                         const newImage = {
                             id: crypto.randomUUID(),
@@ -193,24 +217,20 @@ export default function ShopPage() {
                             base64: optimizedBase64
                         };
                         
-                        addLog("Sauvegarde dans IndexedDB...", "info");
                         await saveRefImage(newImage);
                         await loadData();
-                        addLog("Image sauvegardée avec succès !", "success");
+                        addLog("Image sauvegardée !", "success");
                     } catch (innerErr: any) {
-                        addLog(`Erreur traitement image: ${innerErr.message}`, "error");
+                        addLog(`Erreur Save: ${innerErr.message}`, "error");
+                        if (innerErr.message.includes("QUOTA") || innerErr.message.includes("SPACE")) {
+                            addLog("🚨 DISQUE PLEIN ! Utilisez le bouton 'Réinitialiser' en bas.", "error");
+                        }
                     } finally {
-                        setIsUploading(false); // S'assure que le loader s'arrête
+                        setIsUploading(false);
                     }
                 };
-
-                img.onerror = () => {
-                    addLog("Erreur chargement objet Image", "error");
-                    setIsUploading(false);
-                };
-
             } catch (err: any) {
-                addLog(`Exception Upload: ${err.message}`, "error");
+                addLog(`Exception: ${err.message}`, "error");
                 setIsUploading(false);
             }
         };
@@ -220,7 +240,6 @@ export default function ShopPage() {
     const handleDeleteImage = async (id: string) => {
         if (confirm("Supprimer ce style ?")) {
             try {
-                addLog(`Suppression image ${id}...`, "info");
                 await deleteRefImage(id);
                 await loadData();
                 addLog("Image supprimée.", "success");
@@ -231,33 +250,28 @@ export default function ShopPage() {
     };
 
     const handleSaveUrl = async () => {
-        if (!cssUrl.trim()) {
-            addLog("L'URL est vide.", "warning");
-            return;
-        }
-        
+        if (!cssUrl.trim()) return;
         setIsSavingUrl(true);
         try {
-            addLog(`Sauvegarde URL: ${cssUrl}`, "info");
             await saveCssUrl(cssUrl);
             setSavedCssUrl(cssUrl);
-            addLog("URL CSS sauvegardée !", "success");
+            addLog("URL CSS sauvegardée.", "success");
         } catch (e: any) {
-            addLog(`Erreur sauvegarde URL: ${e.message}`, "error");
+            addLog(`Erreur URL: ${e.message}`, "error");
         } finally {
-            setIsSavingUrl(false); // Force l'arrêt du loader
+            setIsSavingUrl(false);
         }
     };
 
     const handleDeleteUrl = async () => {
-        if (confirm("Supprimer l'URL source de CSS ?")) {
+        if (confirm("Supprimer l'URL ?")) {
             try {
                 await deleteCssUrl();
                 setCssUrl("");
                 setSavedCssUrl(null);
                 addLog("URL supprimée.", "success");
             } catch (e: any) {
-                addLog(`Erreur suppression URL: ${e.message}`, "error");
+                addLog(`Erreur: ${e.message}`, "error");
             }
         }
     };
@@ -265,7 +279,7 @@ export default function ShopPage() {
     const handleCopyLogs = () => {
         const textLogs = logs.map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`).join('\n');
         navigator.clipboard.writeText(textLogs);
-        addLog("Logs copiés dans le presse-papier !", "success");
+        addLog("Logs copiés !", "success");
     };
 
     return (
@@ -316,13 +330,7 @@ export default function ShopPage() {
                             {isSavingUrl ? <Loader size={18} className="animate-spin"/> : 'Sauvegarder'}
                         </button>
                         {savedCssUrl && (
-                            <button 
-                                onClick={handleDeleteUrl}
-                                className="p-3 border border-red-500/20 text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"
-                                title="Supprimer l'URL"
-                            >
-                                <Trash2 size={18} />
-                            </button>
+                            <button onClick={handleDeleteUrl} className="p-3 border border-red-500/20 text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"><Trash2 size={18} /></button>
                         )}
                     </div>
                 </div>
@@ -346,15 +354,9 @@ export default function ShopPage() {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <p className="font-bold text-white truncate text-sm">{img.name}</p>
                             </div>
-                            <button 
-                                onClick={() => handleDeleteImage(img.id)}
-                                className="absolute top-3 right-3 p-2 bg-black/50 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+                            <button onClick={() => handleDeleteImage(img.id)} className="absolute top-3 right-3 p-2 bg-black/50 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"><Trash2 size={16} /></button>
                         </div>
                     ))}
-                    
                     {images.length === 0 && !isUploading && (
                         <div className="col-span-full py-16 text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
                             <ImageIcon size={32} className="text-gray-600 mx-auto mb-3" />
@@ -364,24 +366,25 @@ export default function ShopPage() {
                 </div>
             </div>
 
-            {/* --- CONSOLE DE LOGS DEBUG --- */}
+            {/* --- CONSOLE DE DEBUG & RESET --- */}
             <div className="mt-auto border-t border-white/10 pt-4">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-xs font-mono text-gray-500 flex items-center gap-2">
-                        <Terminal size={12} /> Console de Débug
+                        <Terminal size={12} /> Console Système
                     </h3>
-                    <button onClick={handleCopyLogs} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white bg-white/5 px-2 py-1 rounded">
-                        <Copy size={10} /> Copier les logs
-                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={handleResetDB} className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-300 bg-red-900/10 border border-red-900/30 px-2 py-1 rounded">
+                            <RefreshCcw size={10} /> Réinitialiser (Urgence)
+                        </button>
+                        <button onClick={handleCopyLogs} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white bg-white/5 px-2 py-1 rounded">
+                            <Copy size={10} /> Copier logs
+                        </button>
+                    </div>
                 </div>
                 <div className="h-32 bg-black rounded-lg border border-white/10 p-2 overflow-y-auto font-mono text-[10px] space-y-1">
-                    {logs.length === 0 && <span className="text-gray-700 italic">En attente d'actions...</span>}
+                    {logs.length === 0 && <span className="text-gray-700 italic">En attente...</span>}
                     {logs.map((log) => (
-                        <div key={log.id} className={`flex gap-2 ${
-                            log.type === 'error' ? 'text-red-400' : 
-                            log.type === 'success' ? 'text-green-400' : 
-                            log.type === 'warning' ? 'text-yellow-400' : 'text-gray-400'
-                        }`}>
+                        <div key={log.id} className={`flex gap-2 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-green-400' : log.type === 'warning' ? 'text-yellow-400' : 'text-gray-400'}`}>
                             <span className="opacity-50 flex-shrink-0">[{log.timestamp}]</span>
                             <span className="break-all">{log.message}</span>
                         </div>
@@ -392,4 +395,4 @@ export default function ShopPage() {
 
         </div>
     );
-                  }
+                                             }
