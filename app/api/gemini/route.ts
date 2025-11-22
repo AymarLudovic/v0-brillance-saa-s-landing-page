@@ -46,13 +46,14 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
-        // 🔥 ON REÇOIT UN TABLEAU D'IMAGES MAINTENANT
-        allReferenceImages 
+        allReferenceImages,
+        injectedCSS
     } = body as { 
         history: Message[], 
         uploadedImages: string[],
         uploadedFiles: any[],
-        allReferenceImages?: string[] 
+        allReferenceImages?: string[],
+        injectedCSS?: string
     }
 
     if (!history || history.length === 0) return NextResponse.json({ error: "Historique manquant" }, { status: 400 });
@@ -64,15 +65,9 @@ export async function POST(req: Request) {
     const lastUserIndex = history.length - 1; 
     const systemContextParts: Part[] = []; 
 
-    // ============================================================
-    // 🔥 INJECTION MULTI-IMAGES (LOGIQUE INTELLIGENTE) 🔥
-    // ============================================================
     if (allReferenceImages && allReferenceImages.length > 0) {
-        console.log(`🎨 [API] Injection de ${allReferenceImages.length} images de style.`);
-        
         const styleParts: Part[] = [];
 
-        // 1. On ajoute toutes les images
         allReferenceImages.forEach((imgBase64) => {
             styleParts.push({
                 inlineData: {
@@ -82,35 +77,30 @@ export async function POST(req: Request) {
             });
         });
 
-        // 2. On ajoute l'instruction de sélection intelligente
-        styleParts.push({
-            text: `[SYSTEM DIRECTIVE: AUTOMATIC STYLE SELECTION]
-The images attached above represent your "Design System Library".
+        let instructionText = `[SYSTEM DIRECTIVE: HYBRID DESIGN ENGINE]
+You are an expert UI/UX Engineer capable of fusing visual references with raw code styles.
+
+SOURCE 1: VISUAL REFERENCES (Attached Images)
+- USE THESE FOR: Layout structure, Component shapes, Spacing, and Hierarchy.
+- Pick the best image that matches the user's intent.
+
+SOURCE 2: CSS STYLE SYSTEM (Injected Code below)
+- USE THESE FOR: Exact Color Palette (Hex codes), Typography, Gradients.
+- Extract variables from this CSS.
 
 YOUR MISSION:
-1. Analyze the User's Request below.
-2. Review the attached reference images.
-3. SELECT the single best image that fits the user's project intent (e.g., pick the dark/tech one for Crypto, the soft/light one for Bakery).
-4. EXTRACT that chosen image's style (Colors, Shapes, Layout, Typography).
-5. APPLY that style strictly to the code you generate.
+Combine the structure of the images with the colors/fonts of the CSS to build the user's app.`;
 
-You are an expert Art Director. Choose the best vibe implicitly and build the UI.`
-        });
+        if (injectedCSS) {
+            instructionText += `\n\n--- INJECTED CSS SYSTEM ---\n${injectedCSS.substring(0, 20000)}`;
+        }
 
-        // 3. Injection dans l'historique
-        contents.push({
-            role: 'user',
-            parts: styleParts
-        });
-        
-        contents.push({
-            role: 'model',
-            parts: [{ text: "Understood. I have reviewed the design library. I will select the most appropriate reference image based on your request and strictly apply its visual system (colors, shapes, typography) to the generated code." }]
-        });
+        styleParts.push({ text: instructionText });
+
+        contents.push({ role: 'user', parts: styleParts });
+        contents.push({ role: 'model', parts: [{ text: "Understood. I will fuse the visual structure of the reference images with the provided CSS system." }] });
     }
-    // ============================================================
 
-    // Le reste est inchangé...
     for (let i = 0; i < history.length; i++) {
         const msg = history[i];
         const parts: Part[] = [];
@@ -139,7 +129,6 @@ You are an expert Art Director. Choose the best vibe implicitly and build the UI
             }
             parts.push({ text: msg.content || ' ' }); 
         }
-        
         if (parts.length > 0) contents.push({ role, parts });
     }
 
@@ -184,4 +173,4 @@ You are an expert Art Director. Choose the best vibe implicitly and build the UI
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-        }
+}
