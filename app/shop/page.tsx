@@ -1,10 +1,9 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Image as ImageIcon, Plus, Trash2, ArrowLeft, Loader, ShoppingBag } from 'lucide-react';
+import { Image as ImageIcon, Plus, Trash2, ArrowLeft, Loader, ShoppingBag, Link as LinkIcon, CheckCircle, X } from 'lucide-react';
 import Link from 'next/link';
 
-// --- LOGIQUE DB DÉDIÉE (ISOLÉE) ---
 const IMAGES_DB_NAME = 'StudioCode_Assets';
 const IMAGES_DB_VERSION = 1;
 
@@ -17,6 +16,9 @@ const initImageDB = (): Promise<IDBDatabase> => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains('refs')) {
         db.createObjectStore('refs', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings');
       }
     };
   });
@@ -55,21 +57,60 @@ const deleteRefImage = async (id: string) => {
   });
 };
 
-// --- PAGE COMPONENT ---
+const saveCssUrl = async (url: string) => {
+  const db = await initImageDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('settings', 'readwrite');
+    const store = tx.objectStore('settings');
+    store.put(url, 'master_css_url');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+const getCssUrl = async (): Promise<string | null> => {
+  const db = await initImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('settings', 'readonly');
+    const store = tx.objectStore('settings');
+    const request = store.get('master_css_url');
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => resolve(null);
+  });
+};
+
+const deleteCssUrl = async () => {
+  const db = await initImageDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('settings', 'readwrite');
+    const store = tx.objectStore('settings');
+    store.delete('master_css_url');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
 
 export default function ShopPage() {
     const [images, setImages] = useState<any[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [cssUrl, setCssUrl] = useState("");
+    const [savedCssUrl, setSavedCssUrl] = useState<string | null>(null);
+    const [isSavingUrl, setIsSavingUrl] = useState(false);
 
     useEffect(() => {
-        loadImages();
+        loadData();
     }, []);
 
-    const loadImages = async () => {
+    const loadData = async () => {
         try {
             const imgs = await getRefImages();
-            // Tri par date de création (plus récent en premier)
             setImages(imgs.sort((a, b) => b.createdAt - a.createdAt));
+            
+            const url = await getCssUrl();
+            if (url) {
+                setCssUrl(url);
+                setSavedCssUrl(url);
+            }
         } catch (e) { console.error(e); }
     };
 
@@ -86,7 +127,6 @@ export default function ShopPage() {
             img.onload = async () => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                // Optimisation : max 1000px
                 const scale = Math.min(1, 1000 / img.width);
                 canvas.width = img.width * scale;
                 canvas.height = img.height * scale;
@@ -101,76 +141,128 @@ export default function ShopPage() {
                 };
                 
                 await saveRefImage(newImage);
-                await loadImages();
+                await loadData();
                 setIsUploading(false);
             };
         };
         reader.readAsDataURL(file);
     };
 
-    const handleDelete = async (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
+    const handleDeleteImage = async (id: string) => {
         if (confirm("Supprimer ce style ?")) {
             await deleteRefImage(id);
-            loadImages();
+            loadData();
+        }
+    };
+
+    const handleSaveUrl = async () => {
+        if (!cssUrl.trim()) return;
+        setIsSavingUrl(true);
+        await saveCssUrl(cssUrl);
+        setSavedCssUrl(cssUrl);
+        setTimeout(() => setIsSavingUrl(false), 1000);
+    };
+
+    const handleDeleteUrl = async () => {
+        if (confirm("Supprimer l'URL source de CSS ?")) {
+            await deleteCssUrl();
+            setCssUrl("");
+            setSavedCssUrl(null);
         }
     };
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10 font-sans">
             
-            <div className="max-w-7xl mx-auto mb-8 flex justify-between items-end">
-                <div>
-                    <Link href="/chat" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4 text-sm font-medium">
-                        <ArrowLeft size={16} /> Retour au Chat
-                    </Link>
-                    <h1 className="text-4xl font-bold flex items-center gap-3">
-                        <ShoppingBag className="text-purple-500" size={36} /> Design Library
-                    </h1>
-                    <p className="text-gray-500 mt-2 max-w-xl">
-                        Ajoutez ici vos références visuelles. L'IA utilisera automatiquement cette bibliothèque pour s'inspirer lors de la création de vos projets.
-                    </p>
+            <div className="max-w-7xl mx-auto mb-10">
+                <div className="flex justify-between items-end mb-8">
+                    <div>
+                        <Link href="/chat" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4 text-sm font-medium">
+                            <ArrowLeft size={16} /> Retour au Chat
+                        </Link>
+                        <h1 className="text-4xl font-bold flex items-center gap-3">
+                            <ShoppingBag className="text-purple-500" size={36} /> Design Studio
+                        </h1>
+                    </div>
                 </div>
-                
-                <label className="flex items-center gap-2 px-5 py-3 bg-white text-black rounded-xl font-bold cursor-pointer hover:bg-gray-200 transition-all hover:scale-105 active:scale-95">
-                    {isUploading ? <Loader className="animate-spin" size={20} /> : <Plus size={20} />}
-                    <span>Ajouter un Style</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={isUploading} />
-                </label>
-            </div>
 
-            <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {images.map((img) => (
-                    <div 
-                        key={img.id} 
-                        className="group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-white/5 hover:border-white/20 transition-all duration-300 bg-[#111]"
-                    >
-                        <img src={img.base64} alt={img.name} className="w-full h-full object-cover" />
-                        
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="flex justify-between items-end">
-                                <div>
-                                    <p className="font-bold text-white truncate pr-4">{img.name}</p>
-                                    <p className="text-xs text-gray-400">Dispo pour l'IA</p>
-                                </div>
+                <div className="bg-[#111] border border-white/10 rounded-xl p-6 mb-10">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                                <LinkIcon size={20} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Source CSS Maître</h3>
+                                <p className="text-xs text-gray-500">L'IA extraira les couleurs exactes et polices de ce site.</p>
                             </div>
                         </div>
-
+                        {savedCssUrl && <span className="text-xs text-green-500 flex items-center gap-1"><CheckCircle size={12}/> Actif</span>}
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                        <div className="relative flex-1">
+                            <input 
+                                type="url" 
+                                value={cssUrl}
+                                onChange={(e) => setCssUrl(e.target.value)}
+                                placeholder="https://linear.app"
+                                className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+                            />
+                        </div>
                         <button 
-                            onClick={(e) => handleDelete(e, img.id)}
-                            className="absolute top-3 right-3 p-2 bg-black/50 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                            onClick={handleSaveUrl}
+                            className="px-6 py-3 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors min-w-[100px]"
                         >
-                            <Trash2 size={16} />
+                            {isSavingUrl ? <Loader size={18} className="animate-spin mx-auto"/> : 'Sauvegarder'}
                         </button>
+                        {savedCssUrl && (
+                            <button 
+                                onClick={handleDeleteUrl}
+                                className="p-3 border border-red-500/20 text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"
+                                title="Supprimer l'URL"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        )}
                     </div>
-                ))}
-                
-                {images.length === 0 && !isUploading && (
-                    <div className="col-span-full py-20 text-center text-gray-500 border-2 border-dashed border-white/5 rounded-xl">
-                        Aucun style disponible. L'IA utilisera son imagination par défaut.
-                    </div>
-                )}
+                </div>
+
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        <ImageIcon className="text-purple-500" /> Références Visuelles
+                    </h2>
+                    <label className="flex items-center gap-2 px-5 py-2 bg-[#111] border border-white/10 text-white rounded-lg font-medium cursor-pointer hover:bg-[#222] transition-colors">
+                        {isUploading ? <Loader className="animate-spin" size={16} /> : <Plus size={16} />}
+                        <span className="text-sm">Ajouter Image</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={isUploading} />
+                    </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {images.map((img) => (
+                        <div key={img.id} className="group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-white/5 bg-[#111]">
+                            <img src={img.base64} alt={img.name} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <p className="font-bold text-white truncate text-sm">{img.name}</p>
+                            </div>
+                            <button 
+                                onClick={() => handleDeleteImage(img.id)}
+                                className="absolute top-3 right-3 p-2 bg-black/50 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    ))}
+                    
+                    {images.length === 0 && !isUploading && (
+                        <div className="col-span-full py-16 text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+                            <ImageIcon size={32} className="text-gray-600 mx-auto mb-3" />
+                            <p className="text-gray-500 text-sm">Aucune référence visuelle.</p>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
-                           }
+                     }
