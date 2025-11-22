@@ -46,14 +46,12 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
-        allReferenceImages,
-        injectedCSS
+        allReferenceImages 
     } = body as { 
         history: Message[], 
         uploadedImages: string[],
         uploadedFiles: any[],
-        allReferenceImages?: string[],
-        injectedCSS?: string
+        allReferenceImages?: string[]
     }
 
     if (!history || history.length === 0) return NextResponse.json({ error: "Historique manquant" }, { status: 400 });
@@ -65,6 +63,7 @@ export async function POST(req: Request) {
     const lastUserIndex = history.length - 1; 
     const systemContextParts: Part[] = []; 
 
+    // --- INJECTION DES IMAGES DE RÉFÉRENCE ---
     if (allReferenceImages && allReferenceImages.length > 0) {
         const styleParts: Part[] = [];
 
@@ -77,28 +76,23 @@ export async function POST(req: Request) {
             });
         });
 
-        let instructionText = `[SYSTEM DIRECTIVE: HYBRID DESIGN ENGINE]
-You are an expert UI/UX Engineer capable of fusing visual references with raw code styles.
+        styleParts.push({
+            text: `[SYSTEM DIRECTIVE: VISUAL REFERENCES PROVIDED]
+The images attached above are your Visual Design Library.
 
-SOURCE 1: VISUAL REFERENCES (Attached Images)
-- USE THESE FOR: Layout structure, Component shapes, Spacing, and Hierarchy.
-- Pick the best image that matches the user's intent.
+INSTRUCTIONS:
+1. **Analyze Layout & Shapes:** Use these images to define the structure (grid, spacing) and component styles (border-radius, shadows, button shapes).
+2. **Select the Best Vibe:** Implicitly choose the image style that best fits the user's request.
+3. **CSS & Colors:** - You may extract colors directly from these images.
+   - **IMPORTANT:** If you believe a specific real-world website matches this vibe perfectly and would provide better CSS variables/gradients, you are AUTHORIZED to trigger the 'inspirationUrl' artifact immediately.
+   - Example: If the images look like "Linear", you can output: \`\`\`json { "type": "inspirationUrl", "url": "https://linear.app" } \`\`\` to get its full CSS.
+   - Otherwise, wait for the user to provide a URL or use your internal knowledge.
 
-SOURCE 2: CSS STYLE SYSTEM (Injected Code below)
-- USE THESE FOR: Exact Color Palette (Hex codes), Typography, Gradients.
-- Extract variables from this CSS.
-
-YOUR MISSION:
-Combine the structure of the images with the colors/fonts of the CSS to build the user's app.`;
-
-        if (injectedCSS) {
-            instructionText += `\n\n--- INJECTED CSS SYSTEM ---\n${injectedCSS.substring(0, 20000)}`;
-        }
-
-        styleParts.push({ text: instructionText });
+Apply the visual structure of these images to the code you generate.`
+        });
 
         contents.push({ role: 'user', parts: styleParts });
-        contents.push({ role: 'model', parts: [{ text: "Understood. I will fuse the visual structure of the reference images with the provided CSS system." }] });
+        contents.push({ role: 'model', parts: [{ text: "Understood. I have reviewed the visual references. I will use them for structure/layout and will trigger an inspirationUrl if I need precise external CSS data." }] });
     }
 
     for (let i = 0; i < history.length; i++) {
@@ -129,6 +123,7 @@ Combine the structure of the images with the colors/fonts of the CSS to build th
             }
             parts.push({ text: msg.content || ' ' }); 
         }
+        
         if (parts.length > 0) contents.push({ role, parts });
     }
 
@@ -173,4 +168,4 @@ Combine the structure of the images with the colors/fonts of the CSS to build th
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-}
+  }
