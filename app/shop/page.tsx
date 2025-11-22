@@ -1,17 +1,29 @@
 "use client"
 
-import React, { useEffect, useState } from 'react';
-import { Image as ImageIcon, Plus, Trash2, ArrowLeft, Loader, ShoppingBag, Link as LinkIcon, CheckCircle, X } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Image as ImageIcon, Plus, Trash2, ArrowLeft, Loader, ShoppingBag, Link as LinkIcon, CheckCircle, X, Terminal, Copy, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
+// --- LOGIQUE DB DÉDIÉE (ISOLÉE) ---
 const IMAGES_DB_NAME = 'StudioCode_Assets';
 const IMAGES_DB_VERSION = 1;
+
+// Interface pour les logs
+interface LogEntry {
+    id: string;
+    timestamp: string;
+    message: string;
+    type: 'info' | 'success' | 'error' | 'warning';
+}
 
 const initImageDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(IMAGES_DB_NAME, IMAGES_DB_VERSION);
-    request.onerror = () => reject(request.error);
+    
+    request.onerror = () => reject(new Error(`DB Open Error: ${request.error?.message}`));
+    
     request.onsuccess = () => resolve(request.result);
+    
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains('refs')) {
@@ -29,9 +41,11 @@ const saveRefImage = async (img: { id: string, name: string, base64: string }) =
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction('refs', 'readwrite');
     const store = tx.objectStore('refs');
-    store.put({ ...img, createdAt: Date.now() });
+    // On utilise put qui écrase ou crée
+    const request = store.put({ ...img, createdAt: Date.now() });
+    
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => reject(new Error(`Save Image Error: ${tx.error?.message}`));
   });
 };
 
@@ -41,8 +55,9 @@ const getRefImages = async (): Promise<any[]> => {
     const tx = db.transaction('refs', 'readonly');
     const store = tx.objectStore('refs');
     const request = store.getAll();
+    
     request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(new Error(`Get Images Error: ${request.error?.message}`));
   });
 };
 
@@ -53,7 +68,7 @@ const deleteRefImage = async (id: string) => {
     const store = tx.objectStore('refs');
     store.delete(id);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => reject(new Error(`Delete Error: ${tx.error?.message}`));
   });
 };
 
@@ -64,7 +79,7 @@ const saveCssUrl = async (url: string) => {
     const store = tx.objectStore('settings');
     store.put(url, 'master_css_url');
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => reject(new Error(`Save URL Error: ${tx.error?.message}`));
   });
 };
 
@@ -75,7 +90,7 @@ const getCssUrl = async (): Promise<string | null> => {
     const store = tx.objectStore('settings');
     const request = store.get('master_css_url');
     request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => resolve(null);
+    request.onerror = () => reject(new Error(`Get URL Error: ${request.error?.message}`));
   });
 };
 
@@ -86,9 +101,11 @@ const deleteCssUrl = async () => {
     const store = tx.objectStore('settings');
     store.delete('master_css_url');
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => reject(new Error(`Delete URL Error: ${tx.error?.message}`));
   });
 };
+
+// --- COMPOSANT PAGE ---
 
 export default function ShopPage() {
     const [images, setImages] = useState<any[]>([]);
@@ -96,13 +113,33 @@ export default function ShopPage() {
     const [cssUrl, setCssUrl] = useState("");
     const [savedCssUrl, setSavedCssUrl] = useState<string | null>(null);
     const [isSavingUrl, setIsSavingUrl] = useState(false);
+    
+    // --- SYSTEME DE LOGS ---
+    const [logs, setLogs] = useState<LogEntry[]>([]);
+    const logsEndRef = useRef<HTMLDivElement>(null);
 
+    const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
+        const id = Math.random().toString(36).substr(2, 9);
+        const timestamp = new Date().toLocaleTimeString();
+        console.log(`[SHOP] ${message}`);
+        setLogs(prev => [...prev, { id, timestamp, message, type }]);
+    };
+
+    // Scroll automatique des logs
+    useEffect(() => {
+        if (logsEndRef.current) {
+            logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [logs]);
+
+    // Chargement initial
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
         try {
+            addLog("Chargement des données...", "info");
             const imgs = await getRefImages();
             setImages(imgs.sort((a, b) => b.createdAt - a.createdAt));
             
@@ -110,71 +147,131 @@ export default function ShopPage() {
             if (url) {
                 setCssUrl(url);
                 setSavedCssUrl(url);
+                addLog("URL CSS chargée.", "success");
             }
-        } catch (e) { console.error(e); }
+            addLog(`${imgs.length} images chargées.`, "success");
+        } catch (e: any) { 
+            addLog(`Erreur chargement: ${e.message}`, "error");
+        }
     };
 
     const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        addLog(`Début upload: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, "info");
         setIsUploading(true);
+        
         const reader = new FileReader();
         
+        reader.onerror = () => {
+            addLog("Erreur lecture fichier (FileReader)", "error");
+            setIsUploading(false);
+        };
+
         reader.onloadend = async () => {
-            const img = new Image();
-            img.src = reader.result as string;
-            img.onload = async () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const scale = Math.min(1, 1000 / img.width);
-                canvas.width = img.width * scale;
-                canvas.height = img.height * scale;
-                ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+            try {
+                const img = new Image();
+                img.src = reader.result as string;
                 
-                const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                
-                const newImage = {
-                    id: crypto.randomUUID(),
-                    name: file.name,
-                    base64: optimizedBase64
+                img.onload = async () => {
+                    try {
+                        addLog("Compression de l'image...", "info");
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const scale = Math.min(1, 1000 / img.width);
+                        canvas.width = img.width * scale;
+                        canvas.height = img.height * scale;
+                        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        
+                        const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                        addLog(`Image compressée. Taille: ${optimizedBase64.length} chars`, "info");
+                        
+                        const newImage = {
+                            id: crypto.randomUUID(),
+                            name: file.name,
+                            base64: optimizedBase64
+                        };
+                        
+                        addLog("Sauvegarde dans IndexedDB...", "info");
+                        await saveRefImage(newImage);
+                        await loadData();
+                        addLog("Image sauvegardée avec succès !", "success");
+                    } catch (innerErr: any) {
+                        addLog(`Erreur traitement image: ${innerErr.message}`, "error");
+                    } finally {
+                        setIsUploading(false); // S'assure que le loader s'arrête
+                    }
                 };
-                
-                await saveRefImage(newImage);
-                await loadData();
+
+                img.onerror = () => {
+                    addLog("Erreur chargement objet Image", "error");
+                    setIsUploading(false);
+                };
+
+            } catch (err: any) {
+                addLog(`Exception Upload: ${err.message}`, "error");
                 setIsUploading(false);
-            };
+            }
         };
         reader.readAsDataURL(file);
     };
 
     const handleDeleteImage = async (id: string) => {
         if (confirm("Supprimer ce style ?")) {
-            await deleteRefImage(id);
-            loadData();
+            try {
+                addLog(`Suppression image ${id}...`, "info");
+                await deleteRefImage(id);
+                await loadData();
+                addLog("Image supprimée.", "success");
+            } catch (e: any) {
+                addLog(`Erreur suppression: ${e.message}`, "error");
+            }
         }
     };
 
     const handleSaveUrl = async () => {
-        if (!cssUrl.trim()) return;
+        if (!cssUrl.trim()) {
+            addLog("L'URL est vide.", "warning");
+            return;
+        }
+        
         setIsSavingUrl(true);
-        await saveCssUrl(cssUrl);
-        setSavedCssUrl(cssUrl);
-        setTimeout(() => setIsSavingUrl(false), 1000);
+        try {
+            addLog(`Sauvegarde URL: ${cssUrl}`, "info");
+            await saveCssUrl(cssUrl);
+            setSavedCssUrl(cssUrl);
+            addLog("URL CSS sauvegardée !", "success");
+        } catch (e: any) {
+            addLog(`Erreur sauvegarde URL: ${e.message}`, "error");
+        } finally {
+            setIsSavingUrl(false); // Force l'arrêt du loader
+        }
     };
 
     const handleDeleteUrl = async () => {
         if (confirm("Supprimer l'URL source de CSS ?")) {
-            await deleteCssUrl();
-            setCssUrl("");
-            setSavedCssUrl(null);
+            try {
+                await deleteCssUrl();
+                setCssUrl("");
+                setSavedCssUrl(null);
+                addLog("URL supprimée.", "success");
+            } catch (e: any) {
+                addLog(`Erreur suppression URL: ${e.message}`, "error");
+            }
         }
     };
 
+    const handleCopyLogs = () => {
+        const textLogs = logs.map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`).join('\n');
+        navigator.clipboard.writeText(textLogs);
+        addLog("Logs copiés dans le presse-papier !", "success");
+    };
+
     return (
-        <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10 font-sans">
+        <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10 font-sans flex flex-col">
             
-            <div className="max-w-7xl mx-auto mb-10">
+            <div className="max-w-7xl mx-auto w-full mb-10">
                 <div className="flex justify-between items-end mb-8">
                     <div>
                         <Link href="/chat" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4 text-sm font-medium">
@@ -186,6 +283,7 @@ export default function ShopPage() {
                     </div>
                 </div>
 
+                {/* URL CSS Section */}
                 <div className="bg-[#111] border border-white/10 rounded-xl p-6 mb-10">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
@@ -212,9 +310,10 @@ export default function ShopPage() {
                         </div>
                         <button 
                             onClick={handleSaveUrl}
-                            className="px-6 py-3 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors min-w-[100px]"
+                            disabled={isSavingUrl}
+                            className={`px-6 py-3 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors min-w-[100px] flex justify-center ${isSavingUrl ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            {isSavingUrl ? <Loader size={18} className="animate-spin mx-auto"/> : 'Sauvegarder'}
+                            {isSavingUrl ? <Loader size={18} className="animate-spin"/> : 'Sauvegarder'}
                         </button>
                         {savedCssUrl && (
                             <button 
@@ -228,11 +327,12 @@ export default function ShopPage() {
                     </div>
                 </div>
 
+                {/* Images Section */}
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                         <ImageIcon className="text-purple-500" /> Références Visuelles
                     </h2>
-                    <label className="flex items-center gap-2 px-5 py-2 bg-[#111] border border-white/10 text-white rounded-lg font-medium cursor-pointer hover:bg-[#222] transition-colors">
+                    <label className={`flex items-center gap-2 px-5 py-2 bg-[#111] border border-white/10 text-white rounded-lg font-medium cursor-pointer hover:bg-[#222] transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         {isUploading ? <Loader className="animate-spin" size={16} /> : <Plus size={16} />}
                         <span className="text-sm">Ajouter Image</span>
                         <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={isUploading} />
@@ -241,7 +341,7 @@ export default function ShopPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {images.map((img) => (
-                        <div key={img.id} className="group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-white/5 bg-[#111]">
+                        <div key={img.id} className="group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-white/5 hover:border-white/20 transition-all duration-300 bg-[#111]">
                             <img src={img.base64} alt={img.name} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <p className="font-bold text-white truncate text-sm">{img.name}</p>
@@ -263,6 +363,33 @@ export default function ShopPage() {
                     )}
                 </div>
             </div>
+
+            {/* --- CONSOLE DE LOGS DEBUG --- */}
+            <div className="mt-auto border-t border-white/10 pt-4">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-xs font-mono text-gray-500 flex items-center gap-2">
+                        <Terminal size={12} /> Console de Débug
+                    </h3>
+                    <button onClick={handleCopyLogs} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white bg-white/5 px-2 py-1 rounded">
+                        <Copy size={10} /> Copier les logs
+                    </button>
+                </div>
+                <div className="h-32 bg-black rounded-lg border border-white/10 p-2 overflow-y-auto font-mono text-[10px] space-y-1">
+                    {logs.length === 0 && <span className="text-gray-700 italic">En attente d'actions...</span>}
+                    {logs.map((log) => (
+                        <div key={log.id} className={`flex gap-2 ${
+                            log.type === 'error' ? 'text-red-400' : 
+                            log.type === 'success' ? 'text-green-400' : 
+                            log.type === 'warning' ? 'text-yellow-400' : 'text-gray-400'
+                        }`}>
+                            <span className="opacity-50 flex-shrink-0">[{log.timestamp}]</span>
+                            <span className="break-all">{log.message}</span>
+                        </div>
+                    ))}
+                    <div ref={logsEndRef} />
+                </div>
+            </div>
+
         </div>
     );
-                     }
+                  }
