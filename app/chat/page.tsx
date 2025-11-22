@@ -642,32 +642,57 @@ const getRefImageById = async (id: string): Promise<string | null> => {
 
 // --- RÉCUPÉRER TOUTES LES IMAGES DU SHOP ---
 // --- UTILITAIRE : RÉCUPÉRER TOUS LES STYLES ---
+
+// --- UTILITAIRES DE LECTURE SHOP (DANS CHAT PAGE) ---
+
 const getAllShopImages = async (): Promise<string[]> => {
   return new Promise((resolve) => {
-    const request = indexedDB.open('StudioCode_Assets', 1);
-    request.onerror = () => resolve([]);
+    // On ouvre sans préciser de version pour prendre la plus récente existante
+    const request = indexedDB.open('StudioCode_Assets');
+    
+    request.onerror = (e) => {
+        console.error("Erreur ouverture DB Shop depuis Chat", e);
+        resolve([]);
+    };
+    
     request.onsuccess = (event: any) => {
       const db = event.target.result;
-      if (!db.objectStoreNames.contains('refs')) { resolve([]); return; }
+      
+      if (!db.objectStoreNames.contains('refs')) { 
+          console.warn("Le store 'refs' n'existe pas dans la DB Shop.");
+          resolve([]); 
+          return; 
+      }
+      
       const tx = db.transaction('refs', 'readonly');
-      const store = tx.objectStore('refs');
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result.map((img: any) => img.base64));
-      req.onerror = () => resolve([]);
+      const req = tx.objectStore('refs').getAll();
+      
+      req.onsuccess = () => {
+          const results = req.result || [];
+          console.log(`[DEBUG] Chat a trouvé ${results.length} images dans le Shop.`);
+          resolve(results.map((img: any) => img.base64));
+      };
+      
+      req.onerror = () => {
+          console.error("Erreur lecture store refs");
+          resolve([]);
+      };
     };
   });
 };
 
 const getShopCssUrl = async (): Promise<string | null> => {
   return new Promise((resolve) => {
-    const request = indexedDB.open('StudioCode_Assets', 1);
+    const request = indexedDB.open('StudioCode_Assets');
+    
     request.onerror = () => resolve(null);
     request.onsuccess = (event: any) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains('settings')) { resolve(null); return; }
+      
       const tx = db.transaction('settings', 'readonly');
-      const store = tx.objectStore('settings');
-      const req = store.get('master_css_url');
+      const req = tx.objectStore('settings').get('master_css_url');
+      
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => resolve(null);
     };
@@ -2925,46 +2950,45 @@ let shopImages: string[] = [];
   } catch (e) { console.error("Erreur chargement images", e); }
 
 
-let allStyles: string[] = [];
-  try {
-      allStyles = await getAllShopImages();
-      if (allStyles.length > 0) {
-          addLog(`🎨 Library loaded: ${allStyles.length} reference styles sent to AI.`);
-      }
-  } catch (e) { console.error("Erreur chargement styles", e); }
-
-
-
-    
+    setLoading(true);
   
-  // --- INITIALISATION DES RESSOURCES DESIGN ---
-
+  // --- LOGIQUE DEBUG DESIGN ---
+  
   let inspirationCSS = "";
   
   try {
-      addLog("🎨 Gathering design resources...");
+      addLog("🎨 Gathering design resources..."); // 1. On voit ça
 
-      // Récupération parallèle des images et de l'URL CSS
-      const [images, cssUrl] = await Promise.all([
-          getAllShopImages(),
-          getShopCssUrl()
-      ]);
+      // On sépare les promesses pour voir laquelle échoue si besoin
+      const images = await getAllShopImages();
+      addLog(`🔍 Debug: Found ${images.length} images in DB.`); // 2. On DOIT voir ça
+
+      const cssUrl = await getShopCssUrl();
+      if (cssUrl) addLog(`🔍 Debug: CSS URL found: ${cssUrl}`);
 
       shopImages = images;
 
-      // Si une URL CSS est définie, on va chercher son code
       if (cssUrl) {
-          addLog(`🔗 Fetching CSS from source: ${cssUrl}`);
+          addLog(`🔗 Fetching CSS...`);
           inspirationCSS = await fetchInspirationCSS(cssUrl);
       }
 
-      if (shopImages.length > 0) addLog(`✅ Loaded ${shopImages.length} visual references.`);
-      if (inspirationCSS) addLog(`✅ Loaded CSS Design System.`);
+      if (shopImages.length > 0) {
+          addLog(`✅ SUCCESS: Loaded ${shopImages.length} visual refs.`);
+      } else {
+          addLog(`⚠️ WARNING: 0 images loaded. Is Shop empty?`);
+      }
+      
+      if (inspirationCSS) addLog(`✅ SUCCESS: Loaded CSS System.`);
 
-  } catch (e) { 
+  } catch (e: any) { 
+      addLog(`❌ DESIGN ERROR: ${e.message}`);
       console.error("Design load error", e); 
-      // On continue même si ça échoue, pour ne pas bloquer le chat
   }
+
+
+
+
   
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
