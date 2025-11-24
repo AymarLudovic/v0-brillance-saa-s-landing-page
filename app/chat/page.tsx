@@ -3781,199 +3781,195 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-                {messages.map((msg, index) => {
+                
+                  
+       {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
-  const isCopied = copiedMessageIndex === index;
   
   return (
     <div
       key={index}
       className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
     >
-      {/* Affichage de l'icône de l'assistant */}
+      {/* ICÔNE ASSISTANT & THINKING */}
       {msg.role === "assistant" && (
         <div className="flex items-center gap-3">
-          <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
-            <svg className="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="10" />
+          <div className="h-6 w-6 bg-[#111] border border-white/10 rounded-full flex items-center justify-center shadow-sm">
+            <svg className="h-3 w-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/>
             </svg>
           </div>
 
-          {/* Indicateur "Thinking..." */}
+          {/* Indicateur de réflexion (Thinking...) */}
           {loading && index === messages.length - 1 && (
-          <div className="flex items-center gap-[3px]">
-            <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
-            <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
-          </div>
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#F7F5F3] border border-[rgba(55,50,47,0.08)]">
+              <div className="flex gap-1">
+                <span className="w-1 h-1 bg-[#37322F] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                <span className="w-1 h-1 bg-[#37322F] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                <span className="w-1 h-1 bg-[#37322F] rounded-full animate-bounce"></span>
+              </div>
+              <span className="text-[10px] font-medium text-[#37322F]/70 uppercase tracking-wide">Thinking</span>
+            </div>
           )}
         </div>
       )}
       
-      {/* Conteneur du message */}
+      {/* BULLE DE MESSAGE */}
       <div
-        className={`p-2 rounded-xl max-w-xl group relative ${
+        className={`p-3 rounded-2xl max-w-2xl group relative shadow-sm ${
           msg.role === "user"
-            ? "bg-[#37322F] text-white self-end border-[#37322F]"
-            : "bg-none text-[#37322F] self-start"
+            ? "bg-[#1a1a1a] text-white self-end border border-white/10"
+            : "bg-transparent text-[#37322F] self-start px-0"
         }`}
       >
         {(() => {
-          const rawTextContent = msg.content; 
+          const rawTextContent = msg.content || ""; 
           const isFileArtifact = artifact && (artifact.type === 'files');
-          const isUrlArtifact = artifact && (artifact.type === 'url');
+          const isUrlArtifact = artifact && (artifact.type === 'inspirationUrl');
           const displayElements = [];
           
-          // 🔥 LOGIQUE DE MASQUAGE (Split sur |||)
-          const contentForTextDisplay = rawTextContent.split('|||')[0];
-
-          let finalContentToDisplay = contentForTextDisplay
+          // 1. NETTOYAGE DU TEXTE (On enlève les balises techniques pour l'affichage)
+          // On retire <edit_file>, <create_file>, <search>, <replace> et les URL artifacts
+          let finalContentToDisplay = rawTextContent
               .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-              .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+              .replace(/<edit_file[\s\S]*?<\/edit_file>/gs, '') // Nouvelle balise
               .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
-              .replace(/---[\s\S]*?---/g, '')
+              .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
               .trim();
           
           const hasTextContent = finalContentToDisplay.length > 0;
           
-          // --- RENDU MESSAGE UTILISATEUR ---
+          // --- RENDU USER (Avec bouton Expand pour les longs messages) ---
           if (msg.role === "user") {
-              const MAX_HEIGHT = 150; 
-              const isLongMessage = msg.content.length > 10000 || rawTextContent.split('\n').length > 20; 
+              const MAX_HEIGHT = 120; 
+              const isLongMessage = finalContentToDisplay.length > 500 || finalContentToDisplay.split('\n').length > 8; 
               
-              const userContent = (
-                  <pre 
-                      className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
-                      style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`, overflow: 'hidden' }}
-                  >
-                      {msg.content}
-                  </pre>
-              );
-
               displayElements.push(
-                  <div key="user-content-wrapper" className="relative">
-                      {userContent}
+                  <div key="user-content" className="relative">
+                      <pre 
+                          className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
+                          style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`, overflow: 'hidden' }}
+                      >
+                          {finalContentToDisplay}
+                      </pre>
                       {!isExpanded && isLongMessage && (
                           <div 
-                              className="absolute inset-x-0 bottom-0 h-[60px] flex flex-col justify-end items-center p-2 rounded-b-xl cursor-pointer z-10"
-                              style={{ background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' }}
-                              onClick={() => setExpandedMessageIndex(index)} 
+                              className="absolute inset-x-0 bottom-0 h-12 flex items-end justify-center rounded-b-xl bg-gradient-to-t from-[#1a1a1a] to-transparent cursor-pointer"
+                              onClick={() => setExpandedMessageIndex(index)}
                           >
-                              <button className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
-                                  <ArrowUp className="h-3 w-3 inline-block mr-1 rotate-180" /> Expand
-                              </button>
-                          </div>
-                      )}
-                      {isExpanded && isLongMessage && (
-                          <div className="flex justify-center mt-2">
-                              <button onClick={() => setExpandedMessageIndex(null)} className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
-                                  <ArrowUp className="h-3 w-3 inline-block mr-1" /> Collapse
-                              </button>
+                              <span className="text-[10px] font-bold bg-white/10 px-2 py-1 rounded-full mb-1 hover:bg-white/20 transition-colors">Show more</span>
                           </div>
                       )}
                   </div>
               );
+              // Affichage des images uploadées par l'user
+              if (msg.images && msg.images.length > 0) {
+                  displayElements.push(
+                      <div key="user-images" className="flex gap-2 mt-2 overflow-x-auto pb-1">
+                          {msg.images.map((src, i) => (
+                              <img key={i} src={src} alt="Upload" className="w-12 h-12 rounded-lg object-cover border border-white/20" />
+                          ))}
+                      </div>
+                  );
+              }
               return displayElements; 
           }
           
-          // --- RENDU MESSAGE ASSISTANT (TEXTE) ---
+          // --- RENDU ASSISTANT (Texte + Artefacts) ---
+          
+          // A. Le Texte explicatif
           if (hasTextContent) {
               displayElements.push(
-                  <pre key="text" className="whitespace-pre-wrap font-sans text-sm leading-relaxed mb-1">
-                      {finalContentToDisplay} 
-                  </pre>
+                  <div key="ai-text" className="prose prose-sm max-w-none text-[#37322F] mb-2">
+                      <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed bg-transparent p-0 border-none text-[#37322F]">
+                          {finalContentToDisplay}
+                      </pre>
+                  </div>
               );
           }
 
-          // --- LOGIQUE ARTEFACT ---
+          // B. L'Artefact "Code en cours" (Liste des fichiers modifiés)
+          // On détecte si l'IA est en train d'écrire une balise technique
           const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
-          const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
+          const isEditing = rawTextContent.includes('<edit_file') && !rawTextContent.includes('</edit_file>'); // Nouvelle détection
           const isBuilding = isCreating || isEditing;
-          const totalItems = artifact?.parsedList?.length || 0;
-          const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
-          const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
-
+          
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
-              const artifactClasses = hasTextContent ? "mt-1 pt-1 border-[rgba(55,50,47,0.1)]" : "pt-0";
+              const totalItems = artifact.parsedList.length;
+              
               displayElements.push(
-                  <div key="code-artifact" className={`border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
-                      <ul className="list-disc pl-5 w-[100%] space-y-1">
+                  <div key="code-artifact" className="mt-3 bg-white border border-[rgba(55,50,47,0.08)] rounded-xl overflow-hidden shadow-sm">
+                      <div className="bg-[#F7F5F3] px-3 py-2 border-b border-[rgba(55,50,47,0.05)] flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                          <span className="text-xs font-medium text-[#37322F]/60 uppercase tracking-wider">Workspace Changes</span>
+                      </div>
+                      
+                      <ul className="p-1">
                           {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i) => {
-                              const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
-                              const statusText = item.type === 'create' 
-                                  ? (isCurrentlyStreaming ? 'Creating' : 'created')
-                                  : (isCurrentlyStreaming ? 'Editing' : 'edited');
+                              const isLast = i === totalItems - 1;
+                              const isActive = isBuilding && isLast;
+                              
+                              // Icônes et Textes adaptés au nouveau système
+                              const isCreate = item.type === 'create';
+                              const statusLabel = isCreate 
+                                  ? (isActive ? 'Creating...' : 'Created') 
+                                  : (isActive ? 'Patching...' : 'Patched'); // On dit "Patching" pour edit_file
                               
                               return (
-                                  <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
-                                      <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
-                                      <p className="font-semibold">{statusText}</p>
-                                      <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
+                                  <li key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-[#F7F5F3] transition-colors group">
+                                      <div className="flex items-center gap-2 overflow-hidden">
+                                          {/* Icone Fichier (Create = Plus, Edit = Pen) */}
+                                          <span className={`p-1.5 rounded-md ${isCreate ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                                              {isCreate ? (
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                              ) : (
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                              )}
+                                          </span>
+                                          <span className="text-xs font-medium text-[#37322F] truncate max-w-[200px]">{item.path}</span>
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-2">
+                                          <span className={`text-[10px] font-medium ${isActive ? 'text-[#37322F]' : 'text-[#37322F]/40'}`}>
+                                              {statusLabel}
+                                          </span>
+                                          {isActive && <Loader className="w-3 h-3 text-[#37322F] animate-spin" />}
+                                          {!isActive && <span className="text-green-500"><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg></span>}
+                                      </div>
                                   </li>
                               );
                           })}
-                          {isBuilding ? (
-                              <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1">
-                                <span className="animate-spin">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
-                                </span>
-                                <span className="font-semibold">{currentStatusText}...</span>
-                              </li>
-                          ) : null}
                       </ul>
                   </div>
               );
           }
 
-          // --- RENDU URL ARTIFACT ---
-          if (isUrlArtifact) {
-              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+          // C. L'Artefact URL (Design System)
+          if (isUrlArtifact && artifact.rawJson) {
+              const urlData = JSON.parse(artifact.rawJson);
               displayElements.push(
-                  <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
-                      <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
-                      <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
+                  <div key="url-artifact" className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-white border border-purple-100 rounded-xl flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                          <p className="text-xs font-bold text-purple-900">Design Extraction</p>
+                          <p className="text-[10px] text-purple-600 truncate">Analyzing: {urlData.url}</p>
+                      </div>
+                      <Loader className="w-4 h-4 text-purple-400 animate-spin" />
                   </div>
               );
           }
-          
+
           return displayElements.length > 0 
                  ? displayElements 
-                 : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{finalContentToDisplay}</pre>;
+                 : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-[#37322F]">{finalContentToDisplay}</pre>;
         })()}
       </div>
-      
-      {/* Fichiers uploadés & Mentions */}
-      {msg.role === "user" && msg.images && msg.images.length > 0 && (
-          <div className="flex gap-1 mt-1">
-              {msg.images.map((base64Src, imgIndex) => (
-                  <div key={imgIndex} className="w-[25px] h-[25px] rounded-[8px] overflow-hidden" title="Image utilisateur">
-                      <img src={base64Src} alt="User input" className="w-full h-full object-cover" />
-                  </div>
-              ))}
-          </div>
-      )}
-      {msg.role === "user" && msg.externalFiles && msg.externalFiles.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-1">
-              {msg.externalFiles.map((file, fileIndex) => (
-                   <div key={fileIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#F7F5F3] px-2 text-sm max-w-xs truncate">
-                      {file.fileName}
-                  </div>
-              ))}
-          </div>
-      )}
-      {msg.role === "user" && msg.mentionedFiles && msg.mentionedFiles.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-1">
-              {msg.mentionedFiles.map((filePath, mentionIndex) => (
-                  <div key={mentionIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
-                      @{filePath}
-                  </div>
-              ))}
-          </div>
-     )}
     </div>
   );
 })}
-
               
 
               
