@@ -74,20 +74,32 @@ Tu dois les évités et bien faire les choses. Aussi evite d'importer tailwind c
 🚨🚨 IMPORTANT: Veuille toujours as toujours effectué les actions pour créer les fichiers, les édités comme il t'a fortement été recommandé ci-dessous, notamment celle ci :
      ### ✏️ Format de réponse pour les modifications (file_changes)
 
-Quand tu veux modifier un fichier existant, tu dois renvoyer les changements ligne par ligne dans le format suivant :
+Quand tu veux modifier un fichier existant, tu dois renvoyer les changements dans le format suivant :
+To edit an existing file, DO NOT use line numbers. Use the SEARCH/REPLACE block format.
 
-<file_changes path="chemin/du/fichier.tsx">
-[
-  { "action": "delete", "startLine": 10, "endLine": 12 },
-  { "action": "insertAfter", "lineNumber": 25, "contentToInsert": "const name = 'Ludo';" },
-  { "action": "replace", "lineNumber": 30, "newContent": "console.log('Hello Ludovic');" }
-]
-</file_changes>
+Format:
+<edit_file path="path/to/file.tsx">
+<search>
+  // Copy the EXACT content from the original file that you want to replace.
+  // Include enough context (3-4 lines) to make it unique.
+  const [count, setCount] = useState(0);
+  return <div>{count}</div>
+</search>
+<replace>
+  // The new code to insert
+  const [count, setCount] = useState(0);
+  return (
+    <div className="p-4 bg-blue-500">
+       {count}
+    </div>
+  )
+</replace>
+</edit_file>
 
-🧩 Règles :
-- "delete" : supprime les lignes entre \`startLine\` et \`endLine\`.
-- "insertAfter" : insère du code après la ligne indiquée (\`lineNumber\`).
-- "replace" : remplace le contenu exact de la ligne par \`newContent\`.
+RULES:
+1. <search> must match the existing file content CHARACTER-BY-CHARACTER.
+2. If replacing a large block, include the start and end lines in <search> to anchor it.
+
 - Le contenu inséré doit être du code TypeScript/React/JSX valide.
 - Le JSON doit être bien formé (guillemets doubles \`" "\` obligatoires).
 - N’ajoute **aucun texte ni balise en dehors** de \`<file_changes>...</file_changes>\`.
@@ -96,14 +108,31 @@ Quand tu veux modifier un fichier existant, tu dois renvoyer les changements lig
  🚨🚧 ‼️‼️‼️ ATTENTION ‼️‼️‼️: 
  1- Pour éditer les fichiers en utilisant \`file_changes\`, ne les entourent jamais ces balises xml, par ceci par des blocs du style bref . ou tout autre, tu m'entends jamais ne fait ça car la balise fileschanges ne pourra pas être capturer dans ces conditions. Renvoie la toujours comme ceci dans ce format:
 
-Sans symbole avant ou à la fin car ça ne sera pas pris en compte dans ce cas Renvoie le file_changes comme il t'a été recommandé ci dessus:
- <file_changes path="chemin/du/fichier.tsx">
-[
-  { "action": "delete", "startLine": 10, "endLine": 12 },
-  { "action": "insertAfter", "lineNumber": 25, "contentToInsert": "const name = 'Ludo';" },
-  { "action": "replace", "lineNumber": 30, "newContent": "console.log('Hello Ludovic');" }
-]
-</file_changes> 
+Sans symbole avant ou à la fin car ça ne sera pas pris en compte dans ce cas Renvoie les changements comme il t'a été recommandé ci dessus:
+ To edit an existing file, DO NOT use line numbers. Use the SEARCH/REPLACE block format.
+
+Format:
+<edit_file path="path/to/file.tsx">
+<search>
+  // Copy the EXACT content from the original file that you want to replace.
+  // Include enough context (3-4 lines) to make it unique.
+  const [count, setCount] = useState(0);
+  return <div>{count}</div>
+</search>
+<replace>
+  // The new code to insert
+  const [count, setCount] = useState(0);
+  return (
+    <div className="p-4 bg-blue-500">
+       {count}
+    </div>
+  )
+</replace>
+</edit_file>
+
+RULES:
+1. <search> must match the existing file content CHARACTER-BY-CHARACTER.
+2. If replacing a large block, include the start and end lines in <search> to anchor it.
 
 
 
@@ -143,39 +172,39 @@ INSTRUCTIONS CRITIQUES POUR L'INTERACTION :
    * <create_file path="chemin/fichier.tsx"> ... contenu ... </create_file>
    
 
-### ✏️ Format de réponse pour les modifications (file_changes)
-
-Quand tu veux modifier un fichier existant, tu dois renvoyer les changements ligne par ligne dans le format suivant :
-
-<file_changes path="chemin/du/fichier.tsx">
-[
-  { "action": "delete", "startLine": 10, "endLine": 12 },
-  { "action": "insertAfter", "lineNumber": 25, "contentToInsert": "const name = 'Ludo';" },
-  { "action": "replace", "lineNumber": 30, "newContent": "console.log('Hello Ludovic');" }
-]
-</file_changes>
-
-🧩 Règles :
-- "delete" : supprime les lignes entre \`startLine\` et \`endLine\`.
-- "insertAfter" : insère du code après la ligne indiquée (\`lineNumber\`).
-- "replace" : remplace le contenu exact de la ligne par \`newContent\`.
 - Le contenu inséré doit être du code TypeScript/React/JSX valide.
 - Le JSON doit être bien formé (guillemets doubles \`" "\` obligatoires).
-- N’ajoute **aucun texte ni balise en dehors** de \`<file_changes>...</file_changes>\`.
+
 - Ne renvoie **jamais de bloc \`\`\`diff\`\`\` ou \`\`\`tsx\`\`\` ou \`\`\`xml\`\`\`**.
 
 
  🚨🚧 ‼️‼️‼️ ATTENTION ‼️‼️‼️: 
- 1- Pour éditer les fichiers en utilisant \`file_changes\`, ne les entourent jamais ces balises xml, par ceci par des blocs du style bref . ou tout autre, tu m'entends jamais ne fait ça car la balise fileschanges ne pourra pas être capturer dans ces conditions. Renvoie la toujours comme ceci dans ce format:
+ 1- Pour éditer les fichiers, ne les entourent jamais ces balises xml, par ceci par des blocs du style bref . ou tout autre, tu m'entends jamais ne fait ça car la balise fileschanges ne pourra pas être capturer dans ces conditions. Renvoie la toujours comme ceci dans ce format:
 
-Sans symbole avant ou à la fin car ça ne sera pas pris en compte dans ce cas Renvoie le file_changes comme il t'a été recommandé ci dessus:
- <file_changes path="chemin/du/fichier.tsx">
-[
-  { "action": "delete", "startLine": 10, "endLine": 12 },
-  { "action": "insertAfter", "lineNumber": 25, "contentToInsert": "const name = 'Ludo';" },
-  { "action": "replace", "lineNumber": 30, "newContent": "console.log('Hello Ludovic');" }
-]
-</file_changes> 
+To edit an existing file, DO NOT use line numbers. Use the SEARCH/REPLACE block format.
+
+Format:
+<edit_file path="path/to/file.tsx">
+<search>
+  // Copy the EXACT content from the original file that you want to replace.
+  // Include enough context (3-4 lines) to make it unique.
+  const [count, setCount] = useState(0);
+  return <div>{count}</div>
+</search>
+<replace>
+  // The new code to insert
+  const [count, setCount] = useState(0);
+  return (
+    <div className="p-4 bg-blue-500">
+       {count}
+    </div>
+  )
+</replace>
+</edit_file>
+
+RULES:
+1. <search> must match the existing file content CHARACTER-BY-CHARACTER.
+2. If replacing a large block, include the start and end lines in <search> to anchor it.
 
 Sans l'entourer de 
 
