@@ -2,7 +2,36 @@ import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
 
-const FULL_PROMPT_INJECTION = `${basePrompt}\n\n`; 
+// --- DEFINITION DU NOUVEAU FORMAT D'EDITION ---
+const EDIT_INSTRUCTION = `
+COMMAND: EDITING FILES
+To edit an existing file, DO NOT use line numbers. Use the SEARCH/REPLACE block format.
+
+Format:
+<edit_file path="path/to/file.tsx">
+<search>
+  // Copy the EXACT content from the original file that you want to replace.
+  // Include enough context (3-4 lines) to make it unique.
+  const [count, setCount] = useState(0);
+  return <div>{count}</div>
+</search>
+<replace>
+  // The new code to insert
+  const [count, setCount] = useState(0);
+  return (
+    <div className="p-4 bg-blue-500">
+       {count}
+    </div>
+  )
+</replace>
+</edit_file>
+
+RULES:
+1. <search> must match the existing file content CHARACTER-BY-CHARACTER.
+2. If replacing a large block, include the start and end lines in <search> to anchor it.
+`;
+
+const FULL_PROMPT_INJECTION = `${basePrompt}\n\n${EDIT_INSTRUCTION}\n\n`; 
 
 interface Message { 
     role: "user" | "assistant" | "system"; 
@@ -46,12 +75,14 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
-        allReferenceImages 
+        allReferenceImages,
+        cssMasterUrl
     } = body as { 
         history: Message[], 
         uploadedImages: string[],
         uploadedFiles: any[],
-        allReferenceImages?: string[]
+        allReferenceImages?: string[],
+        cssMasterUrl?: string
     }
 
     if (!history || history.length === 0) return NextResponse.json({ error: "Historique manquant" }, { status: 400 });
@@ -63,7 +94,7 @@ export async function POST(req: Request) {
     const lastUserIndex = history.length - 1; 
     const systemContextParts: Part[] = []; 
 
-    // --- INJECTION DES IMAGES DE RÉFÉRENCE ---
+    // --- INJECTION DESIGN HYBRIDE ---
     if (allReferenceImages && allReferenceImages.length > 0) {
         const styleParts: Part[] = [];
 
@@ -76,16 +107,27 @@ export async function POST(req: Request) {
             });
         });
 
-        styleParts.push({
-            text: `
-            Ce que je veux que tu fasses ce n'est pas d'abord créer. Ce dont je veux c'est que tu me donnes une analyse ultra détaillé sur tout ce que tu vois sur ces page web, je dis bien dans un détail absolue, par exemple première partie : le header: tu me dis comment il est fait, comment les éléments y y sont disposés à l'intérieur quelle est leur taille, quelle est la height et la width de cette navbar par exemple à t'elle des bordures sur ça bottom... Maintenant si tu vois un bouton quel est sa couleur background, qu'elle est le niveau exact de la courbure de ces bordures je dis bien la courbure exacte totalement, même type d'analyse pour toutes les sections de cette page web et absolument je dis bien absolument tout les détails des plus petits et plus petits éléments sur ces pages avec totalement de la manière dont c'est présenté.
-            Le but est que tu t'inspire fortement de ces ultra analyse de ces images pour construire niveau design les applications de l'utilisateur tout en sélectionnant l'image qui se rapproche plus de sa demande. Surtout quelque règles de base quand tu vas t'inspirer de ces images: Souviens toi toujours de l'utra analyse du design que tu vas sortir de ces images et demande à l'utilisateur une inspirationUrl qui va te permettre de recevoir d'autres styles pour que tu reproduise parfaitement le design de l'application de L'utilisateur à partir de ces images. Les composants que tu vas créé devront toujours être bien disposé et responsive pour tout type d'appareil
-            et aussi evite absolument les effets shadow, sur les navbar et tout les composants. Pour les boutons arrondi les toujours d'au-moins 12px-25px de courbures et ne les donnes pas dest ailles de plus de 32px et de fort padding.
-            `
-        });
+        let instructionText = `[SYSTEM DIRECTIVE: HYBRID DESIGN ENGINE]
+You are an expert UI/UX Engineer.
 
+1. VISUAL REFERENCES (Attached Images):
+   - Use these for LAYOUT, SHAPES (border-radius), and SPACING.
+   - Implicitly pick the best image vibe matching the user request.`;
+
+        if (cssMasterUrl) {
+            instructionText += `\n\n2. MASTER STYLE SOURCE (URL Provided):
+   - The user has provided a Master URL: "${cssMasterUrl}"
+   - **IMMEDIATE ACTION:** Start your response by triggering the 'inspirationUrl' artifact for this URL to get colors/fonts.
+   - Example: \`\`\`json { "type": "inspirationUrl", "url": "${cssMasterUrl}" } \`\`\``;
+        } else {
+            instructionText += `\n\n2. STYLE: Derive colors/fonts directly from the images.`;
+        }
+
+        instructionText += `\n\nYOUR MISSION: Combine visual structure with the CSS system.`;
+
+        styleParts.push({ text: instructionText });
         contents.push({ role: 'user', parts: styleParts });
-        contents.push({ role: 'model', parts: [{ text: "Understood. I have reviewed the visual references. I will use them for structure/layout and will trigger an inspirationUrl if I need precise external CSS data." }] });
+        contents.push({ role: 'model', parts: [{ text: "Understood. I will use the visual references for structure and trigger inspirationUrl if needed for CSS." }] });
     }
 
     for (let i = 0; i < history.length; i++) {
@@ -161,4 +203,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-  }
+        }
