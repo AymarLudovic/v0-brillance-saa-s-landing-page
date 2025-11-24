@@ -77,18 +77,11 @@ export async function POST(req: Request) {
         });
 
         styleParts.push({
-            text: `[SYSTEM DIRECTIVE: VISUAL REFERENCES PROVIDED]
-The images attached above are your Visual Design Library.
-
-INSTRUCTIONS:
-1. **Analyze Layout & Shapes:** Use these images to define the structure (grid, spacing) and component styles (border-radius, shadows, button shapes).
-2. **Select the Best Vibe:** Implicitly choose the image style that best fits the user's request.
-3. **CSS & Colors:** - You may extract colors directly from these images.
-   - **IMPORTANT:** If you believe a specific real-world website matches this vibe perfectly and would provide better CSS variables/gradients, you are AUTHORIZED to trigger the 'inspirationUrl' artifact immediately.
-   - Example: If the images look like "Linear", you can output: \`\`\`json { "type": "inspirationUrl", "url": "https://linear.app" } \`\`\` to get its full CSS.
-   - Otherwise, wait for the user to provide a URL or use your internal knowledge.
-
-Apply the visual structure of these images to the code you generate.`
+            text: `
+            Ce que je veux que tu fasses ce n'est pas d'abord créer. Ce dont je veux c'est que tu me donnes une analyse ultra détaillé sur tout ce que tu vois sur ces page web, je dis bien dans un détail absolue, par exemple première partie : le header: tu me dis comment il est fait, comment les éléments y y sont disposés à l'intérieur quelle est leur taille, quelle est la height et la width de cette navbar par exemple à t'elle des bordures sur ça bottom... Maintenant si tu vois un bouton quel est sa couleur background, qu'elle est le niveau exact de la courbure de ces bordures je dis bien la courbure exacte totalement, même type d'analyse pour toutes les sections de cette page web et absolument je dis bien absolument tout les détails des plus petits et plus petits éléments sur ces pages avec totalement de la manière dont c'est présenté.
+            Le but est que tu t'inspire fortement de ces ultra analyse de ces images pour construire niveau design les applications de l'utilisateur tout en sélectionnant l'image qui se rapproche plus de sa demande. Surtout quelque règles de base quand tu vas t'inspirer de ces images: Souviens toi toujours de l'utra analyse du design que tu vas sortir de ces images et demande à l'utilisateur une inspirationUrl qui va te permettre de recevoir d'autres styles pour que tu reproduise parfaitement le design de l'application de L'utilisateur à partir de ces images. Les composants que tu vas créé devront toujours être bien disposé et responsive pour tout type d'appareil
+            et aussi evite absolument les effets shadow, sur les navbar et tout les composants. Pour les boutons arrondi les toujours d'au-moins 12px-25px de courbures et ne les donnes pas dest ailles de plus de 32px et de fort padding.
+            `
         });
 
         contents.push({ role: 'user', parts: styleParts });
