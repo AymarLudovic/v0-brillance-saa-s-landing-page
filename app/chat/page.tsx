@@ -4929,10 +4929,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </button>
 </div>
           </div>
-
+<ApiKeyModal />
 
               </div>
               
     
   )
-          }
+          
