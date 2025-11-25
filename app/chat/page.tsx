@@ -1037,30 +1037,116 @@ const applySearchReplace = (originalContent: string, searchBlock: string, replac
 };
 
 // Ta fonction pour construire l'arbre (Indispensable pour la Sidebar)
-const buildFileTree = (files: { filePath: string; content: string }[]): Map<string, any> => {
-  const root = new Map();
+
+
+
+
+// --- TYPES POUR L'ARBRE DE FICHIERS ---
+interface FileTreeNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: Map<string, FileTreeNode>;
+  index?: number; // Index dans le tableau plat 'files'
+}
+
+// --- UTILITAIRE DE CONSTRUCTION D'ARBRE ---
+const buildFileTree = (files: { filePath: string; content: string }[]): Map<string, FileTreeNode> => {
+  const root = new Map<string, FileTreeNode>();
+
   files.forEach((file, originalIndex) => {
-    const parts = file.filePath.split('/');
+    const parts = file.filePath.split('/'); // ex: ["app", "components", "Header.tsx"]
     let currentNode = root;
     let currentPath = '';
+
     parts.forEach((part, i) => {
       currentPath = currentPath + (currentPath ? '/' : '') + part;
       const isFile = i === parts.length - 1;
+
       if (!currentNode.has(part)) {
-        currentNode.set(part, {
+        const newNode: FileTreeNode = {
           name: part,
           path: currentPath,
           type: isFile ? 'file' : 'directory',
           children: isFile ? undefined : new Map(),
           index: isFile ? originalIndex : undefined,
-        });
+        };
+        currentNode.set(part, newNode);
       }
-      if (!isFile) currentNode = currentNode.get(part)!.children;
+
+      if (!isFile) {
+        currentNode = currentNode.get(part)!.children!;
+      }
     });
   });
+
   return root;
 };
 
+
+interface FileTreeItemProps {
+  node: FileTreeNode;
+  activeFile: number | null;
+  setActiveFile: (index: number) => void;
+  depth?: number;
+}
+
+const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActiveFile, depth = 0 }) => {
+  const [isOpen, setIsOpen] = useState(true);
+  const isDirectory = node.type === 'directory';
+  // On compare les index si c'est un fichier pour surligner le bon
+  const isActive = !isDirectory && node.index !== undefined && activeFile === node.index;
+
+  return (
+    <li>
+      <button
+        className={`w-full text-left text-xs py-1.5 px-2 flex items-center gap-2 transition-colors border-l-2 ${
+          isActive
+            ? "bg-purple-500/10 border-purple-500 text-purple-400 font-medium" 
+            : "border-transparent hover:bg-white/5 text-gray-400 hover:text-gray-200"
+        }`}
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        onClick={() => {
+          if (isDirectory) setIsOpen(!isOpen);
+          else if (node.index !== undefined) setActiveFile(node.index);
+        }}
+      >
+        {isDirectory ? (
+           <span className={`transform transition-transform ${isOpen ? 'rotate-90' : ''}`}>
+             {/* Icône Flèche (Chevron) */}
+             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+           </span>
+        ) : (
+           /* Icône Fichier */
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+        )}
+        <span className="truncate">{node.name}</span>
+      </button>
+
+      {/* Rendu récursif des enfants si c'est un dossier ouvert */}
+      {isDirectory && isOpen && node.children && (
+        <ul className="space-y-0.5">
+          {Array.from(node.children.entries())
+            .sort(([nameA, nodeA], [nameB, nodeB]) => {
+              // Dossiers en premier
+              if (nodeA.type === 'directory' && nodeB.type !== 'directory') return -1;
+              if (nodeA.type !== 'directory' && nodeB.type === 'directory') return 1;
+              return nameA.localeCompare(nameB);
+            })
+            .map(([key, childNode]) => (
+              <FileTreeItem
+                key={key}
+                node={childNode}
+                activeFile={activeFile}
+                setActiveFile={setActiveFile}
+                depth={depth + 1}
+              />
+            ))}
+        </ul>
+      )}
+    </li>
+  );
+};
 
 
 
@@ -3257,82 +3343,13 @@ const handleEditorDidMount: OnMount = (editorInstance, monaco) => {
 
 
 
-         
+         // Calcul optimisé de l'arbre. Se mettra à jour dès que 'files' change.
+const fileTree = useMemo(() => {
+    // On utilise l'état local 'files' qui est mis à jour en temps réel par sendChat
+    if (!files || files.length === 0) return new Map<string, FileTreeNode>();
+    return buildFileTree(files);
+}, [files]);
 
-
-            // --- INTERFACE ET COMPOSANT RÉCURSIF (À L'INTÉRIEUR DE SandboxPage) ---
-interface FileTreeItemProps {
-  node: FileTreeNode
-  activeFile: number | null
-  setActiveFile: (index: number) => void
-}
-
-/**
- * Composant pour afficher un seul fichier ou dossier dans l'arborescence.
- * Utilise la récursivité pour afficher les sous-dossiers.
- */
-const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActiveFile }) => {
-  // useState pour gérer l'ouverture/fermeture des dossiers
-  const [isOpen, setIsOpen] = useState(true)
-  
-  // Icônes nécessaires (assurez-vous d'avoir Code et ChevronRight importés depuis 'lucide-react')
-  // J'utilise Code pour tous les fichiers pour simplifier.
-  const isDirectory = node.type === 'directory'
-  const isCurrentlyActive = node.index !== undefined && activeFile === node.index
-
-  return (
-    <li>
-      <button
-        className={`w-full text-left text-sm py-1 px-2 rounded-[10px] flex items-center gap-2 transition-colors ${
-          isCurrentlyActive
-            ? "bg-[#FFFAF0] " 
-            : "hover:bg-[#FFFAF0] text-[#37322F]/80"
-        }`}
-        onClick={() => {
-          if (isDirectory) {
-            setIsOpen(!isOpen) // Ouvre/Ferme le dossier
-          } else if (node.index !== undefined) {
-            setActiveFile(node.index) // Ouvre le fichier
-          }
-        }}
-      >
-        {/* Icône de flèche pour les dossiers */}
-        {isDirectory && (
-          <ChevronRight 
-            className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} 
-            style={{ minWidth: '1rem' }} // Force la taille pour l'alignement
-          />
-        )}
-        {/* Icône de fichier pour les fichiers */}
-      
-
-        <span className="truncate">{node.name}</span>
-      </button>
-
-      {/* Rendu récursif des enfants */}
-      {isDirectory && isOpen && node.children && (
-        <ul className="pl-5 text-sm mt-1 space-y-1">
-          {Array.from(node.children.entries())
-            .sort(([nameA, nodeA], [nameB, nodeB]) => {
-              // Trie les dossiers en premier, puis par ordre alphabétique
-              if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
-              if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
-              return nameA.localeCompare(nameB);
-            })
-            .map(([key, childNode]) => (
-              <FileTreeItem
-                key={key}
-                node={childNode}
-                activeFile={activeFile}
-                setActiveFile={setActiveFile}
-              />
-            ))}
-        </ul>
-      )}
-    </li>
-  )
-}
-  
 
 
   
@@ -3342,19 +3359,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActive
 // Assurez-vous que useMemo est importé depuis 'react'
 // REMPLACEZ VOTRE DÉFINITION STATIQUE PAR CE BLOC RÉACTIF
 
-const fileTree = useMemo(() => {
-    // Utilise currentProject.files comme source de données (votre 'files' doit pointer vers ceci)
-    const files = currentProject?.files || [];
 
-    if (files.length === 0) {
-        return new Map();
-    }
-    
-    // Appel à votre fonction buildFileTree
-    return buildFileTree(files); 
-    
-// 🛑 Dépendance essentielle : assure que le calcul se fait après la mise à jour de l'état.
-}, [currentProject?.files]); 
   
 
 
@@ -4393,13 +4398,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 </div>
                 
 <ScrollArea className="h-[calc(100%-57px)] bg-[#fffcf6] p-1">
-    <ul className="space-y-1 font-semibold text-[20px]">
-        {/* Démarre le rendu récursif à partir de la racine de l'arbre */}
-        {Array.from(fileTree.entries()) 
+    
+    <ul className="space-y-0.5">
+        {Array.from(fileTree.entries())
             .sort(([nameA, nodeA], [nameB, nodeB]) => {
-                // Trie les dossiers en premier à la racine
-                if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
-                if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
+                if (nodeA.type === 'directory' && nodeB.type !== 'directory') return -1;
+                if (nodeA.type !== 'directory' && nodeB.type === 'directory') return 1;
                 return nameA.localeCompare(nameB);
             })
             .map(([key, node]) => (
@@ -4411,7 +4415,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 />
             ))}
     </ul>
-    
+
 </ScrollArea>
               
               </div>
