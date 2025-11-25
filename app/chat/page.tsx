@@ -3715,111 +3715,14 @@ const handleVercelDeploy = async () => {
 
 
 
-const pollVercelLogs = async (deploymentId: string, token: string, url: string) => {
-  setDeployLogs(prev => [...prev, "⏳ Suivi du déploiement et lecture des logs..."]);
+              
 
-  try {
-    const response = await fetch(
-      `https://api.vercel.com/v3/deployments/${deploymentId}/events?follow=1`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
 
-    if (!response.body) {
-      setDeployLogs(prev => [...prev, "❌ Pas de flux disponible depuis l'API Vercel"]);
-      return;
-    }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let partial = "";
 
-    // Buffers pour stdout et stderr
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
 
-      partial += decoder.decode(value, { stream: true });
 
-      const lines = partial.split("\n");
-      partial = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-
-        try {
-          const event = JSON.parse(line);
-
-          let text = "";
-
-          // ✅ Gestion stdout/stderr avec buffering
-          if (event.type === "stdout") {
-            text = event.payload?.text || event.payload?.message || "";
-            stdoutBuffer += text;
-            if (text.includes("\n")) {
-              setDeployLogs(prev => [...prev, stdoutBuffer.trim()]);
-              stdoutBuffer = "";
-            }
-            continue; // passe au prochain événement
-          }
-
-          if (event.type === "stderr") {
-            text = event.payload?.text || event.payload?.message || "";
-            stderrBuffer += text;
-            if (text.includes("\n")) {
-              setDeployLogs(prev => [...prev, `[stderr] ${stderrBuffer.trim()}`]);
-              stderrBuffer = "";
-            }
-            continue;
-          }
-
-          // 🔹 Reste de ta logique inchangée
-          text =
-            event?.payload?.text ||
-            event?.payload?.message ||
-            event?.payload?.output ||
-            event?.payload?.command ||
-            event?.type ||
-            "";
-
-          if (text) {
-            setDeployLogs(prev => [...prev, text]);
-          }
-
-          if (event.type === "state") {
-            if (event.payload?.state === "READY") {
-              setDeployLogs(prev => [...prev, `✅ Déploiement terminé : ${url}`]);
-              return;
-            }
-            if (event.payload?.state === "ERROR") {
-              setDeployLogs(prev => [...prev, `❌ Déploiement échoué (ERROR)`]);
-              return;
-            }
-          }
-        } catch {
-          // ligne incomplète, on continue
-        }
-      }
-    }
-
-    // flush buffers restant à la fin du flux
-    if (stdoutBuffer) setDeployLogs(prev => [...prev, stdoutBuffer.trim()]);
-    if (stderrBuffer) setDeployLogs(prev => [...prev, `[stderr] ${stderrBuffer.trim()}`]);
-
-  } catch (e: any) {
-    setDeployLogs(prev => [...prev, `⚠️ Erreur lecture flux: ${e.message}`]);
-  }
-};
-            
-                               
-  
-  
-        
-  // -------------------
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
   return (
@@ -3930,11 +3833,6 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
 
 
-
-
-                
-                  
-       
 
 
                 {messages.map((msg, index) => {
@@ -4097,8 +3995,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                  : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{finalContentToDisplay}</pre>;
         })()}
       </div>
-
-              {/* Fichiers uploadés & Mentions */}
+      
+      {/* Fichiers uploadés & Mentions */}
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
           <div className="flex gap-1 mt-1">
               {msg.images.map((base64Src, imgIndex) => (
@@ -4129,7 +4027,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
   );
 })}
-      
+
               
 
               
@@ -4473,28 +4371,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-
-
-
-
-
-
-
         
        </div> 
-      
-    {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-
-  
 
 
-      
-      
-    
-      
 
-    {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-        
+
+
           <div 
   className={`
     h-full flex flex-col bg-[#fffcf6] 
@@ -4632,7 +4515,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     onClose={() => setIsDeployOpen(false)} 
     currentProject={currentProject} 
 />
-              
+
+    
 {showDeploymentStatus && deploymentDetails.status !== 'idle' && (
     <div 
         className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-2xl z-50 max-w-sm w-full 
@@ -4819,8 +4703,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               </div>
 
 
-            
-              <div className="w-2/3 h-full bg-white flex flex-col">
+
+                      <div className="w-2/3 h-full bg-white flex flex-col">
                 
                 {/* 🆕 1. LE BREADCRUMB HEADER (Header de l'éditeur) */}
                 <div className="h-10 flex items-center px-4 border-b border-[rgba(55,50,47,0.12)] bg-[#FFFAF0] flex-shrink-0">
@@ -4905,13 +4789,93 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           )}
         </div>
 
-
-          
+            
+  <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
+    <button
+        onClick={() => toggleViewMode("chat")}
+        className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
+            viewMode === "chat" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : "bg-transparent text-gray-700"
+        }`}
+    >
+        Chat
+    </button>
+    <button
+        onClick={() => toggleViewMode("preview")}
+        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
+            viewMode === "preview" 
+                ? "bg-[#37322F] text-white font-semibold" 
+                : " text-gray-700"
+        }`}
+    >
+        Preview
+    </button>
+</div>
+      </div>
 <ApiKeyModal />
 
-              </div>
+      {/* ---------- SIDEBAR OVERLAY ---------- */}
+<div className={`fixed inset-0 z-40 pointer-events-none`}>
+  {/* backdrop */}
+  <div
+    onClick={() => setShowSidebar(false)}
+    className={`absolute inset-0 bg-black/40 transition-opacity ${showSidebar ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+  />
+  {/* panel */}
+  <aside
+    className={`absolute left-0 top-0 h-full w-72 bg-white border-r border-[rgba(55,50,47,0.12)] transform transition-transform duration-200 shadow-lg
+      ${showSidebar ? "translate-x-0" : "-translate-x-full"}
+    `}
+    aria-hidden={!showSidebar}
+  >
+    <div className="p-4 flex items-center justify-between border-b border-[rgba(55,50,47,0.08)]">
+      <h3 className="text-sm font-medium">Projects</h3>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" onClick={createNewProject} className="h-8 w-8">
+          <Plus className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => setShowSidebar(false)} className="h-8 w-8">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+
+    <div className="p-3 overflow-auto h-[calc(100%-56px)]">
+      {projects.length === 0 ? (
+        <p className="text-sm text-[rgba(55,50,47,0.6)]">No projects yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {projects.map((p) => (
+            <li key={p.id}>
+              <button
+  onClick={() => {
+    // 1. Sauvegarde le projet actuel si nécessaire (copie de handleProjectClick)
+    if (currentProject) {
+      saveProject() 
+    }
+    // 2. Charge le nouveau projet (Imite directement l'appel du <select>)
+    loadProject(p.id) 
+    // 3. Ferme la sidebar
+    setShowSidebar(false)
+  }}
+  className={`w-full text-left p-3 rounded-md flex flex-col ${
+    currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : "hover:bg-[#F7F5F3]"
+  }`}
+>
+ll
+                </button>
+                <div className="text-sm">{p.name}</div>
+                <div className="text-xs text-[rgba(55,50,47,0.6)]">{new Date(p.createdAt).toLocaleString()}</div>
               
-      
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </aside>
+</div>
+        
+    </div>
   )
-          
-         }
+                }
