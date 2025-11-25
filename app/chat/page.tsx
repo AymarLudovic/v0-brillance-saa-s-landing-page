@@ -4819,7 +4819,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               </div>
 
 
-              
+            </div>       
               <div className="w-2/3 h-full bg-white flex flex-col">
                 
                 {/* 🆕 1. LE BREADCRUMB HEADER (Header de l'éditeur) */}
@@ -4933,6 +4933,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
               </div>
               
-      }
+      
   )
           
+         }
