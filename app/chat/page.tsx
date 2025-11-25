@@ -4933,6 +4933,6 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
               </div>
               
-    
+      }
   )
           
