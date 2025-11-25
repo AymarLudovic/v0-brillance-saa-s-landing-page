@@ -441,42 +441,6 @@ const FileBreadcrumb: React.FC<FileBreadcrumbProps> = ({ filePath }) => {
  * @param files Le tableau d'objets fichiers ({ filePath: string, content: string }[]).
  * @returns La Map représentant le répertoire racine.
  */
-const buildFileTree = (files: { filePath: string; content: string }[]): FileTree => {
-  const root: FileTree = new Map()
-
-  files.forEach((file, originalIndex) => {
-    const parts = file.filePath.split('/')
-    let currentNode = root
-    let currentPath = ''
-
-    parts.forEach((part, i) => {
-      // Met à jour le chemin d'accès complet pour ce niveau
-      currentPath = currentPath + (currentPath ? '/' : '') + part
-      
-      const isFile = i === parts.length - 1
-
-      if (!currentNode.has(part)) {
-        // Crée un nouveau nœud si non existant
-        const newNode: FileTreeNode = {
-          name: part,
-          path: currentPath,
-          type: isFile ? 'file' : 'directory',
-          // On crée une nouvelle Map d'enfants seulement si c'est un répertoire
-          children: isFile ? undefined : new Map(),
-          index: isFile ? originalIndex : undefined,
-        }
-        currentNode.set(part, newNode)
-      }
-
-      // Descend dans le nœud (si ce n'est pas le fichier final)
-      if (!isFile) {
-        currentNode = currentNode.get(part)!.children as FileTree
-      }
-    })
-  })
-
-  return root
-}
 
 
 
@@ -1055,47 +1019,48 @@ const READ_FILE_REGEX = /<read_file\s+path=["']([^"']+)["']\s*\/>/;
 // Nouveau format d’artefact de lecture
 const FETCH_FILE_REGEX = /<fetch_file\s+path=["']([^"']+)["']\s*\/>/;
 
+// --- UTILITAIRES FICHIERS & ARBRE ---
 
-// --- UTILITAIRES DE PATCHING INTELLIGENT ---
-
-// Normalise les espaces pour une recherche plus souple
 const normalizeWhitespace = (str: string) => str.replace(/\s+/g, ' ').trim();
-
-// Vérifie la syntaxe basique (parenthèses/accolades)
-const isValidSyntax = (code: string): boolean => {
-    let stack = [];
-    for (let char of code) {
-        if (['{', '(', '['].includes(char)) stack.push(char);
-        if (['}', ')', ']'].includes(char)) {
-            const last = stack.pop();
-            if (!last) return false; 
-        }
-    }
-    return stack.length === 0; 
-};
 
 const applySearchReplace = (originalContent: string, searchBlock: string, replaceBlock: string): string | null => {
   if (!originalContent) return null;
-
-  // 1. Essai exact
-  if (originalContent.includes(searchBlock)) {
-    return originalContent.replace(searchBlock, replaceBlock);
-  }
-
-  // 2. Essai normalisé (si l'IA a raté l'indentation)
+  // 1. Exact match
+  if (originalContent.includes(searchBlock)) return originalContent.replace(searchBlock, replaceBlock);
+  // 2. Fuzzy match (Normalisé)
   const normOriginal = normalizeWhitespace(originalContent);
   const normSearch = normalizeWhitespace(searchBlock);
-  
-  // Si le bloc normalisé n'existe pas, on abandonne pour ne pas corrompre
-  if (!normOriginal.includes(normSearch)) {
-    console.warn("⚠️ Search block introuvable.");
-    return null; 
-  }
-
-  // Note: Pour l'instant, on rejette si le match exact échoue pour la sécurité.
-  // Dans une version future, on pourrait utiliser un algo de diff (diff-match-patch) ici.
+  if (!normOriginal.includes(normSearch)) return null;
+  // Si on est ici, c'est complexe, pour l'instant on sécurise en renvoyant null
+  // (Dans un vrai IDE, on utiliserait un algo de diff ici)
   return null; 
 };
+
+// Ta fonction pour construire l'arbre (Indispensable pour la Sidebar)
+const buildFileTree = (files: { filePath: string; content: string }[]): Map<string, any> => {
+  const root = new Map();
+  files.forEach((file, originalIndex) => {
+    const parts = file.filePath.split('/');
+    let currentNode = root;
+    let currentPath = '';
+    parts.forEach((part, i) => {
+      currentPath = currentPath + (currentPath ? '/' : '') + part;
+      const isFile = i === parts.length - 1;
+      if (!currentNode.has(part)) {
+        currentNode.set(part, {
+          name: part,
+          path: currentPath,
+          type: isFile ? 'file' : 'directory',
+          children: isFile ? undefined : new Map(),
+          index: isFile ? originalIndex : undefined,
+        });
+      }
+      if (!isFile) currentNode = currentNode.get(part)!.children;
+    });
+  });
+  return root;
+};
+
 
 
 
@@ -2847,44 +2812,36 @@ const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 
 
+  
 
-
-          
-const sendChat = async (promptOverride?: string) => {
+      const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
-  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
+  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0) return;
   if (!currentProject && !promptOverride) {
-    addLog("Please create or load a project before starting a conversation.");
+    addLog("Please create a project first.");
     return;
   }
 
-  // 1. CHARGEMENT RESSOURCES DESIGN
   setLoading(true);
-  let shopImages: string[] = [];
-  let targetCssUrl: string | null = null;
   
+  // 1. CHARGEMENT DESIGN (Shop)
+  let shopImages: string[] = [];
   try {
-      const [images, url] = await Promise.all([
-          getAllShopImages(),
-          getShopCssUrl()
-      ]);
+      const [images, cssUrl] = await Promise.all([getAllShopImages(), getShopCssUrl()]);
       shopImages = images;
-      targetCssUrl = url;
+      if (shopImages.length > 0) addLog(`🎨 Design System: ${shopImages.length} refs loaded.`);
+  } catch (e) { console.error(e); }
 
-      if (shopImages.length > 0) addLog(`🎨 Loaded ${shopImages.length} visual references.`);
-      if (targetCssUrl) addLog(`🔗 Master CSS URL active: ${targetCssUrl}`);
-  } catch (e) { console.error("Design load error", e); }
-
+  // 2. PRÉPARATION MESSAGE
   let contextForPrompt = "";
   if (mentionedFiles.length > 0 && currentProject) {
-    contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
+    contextForPrompt = "\n[FILES CONTEXT: " + mentionedFiles.join(', ') + "]";
   }
-  const finalUserPrompt = userPrompt + contextForPrompt;
-
+  
   const userMsg: Message = {
     role: "user",
-    content: finalUserPrompt,
+    content: userPrompt + contextForPrompt,
     artifactData: { type: null, rawJson: "", parsedList: [] },
     images: uploadedImages,
     externalFiles: uploadedFiles,
@@ -2893,213 +2850,143 @@ const sendChat = async (promptOverride?: string) => {
 
   const assistantPlaceholder: Message = {
     role: "assistant",
-    content: "",
+    content: "", // Sera rempli par le stream
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  let currentHistory = [...messages, userMsg];
-  let assistantMessageIndex = -1;
-  
-  setMessages((prev) => {
-    assistantMessageIndex = prev.length + 1; 
+  let assistantMessageIndex = messages.length + 1;
+  setMessages(prev => {
     if (!promptOverride) setChatInput("");
     return [...prev, userMsg, assistantPlaceholder];
   });
-  
-  const currentProjectFiles = currentProject
-    ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
-    : [];
 
-  // --- CONTEXTE SYSTÈME (Fichiers) ---
-  const filesList: string[] = [];
-  const filesContentSnapshots: string[] = [];
-  let filesExcludedCount = 0; 
+  // 3. PRÉPARATION CONTEXTE FICHIERS (Pour l'IA)
+  // On envoie tout le projet pour que l'IA sache quoi modifier
+  const currentProjectFiles = currentProject ? [...currentProject.files] : [];
+  const filesList = currentProjectFiles.map(f => `<project_file path="${f.filePath}" />`).join("\n");
+  const filesContent = currentProjectFiles
+    .filter(f => f.content.length < 30000) // Limite pour pas exploser le contexte
+    .map(f => `<file_content path="${f.filePath}">\n${f.content}\n</file_content>`)
+    .join("\n\n");
 
-  currentProjectFiles.forEach(file => {
-      const content = file.content || "";
-      const size = content.length;
-      let fileStatus = '';
-
-      if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
-          const lines = content.split('\n');
-          const contentWithLineNumbers = lines.map((line, index) => `${index + 1}: ${line}`).join('\n');
-          filesContentSnapshots.push(`<file_content_snapshot path="${file.filePath}">\n${contentWithLineNumbers}\n</file_content_snapshot>`);
-          fileStatus = `(Content INCLUDED)`;
-      } else if (size > CONTENT_SNAPSHOT_LIMIT) {
-          filesExcludedCount++;
-          fileStatus = `(Content EXCLUDED > limit)`;
-      }
-      filesList.push(`<project_file path="${file.filePath}" ${fileStatus}/>`);
-  });
-
-  const systemFileContext: Message = {
+  const systemContext: Message = {
     role: "system",
-    content: `# PROJECT FILES\n${filesList.join("\n")}\n\n# CONTENT\n${filesContentSnapshots.join("\n\n")}`
+    content: `# PROJECT STRUCTURE\n${filesList}\n\n# FILE CONTENTS\n${filesContent}`
   };
 
-  let historyForApi = [systemFileContext, ...currentHistory];
-  const readFilesCache = new Set<string>();
-
-  // 2. FETCH API AVEC CLE DB
-  let apiKey = "";
-  try {
-      const dbKey = await getApiKeyFromIDB();
-      if (dbKey) apiKey = dbKey;
-  } catch (e) {}
-
-  let urlArtifact: any = null;
-  let text = "";
-  let retryCount = 0;
-  let finalAssistantMessage: Message | undefined = undefined; 
+  let historyForApi = [systemContext, ...messages, userMsg];
   
+  // 4. APPEL API
+  let apiKey = "";
+  try { apiKey = await getApiKeyFromIDB() || ""; } catch (e) {}
+
+  let text = "";
+  let artifactList: any[] = []; // Pour stocker l'historique des actions de ce tour
+
   try {
-    let res: Response | null = null;
-    let apiCallSuccessful = false;
-
-    while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
-      try {
-        if (retryCount > 0) await new Promise(resolve => setTimeout(resolve, BASE_DELAY_MS * Math.pow(2, retryCount - 1)));
-
-        res = await fetch("/api/gemini", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-          body: JSON.stringify({ 
+    const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
+        body: JSON.stringify({ 
             history: historyForApi, 
-            currentProjectFiles,
-            uploadedImages,
-            uploadedFiles,
             allReferenceImages: shopImages,
-            cssMasterUrl: targetCssUrl
-          }),
-        });
+            // On n'envoie plus injectedCSS ici, l'IA le demandera via URL si besoin
+        }),
+    });
 
-        if (!res.ok) throw new Error(`Gemini API failed: ${res.statusText}`);
-        apiCallSuccessful = true;
-      } catch (e: any) {
-        console.error(`Retry ${retryCount}:`, e.message);
-        retryCount++;
-        if (retryCount >= MAX_RETRIES) throw e;
-      }
-    }
-
-    if (!res || !res.body) return;
+    if (!res.ok || !res.body) throw new Error("API Failed");
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    
+
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        text += chunk;
 
-      const chunk = decoder.decode(value, { stream: true });
-      text += chunk;
-
-      // A. Détection Fetch File (Lecture)
-      const fetchFileMatch = text.match(FETCH_FILE_REGEX);
-      if (fetchFileMatch) {
-        const filePath = fetchFileMatch[1].trim();
-        if (!readFilesCache.has(filePath)) {
-          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
-          if (fileContent) {
-            text += `\n${fileContent}\n`; 
-            readFilesCache.add(filePath); 
-          }
+        // --- GESTION DES FICHIERS EN TEMPS RÉEL ---
+        
+        // A. CRÉATION (<create_file>)
+        const createRegex = /<create_file\s+path=["']([^"']+)["']>([\s\S]*?)<\/create_file>/g;
+        let createMatch;
+        while ((createMatch = createRegex.exec(text)) !== null) {
+            const path = createMatch[1];
+            const content = createMatch[2].trim();
+            
+            // Vérif si déjà traité dans ce stream pour éviter les boucles
+            if (!artifactList.some(a => a.path === path && a.type === 'create')) {
+                // Mise à jour du Projet Global (Pour le File Tree)
+                const newFile = { filePath: path, content };
+                const updatedFiles = [...currentProjectFiles.filter(f => f.filePath !== path), newFile];
+                
+                // MISE À JOUR CRITIQUE DES ÉTATS
+                setCurrentProject(prev => prev ? { ...prev, files: updatedFiles } : null);
+                setFiles(updatedFiles); // Met à jour la liste utilisée par buildFileTree
+                
+                artifactList.push({ path, type: 'create' });
+                addLog(`✨ Created ${path}`, 'success');
+            }
         }
-      }
 
-      // B. Détection Inspiration URL
-      const urlMatch = text.match(inspirationUrlRegex);
-      if (urlMatch) {
-        try {
-          const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
-          const parsed = JSON.parse(jsonString);
-          if (parsed.type === 'inspirationUrl') urlArtifact = { url: parsed.url };
-        } catch (e) {}
-      }
-
-      // C. NOUVELLE DETECTION : <edit_file> (Search & Replace)
-      const editRegex = /<edit_file\s+path=["']([^"']+)["']>\s*<search>([\s\S]*?)<\/search>\s*<replace>([\s\S]*?)<\/replace>\s*<\/edit_file>/g;
-      let editMatch;
-      
-      // On utilise une boucle pour capturer toutes les occurrences complètes dans le chunk courant
-      while ((editMatch = editRegex.exec(text)) !== null) {
-          const path = editMatch[1];
-          const searchBlock = editMatch[2].trim();
-          const replaceBlock = editMatch[3].trim();
-          
-          // On applique le patch immédiatement
-          const fileIndex = currentProject.files.findIndex((f: any) => f.filePath === path);
-          if (fileIndex !== -1) {
-              const oldContent = currentProject.files[fileIndex].content;
-              const newContent = applySearchReplace(oldContent, searchBlock, replaceBlock);
-              
-              if (newContent) {
-                  if (!isValidSyntax(newContent)) {
-                      addLog(`⚠️ Syntax Warning in ${path}, but applying anyway.`, 'warning');
-                  }
-                  
-                  // Mise à jour du state
-                  const updatedFiles = [...currentProject.files];
-                  updatedFiles[fileIndex] = { ...updatedFiles[fileIndex], content: newContent };
-                  setCurrentProject((prev: any) => ({ ...prev, files: updatedFiles }));
-                  setFiles(updatedFiles);
-                  addLog(`✅ Patched ${path} successfully.`, 'success');
-                  
-                  // Nettoyage du buffer texte pour éviter de ré-appliquer
-                  text = text.replace(editMatch[0], `[EDIT APPLIED: ${path}]`);
-              } else {
-                  addLog(`⚠️ Patch failed for ${path}: Search block not found.`, 'error');
-              }
-          }
-      }
-
-      // D. Détection <create_file> (Création standard)
-      const createRegex = /<create_file\s+path=["']([^"']+)["']>([\s\S]*?)<\/create_file>/g;
-      let createMatch;
-      while ((createMatch = createRegex.exec(text)) !== null) {
-          const path = createMatch[1];
-          const content = createMatch[2].trim();
-          
-          if (!currentProject.files.some((f: any) => f.filePath === path)) {
-              const newFiles = [...currentProject.files, { filePath: path, content }];
-              setCurrentProject((prev: any) => ({ ...prev, files: newFiles }));
-              setFiles(newFiles);
-              addLog(`✅ Created ${path}`, 'success');
-          }
-      }
-
-      // Mise à jour UI du message
-      setMessages((prev) => {
-        const updatedMessages = [...prev];
-        if (assistantMessageIndex >= 0 && assistantMessageIndex < updatedMessages.length) {
-          updatedMessages[assistantMessageIndex].content = text
-            .replace(inspirationUrlRegex, '')
-            .replace(FETCH_FILE_REGEX, '')
-            .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '');
+        // B. ÉDITION (<edit_file>)
+        const editRegex = /<edit_file\s+path=["']([^"']+)["']>\s*<search>([\s\S]*?)<\/search>\s*<replace>([\s\S]*?)<\/replace>\s*<\/edit_file>/g;
+        let editMatch;
+        while ((editMatch = editRegex.exec(text)) !== null) {
+            const path = editMatch[1];
+            const searchBlock = editMatch[2].trim();
+            const replaceBlock = editMatch[3].trim();
+            
+            // On applique le patch
+            const fileIndex = currentProjectFiles.findIndex(f => f.filePath === path);
+            if (fileIndex !== -1) {
+                const oldContent = currentProjectFiles[fileIndex].content;
+                const newContent = applySearchReplace(oldContent, searchBlock, replaceBlock);
+                
+                if (newContent && !artifactList.some(a => a.path === path && a.type === 'edit_applied')) {
+                    const updatedFiles = [...currentProjectFiles];
+                    updatedFiles[fileIndex] = { ...updatedFiles[fileIndex], content: newContent };
+                    
+                    // MISE À JOUR CRITIQUE
+                    setCurrentProject(prev => prev ? { ...prev, files: updatedFiles } : null);
+                    setFiles(updatedFiles);
+                    
+                    artifactList.push({ path, type: 'edit_applied' }); // Marque comme fait
+                    addLog(`⚡ Patched ${path}`, 'success');
+                    
+                    // On nettoie le buffer text pour ne pas ré-appliquer
+                    // text = text.replace(editMatch[0], `[EDIT APPLIED: ${path}]`); 
+                }
+            }
         }
-        return updatedMessages;
-      });
-    } 
 
-    finalAssistantMessage = {
-        role: "assistant",
-        content: text,
-        artifactData: { type: null, rawJson: "", parsedList: [] } // Simplifié pour cet exemple
-    };
-
-    if (urlArtifact) {
-      addLog(`✅ Analying URL: ${urlArtifact.url}`);
-      await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      return; 
+        // Mise à jour de l'affichage Chat
+        setMessages(prev => {
+            const updated = [...prev];
+            const lastMsg = updated[updated.length - 1];
+            if (lastMsg.role === "assistant") {
+                lastMsg.content = text;
+                // On passe la liste des fichiers touchés pour l'affichage UI (le petit bloc vert)
+                lastMsg.artifactData = { 
+                    type: 'files', 
+                    parsedList: artifactList, 
+                    rawJson: "" 
+                };
+            }
+            return updated;
+        });
     }
-          
-  } catch (err: any) {
-    addLog(`ERROR: ${err.message}`);
-    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
+
+  } catch (e: any) {
+      addLog(`Error: ${e.message}`, 'error');
   } finally {
-    setLoading(false);
+      setLoading(false);
+      saveProject(); // Sauvegarde finale dans IDB
   }
 };
+
+      
     
       
              
@@ -3783,190 +3670,61 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
                 
                   
-       {messages.map((msg, index) => {
+       
+              {messages.map((msg, index) => {
   const artifact = msg.artifactData;
-  const isExpanded = expandedMessageIndex === index;
   
+  // NETTOYAGE VISUEL : On retire tout le code brut pour l'affichage
+  let displayContent = msg.content || "";
+  
+  // 1. On cache les blocs de création complets
+  displayContent = displayContent.replace(/<create_file[\s\S]*?<\/create_file>/gs, '');
+  // 2. On cache les blocs d'édition complets
+  displayContent = displayContent.replace(/<edit_file[\s\S]*?<\/edit_file>/gs, '');
+  // 3. On cache les artefacts URL
+  displayContent = displayContent.replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '');
+  
+  displayContent = displayContent.trim();
+
   return (
-    <div
-      key={index}
-      className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
-    >
-      {/* ICÔNE ASSISTANT & THINKING */}
-      {msg.role === "assistant" && (
-        <div className="flex items-center gap-3">
-          <div className="h-6 w-6 bg-[#111] border border-white/10 rounded-full flex items-center justify-center shadow-sm">
-            <svg className="h-3 w-3 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/>
-            </svg>
-          </div>
-
-          {/* Indicateur de réflexion (Thinking...) */}
-          {loading && index === messages.length - 1 && (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#F7F5F3] border border-[rgba(55,50,47,0.08)]">
-              <div className="flex gap-1">
-                <span className="w-1 h-1 bg-[#37322F] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                <span className="w-1 h-1 bg-[#37322F] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                <span className="w-1 h-1 bg-[#37322F] rounded-full animate-bounce"></span>
-              </div>
-              <span className="text-[10px] font-medium text-[#37322F]/70 uppercase tracking-wide">Thinking</span>
+    <div key={index} className={`flex flex-col gap-2 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+        
+        {/* Bulle de texte (Nettoyée) */}
+        {displayContent && (
+            <div className={`p-3 rounded-2xl max-w-2xl ${msg.role === "user" ? "bg-[#1a1a1a] text-white" : "bg-transparent text-[#333]"}`}>
+                <pre className="whitespace-pre-wrap font-sans text-sm">{displayContent}</pre>
             </div>
-          )}
-        </div>
-      )}
-      
-      {/* BULLE DE MESSAGE */}
-      <div
-        className={`p-3 rounded-2xl max-w-2xl group relative shadow-sm ${
-          msg.role === "user"
-            ? "bg-[#1a1a1a] text-white self-end border border-white/10"
-            : "bg-transparent text-[#37322F] self-start px-0"
-        }`}
-      >
-        {(() => {
-          const rawTextContent = msg.content || ""; 
-          const isFileArtifact = artifact && (artifact.type === 'files');
-          const isUrlArtifact = artifact && (artifact.type === 'inspirationUrl');
-          const displayElements = [];
-          
-          // 1. NETTOYAGE DU TEXTE (On enlève les balises techniques pour l'affichage)
-          // On retire <edit_file>, <create_file>, <search>, <replace> et les URL artifacts
-          let finalContentToDisplay = rawTextContent
-              .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-              .replace(/<edit_file[\s\S]*?<\/edit_file>/gs, '') // Nouvelle balise
-              .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
-              .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
-              .trim();
-          
-          const hasTextContent = finalContentToDisplay.length > 0;
-          
-          // --- RENDU USER (Avec bouton Expand pour les longs messages) ---
-          if (msg.role === "user") {
-              const MAX_HEIGHT = 120; 
-              const isLongMessage = finalContentToDisplay.length > 500 || finalContentToDisplay.split('\n').length > 8; 
-              
-              displayElements.push(
-                  <div key="user-content" className="relative">
-                      <pre 
-                          className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
-                          style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`, overflow: 'hidden' }}
-                      >
-                          {finalContentToDisplay}
-                      </pre>
-                      {!isExpanded && isLongMessage && (
-                          <div 
-                              className="absolute inset-x-0 bottom-0 h-12 flex items-end justify-center rounded-b-xl bg-gradient-to-t from-[#1a1a1a] to-transparent cursor-pointer"
-                              onClick={() => setExpandedMessageIndex(index)}
-                          >
-                              <span className="text-[10px] font-bold bg-white/10 px-2 py-1 rounded-full mb-1 hover:bg-white/20 transition-colors">Show more</span>
-                          </div>
-                      )}
-                  </div>
-              );
-              // Affichage des images uploadées par l'user
-              if (msg.images && msg.images.length > 0) {
-                  displayElements.push(
-                      <div key="user-images" className="flex gap-2 mt-2 overflow-x-auto pb-1">
-                          {msg.images.map((src, i) => (
-                              <img key={i} src={src} alt="Upload" className="w-12 h-12 rounded-lg object-cover border border-white/20" />
-                          ))}
-                      </div>
-                  );
-              }
-              return displayElements; 
-          }
-          
-          // --- RENDU ASSISTANT (Texte + Artefacts) ---
-          
-          // A. Le Texte explicatif
-          if (hasTextContent) {
-              displayElements.push(
-                  <div key="ai-text" className="prose prose-sm max-w-none text-[#37322F] mb-2">
-                      <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed bg-transparent p-0 border-none text-[#37322F]">
-                          {finalContentToDisplay}
-                      </pre>
-                  </div>
-              );
-          }
+        )}
 
-          // B. L'Artefact "Code en cours" (Liste des fichiers modifiés)
-          // On détecte si l'IA est en train d'écrire une balise technique
-          const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
-          const isEditing = rawTextContent.includes('<edit_file') && !rawTextContent.includes('</edit_file>'); // Nouvelle détection
-          const isBuilding = isCreating || isEditing;
-          
-          if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
-              const totalItems = artifact.parsedList.length;
-              
-              displayElements.push(
-                  <div key="code-artifact" className="mt-3 bg-white border border-[rgba(55,50,47,0.08)] rounded-xl overflow-hidden shadow-sm">
-                      <div className="bg-[#F7F5F3] px-3 py-2 border-b border-[rgba(55,50,47,0.05)] flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                          <span className="text-xs font-medium text-[#37322F]/60 uppercase tracking-wider">Workspace Changes</span>
-                      </div>
-                      
-                      <ul className="p-1">
-                          {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i) => {
-                              const isLast = i === totalItems - 1;
-                              const isActive = isBuilding && isLast;
-                              
-                              // Icônes et Textes adaptés au nouveau système
-                              const isCreate = item.type === 'create';
-                              const statusLabel = isCreate 
-                                  ? (isActive ? 'Creating...' : 'Created') 
-                                  : (isActive ? 'Patching...' : 'Patched'); // On dit "Patching" pour edit_file
-                              
-                              return (
-                                  <li key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-[#F7F5F3] transition-colors group">
-                                      <div className="flex items-center gap-2 overflow-hidden">
-                                          {/* Icone Fichier (Create = Plus, Edit = Pen) */}
-                                          <span className={`p-1.5 rounded-md ${isCreate ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-                                              {isCreate ? (
-                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                              ) : (
-                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                              )}
-                                          </span>
-                                          <span className="text-xs font-medium text-[#37322F] truncate max-w-[200px]">{item.path}</span>
-                                      </div>
-                                      
-                                      <div className="flex items-center gap-2">
-                                          <span className={`text-[10px] font-medium ${isActive ? 'text-[#37322F]' : 'text-[#37322F]/40'}`}>
-                                              {statusLabel}
-                                          </span>
-                                          {isActive && <Loader className="w-3 h-3 text-[#37322F] animate-spin" />}
-                                          {!isActive && <span className="text-green-500"><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg></span>}
-                                      </div>
-                                  </li>
-                              );
-                          })}
-                      </ul>
-                  </div>
-              );
-          }
-
-          // C. L'Artefact URL (Design System)
-          if (isUrlArtifact && artifact.rawJson) {
-              const urlData = JSON.parse(artifact.rawJson);
-              displayElements.push(
-                  <div key="url-artifact" className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-white border border-purple-100 rounded-xl flex items-center gap-3">
-                      <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-                      </div>
-                      <div className="flex-1 overflow-hidden">
-                          <p className="text-xs font-bold text-purple-900">Design Extraction</p>
-                          <p className="text-[10px] text-purple-600 truncate">Analyzing: {urlData.url}</p>
-                      </div>
-                      <Loader className="w-4 h-4 text-purple-400 animate-spin" />
-                  </div>
-              );
-          }
-
-          return displayElements.length > 0 
-                 ? displayElements 
-                 : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-[#37322F]">{finalContentToDisplay}</pre>;
-        })()}
-      </div>
+        {/* ARTEFACT VISUEL (La liste des fichiers créés/modifiés) */}
+        {/* C'est ça qui remplace le stream de code brut */}
+        {msg.role === "assistant" && artifact?.type === 'files' && artifact.parsedList.length > 0 && (
+            <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm mt-2">
+                <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span className="text-xs font-medium text-gray-500 uppercase">Mises à jour du projet</span>
+                </div>
+                <div className="divide-y divide-gray-50">
+                    {artifact.parsedList.map((file: any, i: number) => (
+                        <div key={i} className="px-3 py-2 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                {/* Icone selon type */}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${file.type === 'create' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>
+                                    {file.type === 'create' ? 'NEW' : 'EDIT'}
+                                </span>
+                                <span className="text-xs font-mono text-gray-700">{file.path}</span>
+                            </div>
+                            {/* Status (loading si c'est le dernier pendant le stream) */}
+                            {loading && index === messages.length - 1 && i === artifact.parsedList.length - 1 ? (
+                                <span className="text-[10px] text-gray-400 animate-pulse">Writing...</span>
+                            ) : (
+                                <span className="text-green-500 text-[10px]">Done</span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
     </div>
   );
 })}
