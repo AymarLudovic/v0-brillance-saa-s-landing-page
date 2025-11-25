@@ -1040,114 +1040,45 @@ const applySearchReplace = (originalContent: string, searchBlock: string, replac
 
 
 
-
-// --- TYPES POUR L'ARBRE DE FICHIERS ---
-interface FileTreeNode {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  children?: Map<string, FileTreeNode>;
-  index?: number; // Index dans le tableau plat 'files'
-}
-
-// --- UTILITAIRE DE CONSTRUCTION D'ARBRE ---
-const buildFileTree = (files: { filePath: string; content: string }[]): Map<string, FileTreeNode> => {
-  const root = new Map<string, FileTreeNode>();
+const buildFileTree = (files: { filePath: string; content: string }[]): FileTree => {
+  const root: FileTree = new Map()
 
   files.forEach((file, originalIndex) => {
-    const parts = file.filePath.split('/'); // ex: ["app", "components", "Header.tsx"]
-    let currentNode = root;
-    let currentPath = '';
+    const parts = file.filePath.split('/')
+    let currentNode = root
+    let currentPath = ''
 
     parts.forEach((part, i) => {
-      currentPath = currentPath + (currentPath ? '/' : '') + part;
-      const isFile = i === parts.length - 1;
+      // Met à jour le chemin d'accès complet pour ce niveau
+      currentPath = currentPath + (currentPath ? '/' : '') + part
+      
+      const isFile = i === parts.length - 1
 
       if (!currentNode.has(part)) {
+        // Crée un nouveau nœud si non existant
         const newNode: FileTreeNode = {
           name: part,
           path: currentPath,
           type: isFile ? 'file' : 'directory',
+          // On crée une nouvelle Map d'enfants seulement si c'est un répertoire
           children: isFile ? undefined : new Map(),
           index: isFile ? originalIndex : undefined,
-        };
-        currentNode.set(part, newNode);
+        }
+        currentNode.set(part, newNode)
       }
 
+      // Descend dans le nœud (si ce n'est pas le fichier final)
       if (!isFile) {
-        currentNode = currentNode.get(part)!.children!;
+        currentNode = currentNode.get(part)!.children as FileTree
       }
-    });
-  });
+    })
+  })
 
-  return root;
-};
-
-
-interface FileTreeItemProps {
-  node: FileTreeNode;
-  activeFile: number | null;
-  setActiveFile: (index: number) => void;
-  depth?: number;
+  return root
 }
 
-const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActiveFile, depth = 0 }) => {
-  const [isOpen, setIsOpen] = useState(true);
-  const isDirectory = node.type === 'directory';
-  // On compare les index si c'est un fichier pour surligner le bon
-  const isActive = !isDirectory && node.index !== undefined && activeFile === node.index;
 
-  return (
-    <li>
-      <button
-        className={`w-full text-left text-xs py-1.5 px-2 flex items-center gap-2 transition-colors border-l-2 ${
-          isActive
-            ? "bg-purple-500/10 border-purple-500 text-purple-400 font-medium" 
-            : "border-transparent hover:bg-white/5 text-gray-400 hover:text-gray-200"
-        }`}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
-        onClick={() => {
-          if (isDirectory) setIsOpen(!isOpen);
-          else if (node.index !== undefined) setActiveFile(node.index);
-        }}
-      >
-        {isDirectory ? (
-           <span className={`transform transition-transform ${isOpen ? 'rotate-90' : ''}`}>
-             {/* Icône Flèche (Chevron) */}
-             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-           </span>
-        ) : (
-           /* Icône Fichier */
-           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
-        )}
-        <span className="truncate">{node.name}</span>
-      </button>
-
-      {/* Rendu récursif des enfants si c'est un dossier ouvert */}
-      {isDirectory && isOpen && node.children && (
-        <ul className="space-y-0.5">
-          {Array.from(node.children.entries())
-            .sort(([nameA, nodeA], [nameB, nodeB]) => {
-              // Dossiers en premier
-              if (nodeA.type === 'directory' && nodeB.type !== 'directory') return -1;
-              if (nodeA.type !== 'directory' && nodeB.type === 'directory') return 1;
-              return nameA.localeCompare(nameB);
-            })
-            .map(([key, childNode]) => (
-              <FileTreeItem
-                key={key}
-                node={childNode}
-                activeFile={activeFile}
-                setActiveFile={setActiveFile}
-                depth={depth + 1}
-              />
-            ))}
-        </ul>
-      )}
-    </li>
-  );
-};
-
+        
 
 
 // --- COMPOSANT PRINCIPAL ---
@@ -2881,6 +2812,10 @@ const handleFetchFileAction = async (
 // ---------------------- SEND CHAT ----------------------
 
 
+
+// ---------------------- SEND CHAT ----------------------
+
+
      // ---------------------- DÉFINITIONS GLOBALES (VÉRIFIEZ BASE_DELAY_MS) ----------------------
 // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 10;
@@ -2898,179 +2833,406 @@ const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 
 
-  
-
-      const sendChat = async (promptOverride?: string) => {
+const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
-  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0) return;
+  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
   if (!currentProject && !promptOverride) {
-    addLog("Please create a project first.");
+    addLog("Please create or load a project before starting a conversation.");
     return;
   }
 
-  setLoading(true);
-  
-  // 1. CHARGEMENT DESIGN (Shop)
-  let shopImages: string[] = [];
-  try {
-      const [images, cssUrl] = await Promise.all([getAllShopImages(), getShopCssUrl()]);
-      shopImages = images;
-      if (shopImages.length > 0) addLog(`🎨 Design System: ${shopImages.length} refs loaded.`);
-  } catch (e) { console.error(e); }
-
-  // 2. PRÉPARATION MESSAGE
+  // 1. Préparation du message utilisateur
   let contextForPrompt = "";
   if (mentionedFiles.length > 0 && currentProject) {
-    contextForPrompt = "\n[FILES CONTEXT: " + mentionedFiles.join(', ') + "]";
+    contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
   }
-  
+  const finalUserPrompt = userPrompt + contextForPrompt;
+
   const userMsg: Message = {
     role: "user",
-    content: userPrompt + contextForPrompt,
+    content: finalUserPrompt,
     artifactData: { type: null, rawJson: "", parsedList: [] },
     images: uploadedImages,
     externalFiles: uploadedFiles,
     mentionedFiles
   };
 
+  // 2. Préparation du placeholder
   const assistantPlaceholder: Message = {
     role: "assistant",
-    content: "", // Sera rempli par le stream
+    content: "",
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  let assistantMessageIndex = messages.length + 1;
-  setMessages(prev => {
-    if (!promptOverride) setChatInput("");
+  // 3. Logique de mise à jour de l'état
+  let currentHistory = [...messages, userMsg];
+  let assistantMessageIndex = -1;
+  
+  setMessages((prev) => {
+    assistantMessageIndex = prev.length + 1; 
+    if (!promptOverride) {
+      setChatInput("");
+    }
     return [...prev, userMsg, assistantPlaceholder];
   });
+  
+  const currentProjectFiles = currentProject
+    ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
+    : [];
 
-  // 3. PRÉPARATION CONTEXTE FICHIERS (Pour l'IA)
-  // On envoie tout le projet pour que l'IA sache quoi modifier
-  const currentProjectFiles = currentProject ? [...currentProject.files] : [];
-  const filesList = currentProjectFiles.map(f => `<project_file path="${f.filePath}" />`).join("\n");
-  const filesContent = currentProjectFiles
-    .filter(f => f.content.length < 30000) // Limite pour pas exploser le contexte
-    .map(f => `<file_content path="${f.filePath}">\n${f.content}\n</file_content>`)
-    .join("\n\n");
+  // ---------------- INJECTION DU CONTEXTE SYSTÈME ----------------
+  
+  const filesList: string[] = [];
+  const filesContentSnapshots: string[] = [];
+  let filesExcludedCount = 0; 
 
-  const systemContext: Message = {
+  currentProjectFiles.forEach(file => {
+      const content = file.content || "";
+      const size = content.length;
+      let fileStatus = '';
+
+      if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
+          const lines = content.split('\n');
+          const contentWithLineNumbers = lines.map((line, index) => `${index + 1}: ${line}`).join('\n');
+          
+          filesContentSnapshots.push(
+              `<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n` +
+              contentWithLineNumbers + 
+              `\n</file_content_snapshot>`
+          );
+          fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
+
+      } else if (size > CONTENT_SNAPSHOT_LIMIT) {
+          filesExcludedCount++;
+          fileStatus = `(Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)`;
+      } else {
+          fileStatus = `(EMPTY file)`;
+      }
+      filesList.push(`<project_file path="${file.filePath}" ${fileStatus.trim()}/>`);
+  });
+
+  const systemFileContext: Message = {
     role: "system",
-    content: `# PROJECT STRUCTURE\n${filesList}\n\n# FILE CONTENTS\n${filesContent}`
+    content: (
+        `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
+        `[Use the <fetch_file path="..."/> artifact to read content for files excluded or not included below.]\n` +
+        (filesExcludedCount > 0 ? `⚠️ ${filesExcludedCount} files were EXCLUDED from initial context injection.\n` : '') +
+        filesList.join("\n") +
+        (filesContentSnapshots.length > 0 ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS\n` + filesContentSnapshots.join("\n\n") : "")
+    )
   };
 
-  let historyForApi = [systemContext, ...messages, userMsg];
+  let historyForApi = [systemFileContext, ...currentHistory];
+  const readFilesCache = new Set<string>();
+
+  setLoading(true);
+  addLog(`Sending prompt to Gemini...`);
+
+      
+
+
+// 1. ON RÉCUPÈRE L'IMAGE DU SHOP (SILENCIEUSEMENT)
+
+let shopImages: string[] = [];
   
-  // 4. APPEL API
-  let apiKey = "";
-  try { apiKey = await getApiKeyFromIDB() || ""; } catch (e) {}
-
-  let text = "";
-  let artifactList: any[] = []; // Pour stocker l'historique des actions de ce tour
-
   try {
-    const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-        body: JSON.stringify({ 
-            history: historyForApi, 
-            allReferenceImages: shopImages,
-            // On n'envoie plus injectedCSS ici, l'IA le demandera via URL si besoin
-        }),
-    });
+      // On récupère uniquement les images du Shop
+      shopImages = await getAllShopImages();
 
-    if (!res.ok || !res.body) throw new Error("API Failed");
+      if (shopImages.length > 0) {
+          // Log simple pour confirmer le chargement visuel
+          addLog(`[Design] ${shopImages.length} références visuelles chargées.`);
+      }
+
+  } catch (e) { 
+      console.error("Erreur chargement design", e); 
+      }
+  
+  // --- LOGIQUE DEBUG DESIGN ---
+  
+  let inspirationCSS = "";
+  
+  try {
+      addLog("🎨 Gathering design resources..."); // 1. On voit ça
+
+      // On sépare les promesses pour voir laquelle échoue si besoin
+      const images = await getAllShopImages();
+      addLog(`🔍 Debug: Found ${images.length} images in DB.`); // 2. On DOIT voir ça
+
+      const cssUrl = await getShopCssUrl();
+      if (cssUrl) addLog(`🔍 Debug: CSS URL found: ${cssUrl}`);
+
+      shopImages = images;
+
+      if (cssUrl) {
+          addLog(`🔗 Fetching CSS...`);
+          inspirationCSS = await fetchInspirationCSS(cssUrl);
+      }
+
+      if (shopImages.length > 0) {
+          addLog(`✅ SUCCESS: Loaded ${shopImages.length} visual refs.`);
+      } else {
+          addLog(`⚠️ WARNING: 0 images loaded. Is Shop empty?`);
+      }
+      
+      if (inspirationCSS) addLog(`✅ SUCCESS: Loaded CSS System.`);
+
+  } catch (e: any) { 
+      addLog(`❌ DESIGN ERROR: ${e.message}`);
+      console.error("Design load error", e); 
+  }
+
+
+
+
+  
+  // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
+  let apiKey = "";
+  try {
+      const dbKey = await getApiKeyFromIDB();
+      if (dbKey) apiKey = dbKey;
+      else console.warn("Aucune clé API trouvée dans la base de données.");
+  } catch (e) {
+      console.warn("Erreur lecture clé API:", e);
+  }
+  
+  let urlArtifact: any = null;
+  let text = "";
+  let retryCount = 0;
+  let finalAssistantMessage: Message | undefined = undefined; 
+  
+  try {
+    let res: Response | null = null;
+    let apiCallSuccessful = false;
+
+    // ---------------- BOUCLE DE RETRY ----------------
+    while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
+      try {
+        if (retryCount > 0) {
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000); 
+          addLog(`[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES}... Attente ${delay}ms.`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: { 
+              "Content-Type": "application/json",
+              "x-gemini-api-key": apiKey // 🔥 Envoi de la clé dans les headers
+          },
+          body: JSON.stringify({ 
+            history: historyForApi, 
+            currentProjectFiles,
+            uploadedImages,
+            uploadedFiles,
+            allReferenceImages: shopImages
+         
+          }),
+        });
+
+        if (!res.ok || !res.body) {
+          throw new Error(`Gemini API request failed: ${res.statusText}`);
+        }
+        apiCallSuccessful = true;
+        retryCount = 0;
+      } catch (e: any) {
+        console.error(`API Call failed on attempt ${retryCount + 1}:`, e.message);
+        retryCount++;
+        if (retryCount >= MAX_RETRIES) throw new Error(`Gemini API failed after ${MAX_RETRIES} retries.`);
+        res = null; 
+      }
+    }
+
+    if (!res || !res.body) return;
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-
+    
+    // -------- STREAMING LOOP ---------- 
     while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value, { stream: true });
-        text += chunk;
+      const { done, value } = await reader.read();
+      if (done) break;
 
-        // --- GESTION DES FICHIERS EN TEMPS RÉEL ---
+      const chunk = decoder.decode(value, { stream: true });
+      text += chunk;
+
+      // ---------------- FETCH FILE ----------------
+      const fetchFileMatch = text.match(FETCH_FILE_REGEX);
+      if (fetchFileMatch) {
+        const filePath = fetchFileMatch[1].trim();
+        addLog(`[ACTION] Gemini requested file: ${filePath}`);
+
+        const isContentPreInjected = currentProjectFiles.some(
+            f => f.filePath === filePath && (f.content || "").length <= CONTENT_SNAPSHOT_LIMIT
+        );
         
-        // A. CRÉATION (<create_file>)
-        const createRegex = /<create_file\s+path=["']([^"']+)["']>([\s\S]*?)<\/create_file>/g;
-        let createMatch;
-        while ((createMatch = createRegex.exec(text)) !== null) {
-            const path = createMatch[1];
-            const content = createMatch[2].trim();
+        if (!isFetchInProgress && !readFilesCache.has(filePath) && !isContentPreInjected) {
+          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
+          if (fileContent) {
+            text += `\n${fileContent}\n`; 
+            readFilesCache.add(filePath); 
             
-            // Vérif si déjà traité dans ce stream pour éviter les boucles
-            if (!artifactList.some(a => a.path === path && a.type === 'create')) {
-                // Mise à jour du Projet Global (Pour le File Tree)
-                const newFile = { filePath: path, content };
-                const updatedFiles = [...currentProjectFiles.filter(f => f.filePath !== path), newFile];
-                
-                // MISE À JOUR CRITIQUE DES ÉTATS
-                setCurrentProject(prev => prev ? { ...prev, files: updatedFiles } : null);
-                setFiles(updatedFiles); // Met à jour la liste utilisée par buildFileTree
-                
-                artifactList.push({ path, type: 'create' });
-                addLog(`✨ Created ${path}`, 'success');
-            }
+            setMessages((prev) => {
+              const updated = [...prev];
+              if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
+                  updated[assistantMessageIndex].content = text;
+              }
+              return updated;
+            });
+          }
+        }
+      }
+
+      // ----------------- URL ARTIFACT -----------------
+      const urlMatch = text.match(inspirationUrlRegex);
+      if (urlMatch) {
+        try {
+          const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
+          const parsedUrlData = JSON.parse(jsonString);
+          if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
+            urlArtifact = { url: parsedUrlData.url };
+          }
+        } catch (e) { console.error("Failed to parse URL JSON:", e); }
+      }
+
+      // ----------------- FILE ARTIFACTS -----------------
+      const fileArtifacts = extractFileArtifacts(text);
+
+      fileArtifacts.forEach((artifact: any) => {
+        if (artifact.type === "changes" && artifact.content && !artifact.content.trim().endsWith("</file_changes>")) {
+          artifact.content += "\n</file_changes>";
+        }
+        if (artifact.type === "create" && artifact.content && !artifact.content.trim().endsWith("</create_file>")) {
+          artifact.content += "\n</create_file>";
+        }
+      });
+
+      const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
+      let incompleteMatches = [...text.matchAll(incompleteRegex)];
+
+      const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
+      let newArtifactData = undefined;
+      const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+
+      if (isGeneratingCode) {
+        fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
+        incompleteMatches.forEach(match => {
+          const path = match[2];
+          const type = match[1] === 'create_file' ? 'create' : 'changes';
+          if (!artifactList.some(a => a.path === path)) artifactList.push({ path, type });
+        });
+
+        if (currentProject) {
+          addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
         }
 
-        // B. ÉDITION (<edit_file>)
-        const editRegex = /<edit_file\s+path=["']([^"']+)["']>\s*<search>([\s\S]*?)<\/search>\s*<replace>([\s\S]*?)<\/replace>\s*<\/edit_file>/g;
-        let editMatch;
-        while ((editMatch = editRegex.exec(text)) !== null) {
-            const path = editMatch[1];
-            const searchBlock = editMatch[2].trim();
-            const replaceBlock = editMatch[3].trim();
-            
-            // On applique le patch
-            const fileIndex = currentProjectFiles.findIndex(f => f.filePath === path);
-            if (fileIndex !== -1) {
-                const oldContent = currentProjectFiles[fileIndex].content;
-                const newContent = applySearchReplace(oldContent, searchBlock, replaceBlock);
-                
-                if (newContent && !artifactList.some(a => a.path === path && a.type === 'edit_applied')) {
-                    const updatedFiles = [...currentProjectFiles];
-                    updatedFiles[fileIndex] = { ...updatedFiles[fileIndex], content: newContent };
-                    
-                    // MISE À JOUR CRITIQUE
-                    setCurrentProject(prev => prev ? { ...prev, files: updatedFiles } : null);
-                    setFiles(updatedFiles);
-                    
-                    artifactList.push({ path, type: 'edit_applied' }); // Marque comme fait
-                    addLog(`⚡ Patched ${path}`, 'success');
-                    
-                    // On nettoie le buffer text pour ne pas ré-appliquer
-                    // text = text.replace(editMatch[0], `[EDIT APPLIED: ${path}]`); 
-                }
-            }
-        }
+        newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
+      }
 
-        // Mise à jour de l'affichage Chat
-        setMessages(prev => {
+      // Nettoyage texte pour affichage
+      let textWithoutArtifacts = text
+        .replace(inspirationUrlRegex, '')
+        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+        .replace(FETCH_FILE_REGEX, '') 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
+
+      setMessages((prev) => {
+        const updatedMessages = [...prev];
+        if (assistantMessageIndex >= 0 && assistantMessageIndex < updatedMessages.length) {
+          const lastMsg = updatedMessages[assistantMessageIndex];
+          if (lastMsg?.role === "assistant") {
+            if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
+            lastMsg.content = textWithoutArtifacts;
+          }
+        }
+        return updatedMessages;
+      });
+    } // FIN STREAMING
+
+    addLog("[STREAMING] Fin du streaming.");
+    
+    let finalCleanText = text
+        .replace(inspirationUrlRegex, '')
+        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+        .replace(FETCH_FILE_REGEX, '') 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
+
+    const finalArtifacts = extractFileArtifacts(text);
+    let artifactData: any;
+    if (finalArtifacts.length > 0) {
+        artifactData = { 
+            type: 'files', 
+            parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })),
+            rawJson: text 
+        };
+    } else if (urlArtifact) {
+        artifactData = { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] };
+    } else {
+        artifactData = { type: null, rawJson: "", parsedList: [] };
+    }
+
+    finalAssistantMessage = {
+        role: "assistant",
+        content: finalCleanText,
+        artifactData: artifactData
+    };
+
+    if (urlArtifact) {
+      addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
+      await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
+      return; 
+    }
+          
+    if (finalArtifacts.length > 0) {
+      addLog(`Applying ${finalArtifacts.length} changes.`);
+      applyArtifactsToProject(finalArtifacts);
+      setTimeout(() => {
+        finalArtifacts.forEach(async (artifact) => {
+          const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
+          if (updatedFile) await reindexFile(updatedFile);
+        });
+      }, 100);
+    } else {
+      addLog("✅ Response received. No code artifacts.");
+    }
+  } catch (err: any) {
+    addLog(`CLIENT-SIDE ERROR: ${err.message}`);
+    setMessages((prev) => {
+        const updated = [...prev];
+        if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
+             return updated.filter((_, index) => index !== assistantMessageIndex);
+        }
+        return prev;
+    }); 
+    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
+  } finally {
+    if (finalAssistantMessage) {
+        setMessages((prev) => {
             const updated = [...prev];
-            const lastMsg = updated[updated.length - 1];
-            if (lastMsg.role === "assistant") {
-                lastMsg.content = text;
-                // On passe la liste des fichiers touchés pour l'affichage UI (le petit bloc vert)
-                lastMsg.artifactData = { 
-                    type: 'files', 
-                    parsedList: artifactList, 
-                    rawJson: "" 
-                };
+            if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
+                 updated[assistantMessageIndex] = finalAssistantMessage as Message; 
             }
             return updated;
         });
     }
-
-  } catch (e: any) {
-      addLog(`Error: ${e.message}`, 'error');
-  } finally {
-      setLoading(false);
-      saveProject(); // Sauvegarde finale dans IDB
+    setLoading(false);
   }
 };
+      
+             
+
+         
+         
+        
+         const runAction = async (
+  action: "create" | "install" | "build" | "start" | "addFiles"
+) => {
+  setLoading(true)
+
+  
 
       
     
@@ -3343,12 +3505,6 @@ const handleEditorDidMount: OnMount = (editorInstance, monaco) => {
 
 
 
-         // Calcul optimisé de l'arbre. Se mettra à jour dès que 'files' change.
-const fileTree = useMemo(() => {
-    // On utilise l'état local 'files' qui est mis à jour en temps réel par sendChat
-    if (!files || files.length === 0) return new Map<string, FileTreeNode>();
-    return buildFileTree(files);
-}, [files]);
 
 
 
@@ -3360,6 +3516,109 @@ const fileTree = useMemo(() => {
 // REMPLACEZ VOTRE DÉFINITION STATIQUE PAR CE BLOC RÉACTIF
 
 
+
+
+
+
+         
+
+
+            // --- INTERFACE ET COMPOSANT RÉCURSIF (À L'INTÉRIEUR DE SandboxPage) ---
+interface FileTreeItemProps {
+  node: FileTreeNode
+  activeFile: number | null
+  setActiveFile: (index: number) => void
+}
+
+/**
+ * Composant pour afficher un seul fichier ou dossier dans l'arborescence.
+ * Utilise la récursivité pour afficher les sous-dossiers.
+ */
+const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActiveFile }) => {
+  // useState pour gérer l'ouverture/fermeture des dossiers
+  const [isOpen, setIsOpen] = useState(true)
+  
+  // Icônes nécessaires (assurez-vous d'avoir Code et ChevronRight importés depuis 'lucide-react')
+  // J'utilise Code pour tous les fichiers pour simplifier.
+  const isDirectory = node.type === 'directory'
+  const isCurrentlyActive = node.index !== undefined && activeFile === node.index
+
+  return (
+    <li>
+      <button
+        className={`w-full text-left text-sm py-1 px-2 rounded-[10px] flex items-center gap-2 transition-colors ${
+          isCurrentlyActive
+            ? "bg-[#FFFAF0] " 
+            : "hover:bg-[#FFFAF0] text-[#37322F]/80"
+        }`}
+        onClick={() => {
+          if (isDirectory) {
+            setIsOpen(!isOpen) // Ouvre/Ferme le dossier
+          } else if (node.index !== undefined) {
+            setActiveFile(node.index) // Ouvre le fichier
+          }
+        }}
+      >
+        {/* Icône de flèche pour les dossiers */}
+        {isDirectory && (
+          <ChevronRight 
+            className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} 
+            style={{ minWidth: '1rem' }} // Force la taille pour l'alignement
+          />
+        )}
+        {/* Icône de fichier pour les fichiers */}
+      
+
+        <span className="truncate">{node.name}</span>
+      </button>
+
+      {/* Rendu récursif des enfants */}
+      {isDirectory && isOpen && node.children && (
+        <ul className="pl-5 text-sm mt-1 space-y-1">
+          {Array.from(node.children.entries())
+            .sort(([nameA, nodeA], [nameB, nodeB]) => {
+              // Trie les dossiers en premier, puis par ordre alphabétique
+              if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
+              if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
+              return nameA.localeCompare(nameB);
+            })
+            .map(([key, childNode]) => (
+              <FileTreeItem
+                key={key}
+                node={childNode}
+                activeFile={activeFile}
+                setActiveFile={setActiveFile}
+              />
+            ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+  
+
+
+  
+
+
+
+// Assurez-vous que useMemo est importé depuis 'react'
+// REMPLACEZ VOTRE DÉFINITION STATIQUE PAR CE BLOC RÉACTIF
+
+const fileTree = useMemo(() => {
+    // Utilise currentProject.files comme source de données (votre 'files' doit pointer vers ceci)
+    const files = currentProject?.files || [];
+
+    if (files.length === 0) {
+        return new Map();
+    }
+    
+    // Appel à votre fonction buildFileTree
+    return buildFileTree(files); 
+    
+// 🛑 Dépendance essentielle : assure que le calcul se fait après la mise à jour de l'état.
+}, [currentProject?.files]); 
+  
   
 
 
@@ -3676,63 +3935,201 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 
                   
        
-              {messages.map((msg, index) => {
+
+
+                {messages.map((msg, index) => {
   const artifact = msg.artifactData;
+  const isExpanded = expandedMessageIndex === index;
+  const isCopied = copiedMessageIndex === index;
   
-  // NETTOYAGE VISUEL : On retire tout le code brut pour l'affichage
-  let displayContent = msg.content || "";
-  
-  // 1. On cache les blocs de création complets
-  displayContent = displayContent.replace(/<create_file[\s\S]*?<\/create_file>/gs, '');
-  // 2. On cache les blocs d'édition complets
-  displayContent = displayContent.replace(/<edit_file[\s\S]*?<\/edit_file>/gs, '');
-  // 3. On cache les artefacts URL
-  displayContent = displayContent.replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '');
-  
-  displayContent = displayContent.trim();
-
   return (
-    <div key={index} className={`flex flex-col gap-2 ${msg.role === "user" ? "items-end" : "items-start"}`}>
-        
-        {/* Bulle de texte (Nettoyée) */}
-        {displayContent && (
-            <div className={`p-3 rounded-2xl max-w-2xl ${msg.role === "user" ? "bg-[#1a1a1a] text-white" : "bg-transparent text-[#333]"}`}>
-                <pre className="whitespace-pre-wrap font-sans text-sm">{displayContent}</pre>
-            </div>
-        )}
+    <div
+      key={index}
+      className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
+    >
+      {/* Affichage de l'icône de l'assistant */}
+      {msg.role === "assistant" && (
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
+            <svg className="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+          </div>
 
-        {/* ARTEFACT VISUEL (La liste des fichiers créés/modifiés) */}
-        {/* C'est ça qui remplace le stream de code brut */}
-        {msg.role === "assistant" && artifact?.type === 'files' && artifact.parsedList.length > 0 && (
-            <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm mt-2">
-                <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-xs font-medium text-gray-500 uppercase">Mises à jour du projet</span>
-                </div>
-                <div className="divide-y divide-gray-50">
-                    {artifact.parsedList.map((file: any, i: number) => (
-                        <div key={i} className="px-3 py-2 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                {/* Icone selon type */}
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${file.type === 'create' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>
-                                    {file.type === 'create' ? 'NEW' : 'EDIT'}
+          {/* Indicateur "Thinking..." */}
+          {loading && index === messages.length - 1 && (
+          <div className="flex items-center gap-[3px]">
+            <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
+            <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
+          </div>
+          )}
+        </div>
+      )}
+      
+      {/* Conteneur du message */}
+      <div
+        className={`p-2 rounded-xl max-w-xl group relative ${
+          msg.role === "user"
+            ? "bg-[#37322F] text-white self-end border-[#37322F]"
+            : "bg-none text-[#37322F] self-start"
+        }`}
+      >
+        {(() => {
+          const rawTextContent = msg.content; 
+          const isFileArtifact = artifact && (artifact.type === 'files');
+          const isUrlArtifact = artifact && (artifact.type === 'url');
+          const displayElements = [];
+          
+          // 🔥 LOGIQUE DE MASQUAGE (Split sur |||)
+          const contentForTextDisplay = rawTextContent.split('|||')[0];
+
+          let finalContentToDisplay = contentForTextDisplay
+              .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+              .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+              .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
+              .replace(/---[\s\S]*?---/g, '')
+              .trim();
+          
+          const hasTextContent = finalContentToDisplay.length > 0;
+          
+          // --- RENDU MESSAGE UTILISATEUR ---
+          if (msg.role === "user") {
+              const MAX_HEIGHT = 150; 
+              const isLongMessage = msg.content.length > 10000 || rawTextContent.split('\n').length > 20; 
+              
+              const userContent = (
+                  <pre 
+                      className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
+                      style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`, overflow: 'hidden' }}
+                  >
+                      {msg.content}
+                  </pre>
+              );
+
+              displayElements.push(
+                  <div key="user-content-wrapper" className="relative">
+                      {userContent}
+                      {!isExpanded && isLongMessage && (
+                          <div 
+                              className="absolute inset-x-0 bottom-0 h-[60px] flex flex-col justify-end items-center p-2 rounded-b-xl cursor-pointer z-10"
+                              style={{ background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' }}
+                              onClick={() => setExpandedMessageIndex(index)} 
+                          >
+                              <button className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
+                                  <ArrowUp className="h-3 w-3 inline-block mr-1 rotate-180" /> Expand
+                              </button>
+                          </div>
+                      )}
+                      {isExpanded && isLongMessage && (
+                          <div className="flex justify-center mt-2">
+                              <button onClick={() => setExpandedMessageIndex(null)} className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
+                                  <ArrowUp className="h-3 w-3 inline-block mr-1" /> Collapse
+                              </button>
+                          </div>
+                      )}
+                  </div>
+              );
+              return displayElements; 
+          }
+          
+          // --- RENDU MESSAGE ASSISTANT (TEXTE) ---
+          if (hasTextContent) {
+              displayElements.push(
+                  <pre key="text" className="whitespace-pre-wrap font-sans text-sm leading-relaxed mb-1">
+                      {finalContentToDisplay} 
+                  </pre>
+              );
+          }
+
+          // --- LOGIQUE ARTEFACT ---
+          const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+          const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
+          const isBuilding = isCreating || isEditing;
+          const totalItems = artifact?.parsedList?.length || 0;
+          const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
+          const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
+
+          if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
+              const artifactClasses = hasTextContent ? "mt-1 pt-1 border-[rgba(55,50,47,0.1)]" : "pt-0";
+              displayElements.push(
+                  <div key="code-artifact" className={`border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
+                      <ul className="list-disc pl-5 w-[100%] space-y-1">
+                          {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i) => {
+                              const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
+                              const statusText = item.type === 'create' 
+                                  ? (isCurrentlyStreaming ? 'Creating' : 'created')
+                                  : (isCurrentlyStreaming ? 'Editing' : 'edited');
+                              
+                              return (
+                                  <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
+                                      <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
+                                      <p className="font-semibold">{statusText}</p>
+                                      <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
+                                  </li>
+                              );
+                          })}
+                          {isBuilding ? (
+                              <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1">
+                                <span className="animate-spin">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
                                 </span>
-                                <span className="text-xs font-mono text-gray-700">{file.path}</span>
-                            </div>
-                            {/* Status (loading si c'est le dernier pendant le stream) */}
-                            {loading && index === messages.length - 1 && i === artifact.parsedList.length - 1 ? (
-                                <span className="text-[10px] text-gray-400 animate-pulse">Writing...</span>
-                            ) : (
-                                <span className="text-green-500 text-[10px]">Done</span>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        )}
+                                <span className="font-semibold">{currentStatusText}...</span>
+                              </li>
+                          ) : null}
+                      </ul>
+                  </div>
+              );
+          }
+
+          // --- RENDU URL ARTIFACT ---
+          if (isUrlArtifact) {
+              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+              displayElements.push(
+                  <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
+                      <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
+                      <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
+                  </div>
+              );
+          }
+          
+          return displayElements.length > 0 
+                 ? displayElements 
+                 : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{finalContentToDisplay}</pre>;
+        })()}
+      </div>
+
+              {/* Fichiers uploadés & Mentions */}
+      {msg.role === "user" && msg.images && msg.images.length > 0 && (
+          <div className="flex gap-1 mt-1">
+              {msg.images.map((base64Src, imgIndex) => (
+                  <div key={imgIndex} className="w-[25px] h-[25px] rounded-[8px] overflow-hidden" title="Image utilisateur">
+                      <img src={base64Src} alt="User input" className="w-full h-full object-cover" />
+                  </div>
+              ))}
+          </div>
+      )}
+      {msg.role === "user" && msg.externalFiles && msg.externalFiles.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+              {msg.externalFiles.map((file, fileIndex) => (
+                   <div key={fileIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#F7F5F3] px-2 text-sm max-w-xs truncate">
+                      {file.fileName}
+                  </div>
+              ))}
+          </div>
+      )}
+      {msg.role === "user" && msg.mentionedFiles && msg.mentionedFiles.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+              {msg.mentionedFiles.map((filePath, mentionIndex) => (
+                  <div key={mentionIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
+                      @{filePath}
+                  </div>
+              ))}
+          </div>
+     )}
     </div>
   );
 })}
+      
               
 
               
@@ -4396,14 +4793,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     
                   </Button>
                 </div>
-                
 <ScrollArea className="h-[calc(100%-57px)] bg-[#fffcf6] p-1">
-    
-    <ul className="space-y-0.5">
-        {Array.from(fileTree.entries())
+    <ul className="space-y-1 font-semibold text-[20px]">
+        {/* Démarre le rendu récursif à partir de la racine de l'arbre */}
+        {Array.from(fileTree.entries()) 
             .sort(([nameA, nodeA], [nameB, nodeB]) => {
-                if (nodeA.type === 'directory' && nodeB.type !== 'directory') return -1;
-                if (nodeA.type !== 'directory' && nodeB.type === 'directory') return 1;
+                // Trie les dossiers en premier à la racine
+                if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
+                if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
                 return nameA.localeCompare(nameB);
             })
             .map(([key, node]) => (
@@ -4415,7 +4812,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 />
             ))}
     </ul>
-
+    
 </ScrollArea>
               
               </div>
