@@ -4793,6 +4793,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     
                   </Button>
                 </div>
+                
 <ScrollArea className="h-[calc(100%-57px)] bg-[#fffcf6] p-1">
     <ul className="space-y-1 font-semibold text-[20px]">
         {/* Démarre le rendu récursif à partir de la racine de l'arbre */}
@@ -4993,4 +4994,4 @@ ll
         
     </div>
   )
-}
+          }
