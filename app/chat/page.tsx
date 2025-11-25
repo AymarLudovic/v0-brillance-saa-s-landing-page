@@ -1040,45 +1040,28 @@ const applySearchReplace = (originalContent: string, searchBlock: string, replac
 
 
 
-const buildFileTree = (files: { filePath: string; content: string }[]): FileTree => {
-  const root: FileTree = new Map()
-
-  files.forEach((file, originalIndex) => {
-    const parts = file.filePath.split('/')
-    let currentNode = root
-    let currentPath = ''
-
-    parts.forEach((part, i) => {
-      // Met à jour le chemin d'accès complet pour ce niveau
-      currentPath = currentPath + (currentPath ? '/' : '') + part
-      
-      const isFile = i === parts.length - 1
-
-      if (!currentNode.has(part)) {
-        // Crée un nouveau nœud si non existant
-        const newNode: FileTreeNode = {
-          name: part,
-          path: currentPath,
-          type: isFile ? 'file' : 'directory',
-          // On crée une nouvelle Map d'enfants seulement si c'est un répertoire
-          children: isFile ? undefined : new Map(),
-          index: isFile ? originalIndex : undefined,
-        }
-        currentNode.set(part, newNode)
-      }
-
-      // Descend dans le nœud (si ce n'est pas le fichier final)
-      if (!isFile) {
-        currentNode = currentNode.get(part)!.children as FileTree
-      }
-    })
-  })
-
-  return root
-}
 
 
-        
+
+            // --- INTERFACE ET COMPOSANT RÉCURSIF (À L'INTÉRIEUR DE SandboxPage) ---
+
+
+
+  
+
+
+
+// Assurez-vous que useMemo est importé depuis 'react'
+// REMPLACEZ VOTRE DÉFINITION STATIQUE PAR CE BLOC RÉACTIF
+
+
+
+
+  // Assurez-vous d'importer useEffect : import { useState, useRef, useEffect, useMemo } from "react" 
+
+// ... (déclarations de useState, useMemo, etc.)
+
+    
 
 
 // --- COMPOSANT PRINCIPAL ---
@@ -1157,6 +1140,144 @@ useEffect(() => {
         }
     }
 }, []);
+
+const buildFileTree = (files: { filePath: string; content: string }[]): FileTree => {
+  const root: FileTree = new Map()
+
+  files.forEach((file, originalIndex) => {
+    const parts = file.filePath.split('/')
+    let currentNode = root
+    let currentPath = ''
+
+    parts.forEach((part, i) => {
+      // Met à jour le chemin d'accès complet pour ce niveau
+      currentPath = currentPath + (currentPath ? '/' : '') + part
+      
+      const isFile = i === parts.length - 1
+
+      if (!currentNode.has(part)) {
+        // Crée un nouveau nœud si non existant
+        const newNode: FileTreeNode = {
+          name: part,
+          path: currentPath,
+          type: isFile ? 'file' : 'directory',
+          // On crée une nouvelle Map d'enfants seulement si c'est un répertoire
+          children: isFile ? undefined : new Map(),
+          index: isFile ? originalIndex : undefined,
+        }
+        currentNode.set(part, newNode)
+      }
+
+      // Descend dans le nœud (si ce n'est pas le fichier final)
+      if (!isFile) {
+        currentNode = currentNode.get(part)!.children as FileTree
+      }
+    })
+  })
+
+  return root
+}
+
+
+
+
+      interface FileTreeItemProps {
+  node: FileTreeNode
+  activeFile: number | null
+  setActiveFile: (index: number) => void
+}
+
+/**
+ * Composant pour afficher un seul fichier ou dossier dans l'arborescence.
+ * Utilise la récursivité pour afficher les sous-dossiers.
+ */
+const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActiveFile }) => {
+  // useState pour gérer l'ouverture/fermeture des dossiers
+  const [isOpen, setIsOpen] = useState(true)
+  
+  // Icônes nécessaires (assurez-vous d'avoir Code et ChevronRight importés depuis 'lucide-react')
+  // J'utilise Code pour tous les fichiers pour simplifier.
+  const isDirectory = node.type === 'directory'
+  const isCurrentlyActive = node.index !== undefined && activeFile === node.index
+
+  return (
+    <li>
+      <button
+        className={`w-full text-left text-sm py-1 px-2 rounded-[10px] flex items-center gap-2 transition-colors ${
+          isCurrentlyActive
+            ? "bg-[#FFFAF0] " 
+            : "hover:bg-[#FFFAF0] text-[#37322F]/80"
+        }`}
+        onClick={() => {
+          if (isDirectory) {
+            setIsOpen(!isOpen) // Ouvre/Ferme le dossier
+          } else if (node.index !== undefined) {
+            setActiveFile(node.index) // Ouvre le fichier
+          }
+        }}
+      >
+        {/* Icône de flèche pour les dossiers */}
+        {isDirectory && (
+          <ChevronRight 
+            className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} 
+            style={{ minWidth: '1rem' }} // Force la taille pour l'alignement
+          />
+        )}
+        {/* Icône de fichier pour les fichiers */}
+      
+
+        <span className="truncate">{node.name}</span>
+      </button>
+
+      {/* Rendu récursif des enfants */}
+      {isDirectory && isOpen && node.children && (
+        <ul className="pl-5 text-sm mt-1 space-y-1">
+          {Array.from(node.children.entries())
+            .sort(([nameA, nodeA], [nameB, nodeB]) => {
+              // Trie les dossiers en premier, puis par ordre alphabétique
+              if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
+              if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
+              return nameA.localeCompare(nameB);
+            })
+            .map(([key, childNode]) => (
+              <FileTreeItem
+                key={key}
+                node={childNode}
+                activeFile={activeFile}
+                setActiveFile={setActiveFile}
+              />
+            ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+  
+         
+const fileTree = useMemo(() => {
+    // Utilise currentProject.files comme source de données (votre 'files' doit pointer vers ceci)
+    const files = currentProject?.files || [];
+
+    if (files.length === 0) {
+        return new Map();
+    }
+    
+    // Appel à votre fonction buildFileTree
+    return buildFileTree(files); 
+    
+// 🛑 Dépendance essentielle : assure que le calcul se fait après la mise à jour de l'état.
+}, [currentProject?.files]); 
+  
+
+    useEffect(() => {
+    if (currentProject) {
+        if (currentProject.files !== files) {
+             setFiles(currentProject.files);
+        }
+    } else if (files.length > 0) {
+        setFiles([]);
+    }
+}, [currentProject, files, setFiles]);
 
   const [showDeploymentStatus, setShowDeploymentStatus] = useState(false);
 
@@ -3523,102 +3644,13 @@ const handleEditorDidMount: OnMount = (editorInstance, monaco) => {
          
 
 
-            // --- INTERFACE ET COMPOSANT RÉCURSIF (À L'INTÉRIEUR DE SandboxPage) ---
-interface FileTreeItemProps {
-  node: FileTreeNode
-  activeFile: number | null
-  setActiveFile: (index: number) => void
-}
 
-/**
- * Composant pour afficher un seul fichier ou dossier dans l'arborescence.
- * Utilise la récursivité pour afficher les sous-dossiers.
- */
-const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, activeFile, setActiveFile }) => {
-  // useState pour gérer l'ouverture/fermeture des dossiers
-  const [isOpen, setIsOpen] = useState(true)
-  
-  // Icônes nécessaires (assurez-vous d'avoir Code et ChevronRight importés depuis 'lucide-react')
-  // J'utilise Code pour tous les fichiers pour simplifier.
-  const isDirectory = node.type === 'directory'
-  const isCurrentlyActive = node.index !== undefined && activeFile === node.index
-
-  return (
-    <li>
-      <button
-        className={`w-full text-left text-sm py-1 px-2 rounded-[10px] flex items-center gap-2 transition-colors ${
-          isCurrentlyActive
-            ? "bg-[#FFFAF0] " 
-            : "hover:bg-[#FFFAF0] text-[#37322F]/80"
-        }`}
-        onClick={() => {
-          if (isDirectory) {
-            setIsOpen(!isOpen) // Ouvre/Ferme le dossier
-          } else if (node.index !== undefined) {
-            setActiveFile(node.index) // Ouvre le fichier
-          }
-        }}
-      >
-        {/* Icône de flèche pour les dossiers */}
-        {isDirectory && (
-          <ChevronRight 
-            className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} 
-            style={{ minWidth: '1rem' }} // Force la taille pour l'alignement
-          />
-        )}
-        {/* Icône de fichier pour les fichiers */}
-      
-
-        <span className="truncate">{node.name}</span>
-      </button>
-
-      {/* Rendu récursif des enfants */}
-      {isDirectory && isOpen && node.children && (
-        <ul className="pl-5 text-sm mt-1 space-y-1">
-          {Array.from(node.children.entries())
-            .sort(([nameA, nodeA], [nameB, nodeB]) => {
-              // Trie les dossiers en premier, puis par ordre alphabétique
-              if (nodeA.type === 'directory' && nodeB.type === 'file') return -1;
-              if (nodeA.type === 'file' && nodeB.type === 'directory') return 1;
-              return nameA.localeCompare(nameB);
-            })
-            .map(([key, childNode]) => (
-              <FileTreeItem
-                key={key}
-                node={childNode}
-                activeFile={activeFile}
-                setActiveFile={setActiveFile}
-              />
-            ))}
-        </ul>
-      )}
-    </li>
-  )
-}
   
 
 
   
 
 
-
-// Assurez-vous que useMemo est importé depuis 'react'
-// REMPLACEZ VOTRE DÉFINITION STATIQUE PAR CE BLOC RÉACTIF
-
-const fileTree = useMemo(() => {
-    // Utilise currentProject.files comme source de données (votre 'files' doit pointer vers ceci)
-    const files = currentProject?.files || [];
-
-    if (files.length === 0) {
-        return new Map();
-    }
-    
-    // Appel à votre fonction buildFileTree
-    return buildFileTree(files); 
-    
-// 🛑 Dépendance essentielle : assure que le calcul se fait après la mise à jour de l'état.
-}, [currentProject?.files]); 
-  
   
 
 
@@ -3626,16 +3658,6 @@ const fileTree = useMemo(() => {
   // Assurez-vous d'importer useEffect : import { useState, useRef, useEffect, useMemo } from "react" 
 
 // ... (déclarations de useState, useMemo, etc.)
-useEffect(() => {
-    if (currentProject) {
-        if (currentProject.files !== files) {
-             setFiles(currentProject.files);
-        }
-    } else if (files.length > 0) {
-        setFiles([]);
-    }
-}, [currentProject, files, setFiles]);
-
 
 
 useEffect(() => {
