@@ -11,8 +11,6 @@ export async function POST(req: Request) {
       apiKey: process.env.GEMINI_API_KEY,
     });
 
-    // 1. CONFIGURATION STANDARD (PAS DE THINKING)
-    // On utilise le modèle Flash standard qui est rapide et gratuit
     const modelId = 'gemini-2.5-flash'; 
 
     const promptText = `
@@ -33,16 +31,11 @@ export async function POST(req: Request) {
         ]
       }
       3. Pour "box_2d", utilise une échelle normalisée de 0 à 1000.
-      Exemple: [0, 0, 1000, 1000] couvre toute l'image.
-      [0, 0, 500, 500] couvre le quart haut-gauche.
-      
-      Sois précis sur les bordures visuelles.
     `;
 
-    // 2. APPEL SIMPLE
+    // Appel à l'IA
     const response = await ai.models.generateContent({
       model: modelId,
-      // Pas de thinkingConfig ici -> ça résout ton erreur 400
       contents: [
         {
           role: 'user',
@@ -51,7 +44,7 @@ export async function POST(req: Request) {
             { 
               inlineData: { 
                 mimeType: 'image/png', 
-                data: imageBase64.split(',')[1] // Nettoyage du header base64
+                data: imageBase64.split(',')[1] 
               } 
             },
           ],
@@ -59,33 +52,38 @@ export async function POST(req: Request) {
       ],
     });
 
-    // 3. EXTRACTION ROBUSTE DU JSON
-    // Flash est bavard, il met souvent des ```json ... ```. On nettoie tout ça.
-    let textResponse = response.text();
-    
-    // On enlève les balises markdown si elles existent
+    // --- CORRECTION DU BUG ---
+    // Au lieu de response.text(), on va chercher le texte manuellement
+    // La structure brute est toujours : candidates -> content -> parts -> text
+    const candidate = response.candidates?.[0];
+    const part = candidate?.content?.parts?.[0];
+    let textResponse = part?.text;
+
+    if (!textResponse) {
+       console.error("Structure reçue:", JSON.stringify(response, null, 2));
+       throw new Error("L'IA a répondu vide ou la structure est inconnue.");
+    }
+
+    // --- NETTOYAGE (Même logique qu'avant) ---
     textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '');
     
-    // On cherche le premier '{' et le dernier '}'
     const firstBrace = textResponse.indexOf('{');
     const lastBrace = textResponse.lastIndexOf('}');
     
     if (firstBrace === -1 || lastBrace === -1) {
-       throw new Error(`Format invalide reçu de l'IA : ${textResponse.substring(0, 50)}...`);
+       throw new Error(`Pas de JSON trouvé. Réponse brute: ${textResponse.substring(0, 100)}...`);
     }
 
     const cleanJson = textResponse.substring(firstBrace, lastBrace + 1);
-    
-    // Parsing final
     const parsedData = JSON.parse(cleanJson);
 
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error("Server Error:", error);
+    console.error("Server Error Detailed:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur de traitement interne" }, 
+      { error: error.message || "Erreur interne" }, 
       { status: 500 }
     );
   }
-          }
+             }
