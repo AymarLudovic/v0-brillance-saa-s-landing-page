@@ -11,29 +11,35 @@ export async function POST(req: Request) {
       apiKey: process.env.GEMINI_API_KEY,
     });
 
-    const modelId = 'gemini-2.5-flash'; 
+    const modelId = 'gemini-1.5-flash'; 
 
     const promptText = `
-      Agis comme un moteur d'extraction UI technique.
-      Analyse cette image d'interface. Détecte les éléments interactifs (Boutons, Inputs, Cards).
+      Agis comme un moteur de "Reverse Engineering" UI.
+      Je veux une analyse structurelle COMPLÈTE de cette interface.
       
-      RÈGLES IMPÉRATIVES :
-      1. Réponds UNIQUEMENT avec un objet JSON pur. Pas de Markdown (\`\`\`json), pas de texte avant/après.
-      2. Le JSON doit suivre ce format exact :
+      RÈGLES STRICTES :
+      1. Découpe l'interface en deux catégories :
+         - "layout": Sidebar, Navbar, Header, Main Container, Cards.
+         - "element": Boutons, Inputs, Textes, Icônes, Charts.
+      
+      2. Pour chaque élément, estime sa position. Même si c'est approximatif, le client corrigera les pixels.
+      
+      3. Format JSON attendu :
       {
         "elements": [
           {
-            "id": "gen_id_1",
-            "type": "button",
-            "label": "Login",
-            "box_2d": [ymin, xmin, ymax, xmax]
+            "id": "unique_id",
+            "category": "layout" ou "element",
+            "type": "sidebar | button | text | card | chart | input",
+            "label": "Nom de l'élément",
+            "box_2d": [ymin, xmin, ymax, xmax] (Échelle 0-1000)
           }
         ]
       }
-      3. Pour "box_2d", utilise une échelle normalisée de 0 à 1000.
+      
+      IMPORTANT : N'oublie AUCUN texte, même petit. Délimite bien la Sidebar et la Topbar.
     `;
 
-    // Appel à l'IA
     const response = await ai.models.generateContent({
       model: modelId,
       contents: [
@@ -52,26 +58,20 @@ export async function POST(req: Request) {
       ],
     });
 
-    // --- CORRECTION DU BUG ---
-    // Au lieu de response.text(), on va chercher le texte manuellement
-    // La structure brute est toujours : candidates -> content -> parts -> text
+    // Extraction manuelle robuste
     const candidate = response.candidates?.[0];
     const part = candidate?.content?.parts?.[0];
     let textResponse = part?.text;
 
-    if (!textResponse) {
-       console.error("Structure reçue:", JSON.stringify(response, null, 2));
-       throw new Error("L'IA a répondu vide ou la structure est inconnue.");
-    }
+    if (!textResponse) throw new Error("Réponse vide de l'IA");
 
-    // --- NETTOYAGE (Même logique qu'avant) ---
+    // Nettoyage JSON
     textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '');
-    
     const firstBrace = textResponse.indexOf('{');
     const lastBrace = textResponse.lastIndexOf('}');
     
     if (firstBrace === -1 || lastBrace === -1) {
-       throw new Error(`Pas de JSON trouvé. Réponse brute: ${textResponse.substring(0, 100)}...`);
+       throw new Error("Format JSON invalide");
     }
 
     const cleanJson = textResponse.substring(firstBrace, lastBrace + 1);
@@ -80,10 +80,10 @@ export async function POST(req: Request) {
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error("Server Error Detailed:", error);
+    console.error("Error:", error);
     return NextResponse.json(
       { error: error.message || "Erreur interne" }, 
       { status: 500 }
     );
   }
-             }
+      }
