@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 60; 
+export const maxDuration = 60; // On demande 60s, le streaming aide à les obtenir
 
 export async function POST(req: Request) {
   try {
@@ -11,32 +11,28 @@ export async function POST(req: Request) {
       apiKey: process.env.GEMINI_API_KEY,
     });
 
-    // On reste sur Flash pour la vitesse, mais avec un prompt "Vision Laser"
-    const modelId = 'gemini-2.5-flash'; 
+    const modelId = 'gemini-2.5-flash';
 
     const promptText = `
-      Tu es un scanner UI de précision industrielle.
-      Tâche : Extraire TOUS les éléments visuels de cette interface pour une reconstruction Pixel-Perfect.
+      Tu es un scanner UI.
+      Extrais TOUS les éléments (Sidebar, Header, Buttons, Text, Inputs).
+      Sois précis sur les boîtes (box_2d).
       
-      RÈGLES DE DÉTECTION :
-      1. Ne rate RIEN : Détecte chaque icône, chaque petit texte, chaque ligne de séparation (dividers), chaque bouton.
-      2. Structure : Identifie les conteneurs (Sidebar, Header, Cards) ET leur contenu.
-      3. Précision : Les boîtes doivent être serrées sur le contenu visible.
-      
-      FORMAT DE SORTIE (JSON PUR) :
+      FORMAT JSON STRICT :
       {
         "elements": [
           {
             "id": "uuid",
-            "type": "container | text | button | icon | input | divider | image",
-            "content": "Texte lu ou description brève",
-            "box_2d": [ymin, xmin, ymax, xmax] (Normalisé 0-1000)
+            "type": "container | text | button | icon",
+            "box_2d": [ymin, xmin, ymax, xmax] (0-1000)
           }
         ]
       }
+      Ne mets PAS de markdown. Juste le JSON brut.
     `;
 
-    const response = await ai.models.generateContent({
+    // 1. ON LANCE LE STREAM
+    const responseStream = await ai.models.generateContentStream({
       model: modelId,
       contents: [
         {
@@ -49,26 +45,32 @@ export async function POST(req: Request) {
       ],
     });
 
-    // Extraction manuelle (Méthode blindée)
-    const candidate = response.candidates?.[0];
-    const part = candidate?.content?.parts?.[0];
-    let textResponse = part?.text;
+    // 2. ON CRÉE UN "READABLE STREAM" POUR VERCEL
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        try {
+          for await (const chunk of responseStream.stream) {
+            const text = chunk.text();
+            if (text) {
+              // On envoie chaque morceau de texte dès qu'il arrive
+              controller.enqueue(encoder.encode(text));
+            }
+          }
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
+      },
+    });
 
-    if (!textResponse) throw new Error("Réponse vide de l'IA");
-
-    textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '');
-    const firstBrace = textResponse.indexOf('{');
-    const lastBrace = textResponse.lastIndexOf('}');
-    
-    if (firstBrace === -1) throw new Error("JSON invalide reçu");
-
-    const cleanJson = textResponse.substring(firstBrace, lastBrace + 1);
-    const parsedData = JSON.parse(cleanJson);
-
-    return NextResponse.json(parsedData);
+    // 3. ON RENVOIE LA RÉPONSE EN FLUX CONTINU
+    return new NextResponse(stream, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
 
   } catch (error: any) {
-    console.error("Analyze Error:", error);
-    return NextResponse.json({ error: error.message || "Erreur interne" }, { status: 500 });
+    console.error("Stream Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+            }
