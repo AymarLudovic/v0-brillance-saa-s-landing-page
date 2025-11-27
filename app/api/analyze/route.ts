@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
     // Note: Utilise le modèle disponible. Si 'gemini-3' est en preview privée, 
     // utilise 'gemini-2.0-flash-thinking-exp' qui est très puissant pour ça.
-    const modelId = 'gemini-3.0-pro'; 
+    const modelId = 'gemini-2.5-flash'; 
 
     // 3. Prompt de Vision Technique
     const promptText = `
