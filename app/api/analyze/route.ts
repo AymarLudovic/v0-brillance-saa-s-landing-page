@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       apiKey: process.env.GEMINI_API_KEY,
     });
 
-    const modelId = 'gemini-1.5-flash'; 
+    const modelId = 'gemini-2.5-flash'; 
 
     const promptText = `
       Agis comme un moteur de "Reverse Engineering" UI.
