@@ -1,11 +1,19 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 60; // On demande 60s, le streaming aide à les obtenir
+// On maximise le temps d'exécution autorisé
+export const maxDuration = 60; 
+export const dynamic = 'force-dynamic'; // Force le mode dynamique pour éviter les erreurs de cache 405
 
 export async function POST(req: Request) {
   try {
-    const { imageBase64 } = await req.json();
+    // Lecture du corps de la requête
+    const body = await req.json();
+    const { imageBase64 } = body;
+
+    if (!imageBase64) {
+      return NextResponse.json({ error: "Image manquante" }, { status: 400 });
+    }
 
     const ai = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY,
@@ -14,24 +22,23 @@ export async function POST(req: Request) {
     const modelId = 'gemini-2.5-flash';
 
     const promptText = `
-      Tu es un scanner UI.
-      Extrais TOUS les éléments (Sidebar, Header, Buttons, Text, Inputs).
+      Tu es un scanner UI de précision absolue.
+      Analyse cette image. Extrais TOUS les éléments (Sidebar, Header, Buttons, Text, Inputs).
       Sois précis sur les boîtes (box_2d).
       
-      FORMAT JSON STRICT :
+      FORMAT JSON STRICT (Sans Markdown) :
       {
         "elements": [
           {
             "id": "uuid",
-            "type": "container | text | button | icon",
-            "box_2d": [ymin, xmin, ymax, xmax] (0-1000)
+            "type": "container | text | button | icon | input",
+            "box_2d": [ymin, xmin, ymax, xmax]
           }
         ]
       }
-      Ne mets PAS de markdown. Juste le JSON brut.
     `;
 
-    // 1. ON LANCE LE STREAM
+    // Appel en Streaming pour la vitesse
     const responseStream = await ai.models.generateContentStream({
       model: modelId,
       contents: [
@@ -45,7 +52,7 @@ export async function POST(req: Request) {
       ],
     });
 
-    // 2. ON CRÉE UN "READABLE STREAM" POUR VERCEL
+    // Création du flux de réponse pour Next.js
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
@@ -53,7 +60,6 @@ export async function POST(req: Request) {
           for await (const chunk of responseStream.stream) {
             const text = chunk.text();
             if (text) {
-              // On envoie chaque morceau de texte dès qu'il arrive
               controller.enqueue(encoder.encode(text));
             }
           }
@@ -64,13 +70,15 @@ export async function POST(req: Request) {
       },
     });
 
-    // 3. ON RENVOIE LA RÉPONSE EN FLUX CONTINU
     return new NextResponse(stream, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      headers: { 
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache' 
+      },
     });
 
   } catch (error: any) {
-    console.error("Stream Error:", error);
+    console.error("API Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-            }
+                     }
