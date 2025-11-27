@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
 export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
@@ -12,11 +13,10 @@ export async function POST(req: Request) {
     });
 
     const promptText = `
-      Génère le code HTML Wireframe (Noir et Blanc, position: absolute) pour reconstruire cette page.
-      Utilise les données scannées ci-dessous.
-      Renvoie UNIQUEMENT le code HTML. Pas de balises markdown.
+      Génère le code HTML Wireframe (Noir/Blanc, position: absolute) pour reconstruire cette page.
+      Renvoie UNIQUEMENT le HTML brut.
       
-      DATA: ${JSON.stringify(scannedElements).substring(0, 5000)}
+      DATA: ${JSON.stringify(scannedElements).substring(0, 15000)}
     `;
 
     const responseStream = await ai.models.generateContentStream({
@@ -48,4 +48,4 @@ export async function POST(req: Request) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-                                       }
+      }
