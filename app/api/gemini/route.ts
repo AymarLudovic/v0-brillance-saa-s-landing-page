@@ -245,7 +245,7 @@ CONTRAINTES ABSOLUES DE PRODUCTION :
 
 `;
 
-const FULL_PROMPT_INJECTION = `${basePrompt}\n\n${BIBLE_DESIGN_FR}\n\n`; 
+const FULL_PROMPT_INJECTION = `${basePrompt}\n\n`; 
 
 interface Message { 
     role: "user" | "assistant" | "system"; 
