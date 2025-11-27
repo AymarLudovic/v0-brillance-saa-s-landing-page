@@ -1,51 +1,50 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
-// Configuration pour Vercel (Timeouts longs car le modèle réfléchit)
+// On laisse du temps car le mode "Thinking" réfléchit pendant 10-20 secondes
 export const maxDuration = 60; 
 
 export async function POST(req: Request) {
   try {
     const { imageBase64 } = await req.json();
 
-    // 1. Initialisation avec la nouvelle SDK @google/genai
     const ai = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY,
     });
 
-    // 2. Configuration du "Thinking" Process
+    // CONFIGURATION CRITIQUE
+    // Seuls les modèles "thinking-exp" supportent ce paramètre.
+    // Si tu changes le modelId, tu dois enlever ce bloc thinkingConfig.
     const config = {
       thinkingConfig: {
-        thinkingLevel: 'HIGH', // Le modèle prend le temps de réfléchir
+        thinkingLevel: 'HIGH', 
       },
     };
 
-    // Note: Utilise le modèle disponible. Si 'gemini-3' est en preview privée, 
-    // utilise 'gemini-2.0-flash-thinking-exp' qui est très puissant pour ça.
-    const modelId = 'gemini-2.5-flash'; 
+    // C'EST CE MODÈLE QUI EST INTELLIGENT (ET PAS UN AUTRE)
+    // Ne mets pas 'gemini-1.5-flash' ici sinon ça plante avec l'erreur 400
+    const modelId = 'gemini-2.0-flash-thinking-exp-01-21'; 
 
-    // 3. Prompt de Vision Technique
     const promptText = `
-      Analyse cette interface utilisateur (UI) avec une précision d'ingénieur.
-      Je veux extraire les coordonnées EXACTES de chaque élément (Boutons, Inputs, Images, Cartes).
+      Tu es un moteur d'analyse UI "Pixel Perfect".
+      Analyse cette image. Je veux les coordonnées de chaque élément interactif.
       
-      RÈGLES STRICTES :
-      1. Retourne UNIQUEMENT un objet JSON valide. Pas de markdown, pas de texte avant/après.
-      2. La structure doit être :
+      RÈGLES DE SORTIE :
+      1. Réponds UNIQUEMENT avec un objet JSON valide.
+      2. Ne mets PAS de markdown (pas de \`\`\`json).
+      3. Structure obligatoire :
       {
         "elements": [
           {
-            "id": "unique_id",
-            "type": "button | input | card | text | image",
-            "label": "Texte visible ou description courte",
-            "box_2d": [ymin, xmin, ymax, xmax] (Coordonnées normalisées entre 0 et 1000)
+            "id": "uuid",
+            "type": "button | input | card | text",
+            "label": "Texte court",
+            "box_2d": [ymin, xmin, ymax, xmax] (Note: Coordonnées normalisées 0-1000)
           }
         ]
       }
-      3. Sois pixel-perfect sur les bordures.
     `;
 
-    // 4. Appel au modèle (non-streaming pour simplifier le parsing JSON final)
     const response = await ai.models.generateContent({
       model: modelId,
       config: config,
@@ -57,7 +56,7 @@ export async function POST(req: Request) {
             { 
               inlineData: { 
                 mimeType: 'image/png', 
-                data: imageBase64.split(',')[1] // On enlève le header data:image/...
+                data: imageBase64.split(',')[1] 
               } 
             },
           ],
@@ -65,24 +64,30 @@ export async function POST(req: Request) {
       ],
     });
 
-    // 5. Extraction et Nettoyage du JSON
-    // Les modèles Thinking peuvent inclure leurs pensées dans la réponse textuelle
-    // On cherche le bloc JSON pur.
-    const textResponse = response.text();
+    // NETTOYAGE DE LA RÉPONSE (CRUCIAL POUR LES MODÈLES THINKING)
+    // Le modèle peut "penser" à haute voix, on ne veut que le JSON final.
+    let textResponse = response.text();
     
-    // Regex pour trouver le JSON même s'il y a du texte autour
-    const jsonMatch = textResponse?.match(/\{[\s\S]*\}/);
+    // On cherche le début '{' et la fin '}' du JSON
+    const firstBrace = textResponse.indexOf('{');
+    const lastBrace = textResponse.lastIndexOf('}');
     
-    if (!jsonMatch) {
-      throw new Error("Aucun JSON valide trouvé dans la réponse de l'IA");
+    if (firstBrace === -1 || lastBrace === -1) {
+       throw new Error("L'IA n'a pas renvoyé de JSON valide.");
     }
 
-    const parsedData = JSON.parse(jsonMatch[0]);
+    // On extrait juste le JSON propre
+    const cleanJson = textResponse.substring(firstBrace, lastBrace + 1);
+    const parsedData = JSON.parse(cleanJson);
 
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
     console.error("Server Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // On renvoie l'erreur en JSON pour que ton téléphone l'affiche proprement
+    return NextResponse.json(
+      { error: error.message || "Erreur interne du modèle" }, 
+      { status: 500 }
+    );
   }
-}
+                  }
