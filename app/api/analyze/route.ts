@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+export const maxDuration = 60; 
 
 export async function POST(req: Request) {
   try {
@@ -11,18 +11,17 @@ export async function POST(req: Request) {
       apiKey: process.env.GEMINI_API_KEY,
     });
 
-    // Modèle demandé
-    const model = 'gemini-2.5-flash';
+    // On reste sur Flash pour la vitesse, mais avec un prompt "Vision Laser"
+    const modelId = 'gemini-1.5-flash'; 
 
-    // Prompt "Vision Laser" renforcé
     const promptText = `
-      Tu es un moteur de "Reverse Engineering" UI de précision industrielle.
-      Tâche : Scanner cette interface pour en extraire une structure numérique EXACTE.
-
-      RÈGLES DE DÉTECTION IMPÉRATIVES :
-      1. GRANULARITÉ EXTRÊME : Ne rate AUCUN élément. Je veux chaque petite icône, chaque texte (même minuscule), chaque ligne de séparation (divider), chaque input, chaque badge.
-      2. HIÉRARCHIE : Distingue les conteneurs (Sidebar, Navbar, Cards, Modal) des éléments feuilles (Boutons, Textes).
-      3. PRÉCISION GÉOMÉTRIQUE : Les boîtes (box_2d) doivent coller strictement aux bords visibles de l'élément.
+      Tu es un scanner UI de précision industrielle.
+      Tâche : Extraire TOUS les éléments visuels de cette interface pour une reconstruction Pixel-Perfect.
+      
+      RÈGLES DE DÉTECTION :
+      1. Ne rate RIEN : Détecte chaque icône, chaque petit texte, chaque ligne de séparation (dividers), chaque bouton.
+      2. Structure : Identifie les conteneurs (Sidebar, Header, Cards) ET leur contenu.
+      3. Précision : Les boîtes doivent être serrées sur le contenu visible.
       
       FORMAT DE SORTIE (JSON PUR) :
       {
@@ -30,17 +29,15 @@ export async function POST(req: Request) {
           {
             "id": "uuid",
             "type": "container | text | button | icon | input | divider | image",
-            "content": "Texte lu ou description visuelle brève",
-            "box_2d": [ymin, xmin, ymax, xmax] (Échelle normalisée 0-1000)
+            "content": "Texte lu ou description brève",
+            "box_2d": [ymin, xmin, ymax, xmax] (Normalisé 0-1000)
           }
         ]
       }
-      
-      IMPORTANT : Renvoie UNIQUEMENT le JSON brut. Pas de markdown, pas de texte d'intro.
     `;
 
-    const response = await ai.models.generateContentStream({
-      model,
+    const response = await ai.models.generateContent({
+      model: modelId,
       contents: [
         {
           role: 'user',
@@ -52,29 +49,26 @@ export async function POST(req: Request) {
       ],
     });
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        try {
-          for await (const chunk of response) {
-            const text = chunk.text();
-            if (text) {
-              controller.enqueue(encoder.encode(text));
-            }
-          }
-          controller.close();
-        } catch (err) {
-          controller.error(err);
-        }
-      },
-    });
+    // Extraction manuelle (Méthode blindée)
+    const candidate = response.candidates?.[0];
+    const part = candidate?.content?.parts?.[0];
+    let textResponse = part?.text;
 
-    return new NextResponse(stream, {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    if (!textResponse) throw new Error("Réponse vide de l'IA");
+
+    textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '');
+    const firstBrace = textResponse.indexOf('{');
+    const lastBrace = textResponse.lastIndexOf('}');
+    
+    if (firstBrace === -1) throw new Error("JSON invalide reçu");
+
+    const cleanJson = textResponse.substring(firstBrace, lastBrace + 1);
+    const parsedData = JSON.parse(cleanJson);
+
+    return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Analyze Error:", error);
+    return NextResponse.json({ error: error.message || "Erreur interne" }, { status: 500 });
   }
-            }
+              }
