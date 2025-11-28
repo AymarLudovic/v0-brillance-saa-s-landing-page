@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 
 // --- TYPES ---
 type Log = { time: string; msg: string; type: 'info' | 'ok' | 'err' };
 type UiElement = {
   id: string;
   type: string;
+  content?: string;
   box_2d: number[];
   realColor?: string;
   dimensions?: string;
-  isCorrected?: boolean;
 };
 
-export default function UltimateScanner() {
+export default function PixelArchitect() {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'reconstructing'>('idle');
@@ -24,84 +24,60 @@ export default function UltimateScanner() {
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // --- LOGGING ---
   const log = (msg: string, type: 'info' | 'ok' | 'err' = 'info') => {
     const time = new Date().toLocaleTimeString().split(' ')[0];
     setLogs(prev => [{ time, msg, type }, ...prev]);
   };
 
-  const copyLog = (text: string) => navigator.clipboard.writeText(text);
+  const copyLog = (text: string) => {
+    navigator.clipboard.writeText(text);
+    // Petit feedback visuel pourrait être ajouté ici
+  };
 
-  // --- UPLOAD ---
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    log(`Chargement RAW: ${(file.size / 1024 / 1024).toFixed(2)} MB`, 'info');
-    
     const reader = new FileReader();
     reader.onload = (ev) => {
-        if (ev.target?.result) {
-            setImageSrc(ev.target.result as string);
-            setElements([]);
-            setReconstructedHtml(null);
-            log('Image prête. Canvas initialisé.', 'ok');
-        }
+      if (ev.target?.result) {
+        setImageSrc(ev.target.result as string);
+        setElements([]);
+        setReconstructedHtml(null);
+        log('Image chargée.', 'ok');
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  // --- MOTEUR DE STREAMING ---
-  const fetchStream = async (url: string, body: any) => {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-        const txt = await response.text();
-        throw new Error(`HTTP ${response.status}: ${txt.slice(0, 50)}`);
-    }
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let resultText = '';
-
-    while (true) {
-      const { done, value } = await reader!.read();
-      if (done) break;
-      resultText += decoder.decode(value, { stream: true });
-    }
-    resultText += decoder.decode();
-    return resultText;
-  };
-
-  // --- 1. SCAN + CORRECTION PIXEL PERFECT (Le retour) ---
+  // --- 1. SCAN & DETECT ---
   const runScan = async () => {
     if (!imageSrc) return;
     setStatus('analyzing');
-    log('1. Analyse IA (Structure)...', 'info');
+    log('Démarrage analyse structurelle...', 'info');
 
     try {
-      let rawText = await fetchStream('/api/analyze', { imageBase64: imageSrc });
+      // APPEL API ANALYZE
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: imageSrc }),
+      });
+
+      const rawText = await res.text();
+      if (!res.ok) throw new Error(`Erreur ${res.status}: ${rawText.slice(0, 100)}`);
       
-      // Nettoyage JSON
-      rawText = rawText.replace(/```json/g, '').replace(/```/g, '');
-      const firstBrace = rawText.indexOf('{');
-      const lastBrace = rawText.lastIndexOf('}');
-      if (firstBrace === -1) throw new Error("JSON invalide");
-      const cleanJson = rawText.substring(firstBrace, lastBrace + 1);
-      const data = JSON.parse(cleanJson);
+      const data = JSON.parse(rawText);
+      if (data.error) throw new Error(data.error);
 
       let rawElements: UiElement[] = data.elements;
-      log(`IA: ${rawElements.length} éléments.`, 'ok');
+      log(`${rawElements.length} éléments détectés.`, 'ok');
 
-      // --- LE RETOUR DU CANVAS MAGIC ---
-      log('2. Chirurgie Pixels (Canvas)...', 'info');
-      const correctedElements = performPixelSurgery(rawElements);
-      setElements(correctedElements);
-      log('Correction terminée. Précision Max.', 'ok');
-
+      // PIXEL PERFECT AUDIT (SHRINK WRAP RAPIDE)
+      const refinedElements = performFastAudit(rawElements);
+      setElements(refinedElements);
+      
+      log('Scan terminé. Prêt pour reconstruction.', 'ok');
     } catch (err: any) {
       log(err.message, 'err');
     } finally {
@@ -109,22 +85,29 @@ export default function UltimateScanner() {
     }
   };
 
-  // --- 2. RECONSTRUCTION ---
+  // --- 2. RECONSTRUCTION WIREFRAME ---
   const runReconstruct = async () => {
     if (!imageSrc || elements.length === 0) return;
     setStatus('reconstructing');
-    log('Génération Wireframe...', 'info');
+    log('Génération du Wireframe HTML...', 'info');
 
     try {
-      // On envoie les éléments CORRIGÉS par le canvas à l'IA
-      let htmlCode = await fetchStream('/api/reconstruct', { 
-        imageBase64: imageSrc, 
-        scannedElements: elements 
+      const res = await fetch('/api/reconstruct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            imageBase64: imageSrc,
+            scannedElements: elements 
+        }),
       });
 
-      htmlCode = htmlCode.replace(/```html/g, '').replace(/```/g, '');
-      setReconstructedHtml(htmlCode);
-      log('Wireframe généré.', 'ok');
+      const rawText = await res.text();
+      if (!res.ok) throw new Error(`Erreur Reconstruct ${res.status}: ${rawText.slice(0,100)}`);
+
+      const data = JSON.parse(rawText);
+      setReconstructedHtml(data.html);
+      log('Wireframe généré avec succès !', 'ok');
+
     } catch (err: any) {
       log(err.message, 'err');
     } finally {
@@ -132,176 +115,341 @@ export default function UltimateScanner() {
     }
   };
 
-  // --- ALGORITHME CHIRURGICAL (CANVAS) ---
-  const performPixelSurgery = (items: UiElement[]) => {
+  // --- AUDIT PIXEL (Simple pour perf mobile) ---
+  const performFastAudit = (items: UiElement[]) => {
     const img = imgRef.current;
     const canvas = canvasRef.current;
     if (!img || !canvas) return items;
 
-    // Configuration du labo
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return items;
-
     ctx.drawImage(img, 0, 0);
 
     return items.map(item => {
-      // 1. Conversion 0-1000 -> Pixels Réels
-      let x = Math.floor((item.box_2d[1] / 1000) * canvas.width);
-      let y = Math.floor((item.box_2d[0] / 1000) * canvas.height);
-      let w = Math.floor(((item.box_2d[3] - item.box_2d[1]) / 1000) * canvas.width);
-      let h = Math.floor(((item.box_2d[2] - item.box_2d[0]) / 1000) * canvas.height);
-
-      // Sécurité bords
-      if (w <= 0 || h <= 0) return item;
-
-      // 2. Shrink-Wrap (Resserrer la boite)
-      const imageData = ctx.getImageData(x, y, w, h);
-      const refined = autoCorrectBoundaries(imageData, w, h);
-      
-      let finalX = x, finalY = y, finalW = w, finalH = h;
-      let isRefined = false;
-
-      if (refined) {
-        finalX += refined.x;
-        finalY += refined.y;
-        finalW = refined.w;
-        finalH = refined.h;
-        isRefined = true;
-      }
-
-      // 3. Couleur Réelle
-      const centerPixel = ctx.getImageData(finalX + finalW/2, finalY + finalH/2, 1, 1).data;
-      const hexColor = `#${((1 << 24) + (centerPixel[0] << 16) + (centerPixel[1] << 8) + centerPixel[2]).toString(16).slice(1).toUpperCase()}`;
-
-      // 4. On renvoie les coordonnées corrigées (re-normalisées pour l'affichage CSS)
-      return {
-        ...item,
-        box_2d: [
-            (finalY / canvas.height) * 1000,
-            (finalX / canvas.width) * 1000,
-            ((finalY + finalH) / canvas.height) * 1000,
-            ((finalX + finalW) / canvas.width) * 1000
-        ],
-        realColor: hexColor,
-        dimensions: `${finalW}x${finalH}`,
-        isCorrected: isRefined
-      };
+      // Ici on calcule juste les dimensions réelles pour l'affichage
+      const [ymin, xmin, ymax, xmax] = item.box_2d;
+      const w = Math.floor(((xmax - xmin) / 1000) * canvas.width);
+      const h = Math.floor(((ymax - ymin) / 1000) * canvas.height);
+      return { ...item, dimensions: `${w}x${h}` };
     });
   };
 
-  // Logique mathématique de détection de bords
-  const autoCorrectBoundaries = (imgData: ImageData, w: number, h: number) => {
-    const data = imgData.data;
-    let minX = w, minY = h, maxX = 0, maxY = 0;
-    let found = false;
-    
-    // On prend la couleur du coin haut-gauche comme référence de "vide"
-    const bgR = data[0], bgG = data[1], bgB = data[2];
-
-    for (let y = 0; y < h; y+=2) { // Step 2 pour perf
-      for (let x = 0; x < w; x+=2) {
-        const i = (y * w + x) * 4;
-        const diff = Math.abs(data[i]-bgR) + Math.abs(data[i+1]-bgG) + Math.abs(data[i+2]-bgB);
-        
-        if (diff > 30) { // Seuil de tolérance
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-          found = true;
-        }
-      }
-    }
-    
-    if (!found) return null;
-    return { x: Math.max(0, minX-2), y: Math.max(0, minY-2), w: (maxX-minX)+4, h: (maxY-minY)+4 };
-  };
-
-  const activeEl = elements.find(e => e.id === selectedId);
-
   return (
-    <div className="min-h-screen bg-[#050505] text-[#00FF94] font-mono p-4 flex flex-col gap-4">
-      <div className="flex justify-between border-b border-[#003311] pb-2">
-        <h1 className="font-bold">ULTIMATE SCANNER V4</h1>
-        <div className="flex gap-2">
-            <span className="text-[10px] bg-blue-900 text-white px-1 rounded">STREAM</span>
-            <span className="text-[10px] bg-purple-900 text-white px-1 rounded">CANVAS</span>
-        </div>
+    <div className="min-h-screen bg-[#111] text-white font-mono p-2 flex flex-col gap-2">
+      
+      {/* HEADER */}
+      <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h1 className="text-xs font-bold text-[#00FF94]">PIXEL ARCHITECT</h1>
+        <div className="text-[9px] text-gray-500">NEXTJS VERCEL</div>
       </div>
 
-      <div className="relative w-full bg-[#0a0a0a] border border-[#003311] rounded min-h-[300px] overflow-hidden">
+      {/* ZONE 1 : L'IMAGE ORIGINALE AVEC OVERLAY */}
+      <div className="relative w-full bg-black border border-gray-800 rounded min-h-[250px]">
         {!imageSrc ? (
            <label className="flex flex-col items-center justify-center w-full h-full p-10 cursor-pointer">
-              <span className="text-4xl">+</span>
-              <span className="text-xs mt-2 text-gray-500">UPLOAD IMAGE</span>
+              <span className="text-2xl text-gray-600">+</span>
+              <span className="text-[10px] text-gray-500 mt-2">UPLOAD IMAGE</span>
               <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
            </label>
         ) : (
           <>
             <img ref={imgRef} src={imageSrc} className="w-full opacity-40" />
-            {elements.map((el, i) => {
-                 const isSel = selectedId === el.id;
-                 return (
-                    <div 
-                        key={i}
-                        onClick={() => setSelectedId(isSel ? null : el.id)}
-                        className={`absolute border transition-all ${isSel ? 'z-50 border-white bg-white/10' : 'border-green-500/50'} ${el.isCorrected ? 'border-dashed' : ''}`}
-                        style={{
-                            top: el.box_2d[0] / 10 + '%',
-                            left: el.box_2d[1] / 10 + '%',
-                            height: (el.box_2d[2] - el.box_2d[0]) / 10 + '%',
-                            width: (el.box_2d[3] - el.box_2d[1]) / 10 + '%'
-                        }}
-                    />
-                 )
-            })}
+            {elements.map(el => (
+                <div 
+                    key={el.id}
+                    onClick={() => setSelectedId(selectedId === el.id ? null : el.id)}
+                    className={`absolute border ${selectedId === el.id ? 'border-white z-50 bg-white/10' : 'border-[#00FF94]/50'}`}
+                    style={{
+                        top: el.box_2d[0] / 10 + '%',
+                        left: el.box_2d[1] / 10 + '%',
+                        height: (el.box_2d[2] - el.box_2d[0]) / 10 + '%',
+                        width: (el.box_2d[3] - el.box_2d[1]) / 10 + '%'
+                    }}
+                />
+            ))}
           </>
         )}
-        {/* LE CANVAS CACHÉ EST LÀ ! */}
         <canvas ref={canvasRef} className="hidden" />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <button onClick={runScan} disabled={!imageSrc || status !== 'idle'} className="bg-[#003311] py-4 rounded font-bold disabled:opacity-30">
-            {status === 'analyzing' ? 'SCANNING...' : '1. PIXEL SCAN'}
+      {/* BOUTONS D'ACTION */}
+      <div className="grid grid-cols-2 gap-2">
+        <button 
+            onClick={runScan} 
+            disabled={!imageSrc || status !== 'idle'}
+            className="bg-[#003311] text-[#00FF94] border border-[#00FF94]/30 py-3 rounded text-[10px] font-bold disabled:opacity-30"
+        >
+            {status === 'analyzing' ? 'SCANNING...' : '1. SCAN STRUCTURE'}
         </button>
-        <button onClick={runReconstruct} disabled={elements.length === 0 || status !== 'idle'} className="bg-[#001133] text-blue-400 py-4 rounded font-bold disabled:opacity-30">
-            {status === 'reconstructing' ? 'BUILDING...' : '2. RECONSTRUCT'}
+        <button 
+            onClick={runReconstruct} 
+            disabled={elements.length === 0 || status !== 'idle'}
+            className="bg-[#001133] text-blue-400 border border-blue-500/30 py-3 rounded text-[10px] font-bold disabled:opacity-30"
+        >
+            {status === 'reconstructing' ? 'BUILDING...' : '2. RECONSTRUCT (TEST)'}
         </button>
       </div>
 
-      {/* INFO PANEL */}
-      <div className="bg-[#111] p-2 border border-[#333] h-[60px] flex items-center gap-4">
-        {activeEl ? (
-            <>
-                <div className="text-xs text-white font-bold">{activeEl.type}</div>
-                <div className="text-xs text-gray-400">Dim: {activeEl.dimensions}</div>
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                    Hex: <div className="w-3 h-3 border" style={{background: activeEl.realColor}}></div> {activeEl.realColor}
-                </div>
-                {activeEl.isCorrected && <div className="text-[9px] bg-green-900 text-green-200 px-1 rounded">CORRECTED</div>}
-            </>
-        ) : <div className="text-xs text-gray-600">Touchez une zone...</div>}
-      </div>
-
+      {/* ZONE 2 : LA PREUVE (IFRAME WIREFRAME) */}
       {reconstructedHtml && (
-          <div className="border border-white bg-white h-[300px] relative mt-2">
-              <iframe srcDoc={reconstructedHtml} className="w-full h-full border-none" />
+          <div className="border border-white bg-white rounded overflow-hidden h-[300px] relative">
+              <div className="absolute top-0 left-0 bg-black text-white text-[9px] px-2 py-1 z-10">RÉSULTAT GÉNÉRÉ (WIREFRAME)</div>
+              <iframe 
+                srcDoc={reconstructedHtml} 
+                className="w-full h-full border-none"
+                title="Reconstruction"
+              />
           </div>
       )}
 
-      <div className="bg-black border border-gray-800 rounded p-2 h-[150px] overflow-y-auto text-[10px]">
+      {/* LOGS RESTAURÉS (AVEC COPY) */}
+      <div className="bg-black border border-gray-800 rounded p-2 h-[150px] overflow-y-auto text-[9px]">
+        {logs.length === 0 && <span className="text-gray-700">Waiting for logs...</span>}
         {logs.map((log, i) => (
             <div key={i} className="flex justify-between items-start mb-1 border-b border-gray-900 pb-1">
-                <span className={log.type === 'err' ? 'text-red-500' : 'text-green-400'}>
-                    {log.type === 'err' ? '✖ ' : '> '} {log.msg}
-                </span>
-                <button onClick={() => copyLog(log.msg)} className="bg-[#111] text-gray-500 px-1 border border-[#333]">C</button>
+                <div className={`${log.type === 'err' ? 'text-red-500' : log.type === 'ok' ? 'text-green-400' : 'text-gray-400'} break-all pr-2`}>
+                    <span className="text-gray-600 mr-2">[{log.time}]</span>
+                    {log.type === 'err' ? 'ERROR: ' : '> '}
+                    {log.msg}
+                </div>
+                <button 
+                    onClick={() => copyLog(log.msg)}
+                    className="text-[8px] bg-gray-800 text-gray-300 px-1 rounded hover:bg-white hover:text-black shrink-0"
+                >
+                    CPY
+                </button>
             </div>
         ))}
       </div>
     </div>
   );
+  }'use client';
+
+import { useState, useRef } from 'react';
+
+// --- TYPES ---
+type Log = { time: string; msg: string; type: 'info' | 'ok' | 'err' };
+type UiElement = {
+  id: string;
+  type: string;
+  content?: string;
+  box_2d: number[];
+  realColor?: string;
+  dimensions?: string;
+};
+
+export default function PixelArchitect() {
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [status, setStatus] = useState<'idle' | 'analyzing' | 'reconstructing'>('idle');
+  const [elements, setElements] = useState<UiElement[]>([]);
+  const [reconstructedHtml, setReconstructedHtml] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const imgRef = useRef<HTMLImageElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // --- LOGGING ---
+  const log = (msg: string, type: 'info' | 'ok' | 'err' = 'info') => {
+    const time = new Date().toLocaleTimeString().split(' ')[0];
+    setLogs(prev => [{ time, msg, type }, ...prev]);
+  };
+
+  const copyLog = (text: string) => {
+    navigator.clipboard.writeText(text);
+    // Petit feedback visuel pourrait être ajouté ici
+  };
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setImageSrc(ev.target.result as string);
+        setElements([]);
+        setReconstructedHtml(null);
+        log('Image chargée.', 'ok');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // --- 1. SCAN & DETECT ---
+  const runScan = async () => {
+    if (!imageSrc) return;
+    setStatus('analyzing');
+    log('Démarrage analyse structurelle...', 'info');
+
+    try {
+      // APPEL API ANALYZE
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: imageSrc }),
+      });
+
+      const rawText = await res.text();
+      if (!res.ok) throw new Error(`Erreur ${res.status}: ${rawText.slice(0, 100)}`);
+      
+      const data = JSON.parse(rawText);
+      if (data.error) throw new Error(data.error);
+
+      let rawElements: UiElement[] = data.elements;
+      log(`${rawElements.length} éléments détectés.`, 'ok');
+
+      // PIXEL PERFECT AUDIT (SHRINK WRAP RAPIDE)
+      const refinedElements = performFastAudit(rawElements);
+      setElements(refinedElements);
+      
+      log('Scan terminé. Prêt pour reconstruction.', 'ok');
+    } catch (err: any) {
+      log(err.message, 'err');
+    } finally {
+      setStatus('idle');
     }
+  };
+
+  // --- 2. RECONSTRUCTION WIREFRAME ---
+  const runReconstruct = async () => {
+    if (!imageSrc || elements.length === 0) return;
+    setStatus('reconstructing');
+    log('Génération du Wireframe HTML...', 'info');
+
+    try {
+      const res = await fetch('/api/reconstruct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            imageBase64: imageSrc,
+            scannedElements: elements 
+        }),
+      });
+
+      const rawText = await res.text();
+      if (!res.ok) throw new Error(`Erreur Reconstruct ${res.status}: ${rawText.slice(0,100)}`);
+
+      const data = JSON.parse(rawText);
+      setReconstructedHtml(data.html);
+      log('Wireframe généré avec succès !', 'ok');
+
+    } catch (err: any) {
+      log(err.message, 'err');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  // --- AUDIT PIXEL (Simple pour perf mobile) ---
+  const performFastAudit = (items: UiElement[]) => {
+    const img = imgRef.current;
+    const canvas = canvasRef.current;
+    if (!img || !canvas) return items;
+
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return items;
+    ctx.drawImage(img, 0, 0);
+
+    return items.map(item => {
+      // Ici on calcule juste les dimensions réelles pour l'affichage
+      const [ymin, xmin, ymax, xmax] = item.box_2d;
+      const w = Math.floor(((xmax - xmin) / 1000) * canvas.width);
+      const h = Math.floor(((ymax - ymin) / 1000) * canvas.height);
+      return { ...item, dimensions: `${w}x${h}` };
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#111] text-white font-mono p-2 flex flex-col gap-2">
+      
+      {/* HEADER */}
+      <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h1 className="text-xs font-bold text-[#00FF94]">PIXEL ARCHITECT</h1>
+        <div className="text-[9px] text-gray-500">NEXTJS VERCEL</div>
+      </div>
+
+      {/* ZONE 1 : L'IMAGE ORIGINALE AVEC OVERLAY */}
+      <div className="relative w-full bg-black border border-gray-800 rounded min-h-[250px]">
+        {!imageSrc ? (
+           <label className="flex flex-col items-center justify-center w-full h-full p-10 cursor-pointer">
+              <span className="text-2xl text-gray-600">+</span>
+              <span className="text-[10px] text-gray-500 mt-2">UPLOAD IMAGE</span>
+              <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
+           </label>
+        ) : (
+          <>
+            <img ref={imgRef} src={imageSrc} className="w-full opacity-40" />
+            {elements.map(el => (
+                <div 
+                    key={el.id}
+                    onClick={() => setSelectedId(selectedId === el.id ? null : el.id)}
+                    className={`absolute border ${selectedId === el.id ? 'border-white z-50 bg-white/10' : 'border-[#00FF94]/50'}`}
+                    style={{
+                        top: el.box_2d[0] / 10 + '%',
+                        left: el.box_2d[1] / 10 + '%',
+                        height: (el.box_2d[2] - el.box_2d[0]) / 10 + '%',
+                        width: (el.box_2d[3] - el.box_2d[1]) / 10 + '%'
+                    }}
+                />
+            ))}
+          </>
+        )}
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
+
+      {/* BOUTONS D'ACTION */}
+      <div className="grid grid-cols-2 gap-2">
+        <button 
+            onClick={runScan} 
+            disabled={!imageSrc || status !== 'idle'}
+            className="bg-[#003311] text-[#00FF94] border border-[#00FF94]/30 py-3 rounded text-[10px] font-bold disabled:opacity-30"
+        >
+            {status === 'analyzing' ? 'SCANNING...' : '1. SCAN STRUCTURE'}
+        </button>
+        <button 
+            onClick={runReconstruct} 
+            disabled={elements.length === 0 || status !== 'idle'}
+            className="bg-[#001133] text-blue-400 border border-blue-500/30 py-3 rounded text-[10px] font-bold disabled:opacity-30"
+        >
+            {status === 'reconstructing' ? 'BUILDING...' : '2. RECONSTRUCT (TEST)'}
+        </button>
+      </div>
+
+      {/* ZONE 2 : LA PREUVE (IFRAME WIREFRAME) */}
+      {reconstructedHtml && (
+          <div className="border border-white bg-white rounded overflow-hidden h-[300px] relative">
+              <div className="absolute top-0 left-0 bg-black text-white text-[9px] px-2 py-1 z-10">RÉSULTAT GÉNÉRÉ (WIREFRAME)</div>
+              <iframe 
+                srcDoc={reconstructedHtml} 
+                className="w-full h-full border-none"
+                title="Reconstruction"
+              />
+          </div>
+      )}
+
+      {/* LOGS RESTAURÉS (AVEC COPY) */}
+      <div className="bg-black border border-gray-800 rounded p-2 h-[150px] overflow-y-auto text-[9px]">
+        {logs.length === 0 && <span className="text-gray-700">Waiting for logs...</span>}
+        {logs.map((log, i) => (
+            <div key={i} className="flex justify-between items-start mb-1 border-b border-gray-900 pb-1">
+                <div className={`${log.type === 'err' ? 'text-red-500' : log.type === 'ok' ? 'text-green-400' : 'text-gray-400'} break-all pr-2`}>
+                    <span className="text-gray-600 mr-2">[{log.time}]</span>
+                    {log.type === 'err' ? 'ERROR: ' : '> '}
+                    {log.msg}
+                </div>
+                <button 
+                    onClick={() => copyLog(log.msg)}
+                    className="text-[8px] bg-gray-800 text-gray-300 px-1 rounded hover:bg-white hover:text-black shrink-0"
+                >
+                    CPY
+                </button>
+            </div>
+        ))}
+      </div>
+    </div>
+  );
+  }
