@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     });
 
     // On reste sur Flash pour la vitesse, mais avec un prompt "Vision Laser"
-    const modelId = 'gemini-1.5-flash'; 
+    const modelId = 'gemini-2.5-flash'; 
 
     const promptText = `
       Tu es un scanner UI de précision industrielle.
