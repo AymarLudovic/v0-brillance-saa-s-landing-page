@@ -86,10 +86,14 @@ export default function PixelArchitect() {
   };
 
   // --- 2. RECONSTRUCTION WIREFRAME ---
+  // ... (Garde tes imports et états existants)
+
+  // --- 2. RECONSTRUCTION WIREFRAME (MODE STREAM) ---
   const runReconstruct = async () => {
     if (!imageSrc || elements.length === 0) return;
     setStatus('reconstructing');
-    log('Génération du Wireframe HTML...', 'info');
+    setReconstructedHtml(''); // Reset du contenu
+    log('Démarrage du flux Wireframe...', 'info');
 
     try {
       const res = await fetch('/api/reconstruct', {
@@ -101,11 +105,30 @@ export default function PixelArchitect() {
         }),
       });
 
-      const rawText = await res.text();
-      if (!res.ok) throw new Error(`Erreur Reconstruct ${res.status}: ${rawText.slice(0,100)}`);
+      if (!res.ok) throw new Error(`Erreur Stream: ${res.statusText}`);
+      if (!res.body) throw new Error("Pas de flux de réponse");
 
-      const data = JSON.parse(rawText);
-      setReconstructedHtml(data.html);
+      // Lecture du Stream
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedHtml = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        accumulatedHtml += chunk;
+        
+        // Mise à jour en temps réel (optionnel : tu peux attendre la fin si tu préfères)
+        // Mais pour l'iframe, il vaut mieux parfois attendre la fin pour éviter les clignotements
+        // Ici je le mets à jour à la fin, ou tu peux faire setReconstructedHtml(accumulatedHtml) ici
+      }
+
+      // Nettoyage final au cas où l'IA a quand même mis des backticks
+      const cleanHtml = accumulatedHtml.replace(/```html/g, '').replace(/```/g, '');
+      
+      setReconstructedHtml(cleanHtml);
       log('Wireframe généré avec succès !', 'ok');
 
     } catch (err: any) {
