@@ -89,11 +89,13 @@ export default function PixelArchitect() {
   // ... (Garde tes imports et états existants)
 
   // --- 2. RECONSTRUCTION WIREFRAME (MODE STREAM) ---
+// ... (reste du code)
+
   const runReconstruct = async () => {
     if (!imageSrc || elements.length === 0) return;
     setStatus('reconstructing');
-    setReconstructedHtml(''); // Reset du contenu
-    log('Démarrage du flux Wireframe...', 'info');
+    setReconstructedHtml(''); 
+    log('Génération du Wireframe (Stream)...', 'info');
 
     try {
       const res = await fetch('/api/reconstruct', {
@@ -105,10 +107,14 @@ export default function PixelArchitect() {
         }),
       });
 
-      if (!res.ok) throw new Error(`Erreur Stream: ${res.statusText}`);
-      if (!res.body) throw new Error("Pas de flux de réponse");
+      if (!res.ok) {
+        // Tentative de lire l'erreur JSON si le status n'est pas 200
+        const errText = await res.text();
+        throw new Error(`Erreur API (${res.status}): ${errText}`);
+      }
 
-      // Lecture du Stream
+      if (!res.body) throw new Error("Le corps de la réponse est vide.");
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedHtml = '';
@@ -120,18 +126,20 @@ export default function PixelArchitect() {
         const chunk = decoder.decode(value, { stream: true });
         accumulatedHtml += chunk;
         
-        // Mise à jour en temps réel (optionnel : tu peux attendre la fin si tu préfères)
-        // Mais pour l'iframe, il vaut mieux parfois attendre la fin pour éviter les clignotements
-        // Ici je le mets à jour à la fin, ou tu peux faire setReconstructedHtml(accumulatedHtml) ici
+        // Optionnel : Feedback visuel en temps réel dans les logs si tu veux
+        // log(`Reçu: ${chunk.length} caractères...`, 'info');
       }
 
-      // Nettoyage final au cas où l'IA a quand même mis des backticks
-      const cleanHtml = accumulatedHtml.replace(/```html/g, '').replace(/```/g, '');
-      
+      // Nettoyage de sécurité (au cas où Gemini insiste avec le Markdown)
+      const cleanHtml = accumulatedHtml
+        .replace(/```html/g, '')
+        .replace(/```/g, '');
+
       setReconstructedHtml(cleanHtml);
-      log('Wireframe généré avec succès !', 'ok');
+      log('Wireframe terminé !', 'ok');
 
     } catch (err: any) {
+      console.error(err);
       log(err.message, 'err');
     } finally {
       setStatus('idle');
