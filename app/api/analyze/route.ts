@@ -1,45 +1,42 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
-// On maximise le temps d'exécution autorisé
 export const maxDuration = 60; 
-export const dynamic = 'force-dynamic'; // Force le mode dynamique pour éviter les erreurs de cache 405
 
 export async function POST(req: Request) {
   try {
-    // Lecture du corps de la requête
-    const body = await req.json();
-    const { imageBase64 } = body;
-
-    if (!imageBase64) {
-      return NextResponse.json({ error: "Image manquante" }, { status: 400 });
-    }
+    const { imageBase64 } = await req.json();
 
     const ai = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY,
     });
 
-    const modelId = 'gemini-2.5-flash';
+    // On reste sur Flash pour la vitesse, mais avec un prompt "Vision Laser"
+    const modelId = 'gemini-2.5-flash'; 
 
     const promptText = `
-      Tu es un scanner UI de précision absolue.
-      Analyse cette image. Extrais TOUS les éléments (Sidebar, Header, Buttons, Text, Inputs).
-      Sois précis sur les boîtes (box_2d).
+      Tu es un scanner UI de précision industrielle.
+      Tâche : Extraire TOUS les éléments visuels de cette interface pour une reconstruction Pixel-Perfect.
       
-      FORMAT JSON STRICT (Sans Markdown) :
+      RÈGLES DE DÉTECTION :
+      1. Ne rate RIEN : Détecte chaque icône, chaque petit texte, chaque ligne de séparation (dividers), chaque bouton.
+      2. Structure : Identifie les conteneurs (Sidebar, Header, Cards) ET leur contenu.
+      3. Précision : Les boîtes doivent être serrées sur le contenu visible.
+      
+      FORMAT DE SORTIE (JSON PUR) :
       {
         "elements": [
           {
             "id": "uuid",
-            "type": "container | text | button | icon | input",
-            "box_2d": [ymin, xmin, ymax, xmax]
+            "type": "container | text | button | icon | input | divider | image",
+            "content": "Texte lu ou description brève",
+            "box_2d": [ymin, xmin, ymax, xmax] (Normalisé 0-1000)
           }
         ]
       }
     `;
 
-    // Appel en Streaming pour la vitesse
-    const responseStream = await ai.models.generateContentStream({
+    const response = await ai.models.generateContent({
       model: modelId,
       contents: [
         {
@@ -52,33 +49,26 @@ export async function POST(req: Request) {
       ],
     });
 
-    // Création du flux de réponse pour Next.js
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        try {
-          for await (const chunk of responseStream.stream) {
-            const text = chunk.text();
-            if (text) {
-              controller.enqueue(encoder.encode(text));
-            }
-          }
-          controller.close();
-        } catch (err) {
-          controller.error(err);
-        }
-      },
-    });
+    // Extraction manuelle (Méthode blindée)
+    const candidate = response.candidates?.[0];
+    const part = candidate?.content?.parts?.[0];
+    let textResponse = part?.text;
 
-    return new NextResponse(stream, {
-      headers: { 
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-cache' 
-      },
-    });
+    if (!textResponse) throw new Error("Réponse vide de l'IA");
+
+    textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '');
+    const firstBrace = textResponse.indexOf('{');
+    const lastBrace = textResponse.lastIndexOf('}');
+    
+    if (firstBrace === -1) throw new Error("JSON invalide reçu");
+
+    const cleanJson = textResponse.substring(firstBrace, lastBrace + 1);
+    const parsedData = JSON.parse(cleanJson);
+
+    return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Analyze Error:", error);
+    return NextResponse.json({ error: error.message || "Erreur interne" }, { status: 500 });
   }
-                     }
+      }
