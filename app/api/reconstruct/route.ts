@@ -1,11 +1,11 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 60;
+// Note: Sur le plan Hobby Vercel, maxDuration est souvent plafonné à 10s ou 60s max
+export const maxDuration = 60; 
 
 export async function POST(req: Request) {
   try {
-    // On reçoit l'image ET les données JSON scannées précédemment
     const { imageBase64, scannedElements } = await req.json();
 
     const ai = new GoogleGenAI({
@@ -16,26 +16,20 @@ export async function POST(req: Request) {
 
     const promptText = `
       Tu es un Architecte Frontend "Wireframe".
-      Ton but : Générer un fichier HTML unique qui reconstruit EXACTEMENT la page fournie, en te basant sur l'image et les données scannées.
-
-      STYLE VISUEL STRICT (WIREFRAME) :
-      - Fond de page : BLANC (#FFFFFF).
-      - Tous les éléments : Fond BLANC, Bordure NOIRE fine (1px solid #000).
-      - Texte : NOIR (#000), police monospace simple.
-      - Icônes/Images : Remplacer par des carrés/cercles vides avec bordure noire.
-      - AUCUNE COULEUR, AUCUN OMBRAGE. Juste la structure pure.
-
-      RÈGLES TECHNIQUES :
-      1. Utilise 'position: absolute' pour placer les éléments. C'est CRUCIAL pour respecter la fidélité.
-      2. Base-toi sur les coordonnées 'box_2d' [ymin, xmin, ymax, xmax] (échelle 0-1000) fournies dans le JSON ci-dessous pour calculer les pourcentages (top%, left%, width%, height%).
-      3. Génère un code HTML complet (<html><body>...</body></html>) prêt à être affiché dans une iframe.
-      4. Si c'est un texte, insère le vrai texte. Si c'est un conteneur, mets juste la bordure.
-
+      Ton but : Générer un fichier HTML unique qui reconstruit EXACTEMENT la page.
+      
+      RÈGLES IMPORTANTES :
+      - NE METS PAS de balises markdown comme \`\`\`html ou \`\`\`.
+      - Renvoie DIRECTEMENT le code HTML brut.
+      - Utilise 'position: absolute' basé sur les box_2d fournies.
+      - Fond blanc, bordures noires, style wireframe strict.
+      
       DONNÉES SCANNÉES :
-      ${JSON.stringify(scannedElements).substring(0, 10000)} // On tronque si trop long pour éviter les limites
+      ${JSON.stringify(scannedElements).substring(0, 15000)}
     `;
 
-    const response = await ai.models.generateContent({
+    // 1. On utilise generateContentStream au lieu de generateContent
+    const response = await ai.models.generateContentStream({
       model: modelId,
       contents: [
         {
@@ -48,18 +42,34 @@ export async function POST(req: Request) {
       ],
     });
 
-    const candidate = response.candidates?.[0];
-    const textResponse = candidate?.content?.parts?.[0]?.text;
+    // 2. On crée un Stream pour envoyer les bouts de texte au fur et à mesure
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        try {
+          for await (const chunk of response.stream) {
+            const chunkText = chunk.text();
+            if (chunkText) {
+              controller.enqueue(encoder.encode(chunkText));
+            }
+          }
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
+      },
+    });
 
-    if (!textResponse) throw new Error("Génération HTML échouée");
-
-    // Nettoyage pour ne garder que le HTML
-    const cleanHtml = textResponse.replace(/```html/g, '').replace(/```/g, '');
-
-    return NextResponse.json({ html: cleanHtml });
+    // 3. On retourne la réponse en mode Stream
+    return new NextResponse(stream, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Transfer-Encoding': 'chunked',
+      },
+    });
 
   } catch (error: any) {
     console.error("Reconstruct Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-      }
+            }
