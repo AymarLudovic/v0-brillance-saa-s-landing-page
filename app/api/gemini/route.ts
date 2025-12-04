@@ -138,12 +138,24 @@ Les images ci-dessus sont ta source de vérité visuelle (Vibe).
         (systemContextParts.length > 0 ? "\n\n--- CONTEXTE PROJET ---\n" + systemContextParts.map(p => p.text).join('\n') : "")
     );
     
+
+
+
+
     const response = await ai.models.generateContentStream({
-      model,
-      contents, 
-      tools: [{ functionDeclarations: [readFileDeclaration] }],
-      config: { systemInstruction: finalSystemInstruction }
-    })
+  model,
+  contents,
+  tools: [
+    { functionDeclarations: [readFileDeclaration] },
+    { googleSearch: {} }
+  ],
+  config: {
+    systemInstruction: finalSystemInstruction,
+    thinkingConfig: {
+      thinkingLevel: "HIGH"
+    }
+  }
+})
 
     const encoder = new TextEncoder();
     let batchBuffer = ""; 
