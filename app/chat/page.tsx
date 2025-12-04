@@ -58,7 +58,8 @@ import {
   Download,
   Loader,
   LogOut,
-  Trash2
+  Trash2,
+ Play
 } from "lucide-react"
 
 
@@ -3199,20 +3200,89 @@ let shopImages: string[] = [];
       
              
 
-         
+ // Référence pour stocker le timestamp de la dernière création réussie (pour le délai de 15 min)
+const lastCreateTimeRef = useRef<number | null>(null);
+
+// Référence pour stocker le contenu du package.json lors de la dernière installation (pour éviter les npm install inutiles)
+const lastInstalledPkgJsonRef = useRef<string | null>(null);        
          
         
-         const runAction = async (
-  action: "create" | "install" | "build" | "start" | "addFiles"
+         
+       
+const runAction = async (
+  action: "create" | "install" | "build" | "start" | "addFiles" | "runApp" // Ajout de "runApp"
 ) => {
+  // ---------------------------------------------------------
+  // 1. LOGIQUE D'ORCHESTRATION "runApp"
+  // ---------------------------------------------------------
+  if (action === "runApp") {
+    setLoading(true);
+    try {
+      addLog("🚀 Démarrage de la séquence runApp...");
+
+      // --- ÉTAPE 1 : CREATE ---
+      const now = Date.now();
+      const fifteenMinutes = 15 * 60 * 1000;
+      
+      // On recrée si : Pas d'ID, ou pas de date, ou délai > 15min
+      const shouldCreate = 
+        !sandboxId || 
+        !lastCreateTimeRef.current || 
+        (now - lastCreateTimeRef.current > fifteenMinutes);
+
+      if (shouldCreate) {
+        addLog("Sandbox expirée ou inexistante. Création d'une nouvelle instance...");
+        await runAction("create");
+        // Note : runAction("create") mettra à jour lastCreateTimeRef dans son bloc de succès plus bas
+      } else {
+        addLog("ℹ️ Sandbox existante et valide (< 15 min). Étape 'create' ignorée.");
+      }
+
+      // --- ÉTAPE 2 : ADDFILES ---
+      // S'exécute toujours
+      await runAction("addFiles");
+
+      // --- ÉTAPE 3 : INSTALL ---
+      // On récupère le contenu actuel du package.json
+      const currentPkgJson = currentProject?.files.find(f => f.filePath === "package.json" || f.filePath === "./package.json")?.content || "";
+      
+      // On installe si : Jamais installé OU le package.json a changé
+      const shouldInstall = 
+        !lastInstalledPkgJsonRef.current || 
+        lastInstalledPkgJsonRef.current !== currentPkgJson;
+
+      if (shouldInstall) {
+        addLog("📦 Dépendances manquantes ou mises à jour. Exécution de 'install'...");
+        await runAction("install");
+        // Note : runAction("install") mettra à jour lastInstalledPkgJsonRef dans son bloc de succès
+      } else {
+        addLog("ℹ️ Dépendances déjà à jour. Étape 'install' ignorée.");
+      }
+
+      // --- ÉTAPE 4 : START ---
+      // S'exécute toujours
+      await runAction("start");
+
+      addLog("✅ Séquence runApp terminée avec succès.");
+
+    } catch (error: any) {
+      addLog(`❌ Erreur critique dans la séquence runApp : ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+    return; // On arrête ici pour runApp, car il a délégué le travail
+  }
+
+  // ---------------------------------------------------------
+  // 2. LOGIQUE STANDARD (Ton code existant)
+  // ---------------------------------------------------------
+  
   setLoading(true)
 
-  // 🔧 Fonction utilitaire pour nettoyer le stderr (INCHANGÉE MAIS CRITIQUE)
+  // 🔧 Fonction utilitaire (INCHANGÉE)
   const cleanBuildOutput = (output: string) => {
-    // Supprime les codes couleur ANSI (e.g. \x1B[0m)
     return output
       .replace(/\x1B\[[0-9;]*[A-Za-z]/g, "") 
-      // Supprime les caractères non imprimables
       .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "") 
       .trim()
   }
@@ -3223,7 +3293,6 @@ let shopImages: string[] = [];
 
     if (action === "addFiles") {
       const filesToSend = currentProject?.files || []
-
       if (!filesToSend.length || filesToSend.some((f) => !f.filePath)) {
         addLog("ERROR: Missing file path for one or more files.")
         setLoading(false)
@@ -3254,6 +3323,7 @@ let shopImages: string[] = [];
     if (data.action === "install" || data.action === "build") {
       const result: CommandResult = data.result
       if (result) {
+        // ... (Ton code de log existant pour stdout/stderr) ...
         addLog(`Commande '${data.action}' terminée (Code: ${result.exitCode})`)
 
         if (result.stdout) {
@@ -3263,52 +3333,59 @@ let shopImages: string[] = [];
         }
 
         if (result.stderr) {
-          addLog("--- STDERR ---")
-          result.stderr.split("\n").forEach((l) => addLog(l))
-          addLog("--------------")
+            // ... (Ton code de nettoyage et d'IA existant reste identique ici) ...
+            const cleanStderr = cleanBuildOutput(result.stderr)
+            const lowerErr = cleanStderr.toLowerCase()
+            const isIgnorable = lowerErr.includes("npm warn") || lowerErr.includes("npm notice") || lowerErr.includes("deprecated") || lowerErr.includes("audit") || lowerErr.includes("funding")
 
-          // 🧹 Nettoyage du stderr avant toute action (C'EST LA CLÉ)
-          const cleanStderr = cleanBuildOutput(result.stderr)
-
-          // ✅ Filtrage des erreurs non bloquantes
-          const lowerErr = cleanStderr.toLowerCase()
-          const isIgnorable =
-            lowerErr.includes("npm warn") ||
-            lowerErr.includes("npm notice") ||
-            lowerErr.includes("deprecated") ||
-            lowerErr.includes("audit") ||
-            lowerErr.includes("funding")
-
-          // 🚀 Envoi à l’IA uniquement si c’est une vraie erreur
-          if (!isIgnorable && cleanStderr.length > 0) {
-            // Utilisation du cleanStderr pour le prompt
-            const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n\`\`\`\n${cleanStderr}\n\`\`\``
-            try {
-              // L'appel sendChat utilise maintenant la version corrigée
-              await sendChat(prompt) 
-              addLog("🧠 Erreur critique transmise à l'IA pour correction.")
-            } catch (chatErr: any) {
-              addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
+            if (!isIgnorable && cleanStderr.length > 0) {
+                const prompt = `J’ai obtenu cette erreur pendant l’action '${data.action}'. Corrige-la :\n\n\`\`\`\n${cleanStderr}\n\`\`\``
+                try {
+                await sendChat(prompt) 
+                addLog("🧠 Erreur critique transmise à l'IA pour correction.")
+                } catch (chatErr: any) {
+                addLog(`⚠️ Erreur lors de l’envoi à l’IA : ${chatErr.message}`)
+                }
+            } else {
+                addLog("ℹ️ Avertissement ignoré (non bloquant).")
             }
-          } else {
-            addLog("ℹ️ Avertissement ignoré (non bloquant).")
-          }
         }
 
         if (result.error) addLog(`E2B Command Error: ${result.error}`)
-        if (result.exitCode !== 0)
+        
+        if (result.exitCode !== 0) {
           addLog(`ERROR: Commande '${data.action}' échouée.`)
-        else addLog(`SUCCESS: Commande '${data.action}' réussie.`)
+        } else {
+          addLog(`SUCCESS: Commande '${data.action}' réussie.`)
+
+          // --- MISE À JOUR MEMOIRE POUR RUNAPP ---
+          if (data.action === "install") {
+             // On sauvegarde le contenu actuel du package.json pour la prochaine comparaison
+             const currentPkg = currentProject?.files.find(f => f.filePath === "package.json" || f.filePath === "./package.json")?.content || "";
+             lastInstalledPkgJsonRef.current = currentPkg;
+          }
+        }
       }
     } else if (data.success && action === "addFiles") {
       addLog(`${currentProject?.files.length || 0} files written successfully.`)
       if (currentProject) saveProject()
+
     } else if (data.success && action === "create") {
       addLog(`Sandbox créé avec l'ID: ${data.sandboxId}`)
+      
+      // --- MISE À JOUR MEMOIRE POUR RUNAPP ---
+      // On note l'heure exacte de la création
+      lastCreateTimeRef.current = Date.now();
+
+      // IMPORTANT : Ton code original lance addFiles automatiquement ici.
+      // Si on est dans runApp, addFiles sera appelé juste après par l'orchestrateur, 
+      // donc il se peut qu'il s'exécute deux fois si on ne fait pas attention.
+      // C'est sans danger (juste une écriture), donc on peut laisser tel quel pour ne pas casser la logique "create" seule.
       if (currentProject && currentProject.files.length > 0) {
         addLog("Writing current project files to the new sandbox...")
         await runAction("addFiles")
       }
+
     } else if (data.success && action === "start") {
       addLog(`Serveur démarré. Aperçu: ${data.url}`)
     } else if (!data.success) {
@@ -3317,11 +3394,12 @@ let shopImages: string[] = [];
   } catch (err: any) {
     addLog(`CLIENT-SIDE ERROR: ${err.message}`)
   } finally {
-    setLoading(false)
+    // Si c'est runApp, le loading est géré par le bloc runApp, sinon ici.
+    if (action !== "runApp") {
+        setLoading(false)
+    }
   }
-      }   
- 
-
+    }
 
 
 
@@ -4650,6 +4728,34 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 <div className="flex items-center justify-between p-4 h-12 bg-[#fffcf6] border-[rgba(55,50,47,0.12)]">
                   {/* Boutons d'action */}
                   <div className="flex items-center gap-2">
+
+                      
+
+<button
+  onClick={() => runAction("runApp")}
+  disabled={loading}
+  className={`
+    flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-all
+    ${loading 
+      ? "bg-gray-400 cursor-not-allowed opacity-70" 
+      : "bg-green-600 hover:bg-green-700 active:scale-95 text-white shadow-sm hover:shadow-md"
+    }
+  `}
+>
+  {loading ? (
+    <>
+      <Loader2 className="w-4 h-4 animate-spin" />
+      <span>Exécution...</span>
+    </>
+  ) : (
+    <>
+      <Play className="w-4 h-4 fill-current" />
+      <span>Run App</span>
+    </>
+  )}
+</button>
+
+                      
                     <Button
                       onClick={() => runAction("create")}
                       disabled={loading}
