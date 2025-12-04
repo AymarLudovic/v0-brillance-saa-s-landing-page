@@ -3,7 +3,7 @@ import * as e2b from "@e2b/code-interpreter"
 
 // Définition des timeouts E2B (900000 ms = 15 minutes)
 const SANDBOX_TIMEOUT_MS = 900000
-const INSTALL_TIMEOUT_MS = 600000 // 10 minutes pour npm install
+const INSTALL_TIMEOUT_MS = 700000 // 10 minutes pour npm install
 const BUILD_TIMEOUT_MS = 300000 // 5 minutes pour npm run build
 const START_TIMEOUT_MS = 120000 // 2 minutes pour démarrer le serveur
 
