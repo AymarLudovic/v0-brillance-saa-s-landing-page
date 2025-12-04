@@ -142,20 +142,25 @@ Les images ci-dessus sont ta source de vérité visuelle (Vibe).
 
 
 
-    const response = await ai.models.generateContentStream({
+const response = await ai.models.generateContentStream({
   model,
   contents,
+  // 🔥 Ajout correct de Google Search pour Gemini 2.5 Flash
   tools: [
-    { functionDeclarations: [readFileDeclaration] },
-    { googleSearch: {} }
+    {
+      functionDeclarations: [readFileDeclaration]
+    },
+    {
+      googleSearch: {}
+    }
   ],
   config: {
     systemInstruction: finalSystemInstruction,
     thinkingConfig: {
-      thinkingLevel: "HIGH"
+      thinkingBudget: -1 // thinking illimité pour 2.5 Flash
     }
   }
-})
+});
 
     const encoder = new TextEncoder();
     let batchBuffer = ""; 
