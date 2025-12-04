@@ -3202,9 +3202,12 @@ let shopImages: string[] = [];
 
  // Référence pour stocker le timestamp de la dernière création réussie (pour le délai de 15 min)
 
-     const lastCreateTime = useRef<number>(0);
+     
+
+    const lastCreateTime = useRef<number>(0);
 const lastPkgJson = useRef<string>("");
 
+    
     const runAction = async (
   action: "create" | "install" | "build" | "start" | "addFiles" | "runApp"
 ) => {
@@ -3222,43 +3225,61 @@ const lastPkgJson = useRef<string>("");
 
   try {
     // -----------------------------------------------------------------------
-    // 🆕 ACTION RUNAPP : Orchestration logique (insérée ici sans casser le reste)
+    // 🆕 ACTION RUNAPP : Logique "Initiale" vs "Optimisée"
     // -----------------------------------------------------------------------
     if (action === "runApp") {
       const now = Date.now();
       const timeDiff = now - lastCreateTime.current;
-      const isSessionActive = lastCreateTime.current > 0 && timeDiff < 15 * 60 * 1000; // 15 min
       
-      // 1. CREATE (Seulement si délai > 15min ou jamais fait/reload)
-      let createDoneNow = false;
+      // Est-ce qu'on a une session valide ? (Create fait il y a - de 15 min et pas de reload)
+      const isSessionActive = lastCreateTime.current > 0 && timeDiff < 15 * 60 * 1000;
+
+      // Variable pour savoir si on vient tout juste de créer le sandbox (Initial run)
+      let isFreshRun = false;
+
+      // 1. CREATE
+      // Si c'est le début (pas de session) OU délai dépassé -> On crée
       if (!isSessionActive) {
-        addLog("🕒 Session expirée ou nouvelle : Exécution de Create...");
+        addLog("🚀 Démarrage initial (ou session expirée) : Création du sandbox...");
         await runAction("create");
-        lastCreateTime.current = Date.now(); // On mémorise l'heure
-        createDoneNow = true;
+        
+        lastCreateTime.current = Date.now(); // On note l'heure
+        isFreshRun = true; // C'est un run "frais", donc on devra tout installer
       } else {
-        addLog("✅ Session active (< 15min) : Create ignoré.");
+        addLog("✅ Session active : Sandbox existant conservé.");
       }
 
-      // 2. ADDFILES (Toujours)
+      // 2. ADDFILES (Toujours exécuté)
+      // "Ensuite sa fait l'action addfiles"
       await runAction("addFiles");
 
-      // 3. INSTALL (Si create vient d'être fait OU package.json a changé)
+      // 3. INSTALL
+      // On récupère le contenu actuel du package.json
       const currentPkg = currentProject?.files.find(f => f.filePath === "package.json")?.content || "";
-      if (createDoneNow || currentPkg !== lastPkgJson.current) {
-        addLog("📦 Changement détecté ou nouveau container : Exécution de Install...");
+      
+      // On installe SI :
+      // - C'est le run initial (isFreshRun est true) -> On installe forcément
+      // - OU le fichier package.json a changé depuis la dernière fois
+      if (isFreshRun || currentPkg !== lastPkgJson.current) {
+        if (isFreshRun) {
+          addLog("📦 Installation initiale des dépendances...");
+        } else {
+          addLog("📦 Mise à jour du package.json détectée : Réinstallation...");
+        }
+        
         await runAction("install");
-        lastPkgJson.current = currentPkg; // On mémorise le contenu du package.json
+        lastPkgJson.current = currentPkg; // On mémorise la version installée
       } else {
-        addLog("⏩ Dépendances inchangées : Install ignoré.");
+        addLog("⏩ Dépendances à jour : Installation ignorée.");
       }
 
-      // 4. START (Toujours)
+      // 4. START (Toujours exécuté à la fin)
       await runAction("start");
 
       setLoading(false);
-      return; // 🛑 On s'arrête là pour runApp, on ne lance pas le fetch en dessous
+      return; // 🛑 Fin de runApp
     }
+    // -----------------------------------------------------------------------
     // -----------------------------------------------------------------------
 
     addLog(`Running action: ${action}...`)
