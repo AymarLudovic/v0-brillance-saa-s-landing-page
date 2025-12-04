@@ -3387,6 +3387,110 @@ const lastPkgJson = useRef<string>("");
 
 
 
+    
+  const handleRunSandbox = async () => {
+    if (isRunningSandbox || generatedFiles.length === 0) return
+
+    setIsRunningSandbox(true)
+    setSandboxErrors("")
+    let collectedErrors = ""
+
+    try {
+      addLog("Creating new sandbox...", "info")
+      const createRes = await fetch("/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create" }),
+      })
+      const createData = await createRes.json()
+      if (!createData.success) throw new Error(createData.error || "Failed to create sandbox")
+
+      const sid = createData.sandboxId
+      setSandboxId(sid)
+      addLog(`Sandbox created: ${sid}`, "success")
+
+      // Write files
+      addLog(`Writing ${generatedFiles.length} files...`, "info")
+      const writeRes = await fetch("/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "writeFiles",
+          sandboxId: sid,
+          files: generatedFiles.map((f) => ({ path: f.path, content: f.content })),
+        }),
+      })
+      const writeData = await writeRes.json()
+      if (!writeData.success) addLog(`Write warning: ${writeData.error}`, "warning")
+      else addLog("Files written", "success")
+
+      // Install dependencies
+      addLog("Installing npm dependencies...", "info")
+      const installRes = await fetch("/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "install", sandboxId: sid }),
+      })
+      const installData = await installRes.json()
+
+      if (installData.stderr) {
+        const errors = filterErrors(installData.stderr, installData.stdout)
+        if (errors) {
+          collectedErrors += errors + "\n"
+          addLog("Install errors detected", "warning")
+        }
+      }
+
+      if (!installData.success) addLog("Install completed with warnings", "warning")
+      else addLog("Dependencies installed", "success")
+
+      // Start server
+      addLog("Starting dev server...", "info")
+      const startRes = await fetch("/api/sandbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", sandboxId: sid }),
+      })
+      const startData = await startRes.json()
+
+      if (startData.stderr || startData.stdout) {
+        const errors = filterErrors(startData.stderr || "", startData.stdout || "")
+        if (errors) {
+          collectedErrors += errors + "\n"
+          addLog("Compilation errors detected", "warning")
+        }
+      }
+
+      if (startData.success && startData.url) {
+        setSandboxUrl(startData.url)
+        addLog(`Server running: ${startData.url}`, "success")
+        setActiveTab("preview")
+        setPreviewKey((k) => k + 1)
+
+        // Update project
+        if (currentProject) {
+          const updatedProject: Project = {
+            ...currentProject,
+            sandboxId: sid,
+            sandboxUrl: startData.url,
+            updatedAt: Date.now(),
+          }
+          await saveProject(updatedProject)
+          setCurrentProject(updatedProject)
+        }
+      } else {
+        throw new Error(startData.error || "Failed to start server")
+      }
+    } catch (error: any) {
+      collectedErrors += error.message
+      addLog(`Run failed: ${error.message}`, "error")
+    } finally {
+      setIsRunningSandbox(false)
+      setSandboxErrors(collectedErrors.trim())
+    }
+  }
+
+
         
   const copyLogs = () => navigator.clipboard.writeText(logs.join("\n"))
 
@@ -4717,7 +4821,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
                       <Button
-  onClick={() => runAction("runApp")}
+   onClick={handleRunSandbox}
   disabled={loading}
   variant="outline"
   size="sm"
