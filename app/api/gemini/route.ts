@@ -194,7 +194,7 @@ export async function POST(req: Request) {
     if (!history || history.length === 0) return NextResponse.json({ error: "Historique manquant" }, { status: 400 });
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
-    const model = "gemini-2.5-flash"; 
+    const model = "gemini-2.5-pro"; 
     
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
     const lastUserIndex = history.length - 1; 
