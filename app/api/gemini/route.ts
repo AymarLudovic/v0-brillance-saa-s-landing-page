@@ -217,7 +217,11 @@ export async function POST(req: Request) {
 Les images ci-dessus sont ta source de vérité visuelle (Vibe).
 1. IDENTIFICATION : Analyse les images et identifie quel archétype de la BIBLE DU DESIGN (Nav Type 1, Card Type 3, etc.) correspond le mieux.
 2. EXTRACTION : Copie les valeurs précises non documentées (teinte exacte du fond, arrondi spécifique).
-3. APPLICATION : Applique l'archétype identifié en utilisant les règles CSS brutes de la Bible.`;
+3. APPLICATION : Applique l'archétype identifié en utilisant les règles CSS brutes de la Bible.
+
+Je t'envoie une image d'inspiration de design je veux que tu l'as reproduise à 100%, en réutilisant les mêmes sections, même texte, même forme de navbar, même forme et emplacement d'absolument chaque élément et même styles styles sans absolument rien oublier, même si c'est un petit tiret ou point textuelle. Tu vas réutiliser absolument les mêmes couleurs. Tout les styles, classes CSS dont tu feras appel dans le front devrons être absolument mentionné dans le fichier CSS. Je te pris d'observer bien la coloration de de chaque composant afin de vraiment détecté la background réel et de l'utiliser. N'invente rien, reproduit fidèlement point par point chaque élément et détails de l'image. Importe tes icônes depuis la librairie d'icones de Google font icons. Surtout regarde comment chaque élément est fait, analyse le bien que ce soit au niveau de la disposition de ces éléments à l'intérieur de lui, de l'arrondissement de ses bordures, de la couleur de ces bordures de l'effet créé par tel chose de son ton et reproduit tout cela parfaitement, tout en rendant le tout responsives pour téléphone mobile, portable 
+Identifie bien chaque composant sur chaque image en analyse ultra détaillé et leur background leur structuration les éléments qu'il possède, comment ses éléments qont placer organisé, la nature de chaque élément, la bordure arrondi ou non si oui a quel degré, et reproduit au pixel perfect absolument toutes l'image dans un détail absolue. Tu peux aussi utiliser des icônes de la bibliothèque iconsax react JS.
+`;
 
         if (cssMasterUrl) {
             instructionText += `\n\n4. SOURCE CSS MAÎTRE : L'utilisateur a fourni une URL (${cssMasterUrl}). Lance immédiatement l'outil 'inspirationUrl' pour récupérer son code CSS exact.`;
