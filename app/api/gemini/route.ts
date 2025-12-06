@@ -35,7 +35,8 @@ const FULL_PROMPT_INJECTION = `
   - **Border-Radius:** Doit être **très rounded**, compris entre **10px et 13px**. C'est impératif pour le style ("plus beau comme ça").
   - **Hauteur (Height):** Doit être compacte ("pas grand"). La hauteur doit être comprise strictement entre **30px et 32px**.
   - **Inputs de Recherche:** Les Searchbox dans la sidebar suivent la même règle : Height 30-32px et Radius 10-13px.
-
+  - **Menu de gestion de profil au bottom de la sidebar:** Même la, la section dans laquelle il se trouve ne devra pas avoir de \`borddr-top\` qui montre une séparation quelconque avec le contenu du dessus. Il doit aussi être rounded et d'une taille 30px à 32px et rounded suffisamment. La section de profil va devoir se distinguer dn ayant des bordures de même couleur que la bordure de la sidebar et doit être bien placé.
+  
 **D. LA TOPBAR CONTEXTUELLE (HEADER DE SECTION)**
 - **Contexte:** Quand une Sidebar est présente (Dashboard).
 - **Style Visuel:**
@@ -44,10 +45,12 @@ const FULL_PROMPT_INJECTION = `
 - **Dimensions & Contraintes:**
   - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **30px**. C'est "fixé comme ça, pas trop grand".
   - **Boutons & Éléments internes:** Tous les boutons ou inputs dans cette barre doivent avoir une taille (height) de **30px à 32px**.
+- Les éléments internes doivent rester bien structurés et alignés, même lors du redimensionnement. surtout ils même si c'est du texte doit être responsive pour des tailles d'écran allant à maximum 750px. Tu dois faire que ce soit bien responsive sans avoir des éléments qui sortent et casse le composant.
 
 **E. RESPONSIVE & QUALITÉ**
 - L'IA doit structurer le code pour que la Sidebar puisse disparaître proprement ou devenir un "Drawer" sur mobile, sans casser la logique de couleur (#000/#FFF).
 - Les éléments internes doivent rester bien structurés et alignés, même lors du redimensionnement.
+- Les éléments internes doivent rester bien structurés et alignés, même lors du redimensionnement. surtout ils même si c'est du texte doit être responsive pour des tailles d'écran allant à maximum 750px. Tu dois faire que ce soit bien responsive sans avoir des éléments qui sortent et casse le composant.
 
 === CONTEXTE ET PHILOSOPHIE ===
 Tu ne dois pas agir comme un simple générateur de code UI ou un designer web.
