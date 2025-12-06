@@ -272,7 +272,7 @@ Et c'est à partir de cette ultra analyse que tu vas combiné cela avec les inst
 - **Structure Interne:**
   - Les éléments doivent être bien groupés logiquement.
   - La section "Profil/User" ne doit pas être isolée par une ligne, mais simplement positionnée (souvent en bas) avec de l'espace.
-
+  - Les éléments doivent être bien cadrer et pas touché les bords de la sidebar.
 **C. MICRO-COMPOSANTS DE LA SIDEBAR (MENUS & INPUTS)**
 - **Design des Items (Menus & Searchbox):**
   - **Border-Radius:** Doit être **très rounded**, compris entre **10px et 13px**. C'est impératif pour le style ("plus beau comme ça").
@@ -286,13 +286,13 @@ Et c'est à partir de cette ultra analyse que tu vas combiné cela avec les inst
   - **Fond:** Suit le même principe que la Sidebar (#000 si Dark, #FFF si Light).
   - **Sans Bordures:** Cette Topbar ne doit **absolument pas avoir de bordures**, donc aucun \`border-bottom\`. Elle doit se fondre dans le header.
 - **Dimensions & Contraintes:**
-  - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **30px**. C'est "fixé comme ça, pas trop grand".
-  - **Boutons & Éléments internes:** Tous les boutons ou inputs dans cette barre doivent avoir une taille (height) de **30px à 32px**.
+  - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **45px** elle doit avoir de bon padding top et bottom pour les éléments qui sont à l'intérieur d'elle car ils ne doivent pas être trop coller à elle. C'est "fixé comme ça, pas trop grand".
+  - **Boutons & Éléments internes:** Tous les boutons ou inputs dans cette barre doivent avoir une taille (height) de **32px à 35px** leur couleur ne doit pas être trop voyante mais juste sobre et calme et belle.
 
 **E. RESPONSIVE & QUALITÉ**
 - L'IA doit structurer le code pour que la Sidebar puisse disparaître proprement ou devenir un "Drawer" sur mobile, sans casser la logique de couleur (#000/#FFF).
 - Les éléments internes doivent rester bien structurés et alignés, même lors du redimensionnement. surtout ils même si c'est du texte doit être responsive pour des tailles d'écran allant à maximum 750px. Tu dois faire que ce soit bien responsive sans avoir des éléments qui sortent et casse le composant.
-
+- Quand on parle de responside c'est dans le fichier \`app\globals.css\` que tu va définir la responsive, en utilisant des propriétés css \`media queries\` et après importer cela dans le className du jsx. Ta logique de responsive ne doit pas se faire côté front end mais sur le fichier global des styles et doit absolument être logique même si la page que tu as généré à trois sections.
 - **Surface Glass (Verre):**
 
   - CSS: \`background: rgba(10, 10, 10, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);\`
