@@ -24,7 +24,7 @@ const FULL_PROMPT_INJECTION = `
 - **Dimensions:**
   - **Largeur:** Elle doit avoir une largeur fixe d'au moins **250px**. Ne jamais faire trop étroit.
 - **Séparation des Sections (Clean Layout):**
-  - **Interdiction de Bordures:** Il faut éviter de séparer les sections (ex: Menu principal vs Management de profil) avec des `border-top` ou `border-bottom`.
+  - **Interdiction de Bordures:** Il faut éviter de séparer les sections (ex: Menu principal vs Management de profil) avec des \`border-top\` ou \`border-bottom\`.
   - **Espacement:** Utiliser uniquement le vide (padding/margin) pour séparer les groupes. Même si les éléments sont espacés, ne jamais rajouter une ligne de séparation visible.
 - **Structure Interne:**
   - Les éléments doivent être bien groupés logiquement.
@@ -40,9 +40,9 @@ const FULL_PROMPT_INJECTION = `
 - **Contexte:** Quand une Sidebar est présente (Dashboard).
 - **Style Visuel:**
   - **Fond:** Suit le même principe que la Sidebar (#000 si Dark, #FFF si Light).
-  - **Sans Bordures:** Cette Topbar ne doit **absolument pas avoir de bordures**, donc aucun `border-bottom`. Elle doit se fondre dans le header.
+  - **Sans Bordures:** Cette Topbar ne doit **absolument pas avoir de bordures**, donc aucun \`border-bottom\`. Elle doit se fondre dans le header.
 - **Dimensions & Contraintes:**
-  - **Hauteur Maximale:** La `height` du conteneur Topbar ne doit pas dépasser **30px**. C'est "fixé comme ça, pas trop grand".
+  - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **30px**. C'est "fixé comme ça, pas trop grand".
   - **Boutons & Éléments internes:** Tous les boutons ou inputs dans cette barre doivent avoir une taille (height) de **30px à 32px**.
 
 **E. RESPONSIVE & QUALITÉ**
