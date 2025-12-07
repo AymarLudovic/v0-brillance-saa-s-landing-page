@@ -284,6 +284,8 @@ Et c'est à partir de cette ultra analyse que tu vas combiné cela avec les inst
 - **Contexte:** Quand une Sidebar est présente (Dashboard).
 - **Style Visuel:**
   - **Fond:** Suit le même principe que la Sidebar (#000 si Dark, #FFF si Light).
+  - **Le font de la top bar doit toujours être comme celle de la section en bas d'elle. 
+ -  **Evite de donner à ces deux sections la des background fancy, trop voyante, comme du Bleu, bleu ciel bleu cassé, etc non, c'est soit du bly #fff soit une variante clair du blanc ou même des couleurs sui vont dans le sens du Beige, c'est ce type de couleur que tu dois donner, pas celle qui sont trop voyantes et lumineuse là.
   - **Sans Bordures:** Cette Topbar ne doit **absolument pas avoir de bordures**, donc aucun \`border-bottom\`. Elle doit se fondre dans le header.
 - **Dimensions & Contraintes:**
   - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **45px** elle doit avoir de bon padding top et bottom pour les éléments qui sont à l'intérieur d'elle car ils ne doivent pas être trop coller à elle. C'est "fixé comme ça, pas trop grand".
