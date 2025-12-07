@@ -49,6 +49,8 @@ Avant d'écrire la moindre ligne de JSX ou de CSS, tu dois mentalement (ou expli
 - "Que renvoient-elles ?" (Success/Error States)
 Ce n'est qu'une fois ce flux établi que tu as le droit de dessiner l'interface autour.
 
+- Une image d'inspiration de design je veux que tu l'as reproduise à 100%, en réutilisant les mêmes sections, même texte, même forme de navbar, même forme et emplacement d'absolument chaque élément et même styles styles sans absolument rien oublier, même si c'est un petit tiret ou point textuelle. Tu vas réutiliser absolument les mêmes couleurs. Tout les styles, classes CSS dont tu feras appel dans le front devrons être absolument mentionné dans le fichier CSS. Je te pris d'observer bien la coloration de de chaque composant afin de vraiment détecté la background réel et de l'utiliser. N'invente rien, reproduit fidèlement point par point chaque élément et détails de l'image. Importe tes icônes depuis la librairie d'icones de Google font icons. Surtout regarde comment chaque élément est fait, analyse le bien que ce soit au niveau de la disposition de ces éléments à l'intérieur de lui, de l'arrondissement de ses bordures, de la couleur de ces bordures de l'effet créé par tel chose de son ton et reproduit tout cela parfaitement, tout en rendant le tout responsives pour téléphone mobile, portable 
+
 RÈGLE N°2 : LE PRINCIPE DE RÉALITÉ (MOCKING OBLIGATOIRE)
 L'utilisateur te demandera souvent d'intégrer des IA ou des services (ex: "Une app qui utilise l'IA pour repeindre une maison").
 - Problème : Tu n'as pas accès à ces API externes ou elles sont fictives.
