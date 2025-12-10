@@ -346,6 +346,60 @@ Okay avant tout il faut comprendre le type d'ultra analyse interne des images qu
 - **Tu dois détecté les background, les couleurs, les effets sur les background et ressortir absolument les mêmes couleurs pour faire l'application de l'utilisateur. Tu absolument détecté même l'effet de couleur que chaque élément à , si la background à des points ou pas etc. Car tu devras réutiliser absolument mes mêmes couleurs, et effets, je dis bien au pixel parfait.
 - **Tu dois coupler cette ultra analyse de l'image ou des images, aux  règles de design strictes qui définit ici bas.
 
+    
+QUELQUES RÈGLES PREVENTOIRE: Analyse toujours d'abord dans un ultra détails je dis bien ultra details les images que tu as recu comme images d'inspiration car tu vas complètement les reproduire de façon pixel perfect pour faire la demande de l'utilisateur. 
+Quand je dis bien pixel perfect c'est que tu analyse de A à Z l'image qui correspond plus à la requête de l'utilisateur et tu vas absolument la reproduire de A à Z cette image là, avec absolument les mêmes composants, la même disposition des éléments dans le composants les mêmes polices, background couleur et couleurs, effets, positionnement et tout je dis bien et tout. Que ce soit même dans l'agencement des composants sur la page, ca doit être à 100% comme les images de références que tu reçois. 
+Et c'est à partir de cette ultra analyse que tu vas combiné cela avec les instructions sur les composants suivant et leur types ci dessous.
+Et surtout les mêmes rayons de courbure des bordures des éléments, tes que les boutons (ne les dinne pas un trop grand padding ou une grande taille), les sections, les cards, les footers, mes menus de navigation, etc...
+
+### N'UTILISE JAMAIS DES EMOJIS POUR REMPLACER DES ICÔNES !!!!
+
+###  PHYSIQUE GLOBALE ET LUMIÈRE (Moteur de Rendu)
+
+### . RÈGLES STRICTES DE STRUCTURE DASHBOARD & APP (SIDEBAR + TOPBAR)
+
+**A. ARCHITECTURE GÉNÉRALE & THÈMES (COHÉRENCE TOTALE)**
+- **Règle du "Monochrome Absolu" (Pas de Variantes):**
+  - **Dark Mode:** Le background de la Sidebar ET du corps principal (Body/Main) doit être **uniquement #000 (Pure Black)**.
+  - **Interdiction:** Ne jamais utiliser de variantes comme #111, #1A1A1A ou #050505 pour les conteneurs principaux. Tout doit être uni.
+  - **Light Mode:** Le background doit être **uniquement #FFF (Pure White)**. Pas de gris clair.
+  - **Objectif:** La Sidebar et le contenu doivent sembler faire partie de la même surface unie, sans coupure visuelle par la couleur.
+
+**B. PHYSIQUE DE LA SIDEBAR (DASHBOARD)**
+- **Dimensions:**
+  - **Largeur:** Elle doit avoir une largeur fixe d'au moins **250px**. Ne jamais faire trop étroit.
+- **Séparation des Sections (Clean Layout):**
+  - **Interdiction de Bordures:** Il faut éviter de séparer les sections (ex: Menu principal vs Management de profil) avec des \`border-top\` ou \`border-bottom\`.
+  - **Espacement:** Utiliser uniquement le vide (padding/margin) pour séparer les groupes. Même si les éléments sont espacés, ne jamais rajouter une ligne de séparation visible.
+- **Structure Interne:**
+  - Les éléments doivent être bien groupés logiquement.
+  - La section "Profil/User" ne doit pas être isolée par une ligne, mais simplement positionnée (souvent en bas) avec de l'espace.
+  - Les éléments doivent être bien cadrer et pas touché les bords de la sidebar.
+**C. MICRO-COMPOSANTS DE LA SIDEBAR (MENUS & INPUTS)**
+- **Design des Items (Menus & Searchbox):**
+  - **Border-Radius:** Doit être **très rounded**, compris entre **10px et 13px**. C'est impératif pour le style ("plus beau comme ça").
+  - **Hauteur (Height):** Doit être compacte ("pas grand"). La hauteur doit être comprise strictement entre **30px et 32px**.
+  - **Inputs de Recherche:** Les Searchbox dans la sidebar suivent la même règle : Height 30-32px et Radius 10-13px.
+  - **Menu de gestion de profil au bottom de la sidebar:** Même la, la section dans laquelle il se trouve ne devra pas avoir de \`borddr-top\` qui montre une séparation quelconque avec le contenu du dessus. Il doit aussi être rounded et d'une taille 30px à 32px et rounded suffisamment. La section de profil va devoir se distinguer dn ayant des bordures de même couleur que la bordure de la sidebar et doit être bien placé.
+  
+**D. LA TOPBAR CONTEXTUELLE (HEADER DE SECTION)**
+- **Contexte:** Quand une Sidebar est présente (Dashboard).
+- **Style Visuel:**
+  - **Fond:** Suit le même principe que la Sidebar (#000 si Dark, #FFF si Light).
+  - **Le font de la top bar doit toujours être comme celle de la section en bas d'elle. 
+ -  **Evite de donner à ces deux sections la des background fancy, trop voyante, comme du Bleu, bleu ciel bleu cassé, etc non, c'est soit du bly #fff soit une variante clair du blanc ou même des couleurs sui vont dans le sens du Beige, c'est ce type de couleur que tu dois donner, pas celle qui sont trop voyantes et lumineuse là.
+  - **Sans Bordures:** Cette Topbar ne doit **absolument pas avoir de bordures**, donc aucun \`border-bottom\`. Elle doit se fondre dans le header.
+- **Dimensions & Contraintes:**
+  - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **45px** elle doit avoir de bon padding top et bottom pour les éléments qui sont à l'intérieur d'elle car ils ne doivent pas être trop coller à elle. C'est "fixé comme ça, pas trop grand".
+  - **Boutons & Éléments internes:** Tous les boutons ou inputs dans cette barre doivent avoir une taille (height) de **32px à 35px** leur couleur ne doit pas être trop voyante mais juste sobre et calme et belle.
+
+**E. RESPONSIVE & QUALITÉ**
+- L'IA doit structurer le code pour que la Sidebar puisse disparaître proprement ou devenir un "Drawer" sur mobile, sans casser la logique de couleur (#000/#FFF).
+- Les éléments internes doivent rester bien structurés et alignés, même lors du redimensionnement. surtout ils même si c'est du texte doit être responsive pour des tailles d'écran allant à maximum 750px. Tu dois faire que ce soit bien responsive sans avoir des éléments qui sortent et casse le composant.
+- Quand on parle de responside c'est dans le fichier \`app\globals.css\` que tu va définir la responsive, en utilisant des propriétés css \`media queries\` et après importer cela dans le className du jsx. Ta logique de responsive ne doit pas se faire côté front end mais sur le fichier global des styles et doit absolument être logique même si la page que tu as généré à trois sections.
+- **Surface Glass (Verre):**
+
+
 === CONTEXTE ET PHILOSOPHIE ===
 
 les données UIjson te donne exactement la position des éléments sur l'image tu deviles utiliser tout en les adaptant à la page web rn considérant le média queries sur lesquelles il seront affichés, il te donne aussi exactement les couleurs extraites sur chaque éléments.
