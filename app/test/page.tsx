@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import Script from "next/script";
 
 export default function AnalyzePage() {
@@ -8,176 +8,225 @@ export default function AnalyzePage() {
   const [isOpenCvReady, setIsOpenCvReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
 
-  // Fonction appelée quand OpenCV.js est fini de charger depuis le CDN
+  // Initialisation d'OpenCV
   const onOpenCvLoaded = () => {
-    console.log("OpenCV.js est prêt !");
-    // On attend un petit peu que la variable globale 'cv' soit bien initialisée
-    setTimeout(() => {
-        setIsOpenCvReady(true);
-    }, 500);
+    // On attend que cv soit globalement disponible
+    cv['onRuntimeInitialized'] = () => {
+      console.log("OpenCV.js est prêt et initialisé !");
+      setIsOpenCvReady(true);
+    };
   };
 
-  // Gérer l'upload de l'image
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       setImageSrc(event.target.result);
-      // Une fois l'image chargée, on la dessine dans le canvas
       const img = new Image();
-      img.onload = () => {
-        drawOriginalImage(img);
-      };
+      img.onload = () => drawOriginalImage(img);
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   };
 
-  // Dessiner l'image originale sur le canvas
   const drawOriginalImage = (img) => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    // On adapte la taille du canvas à l'image
     canvas.width = img.width;
     canvas.height = img.height;
     ctx.drawImage(img, 0, 0);
   };
 
-
-  // --- LE CŒUR DU REACTEUR : LA DÉTECTION VIA OPENCV ---
+  // --- ALGORITHME RENFORCÉ V3 (Objectif 99%) ---
   const detectShapes = () => {
     if (!isOpenCvReady || !canvasRef.current || !imageSrc) return;
     setIsProcessing(true);
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    
-    // On redessine l'image originale pour effacer les anciens tracés si on clique plusieurs fois
+
+    // Recharger l'image propre avant de dessiner par dessus
     const img = new Image();
     img.src = imageSrc;
     img.onload = () => {
-        ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0);
 
-        try {
-            // 1. Lire l'image du canvas dans une matrice OpenCV
-            let src = cv.imread(canvas);
-            let gray = new cv.Mat();
-            let blurred = new cv.Mat();
-            let edges = new cv.Mat();
+      try {
+        // --- 1. PRÉPARATION ---
+        let src = cv.imread(canvas);
+        let gray = new cv.Mat();
+        let blurred = new cv.Mat();
+        let binary = new cv.Mat();
         
-            // 2. Convertir en niveaux de gris (la couleur gêne la détection de forme)
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-        
-            // 3. Flouter légèrement pour réduire le "bruit" (les petits détails inutiles)
-            // Tu peux jouer sur le (5, 5) pour flouter plus ou moins
-            cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-        
-            // 4. Détection des bords (Canny Edge Detection)
-            // Les valeurs 50 et 150 sont des seuils. Joue avec si ça détecte trop ou pas assez.
-            cv.Canny(blurred, edges, 50, 150);
-        
-            // 5. Trouver les contours basés sur les bords
-            let contours = new cv.MatVector();
-            let hierarchy = new cv.Mat();
-            // RETR_EXTERNAL permet de ne prendre que les contours extérieurs principaux
-            // Si tu veux aussi les éléments DANS les éléments, utilise cv.RETR_TREE
-            cv.findContours(edges, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
-        
-            console.log(`Nombre de formes détectées : ${contours.size()}`);
-        
-            // Configurer le style du tracé (vert fluo, épais)
-            ctx.strokeStyle = "#00FF00"; // Vert lime
-            ctx.lineWidth = 2;
-        
-            // 6. Boucler sur tous les contours trouvés
-            for (let i = 0; i < contours.size(); ++i) {
-                let contour = contours.get(i);
-                
-                // Optionnel : Filtrer les trop petits éléments (bruit)
-                let area = cv.contourArea(contour);
-                if (area < 100) continue; // Ignore les formes de moins de 100px²
+        // Convertir en gris
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
 
-                // Obtenir le rectangle englobant (bounding box) du contour
-                let rect = cv.boundingRect(contour);
+        // Flou léger pour tuer le "bruit" (les pixels isolés qui ne sont pas des formes)
+        // Tu peux essayer (3,3) ou (5,5)
+        cv.GaussianBlur(gray, blurred, new cv.Size(3, 3), 0);
+
+        // --- 2. DÉTECTION AGRESSIVE (ADAPTIVE THRESHOLD) ---
+        // C'est ici que ça change tout. Au lieu d'un seuil fixe, on s'adapte à la luminosité locale.
+        // Paramètres : 255 (max), ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY_INV (inverser pour avoir contours blancs sur fond noir)
+        // 11 : Taille du bloc de voisinage (doit être impair)
+        // 2 : Constant soustraite (réglage de sensibilité fine)
+        cv.adaptiveThreshold(blurred, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
+
+        // --- 3. REPARATION DES FORMES (MORPHOLOGY) ---
+        // On va "fermer" les trous. Si un rectangle a un bord discontinu, ça le recolle.
+        let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+        // Dilatation + Erosion = Closing. Ça bouche les trous.
+        cv.morphologyEx(binary, binary, cv.MORPH_CLOSE, kernel);
+
+
+        // --- 4. TROUVER LES CONTOURS ---
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        // RETR_TREE : Récupère TOUTE la hiérarchie (parents, enfants, petits-enfants)
+        // CHAIN_APPROX_SIMPLE : Économise la mémoire en gardant les points essentiels
+        cv.findContours(binary, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
+
+        console.log(`Nombre total d'éléments détectés : ${contours.size()}`);
+
+        // --- 5. DESSIN ---
+        ctx.lineWidth = 2;
+
+        for (let i = 0; i < contours.size(); ++i) {
+            let contour = contours.get(i);
+            
+            // Approximation de polygone (rend les formes plus "carrées" et moins organiques)
+            let perimeter = cv.arcLength(contour, true);
+            let approx = new cv.Mat();
+            cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
+
+            // Bounding Rect (le cadre)
+            let rect = cv.boundingRect(approx);
+            let area = rect.width * rect.height;
+
+            // --- FILTRAGE INTELLIGENT ---
+            // 1. On ignore ce qui est trop petit (poussière) : < 100px²
+            // 2. On ignore ce qui est trop grand (souvent le cadre entier de l'image) : > 98% de l'image
+            let canvasArea = canvas.width * canvas.height;
+            
+            if (area > 100 && area < (canvasArea * 0.98)) {
                 
-                // Dessiner le rectangle sur le canvas JS normal
+                // Code couleur selon la hiérarchie pour le debug (Optionnel, ici tout rouge)
+                // Si tu veux distinguer les "parents" des "enfants", tu peux utiliser 'hierarchy'
+                
+                ctx.strokeStyle = "#FF0000"; // ROUGE pour tout voir
+                
+                // On dessine le rectangle
                 ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-
-                // Si tu veux aussi détecter les cercles spécifiquement, c'est un autre algo (HoughCircles)
-                // mais boundingRect fait déjà un bon travail pour encadrer tout ce qu'il voit.
+                
+                // Si tu veux dessiner les points exacts du contour au lieu du rectangle :
+                // cv.drawContours(src, contours, i, new cv.Scalar(255, 0, 0, 255), 1);
             }
-        
-            // 7. Nettoyage de la mémoire (TRÈS IMPORTANT avec OpenCV.js)
-            src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
-        
-        } catch (err) {
-            console.error("Erreur OpenCV :", err);
-            alert("Erreur lors de la détection. Vérifie la console.");
-        } finally {
-            setIsProcessing(false);
+            
+            approx.delete();
         }
-    }
+
+        // --- 6. NETTOYAGE MÉMOIRE (CRUCIAL) ---
+        src.delete();
+        gray.delete();
+        blurred.delete();
+        binary.delete();
+        kernel.delete();
+        contours.delete();
+        hierarchy.delete();
+
+      } catch (err) {
+        console.error("Erreur OpenCV :", err);
+      } finally {
+        setIsProcessing(false);
+      }
+    };
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-        {/* Chargement du script OpenCV depuis un CDN gratuit */}
+    <div className="min-h-screen bg-gray-100 p-8 font-sans">
       <Script 
         src="https://docs.opencv.org/4.8.0/opencv.js" 
         onLoad={onOpenCvLoaded}
         strategy="afterInteractive"
       />
 
-      <h1 className="text-3xl font-bold mb-6">Détecteur de structure (Style Wireframe)</h1>
+      <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-xl p-6">
+        <header className="mb-8 border-b pb-4">
+          <h1 className="text-3xl font-extrabold text-gray-800">
+            Détecteur UI "Wireframe" <span className="text-red-600 text-sm">(Mode Renforcé)</span>
+          </h1>
+          <p className="text-gray-500 mt-2">
+            Utilise le seuillage adaptatif et la morphologie mathématique pour maximiser la détection.
+          </p>
+        </header>
 
-      {!isOpenCvReady && (
-        <div className="bg-yellow-100 text-yellow-800 p-4 rounded mb-4">
-          Chargement du moteur de détection (OpenCV)... Patientez.
+        <div className="flex flex-col gap-6">
+          {/* Zone de contrôle */}
+          <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-lg border">
+            {!isOpenCvReady ? (
+              <span className="flex items-center gap-2 text-orange-600 font-semibold animate-pulse">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Chargement moteur IA...
+              </span>
+            ) : (
+              <span className="text-green-600 font-bold flex items-center gap-2">
+                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Moteur Prêt
+              </span>
+            )}
+
+            <input
+              type="file"
+              accept="image/*"
+              disabled={!isOpenCvReady}
+              onChange={handleImageUpload}
+              className="block w-full text-sm text-slate-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100 cursor-pointer disabled:opacity-50"
+            />
+
+            <button
+              onClick={detectShapes}
+              disabled={!imageSrc || isProcessing || !isOpenCvReady}
+              className={`whitespace-nowrap px-6 py-2 rounded-lg text-white font-bold transition-all shadow-md ${
+                !imageSrc || isProcessing 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-red-600 hover:bg-red-700 active:scale-95'
+              }`}
+            >
+              {isProcessing ? 'Analyse...' : 'DÉTECTION MAXIMALE'}
+            </button>
+          </div>
+
+          {/* Zone d'affichage */}
+          <div className="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 min-h-[400px] flex items-center justify-center overflow-auto">
+             {/* Le canvas est caché tant qu'il n'y a pas d'image, mais il doit exister dans le DOM */}
+             <canvas 
+                ref={canvasRef} 
+                className={`max-w-full h-auto shadow-lg ${!imageSrc ? 'hidden' : 'block'}`}
+             />
+             
+             {!imageSrc && (
+               <div className="text-center text-gray-400">
+                 <svg className="w-16 h-16 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 8.282 8.282 0 0111.314 0L20 21H4z" />
+                 </svg>
+                 <p>Uploadez une interface pour commencer</p>
+               </div>
+             )}
+          </div>
         </div>
-      )}
-
-      {isOpenCvReady && (
-        <div className="mb-6 space-y-4">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            ref={fileInputRef}
-            className="block w-full text-sm text-slate-500
-              file:mr-4 file:py-2 file:px-4
-              file:rounded-full file:border-0
-              file:text-sm file:font-semibold
-              file:bg-violet-50 file:text-violet-700
-              hover:file:bg-violet-100"
-          />
-          
-          <button
-            onClick={detectShapes}
-            disabled={!imageSrc || isProcessing}
-            className={`px-6 py-2 rounded text-white font-bold transition-colors ${
-              !imageSrc || isProcessing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {isProcessing ? 'Analyse en cours...' : 'Tout Détecter & Tracer'}
-          </button>
-        </div>
-      )}
-
-      <div className="border-2 border-gray-300 rounded p-2 bg-gray-50 inline-block">
-        {/* Le canvas où tout se passe */}
-        <canvas ref={canvasRef} className="max-w-full h-auto" />
-        {!imageSrc && <p className="text-gray-500 text-center p-4">L'image apparaîtra ici</p>}
       </div>
-      
-      {imageSrc && (
-         <p className="mt-4 text-sm text-gray-600">
-            Si le résultat est trop chargé, il faut ajuster les seuils `cv.Canny(blurred, edges, 50, 150);` dans le code.
-         </p>
-      )}
     </div>
   );
-  }
+}
