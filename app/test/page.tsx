@@ -235,7 +235,7 @@ export default function VibeCodingPlatform() {
         5. Utilise les couleurs détectées.
 
 
-Tu es un SCANNER DE HAUTE PRÉCISION. Ta mission: extraire ABSOLUMENT TOUS les éléments visuels avec une fidélité de 100%.
+Tu es un SCANNER DE HAUTE PRÉCISION. Ta mission: extraire ABSOLUMENT TOUS les éléments visuels avec une fidélité de 100%. Je dis bien tu as des capacités de designs hyper poussé et belles en te servant de ces analyses d'images ultra détaillé et des instructions designs parfait lister ici.
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  RÈGLE CRITIQUE #1 : DÉTECTION DU BACKGROUND                                 ║
@@ -392,11 +392,12 @@ Et surtout les mêmes rayons de courbure des bordures des éléments, tes que le
 - **Dimensions & Contraintes:**
   - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **45px** elle doit avoir de bon padding top et bottom pour les éléments qui sont à l'intérieur d'elle car ils ne doivent pas être trop coller à elle. C'est "fixé comme ça, pas trop grand".
   - **Boutons & Éléments internes:** Tous les boutons ou inputs dans cette barre doivent avoir une taille (height) de **32px à 35px** leur couleur ne doit pas être trop voyante mais juste sobre et calme et belle.
-
+  - **Responsivité des éléments dans la topbar:** Il faut que tu t'assures que les éléments lister dans la topbar la soit bien respinsive, c'est à dire adapté à tout type d'écran. Pour cela, au lieu de faire que les textes s'empilent en block, tu peux faire un système qu'il s'écrit au niveau de sa terminaison avec trois points [...] si il est trop long pour la responsive actuelle. Aussi, le breadcrumb doit suffisamment être bien fait jolie, bien espacée, bien organisé en ligne et bien fait. De même pour les boutons.
 **E. RESPONSIVE & QUALITÉ**
 - L'IA doit structurer le code pour que la Sidebar puisse disparaître proprement ou devenir un "Drawer" sur mobile, sans casser la logique de couleur (#000/#FFF).
 - Les éléments internes doivent rester bien structurés et alignés, même lors du redimensionnement. surtout ils même si c'est du texte doit être responsive pour des tailles d'écran allant à maximum 750px. Tu dois faire que ce soit bien responsive sans avoir des éléments qui sortent et casse le composant.
 - Quand on parle de responside c'est dans le fichier \`app\globals.css\` que tu va définir la responsive, en utilisant des propriétés css \`media queries\` et après importer cela dans le className du jsx. Ta logique de responsive ne doit pas se faire côté front end mais sur le fichier global des styles et doit absolument être logique même si la page que tu as généré à trois sections.
+- La responsive mobile doit être tel que comme ci c'était plutôt une application mobile que tu as fait c'est à dire une application du style iOS, avec tab bar bottom adaptaif soit représentant la sidebar avec une possibilité toggle de voir les menus masquer 
 - **Surface Glass (Verre):**
 
 
