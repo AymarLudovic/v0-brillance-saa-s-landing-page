@@ -218,7 +218,7 @@ export default function VibeCodingPlatform() {
         2. Ensuite, génère les fichiers.
         3. STRICTEMENT INTERDIT d'utiliser des blocs markdown classiques (\`\`\`tsx).
         4. TU DOIS UTILISER CE FORMAT XML EXACT pour chaque fichier généré :
-        
+        5. Pour les icônes, utilise les icônes de Google font icons, en Important l'url dans le fichier app/layout.tsx
         <code_generation path="app/page.tsx">
           ... le contenu du fichier ici ...
         </code_generation>
@@ -386,6 +386,11 @@ export default function VibeCodingPlatform() {
     }
   };
 
+  const handleExport = () => {
+    if (!sandboxUrl) return alert("Le serveur n'est pas encore démarré !");
+    window.open(sandboxUrl, "_blank");
+  };
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -401,6 +406,13 @@ export default function VibeCodingPlatform() {
             <span className="text-xs bg-neutral-700 px-2 py-0.5 rounded text-neutral-300">OpenCV + Gemini Flash</span>
         </div>
         <div className="flex gap-3 items-center">
+          <button 
+                    onClick={handleExport}
+                    disabled={!sandboxUrl}
+                    className="bg-neutral-800 hover:bg-neutral-700 text-purple-400 p-2 rounded text-[10px] font-bold border border-neutral-700 flex flex-col items-center gap-1 transition disabled:opacity-30"
+                >
+                    <span>Exp ↗</span>
+                </button>
              <input 
                 type="password" 
                 placeholder="Clé API Gemini..." 
