@@ -406,6 +406,38 @@ les données UIjson te donne exactement la position des éléments sur l'image t
         DONNÉES UI (JSON):
         ${jsonContext}
 
+    NB: Assure toi de toujours bien définir les types et tout ce que tu as besoin afin que lors du build de ton code, on ne retrouve pas ce type d'erreurs: 
+   \`\`\`
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+
+[ERR] Failed to compile.
+
+./app/components/AICoPilotPanel.tsx:97:10
+Type error: Cannot find name 'Card'.
+
+[0m [90m  95 |[39m[0m
+[0m [90m  96 |[39m         {[90m/* Prompt Card */[39m}[0m
+[0m[31m[1m>[22m[39m[90m  97 |[39m         [33m<[39m[33mCard[39m[0m
+[0m [90m     |[39m          [31m[1m^[22m[39m[0m
+[0m [90m  98 |[39m           backgroundColor[33m=[39m[32m"var(--bg-chat-user)"[39m[0m
+[0m [90m  99 |[39m           padding[33m=[39m[32m"15px"[39m[0m
+[0m [90m 100 |[39m           borderRadius[33m=[39m[32m"10px"[39m[0m
+
+[FAIL] Erreur API
+
+> dev
+> next dev -p 3000 -H 0.0.0.0
+
+sh: 1: next: not found
+
+[ERR] Server may not be ready yet
+[FAIL] Erreur API
+\`\`\`
+
+Tu dois t'assurer que l'on ne trouve jamais aucune erreur dans le code que tu génère quelques soit le fichier et l'intention. Le but est que le build soit toujours un succès.
+
         DEMANDE UTILISATEUR:
         ${promptText}
         `;
