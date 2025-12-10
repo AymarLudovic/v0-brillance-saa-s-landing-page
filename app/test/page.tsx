@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Script from "next/script";
 
-// Types pour la structure
+// --- TYPES ---
 type DetectedElement = {
   id: number;
   x: number;
@@ -16,7 +16,11 @@ type DetectedElement = {
 type ChatMessage = {
   role: "user" | "model";
   text: string;
-  isCode?: boolean;
+};
+
+type FileToWrite = {
+  path: string;
+  content: string;
 };
 
 export default function VibeCodingPlatform() {
@@ -31,6 +35,7 @@ export default function VibeCodingPlatform() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [promptInput, setPromptInput] = useState("");
+  const [pendingFiles, setPendingFiles] = useState<FileToWrite[]>([]);
 
   // --- STATES SANDBOX ---
   const [sandboxId, setSandboxId] = useState<string | null>(null);
@@ -42,7 +47,7 @@ export default function VibeCodingPlatform() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // ----------------------------------------------------------------------
-  // 1. MOTEUR OPENCV (V6 - LE FIABLE)
+  // 1. MOTEUR OPENCV (V6 - LE FIABLE & AGRESSIF)
   // ----------------------------------------------------------------------
 
   const rgbToHex = (r: number, g: number, b: number) => 
@@ -183,19 +188,19 @@ export default function VibeCodingPlatform() {
   };
 
   // ----------------------------------------------------------------------
-  // 2. IA GEMINI (DIRECT GOOGLE API)
+  // 2. IA GEMINI (GEMINI 2.5 FLASH & XML PARSING)
   // ----------------------------------------------------------------------
 
   const sendToGemini = async (customPrompt?: string, attachContext: boolean = false) => {
     if (!apiKey) {
-        alert("Entre ta clé API Gemini (Google AI Studio) en bas à droite.");
+        alert("Entre ta clé API Gemini (Google AI Studio) en haut à droite.");
         return;
     }
 
     setIsLoadingAI(true);
     let promptText = customPrompt || promptInput;
     
-    // Si c'est un transfert d'analyse, on prépare le contexte
+    // Construction du Prompt Système STRICT
     if (attachContext && elements.length > 0) {
         const jsonContext = JSON.stringify(elements.map(e => ({
             type: "ui_block",
@@ -206,20 +211,33 @@ export default function VibeCodingPlatform() {
 
         promptText = `
         ROLE: Tu es un Expert Développeur Next.js 15 & React.
-        TACHE: Recréer cette interface UI à partir de l'image et des données JSON fournies.
+        TACHE: Recréer cette interface UI à partir de l'image et des données JSON.
+
+        RÈGLES IMPORTANTES DE RÉPONSE :
+        1. Commence par expliquer ton raisonnement.
+        2. Ensuite, génère les fichiers.
+        3. STRICTEMENT INTERDIT d'utiliser des blocs markdown classiques (\`\`\`tsx).
+        4. TU DOIS UTILISER CE FORMAT XML EXACT pour chaque fichier généré :
         
-        CONTRAINTES STRICTES:
-        1. Utilise Next.js 15 (App Router).
-        2. Utilise TypeScript.
-        3. INTERDIT d'utiliser Tailwind CSS. Utilise des styles inline (style={{...}}) ou Styled-components pour la simplicité du fichier unique.
-        4. Le code doit être RESPONSIVE. Utilise les positions JSON comme guide relatif (header en haut, sidebar à gauche), mais implémente-le avec Flexbox/Grid.
-        5. Utilise les couleurs détectées dans le JSON.
-        6. Si tu vois des icônes, utilise "lucide-react" ou des placeholders SVG.
-        
-        DONNÉES ANALYSÉES (JSON):
+        <code_generation path="app/page.tsx">
+          ... le contenu du fichier ici ...
+        </code_generation>
+
+        <code_generation path="app/components/Button.tsx">
+          ... le contenu du fichier ici ...
+        </code_generation>
+
+        CONTRAINTES TECHNIQUES :
+        1. Next.js 15 (App Router).
+        2. TypeScript.
+        3. PAS de Tailwind CSS. Utilise 'style={{}}' ou des modules CSS.
+        4. Utilise les coordonnées JSON pour respecter la mise en page (Flexbox/Grid).
+        5. Utilise les couleurs détectées.
+
+        DONNÉES UI (JSON):
         ${jsonContext}
 
-        INSTRUCTION UTILISATEUR:
+        DEMANDE UTILISATEUR:
         ${promptText}
         `;
     }
@@ -229,10 +247,8 @@ export default function VibeCodingPlatform() {
     setPromptInput("");
 
     try {
-        // Préparation du payload Gemini
         const contentsParts = [{ text: promptText }];
         
-        // Ajout de l'image si nécessaire
         if (attachContext && imageSrc) {
             const base64Image = imageSrc.split(",")[1];
             // @ts-ignore
@@ -244,7 +260,8 @@ export default function VibeCodingPlatform() {
             });
         }
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyAUTVo3z54UWpX-So7hA284OWXEezNW5WA`, {
+        // URL MISE À JOUR : Gemini 2.5 Flash
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -255,7 +272,14 @@ export default function VibeCodingPlatform() {
         const data = await response.json();
         const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Erreur: Pas de réponse de l'IA";
 
-        setChatMessages(prev => [...prev, { role: "model", text: aiResponse, isCode: aiResponse.includes("```") }]);
+        setChatMessages(prev => [...prev, { role: "model", text: aiResponse }]);
+
+        // Analyse immédiate pour voir si on a des fichiers prêts
+        const files = extractFilesFromResponse(aiResponse);
+        if (files.length > 0) {
+            setPendingFiles(files);
+            setLogs(prev => prev + `\n[IA] ${files.length} fichiers détectés prêts à être écrits.`);
+        }
 
     } catch (error) {
         console.error("Gemini Error:", error);
@@ -265,8 +289,26 @@ export default function VibeCodingPlatform() {
     }
   };
 
+  // Parser XML personnalisé pour extraire le code
+  const extractFilesFromResponse = (text: string): FileToWrite[] => {
+    const files: FileToWrite[] = [];
+    // Regex qui cherche <code_generation path="..."> CONTENT </code_generation>
+    const regex = /<code_generation path="([^"]+)">([\s\S]*?)<\/code_generation>/g;
+    
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        if (match[1] && match[2]) {
+            files.push({
+                path: match[1].trim(),
+                content: match[2].trim()
+            });
+        }
+    }
+    return files;
+  };
+
   // ----------------------------------------------------------------------
-  // 3. SANDBOX CONTROL (E2B via /api/sandbox)
+  // 3. SANDBOX CONTROL (E2B via /api/sandbox) - ACTIONS SÉPARÉES
   // ----------------------------------------------------------------------
 
   const callSandboxApi = async (action: string, payload: any = {}) => {
@@ -278,73 +320,72 @@ export default function VibeCodingPlatform() {
             body: JSON.stringify({ action, sandboxId, ...payload })
         });
         const data = await res.json();
-        if (!data.success) throw new Error(data.error || "Erreur API");
         
-        // Mise à jour des logs si dispo
         if (data.stdout) setLogs(prev => prev + "\n" + data.stdout);
         if (data.stderr) setLogs(prev => prev + "\n[ERR] " + data.stderr);
 
+        if (!data.success) throw new Error(data.error || "Erreur API");
         return data;
     } catch (e: any) {
-        setSandboxStatus(`Erreur: ${e.message}`);
-        console.error(e);
+        setSandboxStatus(`Erreur ${action}: ${e.message}`);
+        setLogs(prev => prev + `\n[FAIL] ${e.message}`);
         return null;
     }
   };
 
-  const handleCreateSandbox = async () => {
+  // 1. CREATE
+  const handleCreate = async () => {
     const data = await callSandboxApi("create");
     if (data?.sandboxId) {
         setSandboxId(data.sandboxId);
-        setSandboxStatus("Sandbox Prête (Next.js 15)");
+        setSandboxStatus("Sandbox Créée");
     }
   };
 
-  const handleDeployCode = async () => {
-    if (!sandboxId) {
-        alert("Crée d'abord une Sandbox !");
-        return;
-    }
+  // 2. ADD FILES (Écriture basée sur le parsing XML)
+  const handleAddFiles = async () => {
+    if (!sandboxId) return alert("Créez d'abord la Sandbox");
+    if (pendingFiles.length === 0) return alert("Aucun fichier détecté dans la réponse IA");
 
-    // 1. Trouver le dernier bloc de code dans le chat
-    const lastCodeMsg = [...chatMessages].reverse().find(m => m.role === "model" && m.text.includes("```"));
-    if (!lastCodeMsg) {
-        alert("L'IA n'a pas encore généré de code !");
-        return;
-    }
-
-    // Extraction basique du code (on suppose que c'est le fichier page.tsx)
-    const codeMatch = lastCodeMsg.text.match(/```(?:typescript|tsx|javascript|js)?([\s\S]*?)```/);
-    const codeContent = codeMatch ? codeMatch[1] : "";
-
-    if (!codeContent) {
-        alert("Code introuvable dans la réponse.");
-        return;
-    }
-
-    setSandboxStatus("Écriture du fichier page.tsx...");
+    setSandboxStatus(`Écriture de ${pendingFiles.length} fichiers...`);
     
-    // 2. Écrire le fichier
-    await callSandboxApi("addFile", { 
-        filePath: "app/page.tsx",
-        content: codeContent
-    });
+    // On mappe vers le format attendu par l'API (files: [{filePath, content}])
+    const filesPayload = pendingFiles.map(f => ({
+        filePath: f.path,
+        content: f.content
+    }));
 
-    // 3. Build (Optionnel si on est en dev, mais mieux pour vérifier les erreurs)
-    // setSandboxStatus("Build en cours...");
-    // await callSandboxApi("build");
-
-    // 4. Start
-    setSandboxStatus("Démarrage du serveur...");
-    const startData = await callSandboxApi("start");
-    
-    if (startData?.success && startData?.url) {
-        setSandboxUrl(startData.url);
-        setSandboxStatus("Serveur en ligne !");
+    const data = await callSandboxApi("addFiles", { files: filesPayload });
+    if (data?.success) {
+        setSandboxStatus("Fichiers écrits avec succès");
+        setPendingFiles([]); // On vide la file d'attente
     }
   };
 
-  // Scroll auto du chat
+  // 3. INSTALL
+  const handleInstall = async () => {
+    if (!sandboxId) return alert("Sandbox manquante");
+    await callSandboxApi("install");
+    setSandboxStatus("Dépendances installées");
+  };
+
+  // 4. BUILD
+  const handleBuild = async () => {
+    if (!sandboxId) return alert("Sandbox manquante");
+    await callSandboxApi("build");
+    setSandboxStatus("Build terminé");
+  };
+
+  // 5. START
+  const handleStart = async () => {
+    if (!sandboxId) return alert("Sandbox manquante");
+    const data = await callSandboxApi("start");
+    if (data?.success && data?.url) {
+        setSandboxUrl(data.url);
+        setSandboxStatus("Serveur En Ligne");
+    }
+  };
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -356,16 +397,16 @@ export default function VibeCodingPlatform() {
       {/* HEADER */}
       <header className="h-14 border-b border-neutral-700 flex items-center justify-between px-6 bg-neutral-800 shrink-0">
         <div className="flex items-center gap-2">
-            <h1 className="font-bold text-lg tracking-tight text-white">Vibe Coding <span className="text-red-500">Studio</span></h1>
-            <span className="text-xs bg-neutral-700 px-2 py-0.5 rounded text-neutral-300">Next.js 15 Engine</span>
+            <h1 className="font-bold text-lg tracking-tight text-white">Vibe Coding <span className="text-red-500">2.5</span></h1>
+            <span className="text-xs bg-neutral-700 px-2 py-0.5 rounded text-neutral-300">OpenCV + Gemini Flash</span>
         </div>
         <div className="flex gap-3 items-center">
              <input 
                 type="password" 
-                placeholder="Clé API Gemini" 
+                placeholder="Clé API Gemini..." 
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                className="bg-neutral-900 border border-neutral-600 rounded px-3 py-1 text-sm w-48 focus:border-red-500 outline-none"
+                className="bg-neutral-900 border border-neutral-600 rounded px-3 py-1 text-sm w-64 focus:border-red-500 outline-none"
              />
         </div>
       </header>
@@ -374,13 +415,13 @@ export default function VibeCodingPlatform() {
       <div className="flex-1 flex overflow-hidden">
         
         {/* COLONNE 1 : ANALYSEUR VISUEL */}
-        <div className="w-1/3 border-r border-neutral-700 flex flex-col bg-neutral-900">
-            <div className="p-4 border-b border-neutral-700 flex justify-between items-center bg-neutral-800">
+        <div className="w-[30%] border-r border-neutral-700 flex flex-col bg-neutral-900">
+            <div className="p-3 border-b border-neutral-700 flex justify-between items-center bg-neutral-800">
                 <h2 className="font-bold text-sm">1. Scan UI</h2>
                 <div className="flex gap-2">
                     <input type="file" onChange={handleImageUpload} className="hidden" id="fileUp"/>
-                    <label htmlFor="fileUp" className="cursor-pointer bg-neutral-700 hover:bg-neutral-600 px-3 py-1 rounded text-xs">Upload</label>
-                    <button onClick={runDetection} disabled={!imageSrc} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs font-bold">Scanner</button>
+                    <label htmlFor="fileUp" className="cursor-pointer bg-neutral-700 hover:bg-neutral-600 px-3 py-1 rounded text-xs transition">Upload</label>
+                    <button onClick={runDetection} disabled={!imageSrc} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs font-bold transition">Scanner</button>
                 </div>
             </div>
             
@@ -389,24 +430,24 @@ export default function VibeCodingPlatform() {
                 {!imageSrc && <p className="text-neutral-600">En attente d'image...</p>}
             </div>
 
-            <div className="h-40 border-t border-neutral-700 bg-neutral-800 p-2 overflow-y-auto">
+            <div className="h-48 border-t border-neutral-700 bg-neutral-800 p-2 overflow-y-auto">
                 <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold text-neutral-400">ÉLÉMENTS DÉTECTÉS ({elements.length})</span>
+                    <span className="text-xs font-bold text-neutral-400">DÉTECTIONS ({elements.length})</span>
                     <button 
-                        onClick={() => sendToGemini("Génère le code Next.js pour cette UI", true)}
+                        onClick={() => sendToGemini("Analyse cette UI et génère le code.", true)}
                         disabled={elements.length === 0}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs flex items-center gap-1 transition"
                     >
-                        <span>Transférer au Chat</span>
+                        <span>Transférer à Gemini</span>
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                     </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     {elements.map((el, i) => (
                         <div key={i} className="flex items-center gap-2 bg-neutral-700/50 p-1.5 rounded text-xs">
-                            <div className="w-3 h-3 rounded-full" style={{backgroundColor: el.color}}></div>
+                            <div className="w-3 h-3 rounded-full border border-white/20" style={{backgroundColor: el.color}}></div>
                             <span className="font-mono text-neutral-400">{el.w}x{el.h}</span>
-                            <span className="ml-auto font-mono text-neutral-500">{el.color}</span>
+                            <span className="ml-auto font-mono text-[10px] text-neutral-500">{el.color}</span>
                         </div>
                     ))}
                 </div>
@@ -414,28 +455,28 @@ export default function VibeCodingPlatform() {
         </div>
 
         {/* COLONNE 2 : CHAT GEMINI */}
-        <div className="w-1/3 border-r border-neutral-700 flex flex-col bg-neutral-800">
-            <div className="p-3 border-b border-neutral-700 font-bold text-sm bg-neutral-800 flex justify-between">
-                <span>2. AI Architect (Gemini)</span>
+        <div className="w-[35%] border-r border-neutral-700 flex flex-col bg-neutral-800">
+            <div className="p-3 border-b border-neutral-700 font-bold text-sm bg-neutral-800 flex justify-between items-center">
+                <span>2. AI Architect</span>
+                {pendingFiles.length > 0 && (
+                    <span className="text-xs bg-green-900 text-green-300 px-2 py-0.5 rounded animate-pulse">
+                        {pendingFiles.length} fichiers extraits
+                    </span>
+                )}
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-neutral-900/50">
-                {chatMessages.length === 0 && (
-                    <div className="text-center text-neutral-500 mt-20 text-sm">
-                        Scanne une image et clique sur "Transférer au Chat" pour commencer.
-                    </div>
-                )}
                 {chatMessages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[90%] rounded-lg p-3 text-sm whitespace-pre-wrap ${
                             msg.role === "user" ? "bg-blue-900 text-blue-100" : "bg-neutral-700 text-neutral-200 border border-neutral-600"
                         }`}>
-                            {msg.role === "model" && <span className="text-xs text-orange-400 font-bold block mb-1">GEMINI</span>}
+                            {msg.role === "model" && <span className="text-[10px] text-orange-400 font-bold block mb-1 uppercase tracking-wider">Gemini 2.5 Flash</span>}
                             {msg.text}
                         </div>
                     </div>
                 ))}
-                {isLoadingAI && <div className="text-neutral-500 text-xs animate-pulse">Gemini est en train de coder...</div>}
+                {isLoadingAI && <div className="text-neutral-500 text-xs animate-pulse pl-2">Génération en cours...</div>}
                 <div ref={chatEndRef} />
             </div>
 
@@ -445,12 +486,12 @@ export default function VibeCodingPlatform() {
                         value={promptInput}
                         onChange={(e) => setPromptInput(e.target.value)}
                         placeholder="Instructions pour l'IA..."
-                        className="w-full bg-neutral-900 border border-neutral-600 rounded p-2 text-sm focus:border-blue-500 outline-none resize-none h-20"
+                        className="w-full bg-neutral-900 border border-neutral-600 rounded p-2 text-sm focus:border-blue-500 outline-none resize-none h-16"
                     />
                     <button 
                         onClick={() => sendToGemini()}
                         disabled={isLoadingAI || !apiKey}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded font-bold disabled:opacity-50"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded font-bold disabled:opacity-50 transition"
                     >
                         Envoyer
                     </button>
@@ -458,33 +499,57 @@ export default function VibeCodingPlatform() {
             </div>
         </div>
 
-        {/* COLONNE 3 : SANDBOX & PREVIEW */}
-        <div className="w-1/3 flex flex-col bg-neutral-950">
+        {/* COLONNE 3 : SANDBOX MANAGER */}
+        <div className="w-[35%] flex flex-col bg-neutral-950">
              <div className="p-3 border-b border-neutral-800 flex justify-between items-center bg-neutral-900">
-                <h2 className="font-bold text-sm text-green-400">3. Sandbox (Next.js 15)</h2>
-                <div className="text-xs font-mono text-neutral-500">{sandboxId ? sandboxId.substring(0,8)+"..." : "No Sandbox"}</div>
+                <h2 className="font-bold text-sm text-green-400">3. Sandbox Manager</h2>
+                <div className="text-xs font-mono text-neutral-500">ID: {sandboxId ? sandboxId.substring(0,8) : "Aucune"}</div>
             </div>
 
-            {/* CONTROLS */}
-            <div className="grid grid-cols-2 gap-2 p-4 border-b border-neutral-800 bg-neutral-900">
+            {/* CONTROLS - BOUTONS SÉPARÉS */}
+            <div className="grid grid-cols-5 gap-1 p-2 border-b border-neutral-800 bg-neutral-900">
                 <button 
-                    onClick={handleCreateSandbox}
-                    className="bg-neutral-700 hover:bg-neutral-600 p-2 rounded text-xs font-bold border border-neutral-600"
+                    onClick={handleCreate}
+                    className="bg-neutral-800 hover:bg-neutral-700 text-white p-2 rounded text-[10px] font-bold border border-neutral-700 flex flex-col items-center gap-1 transition"
                 >
-                    1. Init Sandbox
+                    <span>1. CREATE</span>
                 </button>
+                
                 <button 
-                    onClick={handleDeployCode}
-                    className="bg-green-700 hover:bg-green-600 text-white p-2 rounded text-xs font-bold border border-green-500"
+                    onClick={handleAddFiles}
+                    disabled={pendingFiles.length === 0}
+                    className="bg-neutral-800 hover:bg-neutral-700 text-blue-400 p-2 rounded text-[10px] font-bold border border-neutral-700 flex flex-col items-center gap-1 transition disabled:opacity-30"
                 >
-                    2. Push & Start
+                    <span>2. ADD FILES</span>
+                    {pendingFiles.length > 0 && <span className="bg-blue-900 text-blue-100 px-1 rounded-full text-[8px]">{pendingFiles.length}</span>}
+                </button>
+
+                <button 
+                    onClick={handleInstall}
+                    className="bg-neutral-800 hover:bg-neutral-700 text-yellow-400 p-2 rounded text-[10px] font-bold border border-neutral-700 flex flex-col items-center gap-1 transition"
+                >
+                    <span>3. INSTALL</span>
+                </button>
+
+                <button 
+                    onClick={handleBuild}
+                    className="bg-neutral-800 hover:bg-neutral-700 text-orange-400 p-2 rounded text-[10px] font-bold border border-neutral-700 flex flex-col items-center gap-1 transition"
+                >
+                    <span>4. BUILD</span>
+                </button>
+
+                <button 
+                    onClick={handleStart}
+                    className="bg-neutral-800 hover:bg-neutral-700 text-green-400 p-2 rounded text-[10px] font-bold border border-neutral-700 flex flex-col items-center gap-1 transition"
+                >
+                    <span>5. START</span>
                 </button>
             </div>
 
             {/* STATUS & LOGS */}
-            <div className="p-2 bg-black text-xs font-mono text-green-500 border-b border-neutral-800 h-24 overflow-y-auto">
-                <div>Status: {sandboxStatus}</div>
-                <div className="opacity-70 whitespace-pre-wrap">{logs}</div>
+            <div className="p-2 bg-black text-[10px] font-mono text-green-500 border-b border-neutral-800 h-32 overflow-y-auto whitespace-pre-wrap">
+                <div className="mb-2 font-bold text-white border-b border-neutral-800 pb-1">Status: {sandboxStatus}</div>
+                {logs || "> En attente d'actions..."}
             </div>
 
             {/* PREVIEW IFRAME */}
@@ -496,11 +561,9 @@ export default function VibeCodingPlatform() {
                         title="App Preview"
                     />
                 ) : (
-             <div className="flex items-center justify-center h-full text-neutral-400 text-sm bg-neutral-100">
-                        <div className="text-center">
-                            <p>L'aperçu de l'application s'affichera ici.</p>
-                            <p className="text-xs mt-2 opacity-60">En attente de démarrage...</p>
-                        </div>
+                    <div className="flex items-center justify-center h-full text-neutral-400 text-sm bg-neutral-100 flex-col gap-2">
+                        <svg className="w-10 h-10 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <p>App Preview</p>
                     </div>
                 )}
             </div>
@@ -509,4 +572,4 @@ export default function VibeCodingPlatform() {
       </div>
     </div>
   );
-                  }
+                      }
