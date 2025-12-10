@@ -408,6 +408,10 @@ les données UIjson te donne exactement la position des éléments sur l'image t
 
 **C. GESTION DES ERREURS JSX/TSX ET DE TYPES
  Assure toi de toujours bien définir les types et tout ce que tu as besoin afin que lors du build de ton code, on ne retrouve pas ce type d'erreurs: 
+
+ surtout je te demande de toujours généré ce qui manque afin que on 'e puisse pas se retrouver avec ce type d'erreur : app/components/ProgressItem.tsx:52:10
+Type error: Cannot find name 'ProgressBar'. Did you mean 'progress'?
+ou encore ceux lister ci-dessous 
    \`\`\`
    Creating an optimized production build ...
  ✓ Compiled successfully
