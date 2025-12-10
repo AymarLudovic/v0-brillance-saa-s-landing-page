@@ -406,7 +406,8 @@ les données UIjson te donne exactement la position des éléments sur l'image t
         DONNÉES UI (JSON):
         ${jsonContext}
 
-    NB: Assure toi de toujours bien définir les types et tout ce que tu as besoin afin que lors du build de ton code, on ne retrouve pas ce type d'erreurs: 
+**C. GESTION DES ERREURS JSX/TSX ET DE TYPES
+ Assure toi de toujours bien définir les types et tout ce que tu as besoin afin que lors du build de ton code, on ne retrouve pas ce type d'erreurs: 
    \`\`\`
    Creating an optimized production build ...
  ✓ Compiled successfully
@@ -434,10 +435,31 @@ sh: 1: next: not found
 
 [ERR] Server may not be ready yet
 [FAIL] Erreur API
+
+
+OU ENCORE DES ERREURS DE CE TYPES CI-DESSOUS 
+
+Failed to compile.
+
+./app/page.tsx:210:14
+Type error: Type '{ dotColor: string; category: string; progress: number; status: string; key: number; }' is not assignable to type 'ProgressItemProps'.
+  Types of property 'status' are incompatible.
+    Type 'string' is not assignable to type '"Start Next" | "Completed" | "Paused"'.
+
+[0m [90m 208 |[39m         [33m<[39m[33mdiv[39m className[33m=[39m[32m"progress-list-column"[39m style[33m=[39m{{ flex[33m:[39m [35m1[39m }}[33m>[39m[0m
+[0m [90m 209 |[39m           {progressIndicators[33m.[39mmap((item[33m,[39m index) [33m=>[39m ([0m
+[0m[31m[1m>[22m[39m[90m 210 |[39m             [33m<[39m[33mProgressItem[39m key[33m=[39m{index} {[33m...[39mitem} [33m/[39m[33m>[39m[0m
+[0m [90m     |[39m              [31m[1m^[22m[39m[0m
+[0m [90m 211 |[39m           ))}[0m
+[0m [90m 212 |[39m         [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+[0m [90m 213 |[39m       [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+
+[FAIL] Erreur API
+
 \`\`\`
 
 Tu dois t'assurer que l'on ne trouve jamais aucune erreur dans le code que tu génère quelques soit le fichier et l'intention. Le but est que le build soit toujours un succès.
-
+Tu dois t'engager à dédier une étape particulière pour t'assurer que les codes soit sans erreurs quelconques et prêt pour un build à succès.
         DEMANDE UTILISATEUR:
         ${promptText}
         `;
