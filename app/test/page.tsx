@@ -244,7 +244,7 @@ export default function VibeCodingPlatform() {
             });
         }
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyAUTVo3z54UWpX-So7hA284OWXEezNW5WA`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
