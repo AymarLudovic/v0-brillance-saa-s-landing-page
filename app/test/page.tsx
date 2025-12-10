@@ -456,6 +456,31 @@ Type error: Type '{ dotColor: string; category: string; progress: number; status
 
 [FAIL] Erreur API
 
+
+[ERR] Failed to compile.
+
+./app/layout.tsx
+Error:   [31mx[0m Expression expected
+    ,-[[36;1;4m/home/user/app/layout.tsx[0m:35:1]
+ [2m32[0m |       </body>
+ [2m33[0m |     </html>
+ [2m34[0m |   );
+ [2m35[0m | );
+    : [35;1m^[0m
+ [2m36[0m | }
+    ----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/layout.tsx
+
+
+> Build failed because of webpack errors
+
+[FAIL] Erreur API
+  
 \`\`\`
 
 Tu dois t'assurer que l'on ne trouve jamais aucune erreur dans le code que tu génère quelques soit le fichier et l'intention. Le but est que le build soit toujours un succès.
