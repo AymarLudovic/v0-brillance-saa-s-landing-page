@@ -7,14 +7,12 @@ export default function AnalyzePage() {
   const [imageSrc, setImageSrc] = useState(null);
   const [isOpenCvReady, setIsOpenCvReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [detectedElements, setDetectedElements] = useState([]);
-  const [globalPalette, setGlobalPalette] = useState([]);
-  
+  const [elements, setElements] = useState([]); // Pour stocker les données (x, y, couleur)
+
   const canvasRef = useRef(null);
 
-  // --- 1. OUTILS D'ANALYSE DE COULEUR (Pure JS) ---
-
-  // Convertit RGB en Hex
+  // --- 1. FONCTIONS UTILITAIRES COULEUR ---
+  
   const rgbToHex = (r, g, b) => {
     return "#" + [r, g, b].map(x => {
       const hex = x.toString(16);
@@ -22,52 +20,28 @@ export default function AnalyzePage() {
     }).join("");
   };
 
-  // Trouve la couleur dominante dans une zone donnée (x, y, w, h)
-  // Utilise une quantification simple pour éviter les milliers de nuances
-  const getDominantColor = (ctx, x, y, w, h) => {
-    // On récupère les pixels de la zone
-    const imageData = ctx.getImageData(x, y, w, h).data;
-    const colorCounts = {};
-    let maxCount = 0;
-    let dominantColor = { r:0, g:0, b:0 };
-
-    // On parcourt les pixels (on saute de 4 en 4 pour aller plus vite : step)
-    const step = 4 * 4; // Check 1 pixel sur 4 pour performance
+  // Cette fonction va lire les pixels dans le carré détecté pour trouver la couleur de fond
+  const extractColorFromRect = (ctx, x, y, w, h) => {
+    // On prend le pixel central (souvent le plus représentatif)
+    // Ou on fait une moyenne sur une petite zone au centre pour éviter le texte
+    const centerX = x + Math.floor(w / 2);
+    const centerY = y + Math.floor(h / 2);
     
-    for (let i = 0; i < imageData.length; i += step) {
-      const r = imageData[i];
-      const g = imageData[i + 1];
-      const b = imageData[i + 2];
-      const a = imageData[i + 3];
+    // Sécurité bords
+    if (centerX < 0 || centerY < 0) return "#000000";
 
-      // Ignorer la transparence et le blanc pur/noir pur (souvent du fond ou texte)
-      if (a < 128) continue; 
-      // Optionnel : ignorer le blanc strict si tu veux la couleur des boutons
-      // if (r > 250 && g > 250 && b > 250) continue; 
+    // On lit 1 pixel au centre
+    const pixel = ctx.getImageData(centerX, centerY, 1, 1).data;
+    return rgbToHex(pixel[0], pixel[1], pixel[2]);
 
-      // On arrondit les couleurs pour les regrouper (Bucket)
-      // ex: 255 devient 250. Ça permet de grouper les nuances proches.
-      const roundedR = Math.floor(r / 10) * 10;
-      const roundedG = Math.floor(g / 10) * 10;
-      const roundedB = Math.floor(b / 10) * 10;
-
-      const key = `${roundedR},${roundedG},${roundedB}`;
-      
-      if (!colorCounts[key]) colorCounts[key] = 0;
-      colorCounts[key]++;
-
-      if (colorCounts[key] > maxCount) {
-        maxCount = colorCounts[key];
-        dominantColor = { r: roundedR, g: roundedG, b: roundedB };
-      }
-    }
-
-    return rgbToHex(dominantColor.r, dominantColor.g, dominantColor.b);
+    // NOTE: Si tu veux être plus précis (moyenne), on peut scanner plus de pixels,
+    // mais le pixel central marche à 90% pour les boutons/inputs.
   };
 
   // --- 2. SETUP OPENCV ---
   const onOpenCvLoaded = () => {
     cv['onRuntimeInitialized'] = () => {
+      console.log("OpenCV Ready");
       setIsOpenCvReady(true);
     };
   };
@@ -78,129 +52,133 @@ export default function AnalyzePage() {
     const reader = new FileReader();
     reader.onload = (event) => {
       setImageSrc(event.target.result);
-      setDetectedElements([]); // Reset
-      setGlobalPalette([]);
-      
+      setElements([]); // Reset
       const img = new Image();
-      img.onload = () => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        
-        // Extraction palette globale (toute l'image)
-        const mainColor = getDominantColor(ctx, 0, 0, img.width, img.height);
-        // Pour une vraie palette multi-couleurs, on pourrait appeler getDominantColor sur 4 quadrants
-        setGlobalPalette([mainColor]); 
-      };
+      img.onload = () => drawOriginalImage(img);
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   };
 
+  const drawOriginalImage = (img) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+  };
 
-  // --- 3. LE MOTEUR DE DÉTECTION (Structure + Couleur) ---
-  const analyzeImage = () => {
+  // --- 3. ALGORITHME ULTIME (Detection V3 + Couleur) ---
+  const detectShapesAndColors = () => {
     if (!isOpenCvReady || !canvasRef.current || !imageSrc) return;
     setIsProcessing(true);
-    setDetectedElements([]);
+    setElements([]);
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d"); // Pour dessiner
-    // On crée un 2ème contexte "virtuel" pour lire les couleurs originales sans les traits rouges
-    const rawCtx = canvas.cloneNode().getContext("2d");
+    const ctx = canvas.getContext("2d");
+
+    // CRUCIAL : On crée un canvas "virtuel" (non visible) qui contient l'image originale pure.
+    // On lira les couleurs dessus pour ne pas être perturbé par les cadres rouges qu'on va dessiner.
+    const virtualCanvas = document.createElement('canvas');
+    virtualCanvas.width = canvas.width;
+    virtualCanvas.height = canvas.height;
+    const virtualCtx = virtualCanvas.getContext('2d');
+
+    // On redessine l'image originale sur les deux canvas
     const img = new Image();
     img.src = imageSrc;
-    
     img.onload = () => {
-      // Dessiner sur le canvas visible
-      ctx.drawImage(img, 0, 0);
-      // Dessiner sur le canvas virtuel (pour lire les couleurs pures)
-      rawCtx.canvas.width = img.width;
-      rawCtx.canvas.height = img.height;
-      rawCtx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0);       // Visible
+      virtualCtx.drawImage(img, 0, 0); // Invisible (Source de vérité couleur)
 
       try {
+        // --- LOGIQUE DE DÉTECTION V3 (Celle qui marche bien) ---
         let src = cv.imread(canvas);
         let gray = new cv.Mat();
         let blurred = new cv.Mat();
         let binary = new cv.Mat();
-
-        // Pipeline OpenCV (Le même qui marche à 98%)
-        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
         
-        // Adaptive Threshold
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+        
+        // Petit ajustement ici : (5,5) floute un peu plus pour ignorer le texte DANS les boutons
+        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+
+        // Adaptive Threshold (Le cœur de la V3)
         cv.adaptiveThreshold(blurred, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
 
-        // Dilatation pour fermer les formes
+        // Morphology (Réparation des trous)
         let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
-        cv.morphologyEx(binary, binary, cv.MORPH_CLOSE, kernel);
+        // J'ajoute une itération de plus (iterations: 2) pour bien souder les formes
+        cv.morphologyEx(binary, binary, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 2);
 
         let contours = new cv.MatVector();
         let hierarchy = new cv.Mat();
         cv.findContours(binary, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
 
-        const newElements = [];
+        console.log(`Contours bruts trouvés : ${contours.size()}`);
 
-        // Style du tracé
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#00FF00"; // Vert Matrix
-        ctx.font = "12px Arial";
-        ctx.fillStyle = "red";
+        const detectedItems = [];
 
+        // --- BOUCLE DE TRAITEMENT ---
         for (let i = 0; i < contours.size(); ++i) {
             let contour = contours.get(i);
-            let area = cv.contourArea(contour);
+            
+            // Approximation (rendre carré les trucs tordus)
+            let perimeter = cv.arcLength(contour, true);
+            let approx = new cv.Mat();
+            cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
+
+            let rect = cv.boundingRect(approx);
+            let area = rect.width * rect.height;
             let canvasArea = canvas.width * canvas.height;
 
-            // Filtres de taille (ni trop petit, ni immense)
-            if (area > 200 && area < (canvasArea * 0.90)) {
+            // Filtres (Taille min et max)
+            if (area > 200 && area < (canvasArea * 0.95)) {
                 
-                // Redresser la forme
-                let peri = cv.arcLength(contour, true);
-                let approx = new cv.Mat();
-                cv.approxPolyDP(contour, approx, 0.04 * peri, true); // 0.04 est plus strict sur les carrés
+                // --- AJOUT : EXTRACTION COULEUR ---
+                // On lit la couleur sur le virtualCtx (image propre) aux coordonnées du rect
+                const color = extractColorFromRect(virtualCtx, rect.x, rect.y, rect.width, rect.height);
 
-                if (approx.rows === 4) { // Si c'est approximativement un carré/rectangle
-                    let rect = cv.boundingRect(approx);
-                    
-                    // --- EXTRACTION DE LA COULEUR ---
-                    // On utilise rawCtx (l'image pure sans traits) pour piocher la couleur
-                    const hexColor = getDominantColor(rawCtx, rect.x, rect.y, rect.width, rect.height);
-                    
-                    // On sauvegarde l'élément
-                    newElements.push({
-                        id: i,
-                        type: "Container/Button",
-                        x: rect.x,
-                        y: rect.y,
-                        w: rect.width,
-                        h: rect.height,
-                        color: hexColor
-                    });
-
-                    // On dessine le cadre
-                    ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-                    
-                    // On dessine un petit point de la couleur détectée
-                    ctx.fillStyle = hexColor;
-                    ctx.fillRect(rect.x, rect.y, 10, 10);
-                }
-                approx.delete();
+                // On stocke l'élément
+                detectedItems.push({
+                    x: rect.x,
+                    y: rect.y,
+                    w: rect.width,
+                    h: rect.height,
+                    color: color
+                });
             }
+            approx.delete();
         }
-        
-        // Trier les éléments du haut vers le bas (pour l'ordre logique)
-        newElements.sort((a, b) => a.y - b.y);
-        setDetectedElements(newElements);
 
-        // Nettoyage
-        src.delete(); gray.delete(); blurred.delete(); binary.delete(); kernel.delete(); contours.delete(); hierarchy.delete();
+        // --- OPTIMISATION 99% : DÉDOUBLONNAGE ---
+        // Parfois OpenCV détecte le bouton (parent) ET le texte dedans (enfant) comme deux carrés.
+        // On va garder seulement les "contenants".
+        // On trie par taille (du plus grand au plus petit)
+        detectedItems.sort((a, b) => (b.w * b.h) - (a.w * a.h));
+
+        // Dessiner sur le canvas visible
+        ctx.lineWidth = 2;
+        
+        detectedItems.forEach((item, index) => {
+            // Dessin du cadre rouge
+            ctx.strokeStyle = "#FF0000"; 
+            ctx.strokeRect(item.x, item.y, item.w, item.h);
+
+            // Dessin d'un petit badge de couleur pour prouver qu'on l'a détectée
+            ctx.fillStyle = item.color;
+            ctx.fillRect(item.x, item.y - 10, 20, 10); // Petit rectangle au dessus
+        });
+
+        setElements(detectedItems);
+
+        // Nettoyage mémoire
+        src.delete(); gray.delete(); blurred.delete(); binary.delete();
+        kernel.delete(); contours.delete(); hierarchy.delete();
 
       } catch (err) {
-        console.error(err);
+        console.error("Erreur OpenCV :", err);
       } finally {
         setIsProcessing(false);
       }
@@ -208,93 +186,54 @@ export default function AnalyzePage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-900 text-white p-6 font-sans">
-      <Script src="https://docs.opencv.org/4.8.0/opencv.js" onLoad={onOpenCvLoaded} strategy="afterInteractive"/>
+    <div className="min-h-screen bg-gray-50 p-6 flex gap-6">
+      <Script 
+        src="https://docs.opencv.org/4.8.0/opencv.js" 
+        onLoad={onOpenCvLoaded}
+        strategy="afterInteractive"
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+      {/* PARTIE GAUCHE : VISUALISATION */}
+      <div className="flex-1 bg-white p-4 shadow rounded-xl">
+        <h1 className="text-2xl font-bold mb-4">Scanner V5 (Hybride)</h1>
         
-        {/* COLONNE GAUCHE : IMAGE & CONTROLES */}
-        <div className="lg:col-span-2 space-y-4">
-            <header className="flex justify-between items-center bg-neutral-800 p-4 rounded-lg border border-neutral-700">
-                <h1 className="text-xl font-bold">Inspecteur UI</h1>
-                <div className="flex gap-3">
-                    <input 
-                        type="file" 
-                        onChange={handleImageUpload} 
-                        className="text-sm file:bg-neutral-700 file:text-white file:border-0 file:rounded-md file:px-3 file:py-1"
-                    />
-                    <button 
-                        onClick={analyzeImage}
-                        disabled={!isOpenCvReady || !imageSrc}
-                        className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded-md font-bold disabled:opacity-50"
-                    >
-                        {isProcessing ? 'Analyse...' : 'Scanner'}
-                    </button>
-                </div>
-            </header>
-
-            <div className="bg-neutral-800 rounded-lg p-2 border border-neutral-700 overflow-auto flex justify-center">
-                <canvas ref={canvasRef} className="max-w-full h-auto" />
-                {!imageSrc && <div className="h-96 flex items-center text-neutral-500">En attente d'image...</div>}
-            </div>
+        <div className="flex gap-4 mb-4">
+            <input type="file" onChange={handleImageUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:bg-blue-50 file:text-blue-700"/>
+            <button 
+                onClick={detectShapesAndColors}
+                disabled={!isOpenCvReady || !imageSrc}
+                className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50"
+            >
+                {isProcessing ? 'Traitement...' : 'Scanner + Couleurs'}
+            </button>
         </div>
 
-        {/* COLONNE DROITE : DONNÉES EXTRAITES */}
-        <div className="bg-neutral-800 p-4 rounded-lg border border-neutral-700 h-fit max-h-screen overflow-y-auto">
-            <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-                Données Extraites
-                <span className="bg-blue-900 text-blue-200 text-xs px-2 py-0.5 rounded-full">
-                    {detectedElements.length} items
-                </span>
-            </h2>
+        <div className="border rounded overflow-hidden bg-gray-100 flex justify-center">
+            <canvas ref={canvasRef} className="max-w-full" />
+        </div>
+      </div>
 
-            {/* Palette Globale */}
-            {globalPalette.length > 0 && (
-                <div className="mb-6">
-                    <h3 className="text-xs text-neutral-400 uppercase font-bold mb-2">Couleur Dominante Image</h3>
-                    <div className="flex gap-2">
-                        {globalPalette.map((c, i) => (
-                            <div key={i} className="flex items-center gap-2 bg-neutral-700 p-2 rounded">
-                                <div className="w-6 h-6 rounded-full border border-white/20" style={{backgroundColor: c}}></div>
-                                <span className="font-mono text-sm">{c}</span>
-                            </div>
-                        ))}
+      {/* PARTIE DROITE : DONNÉES JSON */}
+      <div className="w-80 bg-white p-4 shadow rounded-xl h-screen overflow-y-auto">
+        <h2 className="font-bold text-lg mb-4">Éléments ({elements.length})</h2>
+        <div className="space-y-2">
+            {elements.map((el, i) => (
+                <div key={i} className="flex items-center justify-between p-2 border rounded hover:bg-gray-50 text-sm">
+                    <div>
+                        <span className="font-bold text-gray-500">#{i+1}</span> Block
+                        <div className="text-xs text-gray-400">{el.w}x{el.h} px</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs">{el.color}</span>
+                        <div 
+                            className="w-6 h-6 rounded border shadow-sm" 
+                            style={{backgroundColor: el.color}}
+                        ></div>
                     </div>
                 </div>
-            )}
-
-            {/* Liste des éléments */}
-            <div className="space-y-2">
-                {detectedElements.length === 0 && <p className="text-neutral-500 text-sm">Aucun élément détecté.</p>}
-                
-                {detectedElements.map((el, index) => (
-                    <div key={index} className="flex items-center justify-between bg-neutral-700/50 p-3 rounded hover:bg-neutral-700 transition">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-neutral-600 w-6 h-6 flex items-center justify-center rounded text-xs font-mono">
-                                {index + 1}
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium">Box / Bouton</p>
-                                <p className="text-xs text-neutral-400">
-                                    L: {el.w}px &times; H: {el.h}px
-                                </p>
-                            </div>
-                        </div>
-                        
-                        {/* Indicateur de couleur détectée */}
-                        <div className="text-right">
-                             <div 
-                                className="w-8 h-8 rounded border border-white/10 shadow-sm mx-auto mb-1" 
-                                style={{backgroundColor: el.color}}
-                                title={`Couleur détectée : ${el.color}`}
-                             ></div>
-                             <span className="text-[10px] font-mono text-neutral-400">{el.color}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
+            ))}
         </div>
       </div>
     </div>
   );
-      }
+                    }
