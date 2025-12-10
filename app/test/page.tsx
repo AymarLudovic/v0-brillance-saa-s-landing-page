@@ -272,6 +272,7 @@ Pour chaque zone, liste TOUS les éléments:
 - Images (photos, illustrations, avatars, logos)
 - Inputs (champs de formulaire)
 - Bordures et séparateurs
+- Police fonts: ici c'est toi même qui definira tes propres polices textuelle : tu les prendras sur Google font et de base tu choisiras toujours entre les polices Montserrat, Inter, Poppins, Funnel Display, Arimo, Space Grotesk. Ce seront tes polices de base que tu utiliseras pour reproduire le clone parfait de l'image ou la page web.
 - Éléments décoratifs
 
 **PASSE 3 - VÉRIFICATION & COMPLÉTION:**
