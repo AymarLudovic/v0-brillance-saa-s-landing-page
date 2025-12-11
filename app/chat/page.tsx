@@ -2809,10 +2809,11 @@ const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 
 
-const sendChat = async (promptOverride?: string, hiddenAnalysisData?: any) => {
+// Modifie la signature pour accepter l'image cachée
+const sendChat = async (promptOverride?: string, hiddenAnalysisData?: any, hiddenImage?: string) => {
   const userPrompt = promptOverride || chatInput;
 
-  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
+  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0 && !hiddenImage) return;
   if (!currentProject && !promptOverride) {
     addLog("Please create or load a project before starting a conversation.");
     return;
@@ -2829,10 +2830,13 @@ const sendChat = async (promptOverride?: string, hiddenAnalysisData?: any) => {
     role: "user",
     content: finalUserPrompt,
     artifactData: { type: null, rawJson: "", parsedList: [] },
-    images: uploadedImages,
+    // AJOUT ICI : On combine l'image du scanner avec les images uploadées manuellement
+    images: hiddenImage ? [hiddenImage, ...uploadedImages] : uploadedImages,
     externalFiles: uploadedFiles,
     mentionedFiles
   };
+
+  // ... (Le reste de la fonction sendChat continue ici comme avant)
 
   // 2. Préparation du placeholder
   const assistantPlaceholder: Message = {
@@ -3216,12 +3220,14 @@ let shopImages: string[] = [];
      const handleScanComplete = (elements: DetectedElement[], imageSrc: string) => {
     setShowScanner(false);
     
-    // --- AJOUT DU LOG ICI ---
-    addLog(`[Scanner] ${elements.length} éléments détectés et envoyés à Gemini.`);
+    // Log de confirmation
+    addLog(`[Scanner] ${elements.length} éléments détectés + Image de référence envoyés à Gemini.`);
 
+    // Envoi au chat (Prompt + JSON + Image)
     sendChat(
-        "Génère le code Next.js pour cette interface basée sur l'analyse visuelle ci-jointe (Coordonnées et couleurs).", 
-        elements 
+        "Génère le code Next.js pour cette interface en respectant scrupuleusement les positions (JSON) et l'apparence visuelle de l'image ci-jointe.", 
+        elements,
+        imageSrc
     );
   };
     const lastCreateTime = useRef<number>(0);
