@@ -433,7 +433,161 @@ Ne fait jamais cela car l'utilisateur ne doit jamais être au courant de tout ce
 3- Tu reçois dans ton historique de discussion avec l'utilisateur l'ensemble des fichiers du projet et leurs contenus, donc n'utilise plus l'opération de fetch_file car tu vois absolument tout. Corrige juste très bien, les erreurs avec ce que tu vois comme historique du fichier à corriger car tu peux maintenant le lire sans opérations de fetch_file. Tu lis absolument touute la structure du projet, les fichiers et absolument touts leur contenu pour les éditer comme il faut et selon le besoin.
 
 
+**C. GESTION DES ERREURS JSX/TSX ET DE TYPES
+ Assure toi de toujours bien définir les types et tout ce que tu as besoin afin que lors du build de ton code, on ne retrouve pas ce type d'erreurs: 
+=== TYPES CORRECTION===
+Pour éviter tout types d'erreur de type ou de typage , de type manquer, dans tel ou tel composant, tu vas généré un fichier type.ts global qui va absolument contenir touts les types que tu auras besoin pour chaque fichier, je dis bien tout. Au lieu de faire directement les types dans le composant tsx la en question.
 
+les données UIjson te donne exactement la position des éléments sur l'image tu deviles utiliser tout en les adaptant à la page web rn considérant le média queries sur lesquelles il seront affichés, il te donne aussi exactement les couleurs extraites sur chaque éléments.
+        DONNÉES UI (JSON):
+ surtout je te demande de toujours généré ce qui manque afin que on 'e puisse pas se retrouver avec ce type d'erreur : app/components/ProgressItem.tsx:52:10
+Type error: Cannot find name 'ProgressBar'. Did you mean 'progress'?
+ou encore ce type d'erreur sur les boutons ERR] Failed to compile.
+
+./app/components/Button.tsx:33:7
+Type error: Object literal may only specify known properties, and ''&:hover'' does not exist in type 'Properties<string | number, string & {}>'.
+
+[0m [90m 31 |[39m       backgroundColor[33m:[39m [32m'var(--bg-dark)'[39m[33m,[39m[0m
+[0m [90m 32 |[39m       color[33m:[39m [32m'var(--bg-primary)'[39m[33m,[39m[0m
+[0m[31m[1m>[22m[39m[90m 33 |[39m       [32m'&:hover'[39m[33m:[39m {[0m
+[0m [90m    |[39m       [31m[1m^[22m[39m[0m
+[0m [90m 34 |[39m         backgroundColor[33m:[39m [32m'var(--text-secondary)'[39m[33m,[39m[0m
+[0m [90m 35 |[39m       }[33m,[39m[0m
+[0m [90m 36 |[39m     }[33m,[39m[0m
+
+[FAIL] Erreur API
+OU ENCORE : 
+ceux lister ci-dessous 
+   \`\`\`
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+
+[ERR] Failed to compile.
+
+./app/components/AICoPilotPanel.tsx:97:10
+Type error: Cannot find name 'Card'.
+
+[0m [90m  95 |[39m[0m
+[0m [90m  96 |[39m         {[90m/* Prompt Card */[39m}[0m
+[0m[31m[1m>[22m[39m[90m  97 |[39m         [33m<[39m[33mCard[39m[0m
+[0m [90m     |[39m          [31m[1m^[22m[39m[0m
+[0m [90m  98 |[39m           backgroundColor[33m=[39m[32m"var(--bg-chat-user)"[39m[0m
+[0m [90m  99 |[39m           padding[33m=[39m[32m"15px"[39m[0m
+[0m [90m 100 |[39m           borderRadius[33m=[39m[32m"10px"[39m[0m
+
+[FAIL] Erreur API
+
+> dev
+> next dev -p 3000 -H 0.0.0.0
+
+sh: 1: next: not found
+
+[ERR] Server may not be ready yet
+[FAIL] Erreur API
+
+
+OU ENCORE DES ERREURS DE CE TYPES CI-DESSOUS 
+
+Failed to compile.
+
+./app/page.tsx:210:14
+Type error: Type '{ dotColor: string; category: string; progress: number; status: string; key: number; }' is not assignable to type 'ProgressItemProps'.
+  Types of property 'status' are incompatible.
+    Type 'string' is not assignable to type '"Start Next" | "Completed" | "Paused"'.
+
+[0m [90m 208 |[39m         [33m<[39m[33mdiv[39m className[33m=[39m[32m"progress-list-column"[39m style[33m=[39m{{ flex[33m:[39m [35m1[39m }}[33m>[39m[0m
+[0m [90m 209 |[39m           {progressIndicators[33m.[39mmap((item[33m,[39m index) [33m=>[39m ([0m
+[0m[31m[1m>[22m[39m[90m 210 |[39m             [33m<[39m[33mProgressItem[39m key[33m=[39m{index} {[33m...[39mitem} [33m/[39m[33m>[39m[0m
+[0m [90m     |[39m              [31m[1m^[22m[39m[0m
+[0m [90m 211 |[39m           ))}[0m
+[0m [90m 212 |[39m         [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+[0m [90m 213 |[39m       [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+
+[FAIL] Erreur API
+
+app/components/Input.tsx:20:5
+Type error: Object literal may only specify known properties, and ''::placeholder'' does not exist in type 'Properties<string | number, string & {}>'.
+
+
+
+[ERR] Failed to compile.
+
+./app/layout.tsx
+Error:   [31mx[0m Expression expected
+    ,-[[36;1;4m/home/user/app/layout.tsx[0m:35:1]
+ [2m32[0m |       </body>
+ [2m33[0m |     </html>
+ [2m34[0m |   );
+ [2m35[0m | );
+    : [35;1m^[0m
+ [2m36[0m | }
+    ----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/layout.tsx
+
+
+> Build failed because of webpack errors
+
+[FAIL] Erreur API
+
+    ou encore ce type d'erreur :
+
+    [ERR] Failed to compile.
+
+./app/components/Sidebar.tsx:46:13
+Type error: Type '{ children: Element; variant: "icon"; onClick: () => void; style: { width: string; height: string; borderRadius: string; }; onMouseEnter: () => void; onMouseLeave: () => void; }' is not assignable to type 'IntrinsicAttributes & ButtonProps'.
+  Property 'onMouseEnter' does not exist on type 'IntrinsicAttributes & ButtonProps'.
+
+[0m [90m 44 |[39m             onClick[33m=[39m{() [33m=>[39m console[33m.[39mlog([32m'Create new page'[39m)}[0m
+[0m [90m 45 |[39m             style[33m=[39m{{ width[33m:[39m [32m'24px'[39m[33m,[39m height[33m:[39m [32m'24px'[39m[33m,[39m borderRadius[33m:[39m [32m'6px'[39m }}[0m
+[0m[31m[1m>[22m[39m[90m 46 |[39m             onMouseEnter[33m=[39m{() [33m=>[39m setShowTooltip([36mtrue[39m)}[0m
+[0m [90m    |[39m             [31m[1m^[22m[39m[0m
+[0m [90m 47 |[39m             onMouseLeave[33m=[39m{() [33m=>[39m setShowTooltip([36mfalse[39m)}[0m
+[0m [90m 48 |[39m           [33m>[39m[0m
+[0m [90m 49 |[39m             [33m<[39m[33mspan[39m className[33m=[39m[32m"material-symbols-outlined"[39m style[33m=[39m{{ fontSize[33m:[39m [32m'16px'[39m }}[33m>[39medit_note[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+
+[FAIL] Erreur API
+
+Ensuite celle ci : 
+ERR] Failed to compile.
+
+./app/components/CommentItem.tsx
+Error:   [31mx[0m Unexpected token \`div\`. Expected jsx identifier
+    ,-[[36;1;4m/home/user/app/components/CommentItem.tsx[0m:21:1]
+ [2m18[0m |   replies,
+ [2m19[0m | }) => {
+ [2m20[0m |   return (
+ [2m21[0m |     <div
+    : [35;1m     ^^^[0m
+ [2m22[0m |       style={{
+ [2m23[0m |         display: 'flex',
+ [2m24[0m |         gap: '12px',
+    ----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/components/CommentItem.tsx
+./app/components/CommentSection.tsx
+./app/page.tsx
+
+
+> Build failed because of webpack errors
+
+[FAIL] Erreur API
+  
+  
+\`\`\`
+
+Tu dois t'assurer que l'on ne trouve jamais aucune erreur dans le code que tu génère quelques soit le fichier et l'intention. Le but est que le build soit toujours un succès.
+Tu dois t'engager à dédier une étape particulière pour t'assurer que les codes soit sans erreurs quelconques et prêt pour un build à succès. Identifie bien les exemples d'erreurs qui sont lister ici dessus, afin de te rassurer de complètement je dis bien complètement les éviter quand tu générera le code. C'est obligatoire.
+        
   
 
 `
