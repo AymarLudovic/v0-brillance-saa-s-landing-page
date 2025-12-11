@@ -477,6 +477,10 @@ Type error: Type '{ dotColor: string; category: string; progress: number; status
 
 [FAIL] Erreur API
 
+app/components/Input.tsx:20:5
+Type error: Object literal may only specify known properties, and ''::placeholder'' does not exist in type 'Properties<string | number, string & {}>'.
+
+
 
 [ERR] Failed to compile.
 
