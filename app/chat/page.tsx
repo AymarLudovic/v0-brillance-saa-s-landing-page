@@ -3216,39 +3216,45 @@ let shopImages: string[] = [];
              
 
  // Référence pour stocker le timestamp de la dernière création réussie (pour le délai de 15 min)
-
-
-    const handleScanComplete = (elements: DetectedElement[], imageSrc: string) => {
+const handleScanComplete = (elements: DetectedElement[], imageSrc: string) => {
     setShowScanner(false);
     
-    addLog(`[Scanner] ${elements.length} éléments détectés. Envoi des instructions "Pixel Perfect"...`);
+    addLog(`[Scanner] Analyse terminée. Envoi des instructions Design "Pixel Perfect" à Gemini...`);
 
-    // --- LE SUPER PROMPT D'INSTRUCTION ---
-    const systemDesignInstructions = `
-TACHE: Recréer cette interface UI à partir de l'image et des données JSON.
-MISSION: Extraire ABSOLUMENT TOUS les éléments visuels avec une fidélité de 100%.
+    // Tes instructions exactes
+    const designPrompt = `
+TACHE: Recréer cette interface UI à partir de l'image.
+CONTEXTE: Les données JSON jointes sont indicatives pour les positions. Fies-toi PRIORITAIREMENT à l'image pour le style.
+
+Ta mission: extraire ABSOLUMENT TOUS les éléments visuels avec une fidélité de 100%. Je dis bien tu as des capacités de designs hyper poussé et belles en te servant de ces analyses d'images ultra détaillé et des instructions designs parfait lister ici.
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  RÈGLE CRITIQUE #1 : DÉTECTION DU BACKGROUND                                 ║
-║  CE FOND = le background de L'APPLICATION ENTIÈRE !                          ║
+║  REGARDE ATTENTIVEMENT LE FOND DE L'IMAGE.                                   ║
+║  - Est-ce une COULEUR UNIE? (noir #000, gris #111, #1a1a1a, blanc #fff?)     ║
+║  - Est-ce un GRADIENT? (si oui, quelles couleurs, quelle direction?)         ║
+║  - Est-ce une IMAGE DE FOND? (photo, illustration, pattern?)                 ║
+║  CE FOND = le background de L'APPLICATION ENTIÈRE, pas d'un wrapper!         ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-=== PROCESSUS DE SCAN (IA) ===
-1. ANALYSE GLOBALE (Theme, Layout, Structure)
-2. SCAN ZONE PAR ZONE (Textes, Icones, Boutons, Inputs, Fonts exactes)
-3. VÉRIFICATION (Copyrights, petits détails, cohérence densité)
+=== PROCESSUS DE SCAN EN 3 PASSES ===
+**PASSE 1 - ANALYSE GLOBALE:**
+- Identifier le TYPE d'interface, le THÈME (dark/light), le LAYOUT.
+- Identifier les GRANDES SECTIONS (header, sidebar, main, footer).
 
-=== DÉTECTION BACKGROUNDS (CRITIQUE) ===
-- Si NOIR/GRIS FONCÉ (#000-#1a1a1a) -> Background COLOR #000 (Monochrome Absolu)
-- Si BLANC -> Background COLOR #FFF (Monochrome Absolu)
-- Si IMAGE/GRADIENT -> Décris-le précisément.
+**PASSE 2 - SCAN ZONE PAR ZONE:**
+- Textes (CHAQUE mot, label, titre), Icônes, Boutons, Images.
+- Police fonts: Utilise Montserrat, Inter, Poppins, Funnel Display, ou Arimo.
+
+**PASSE 3 - VÉRIFICATION:**
+- Ai-je détecté TOUS les textes et icônes? Le compte d'éléments est-il cohérent?
 
 === RÈGLES DE DESIGN STRICTES (PIXEL PERFECT) ===
 
 A. ARCHITECTURE & THÈMES
-- DARK MODE = #000 (Pure Black) partout (Sidebar + Body). Pas de gris foncé (#111).
-- LIGHT MODE = #FFF (Pure White) partout. Pas de gris clair.
-- Pas de coupure visuelle entre Sidebar et Main content.
+- DARK MODE = #000 (Pure Black) partout. Interdiction de #111 ou #1A1A1A pour le fond principal.
+- LIGHT MODE = #FFF (Pure White) partout.
+- Pas de coupure visuelle par la couleur entre Sidebar et Main.
 
 B. PHYSIQUE DE LA SIDEBAR
 - Largeur fixe: min 250px.
@@ -3259,40 +3265,25 @@ B. PHYSIQUE DE LA SIDEBAR
 C. MICRO-COMPOSANTS SIDEBAR
 - Items & Searchbox: Border-Radius 10px-13px (Très arrondi).
 - Hauteur (Height): STRICTEMENT 30px-32px (Compact).
-- Section Profil: Rounded, Height 30-32px, bordures discrètes.
 
 D. TOPBAR (HEADER)
-- Background: #000 ou #FFF (comme le body). Pas de couleurs fancy (bleu, etc).
+- Background: #000 ou #FFF (comme le body). Pas de couleurs fancy.
 - SANS BORDURES (No border-bottom).
 - Hauteur Max: 45px.
-- Boutons internes: Height 32px-35px, couleurs sobres.
-- Responsive: Textes longs avec "..." (ellipsis), Breadcrumb propre.
+- Responsive mobile: Style iOS (Tab bar ou Drawer).
 
-E. RESPONSIVE MOBILE (STYLE iOS)
-- Mobile (<750px): Sidebar devient un Drawer ou Tab Bar bottom style iOS.
-- Utilise globals.css et @media queries pour la logique responsive.
-- Pas d'éléments qui débordent (overflow-x hidden).
+[DIRECTIVE SYSTÈME CRITIQUE : PRIORITÉ FONCTIONNELLE ABSOLUE]
+Analyse de A à Z l'image pour reproduire le clone parfait : mêmes polices, background, couleurs, effets, positionnement.
+N'UTILISE JAMAIS DES EMOJIS POUR REMPLACER DES ICÔNES !!!!
+Utilise "lucide-react" pour les icônes.
+`;
 
-=== FONTS & TYPOGRAPHIE ===
-- Utilise Google Fonts: Montserrat, Inter, Poppins, Funnel Display, ou Arimo.
-- Choisis celle qui matche le mieux l'image.
-
-=== NOTE FINALE ===
-Analyse l'image fournie au pixel près. Reproduis les courbures, les ombres, les tailles de police et les alignements exactement comme sur l'image de référence.
-
-DONNÉES DÉTECTÉES (JSON):
-${JSON.stringify(elements)}
-    `;
-
-    // Envoi au chat avec les instructions cachées mais actives pour l'IA
-    // On passe 'systemDesignInstructions' comme data cachée (2ème argument)
-    // On passe 'imageSrc' comme image cachée (3ème argument)
-    sendChat(
-        "Génère le code Next.js pour cette interface en suivant STRICTEMENT les règles de design Pixel Perfect ci-jointes.", 
-        systemDesignInstructions, // On passe tout le prompt ici au lieu de juste les elements
-        imageSrc
-    );
+    // 1er argument : Ton prompt Design
+    // 2ème argument : Les éléments JSON (pour donner une idée des positions)
+    // 3ème argument : L'image (pour l'analyse visuelle)
+    sendChat(designPrompt, elements, imageSrc);
   };
+
 
      
     const lastCreateTime = useRef<number>(0);
