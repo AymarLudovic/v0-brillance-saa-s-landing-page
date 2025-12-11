@@ -500,6 +500,25 @@ Import trace for requested module:
 > Build failed because of webpack errors
 
 [FAIL] Erreur API
+
+    ou encore ce type d'erreur :
+
+    [ERR] Failed to compile.
+
+./app/components/Sidebar.tsx:46:13
+Type error: Type '{ children: Element; variant: "icon"; onClick: () => void; style: { width: string; height: string; borderRadius: string; }; onMouseEnter: () => void; onMouseLeave: () => void; }' is not assignable to type 'IntrinsicAttributes & ButtonProps'.
+  Property 'onMouseEnter' does not exist on type 'IntrinsicAttributes & ButtonProps'.
+
+[0m [90m 44 |[39m             onClick[33m=[39m{() [33m=>[39m console[33m.[39mlog([32m'Create new page'[39m)}[0m
+[0m [90m 45 |[39m             style[33m=[39m{{ width[33m:[39m [32m'24px'[39m[33m,[39m height[33m:[39m [32m'24px'[39m[33m,[39m borderRadius[33m:[39m [32m'6px'[39m }}[0m
+[0m[31m[1m>[22m[39m[90m 46 |[39m             onMouseEnter[33m=[39m{() [33m=>[39m setShowTooltip([36mtrue[39m)}[0m
+[0m [90m    |[39m             [31m[1m^[22m[39m[0m
+[0m [90m 47 |[39m             onMouseLeave[33m=[39m{() [33m=>[39m setShowTooltip([36mfalse[39m)}[0m
+[0m [90m 48 |[39m           [33m>[39m[0m
+[0m [90m 49 |[39m             [33m<[39m[33mspan[39m className[33m=[39m[32m"material-symbols-outlined"[39m style[33m=[39m{{ fontSize[33m:[39m [32m'16px'[39m }}[33m>[39medit_note[33m<[39m[33m/[39m[33mspan[39m[33m>[39m[0m
+
+[FAIL] Erreur API
+
   
 \`\`\`
 
