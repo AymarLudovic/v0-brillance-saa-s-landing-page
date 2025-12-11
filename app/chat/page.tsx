@@ -23,7 +23,7 @@ import VercelDeployModal from '@/components/VercelDeployModal';
 import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
 
 // Assurez-vous que useCallback est dans les imports React (e.g., import { useState, useRef, useEffect, useMemo, useCallback } from "react")
-
+import VisualAnalyzer, { DetectedElement } from '@/components/VisualAnalyzer';
 
 // REMPLACER CodeMirror par Monaco Editor
 import Editor, { OnChange, OnMount } from '@monaco-editor/react';
@@ -1096,7 +1096,7 @@ const [expandedMessageIndex, setExpandedMessageIndex] = useState(null);
 // ==============================================================================
 // 🛑 ÉTATS ET LOGIQUE DE DÉPLOIEMENT VERCEL (Intégrés)
 // ==============================================================================
-
+const [showScanner, setShowScanner] = useState(false);
 // État du Token (à côté de vos autres useState)
 const [vercelToken, setVercelToken] = useState<string>('');
 const [tokenError, setTokenError] = useState<string>('');
@@ -2809,7 +2809,7 @@ const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 
 
-const sendChat = async (promptOverride?: string) => {
+const sendChat = async (promptOverride?: string, hiddenAnalysisData?: any) => {
   const userPrompt = promptOverride || chatInput;
 
   if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
@@ -2899,7 +2899,18 @@ const sendChat = async (promptOverride?: string) => {
     )
   };
 
-  let historyForApi = [systemFileContext, ...currentHistory];
+
+    let historyForApi = [systemFileContext, ...currentHistory];
+
+  if (hiddenAnalysisData) {
+      const hiddenMessage = {
+          role: "user",
+          content: `[SYSTEM INJECTION - VISUAL ANALYSIS DATA]\nUse these coordinates and colors to generate the UI.\n${JSON.stringify(hiddenAnalysisData)}`,
+          artifactData: { type: null, rawJson: "", parsedList: [] }
+      };
+      // Insérer avant le dernier message (le prompt utilisateur)
+      historyForApi.splice(historyForApi.length - 1, 0, hiddenMessage as any);
+  }
   const readFilesCache = new Set<string>();
 
   setLoading(true);
@@ -3202,8 +3213,17 @@ let shopImages: string[] = [];
 
  // Référence pour stocker le timestamp de la dernière création réussie (pour le délai de 15 min)
 
-     
+     const handleScanComplete = (elements: DetectedElement[], imageSrc: string) => {
+    setShowScanner(false);
+    
+    // --- AJOUT DU LOG ICI ---
+    addLog(`[Scanner] ${elements.length} éléments détectés et envoyés à Gemini.`);
 
+    sendChat(
+        "Génère le code Next.js pour cette interface basée sur l'analyse visuelle ci-jointe (Coordonnées et couleurs).", 
+        elements 
+    );
+  };
     const lastCreateTime = useRef<number>(0);
 const lastPkgJson = useRef<string>("");
 
@@ -4533,10 +4553,17 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
 )}
 
-<button className="h-[24px] w-auto bg-transparent px-3 flex items-center gap-[2px] text-[17px] text-black">
+<button className="h-[24px] w-auto bg-transparent px-3 hidden items-center gap-[2px] text-[17px] text-black">
          <svg className="h-[20px] w-[20px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
          <p>Plan</p>
 </button>
+          <button onClick={() => setShowScanner(true)} className="px-4 py-2 bg-neutral-700 rounded text-white text-sm">Scanner UI 📷</button>
+          {showScanner && (
+         <VisualAnalyzer 
+            onAnalysisComplete={handleScanComplete}
+            onClose={() => setShowScanner(false)}
+         />
+      )}
         <Button
       className=" bg-[#37322F] -ml-[2px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-full flex items-center justify-center p-1"
       onClick={() => sendChat()}
