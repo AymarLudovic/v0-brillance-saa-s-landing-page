@@ -412,7 +412,22 @@ les données UIjson te donne exactement la position des éléments sur l'image t
 
  surtout je te demande de toujours généré ce qui manque afin que on 'e puisse pas se retrouver avec ce type d'erreur : app/components/ProgressItem.tsx:52:10
 Type error: Cannot find name 'ProgressBar'. Did you mean 'progress'?
-ou encore ceux lister ci-dessous 
+ou encore ce type d'erreur sur les boutons ERR] Failed to compile.
+
+./app/components/Button.tsx:33:7
+Type error: Object literal may only specify known properties, and ''&:hover'' does not exist in type 'Properties<string | number, string & {}>'.
+
+[0m [90m 31 |[39m       backgroundColor[33m:[39m [32m'var(--bg-dark)'[39m[33m,[39m[0m
+[0m [90m 32 |[39m       color[33m:[39m [32m'var(--bg-primary)'[39m[33m,[39m[0m
+[0m[31m[1m>[22m[39m[90m 33 |[39m       [32m'&:hover'[39m[33m:[39m {[0m
+[0m [90m    |[39m       [31m[1m^[22m[39m[0m
+[0m [90m 34 |[39m         backgroundColor[33m:[39m [32m'var(--text-secondary)'[39m[33m,[39m[0m
+[0m [90m 35 |[39m       }[33m,[39m[0m
+[0m [90m 36 |[39m     }[33m,[39m[0m
+
+[FAIL] Erreur API
+OU ENCORE : 
+ceux lister ci-dessous 
    \`\`\`
    Creating an optimized production build ...
  ✓ Compiled successfully
