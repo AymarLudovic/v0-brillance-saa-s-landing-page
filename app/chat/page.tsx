@@ -3217,19 +3217,84 @@ let shopImages: string[] = [];
 
  // Référence pour stocker le timestamp de la dernière création réussie (pour le délai de 15 min)
 
-     const handleScanComplete = (elements: DetectedElement[], imageSrc: string) => {
+
+    const handleScanComplete = (elements: DetectedElement[], imageSrc: string) => {
     setShowScanner(false);
     
-    // Log de confirmation
-    addLog(`[Scanner] ${elements.length} éléments détectés + Image de référence envoyés à Gemini.`);
+    addLog(`[Scanner] ${elements.length} éléments détectés. Envoi des instructions "Pixel Perfect"...`);
 
-    // Envoi au chat (Prompt + JSON + Image)
+    // --- LE SUPER PROMPT D'INSTRUCTION ---
+    const systemDesignInstructions = `
+TACHE: Recréer cette interface UI à partir de l'image et des données JSON.
+MISSION: Extraire ABSOLUMENT TOUS les éléments visuels avec une fidélité de 100%.
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  RÈGLE CRITIQUE #1 : DÉTECTION DU BACKGROUND                                 ║
+║  CE FOND = le background de L'APPLICATION ENTIÈRE !                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+=== PROCESSUS DE SCAN (IA) ===
+1. ANALYSE GLOBALE (Theme, Layout, Structure)
+2. SCAN ZONE PAR ZONE (Textes, Icones, Boutons, Inputs, Fonts exactes)
+3. VÉRIFICATION (Copyrights, petits détails, cohérence densité)
+
+=== DÉTECTION BACKGROUNDS (CRITIQUE) ===
+- Si NOIR/GRIS FONCÉ (#000-#1a1a1a) -> Background COLOR #000 (Monochrome Absolu)
+- Si BLANC -> Background COLOR #FFF (Monochrome Absolu)
+- Si IMAGE/GRADIENT -> Décris-le précisément.
+
+=== RÈGLES DE DESIGN STRICTES (PIXEL PERFECT) ===
+
+A. ARCHITECTURE & THÈMES
+- DARK MODE = #000 (Pure Black) partout (Sidebar + Body). Pas de gris foncé (#111).
+- LIGHT MODE = #FFF (Pure White) partout. Pas de gris clair.
+- Pas de coupure visuelle entre Sidebar et Main content.
+
+B. PHYSIQUE DE LA SIDEBAR
+- Largeur fixe: min 250px.
+- Pas de bordures de séparation (border-top/bottom) entre les sections.
+- Espacement uniquement via padding/margin.
+- Profil User: en bas, sans ligne de séparation.
+
+C. MICRO-COMPOSANTS SIDEBAR
+- Items & Searchbox: Border-Radius 10px-13px (Très arrondi).
+- Hauteur (Height): STRICTEMENT 30px-32px (Compact).
+- Section Profil: Rounded, Height 30-32px, bordures discrètes.
+
+D. TOPBAR (HEADER)
+- Background: #000 ou #FFF (comme le body). Pas de couleurs fancy (bleu, etc).
+- SANS BORDURES (No border-bottom).
+- Hauteur Max: 45px.
+- Boutons internes: Height 32px-35px, couleurs sobres.
+- Responsive: Textes longs avec "..." (ellipsis), Breadcrumb propre.
+
+E. RESPONSIVE MOBILE (STYLE iOS)
+- Mobile (<750px): Sidebar devient un Drawer ou Tab Bar bottom style iOS.
+- Utilise globals.css et @media queries pour la logique responsive.
+- Pas d'éléments qui débordent (overflow-x hidden).
+
+=== FONTS & TYPOGRAPHIE ===
+- Utilise Google Fonts: Montserrat, Inter, Poppins, Funnel Display, ou Arimo.
+- Choisis celle qui matche le mieux l'image.
+
+=== NOTE FINALE ===
+Analyse l'image fournie au pixel près. Reproduis les courbures, les ombres, les tailles de police et les alignements exactement comme sur l'image de référence.
+
+DONNÉES DÉTECTÉES (JSON):
+${JSON.stringify(elements)}
+    `;
+
+    // Envoi au chat avec les instructions cachées mais actives pour l'IA
+    // On passe 'systemDesignInstructions' comme data cachée (2ème argument)
+    // On passe 'imageSrc' comme image cachée (3ème argument)
     sendChat(
-        "Génère le code Next.js pour cette interface en respectant scrupuleusement les positions (JSON) et l'apparence visuelle de l'image ci-jointe.", 
-        elements,
+        "Génère le code Next.js pour cette interface en suivant STRICTEMENT les règles de design Pixel Perfect ci-jointes.", 
+        systemDesignInstructions, // On passe tout le prompt ici au lieu de juste les elements
         imageSrc
     );
   };
+
+     
     const lastCreateTime = useRef<number>(0);
 const lastPkgJson = useRef<string>("");
 
