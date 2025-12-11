@@ -409,6 +409,9 @@ Et surtout les mêmes rayons de courbure des bordures des éléments, tes que le
 
 === CONTEXTE ET PHILOSOPHIE ===
 
+=== TYPES CORRECTION===
+Pour éviter tout types d'erreur de type ou de typage , de type manquer, dans tel ou tel composant, tu vas généré un fichier type.ts global qui va absolument contenir touts les types que tu auras besoin pour chaque fichier, je dis bien tout. Au lieu de faire directement les types dans le composant tsx la en question.
+
 les données UIjson te donne exactement la position des éléments sur l'image tu deviles utiliser tout en les adaptant à la page web rn considérant le média queries sur lesquelles il seront affichés, il te donne aussi exactement les couleurs extraites sur chaque éléments.
         DONNÉES UI (JSON):
         ${jsonContext}
