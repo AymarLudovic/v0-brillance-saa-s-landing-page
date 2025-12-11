@@ -371,6 +371,7 @@ Et surtout les mêmes rayons de courbure des bordures des éléments, tes que le
 - **Séparation des Sections (Clean Layout):**
   - **Interdiction de Bordures:** Il faut éviter de séparer les sections (ex: Menu principal vs Management de profil) avec des \`border-top\` ou \`border-bottom\`.
   - **Espacement:** Utiliser uniquement le vide (padding/margin) pour séparer les groupes. Même si les éléments sont espacés, ne jamais rajouter une ligne de séparation visible.
+  - ** Les sidebar peuvent avoir des bordures right ou left tant que la couleur est distraite mais visible.
 - **Structure Interne:**
   - Les éléments doivent être bien groupés logiquement.
   - La section "Profil/User" ne doit pas être isolée par une ligne, mais simplement positionnée (souvent en bas) avec de l'espace.
@@ -519,11 +520,40 @@ Type error: Type '{ children: Element; variant: "icon"; onClick: () => void; sty
 
 [FAIL] Erreur API
 
+Ensuite celle ci : 
+ERR] Failed to compile.
+
+./app/components/CommentItem.tsx
+Error:   [31mx[0m Unexpected token \`div\`. Expected jsx identifier
+    ,-[[36;1;4m/home/user/app/components/CommentItem.tsx[0m:21:1]
+ [2m18[0m |   replies,
+ [2m19[0m | }) => {
+ [2m20[0m |   return (
+ [2m21[0m |     <div
+    : [35;1m     ^^^[0m
+ [2m22[0m |       style={{
+ [2m23[0m |         display: 'flex',
+ [2m24[0m |         gap: '12px',
+    ----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/components/CommentItem.tsx
+./app/components/CommentSection.tsx
+./app/page.tsx
+
+
+> Build failed because of webpack errors
+
+[FAIL] Erreur API
+  
   
 \`\`\`
 
 Tu dois t'assurer que l'on ne trouve jamais aucune erreur dans le code que tu génère quelques soit le fichier et l'intention. Le but est que le build soit toujours un succès.
-Tu dois t'engager à dédier une étape particulière pour t'assurer que les codes soit sans erreurs quelconques et prêt pour un build à succès.
+Tu dois t'engager à dédier une étape particulière pour t'assurer que les codes soit sans erreurs quelconques et prêt pour un build à succès. Identifie bien les exemples d'erreurs qui sont lister ici dessus, afin de te rassurer de complètement je dis bien complètement les éviter quand tu générera le code. C'est obligatoire.
         DEMANDE UTILISATEUR:
         ${promptText}
         `;
