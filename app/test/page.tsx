@@ -337,6 +337,11 @@ Relis ta liste et vérifie:
 
 === ATTRIBUTS VISUELS POUR CHAQUE ÉLÉMENT ===
 
+                    Évite ce type d'erreurs quand tu génère les composants : "app/components/Sidebar.tsx:183:9
+Type error: Type '(e: any) => void' is not assignable to type '() => void'.
+  Target signature provides too few arguments. Expected 1 or more, but got 0.
+  "
+
 [DIRECTIVE SYSTÈME CRITIQUE : PRIORITÉ FONCTIONNELLE ABSOLUE]
 
 === ANALYSE D'IMAGE TEMPLATE POUR PRODUIRE L'APPLICATION DE L'UTILISATEUR AU PIXEL PERFECT ===
