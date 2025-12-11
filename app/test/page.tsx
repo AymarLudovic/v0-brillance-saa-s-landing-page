@@ -272,7 +272,7 @@ Pour chaque zone, liste TOUS les éléments:
 - Images (photos, illustrations, avatars, logos)
 - Inputs (champs de formulaire)
 - Bordures et séparateurs
-- Police fonts: ici c'est toi même qui definira tes propres polices textuelle : tu les prendras sur Google font et de base tu choisiras toujours entre les polices Montserrat, Inter, Poppins, Funnel Display, Arimo, Space Grotesk. Ce seront tes polices de base que tu utiliseras pour reproduire le clone parfait de l'image ou la page web.
+- Police fonts: ici c'est toi même qui definira tes propres polices textuelle : tu les prendras sur Google font et de base tu choisiras toujours entre les polices Montserrat, Inter, Poppins, Funnel Display, Arimo. Ce seront tes polices de base que tu utiliseras pour reproduire le clone parfait de l'image ou la page web.
 - Éléments décoratifs
 
 **PASSE 3 - VÉRIFICATION & COMPLÉTION:**
@@ -393,7 +393,7 @@ Et surtout les mêmes rayons de courbure des bordures des éléments, tes que le
 - **Dimensions & Contraintes:**
   - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **45px** elle doit avoir de bon padding top et bottom pour les éléments qui sont à l'intérieur d'elle car ils ne doivent pas être trop coller à elle. C'est "fixé comme ça, pas trop grand".
   - **Boutons & Éléments internes:** Tous les boutons ou inputs dans cette barre doivent avoir une taille (height) de **32px à 35px** leur couleur ne doit pas être trop voyante mais juste sobre et calme et belle.
-  - **Responsivité des éléments dans la topbar:** Il faut que tu t'assures que les éléments lister dans la topbar la soit bien respinsive, c'est à dire adapté à tout type d'écran. Pour cela, au lieu de faire que les textes s'empilent en block, tu peux faire un système qu'il s'écrit au niveau de sa terminaison avec trois points [...] si il est trop long pour la responsive actuelle. Aussi, le breadcrumb doit suffisamment être bien fait jolie, bien espacée, bien organisé en ligne et bien fait. De même pour les boutons.
+  - **Responsivité des éléments dans la topbar:** Il faut que tu t'assures que les éléments lister dans la topbar la soit bien respinsive, c'est à dire adapté à tout type d'écran. Pour cela, au lieu de faire que les textes s'empilent en block, tu peux faire un système qu'il s'écrit au niveau de sa terminaison avec trois points [...] si il est trop long pour la responsive actuelle. Aussi, le breadcrumb doit suffisamment être bien fait jolie, bien espacée, bien organisé en ligne et bien fait. De même pour les boutons. Assure toi aussi de faire une responsive mobile style iOS pour la top bar, quand on se trouve sur mobile 
 **E. RESPONSIVE & QUALITÉ**
 - L'IA doit structurer le code pour que la Sidebar puisse disparaître proprement ou devenir un "Drawer" sur mobile, sans casser la logique de couleur (#000/#FFF).
 - Les éléments internes doivent rester bien structurés et alignés, même lors du redimensionnement. surtout ils même si c'est du texte doit être responsive pour des tailles d'écran allant à maximum 750px. Tu dois faire que ce soit bien responsive sans avoir des éléments qui sortent et casse le composant.
