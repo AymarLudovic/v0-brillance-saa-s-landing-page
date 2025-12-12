@@ -1,136 +1,68 @@
 import { NextResponse } from "next/server";
-import { Sandbox } from "@e2b/sdk";
-import fs from "fs";
-import path from "path";
-import os from "os";
+import { CodeInterpreter } from "@e2b/code-interpreter";
 
-export const runtime = "nodejs";
+export const runtime = "nodejs"; // important pour e2b
 
 export async function POST(req: Request) {
   const { template } = await req.json();
 
-  // STREAMING SETUP
-  const stream = new TransformStream();
-  const writer = stream.writable.getWriter();
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        controller.enqueue(encoder.encode("Starting sandbox...\n"));
 
-  function send(text: string) {
-    writer.write(`LOG: ${text}\n`);
-    console.log("[BACKEND]", text);
-  }
+        const sandbox = await CodeInterpreter.create({
+          apiKey: process.env.E2B_API_KEY!,
+          onStdout: (output) =>
+            controller.enqueue(encoder.encode("[LOG] " + output + "\n")),
+          onStderr: (error) =>
+            controller.enqueue(encoder.encode("[ERR] " + error + "\n")),
+        });
 
-  async function finish(url?: string) {
-    if (url) writer.write(`URL: ${url}\n`);
-    await writer.close();
-  }
+        controller.enqueue(encoder.encode("Sandbox created.\n"));
 
-  (async () => {
-    try {
-      send("Initialisation de E2B Sandbox...");
+        // Create Next.js project
+        controller.enqueue(encoder.encode("Creating Next.js app...\n"));
+        await sandbox.run(`
+          npx create-next-app@latest next-app --ts --eslint --app --no-tailwind --src-dir=false --import-alias="@/*"
+        `);
 
-      const sandbox = await Sandbox.create({
-        apiKey: process.env.E2B_API_KEY!,
-        template: "base",           // template Linux Node
-      });
+        controller.enqueue(encoder.encode("Writing template...\n"));
 
-      send(`Sandbox créée : ${sandbox.id}`);
+        // Write custom page.tsx
+        await sandbox.files.write("/workspace/next-app/app/page.tsx", template);
 
-      // -------------------------------
-      // GÉNÉRATION DU PROJET NEXT.JS
-      // -------------------------------
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "next-app-"));
-      const appDir = path.join(tempDir, "app");
-      fs.mkdirSync(appDir, { recursive: true });
+        controller.enqueue(encoder.encode("Installing dependencies...\n"));
+        await sandbox.run(`cd next-app && npm install`);
 
-      fs.writeFileSync(path.join(appDir, "page.tsx"), template, "utf-8");
+        controller.enqueue(encoder.encode("Starting dev server...\n"));
 
-      fs.writeFileSync(
-        path.join(tempDir, "package.json"),
-        JSON.stringify(
-          {
-            name: "next-app-e2b",
-            private: true,
-            scripts: {
-              build: "next build",
-              start: "next start -p 3000",
-            },
-            dependencies: {
-              next: "15.0.0",
-              react: "18.3.1",
-              "react-dom": "18.3.1",
-            },
-          },
-          null,
-          2
-        )
-      );
+        // Run dev server in background
+        sandbox.run(`cd next-app && npm run dev`);
 
-      send("Upload du projet dans la sandbox...");
+        controller.enqueue(
+          encoder.encode("Server running. You can now open the URL.\n")
+        );
 
-      await sandbox.files.uploadDirectory(tempDir, "/workspace/app");
+        // Get public URL (E2B exposes port automatically)
+        const url = sandbox.getUrl(3000);
+        controller.enqueue(encoder.encode(`URL: ${url}\n`));
 
-      // -------------------------------
-      // INSTALLATION
-      // -------------------------------
-      send("Installation des dépendances...");
-
-      await sandbox.commands.run("cd /workspace/app && npm install", {
-        onStdout(data) {
-          send(data.toString());
-        },
-        onStderr(data) {
-          send(data.toString());
-        },
-      });
-
-      // -------------------------------
-      // BUILD
-      // -------------------------------
-      send("Build du projet Next.js...");
-
-      await sandbox.commands.run("cd /workspace/app && npm run build", {
-        onStdout(data) {
-          send(data.toString());
-        },
-        onStderr(data) {
-          send(data.toString());
-        },
-      });
-
-      // -------------------------------
-      // START NEXT.JS (processus async)
-      // -------------------------------
-      send("Démarrage du serveur Next.js...");
-      
-      sandbox.commands.run("cd /workspace/app && npm run start", {
-        onStdout(data) {
-          send(data.toString());
-        },
-        onStderr(data) {
-          send(data.toString());
-        },
-        background: true, // laisser tourner le serveur Next.js
-      });
-
-      // -------------------------------
-      // EXPOSE PORT
-      // -------------------------------
-      send("Exposition du port 3000...");
-
-      const publicUrl = await sandbox.ports.expose(3000);
-
-      send("Application démarrée !");
-      finish(publicUrl);
-    } catch (e: any) {
-      send("❌ ERREUR : " + e.message);
-      finish();
-    }
-  })();
-
-  return new NextResponse(stream.readable, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Transfer-Encoding": "chunked",
+        controller.close();
+      } catch (err: any) {
+        controller.enqueue(encoder.encode("ERROR: " + err.message));
+        controller.close();
+      }
     },
   });
-  }
-        
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+      }
+                         
