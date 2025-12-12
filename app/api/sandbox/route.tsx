@@ -415,11 +415,11 @@ export default function Page() {
 
         try {
           // Start the dev server in background
-          await sandbox.commands.run("nohup npm run dev > /home/user/server.log 2>&1 &", {
-            cwd: "/home/user",
-            timeoutMs: 10000,
-          })
-
+          await sandbox.commands.run("npm run dev", {
+  cwd: "/home/user",
+  timeoutMs: 10000,
+});
+          
           // Wait for server to be ready
           let serverReady = false
           let attempts = 0
