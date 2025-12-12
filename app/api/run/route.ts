@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Daytona } from "@daytonaio/sdk";
+import { Sandbox } from "@e2b/sdk";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   const { template } = await req.json();
 
-  // Streaming response pour envoyer les logs en direct
+  // STREAMING SETUP
   const stream = new TransformStream();
   const writer = stream.writable.getWriter();
 
@@ -25,18 +25,18 @@ export async function POST(req: Request) {
 
   (async () => {
     try {
-      send("Initialisation de Daytona...");
-      const daytona = new Daytona({
-        apiKey: process.env.DAYTONA_API_KEY!,
+      send("Initialisation de E2B Sandbox...");
+
+      const sandbox = await Sandbox.create({
+        apiKey: process.env.E2B_API_KEY!,
+        template: "base",           // template Linux Node
       });
 
-      send("Création de la sandbox...");
-      const sandbox = await daytona.create({
-        language: "typescript",
-        public: true,
-      });
+      send(`Sandbox créée : ${sandbox.id}`);
 
-      send("Génération du projet temporaire...");
+      // -------------------------------
+      // GÉNÉRATION DU PROJET NEXT.JS
+      // -------------------------------
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "next-app-"));
       const appDir = path.join(tempDir, "app");
       fs.mkdirSync(appDir, { recursive: true });
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
         path.join(tempDir, "package.json"),
         JSON.stringify(
           {
-            name: "next-app-daytona",
+            name: "next-app-e2b",
             private: true,
             scripts: {
               build: "next build",
@@ -64,35 +64,62 @@ export async function POST(req: Request) {
         )
       );
 
-      send("Upload du projet dans Daytona...");
-      await sandbox.fs.uploadDir(tempDir, "/home/daytona/app");
+      send("Upload du projet dans la sandbox...");
 
-      const wd = "/home/daytona/app";
+      await sandbox.files.uploadDirectory(tempDir, "/workspace/app");
 
+      // -------------------------------
+      // INSTALLATION
+      // -------------------------------
       send("Installation des dépendances...");
-      await sandbox.process.executeCommand("npm install", wd, (log) =>
-        send(log)
-      );
 
-      send("Build de Next.js...");
-      await sandbox.process.executeCommand("npm run build", wd, (log) =>
-        send(log)
-      );
+      await sandbox.commands.run("cd /workspace/app && npm install", {
+        onStdout(data) {
+          send(data.toString());
+        },
+        onStderr(data) {
+          send(data.toString());
+        },
+      });
 
+      // -------------------------------
+      // BUILD
+      // -------------------------------
+      send("Build du projet Next.js...");
+
+      await sandbox.commands.run("cd /workspace/app && npm run build", {
+        onStdout(data) {
+          send(data.toString());
+        },
+        onStderr(data) {
+          send(data.toString());
+        },
+      });
+
+      // -------------------------------
+      // START NEXT.JS (processus async)
+      // -------------------------------
       send("Démarrage du serveur Next.js...");
-      await sandbox.process.executeCommand(
-        "npm run start",
-        wd,
-        (log) => send(log),
-        0,
-        { async: true }
-      );
+      
+      sandbox.commands.run("cd /workspace/app && npm run start", {
+        onStdout(data) {
+          send(data.toString());
+        },
+        onStderr(data) {
+          send(data.toString());
+        },
+        background: true, // laisser tourner le serveur Next.js
+      });
 
-      send("Récupération de l'URL publique...");
-      const preview = await sandbox.getPreviewUrl(3000);
+      // -------------------------------
+      // EXPOSE PORT
+      // -------------------------------
+      send("Exposition du port 3000...");
 
-      send("Application disponible !");
-      finish(preview.url);
+      const publicUrl = await sandbox.ports.expose(3000);
+
+      send("Application démarrée !");
+      finish(publicUrl);
     } catch (e: any) {
       send("❌ ERREUR : " + e.message);
       finish();
@@ -105,5 +132,5 @@ export async function POST(req: Request) {
       "Transfer-Encoding": "chunked",
     },
   });
-        }
-        
+  }
+            
