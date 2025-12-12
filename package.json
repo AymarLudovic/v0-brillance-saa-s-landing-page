@@ -52,6 +52,7 @@
     "@uiw/codemirror-theme-xcode": "latest",
     "@uiw/react-codemirror": "latest",
     "@vercel/analytics": "1.3.1",
+    "@daytonaio/sdk": "0.124.0",
     "@vercel/sdk": "1.17.3",
     "autoprefixer": "^10.4.20",
     "canvas": "latest",
