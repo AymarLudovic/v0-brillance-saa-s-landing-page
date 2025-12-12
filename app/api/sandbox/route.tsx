@@ -415,7 +415,7 @@ export default function Page() {
 
         try {
           // Start the dev server in background
-          await sandbox.commands.run("npm run dev", {
+          await sandbox.commands.run("npm run start", {
   cwd: "/home/user",
   timeoutMs: 0,
 });
