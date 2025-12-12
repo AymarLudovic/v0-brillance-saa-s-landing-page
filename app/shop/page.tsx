@@ -19,7 +19,7 @@ export default function Home() {
 
   const run = async () => {
     setLogs([]);
-    const res = await fetch("/api/run-nextjs", {
+    const res = await fetch("/api/run", {
       method: "POST",
       body: JSON.stringify({ template }),
     });
