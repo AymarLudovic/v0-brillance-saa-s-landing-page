@@ -3,29 +3,33 @@
 import { useState } from "react";
 
 export default function Home() {
-  const [template, setTemplate] = useState(`export default function Page() {
+  const [template, setTemplate] = useState(
+`export default function Page() {
   return (
     <div style={{ padding: 40, fontSize: 32 }}>
-      Hello from E2B Next.js Sandbox 🚀
+      🚀 Hello from E2B Next.js Sandbox
     </div>
   );
-}`);
+}`
+  );
+
   const [logs, setLogs] = useState<string[]>([]);
 
-  const addLog = (line: string) => {
-    console.log(line);
-    setLogs((prev) => [...prev, line]);
+  const addLog = (msg: string) => {
+    console.log(msg);
+    setLogs((prev) => [...prev, msg]);
   };
 
-  const run = async () => {
+  const runBuild = async () => {
     setLogs([]);
-    const res = await fetch("/api/run", {
+
+    const res = await fetch("/api/run-nextjs", {
       method: "POST",
       body: JSON.stringify({ template }),
     });
 
     if (!res.body) {
-      addLog("No response body");
+      addLog("❌ No response body");
       return;
     }
 
@@ -33,9 +37,11 @@ export default function Home() {
     const decoder = new TextDecoder();
 
     while (true) {
-      const { value, done } = await reader.read();
+      const { done, value } = await reader.read();
       if (done) break;
-      addLog(decoder.decode(value));
+
+      const text = decoder.decode(value);
+      addLog(text);
     }
   };
 
@@ -50,17 +56,18 @@ export default function Home() {
       />
 
       <button
-        onClick={run}
-        className="mt-4 px-4 py-2 bg-black text-white rounded"
+        onClick={runBuild}
+        className="mt-4 px-5 py-2 bg-black text-white rounded"
       >
-        Build & Run
+        🚀 Build & Run
       </button>
 
-      <div className="mt-6 border rounded p-3 h-80 overflow-auto bg-black text-green-400 font-mono text-sm">
+      <div className="mt-6 border rounded p-3 h-80 overflow-auto bg-black text-green-300 font-mono text-sm whitespace-pre-wrap">
         {logs.map((l, i) => (
           <div key={i}>{l}</div>
         ))}
       </div>
     </main>
   );
-    }
+      }
+    
