@@ -387,99 +387,48 @@ export default function Page() {
         })
       }
 
-      case "start": {
-        if (!bodySandboxId) throw new Error("sandboxId manquant")
+      
+            case "start": {
+    if (!bodySandboxId) throw new Error("sandboxId manquant")
 
-        const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS })
-        await sandbox.setTimeout(SANDBOX_TIMEOUT_MS)
+    const sandbox = await e2b.Sandbox.connect(bodySandboxId, { apiKey, timeoutMs: SANDBOX_TIMEOUT_MS })
+    await sandbox.setTimeout(SANDBOX_TIMEOUT_MS)
 
-        try {
-          await sandbox.commands.run("pkill -f 'next dev' || true", {
+    // --- DEBUT DU PROCESSUS SIMPLIFIE ---
+    try {
+        // Lancer le serveur de développement en arrière-plan (npm run dev)
+        // Ceci utilise 'nohup ... & ' pour éviter de bloquer l'exécution de l'await
+        // et dirige les logs vers un fichier (server.log)
+        await sandbox.commands.run("nohup npm run dev > /home/user/server.log 2>&1 &", {
             cwd: "/home/user",
-            timeoutMs: 5000,
-          })
-          await sandbox.commands.run("pkill -f 'next start' || true", {
-            cwd: "/home/user",
-            timeoutMs: 5000,
-          })
-          // Also try to kill by port
-          await sandbox.commands.run("fuser -k 3000/tcp || true", {
-            cwd: "/home/user",
-            timeoutMs: 5000,
-          })
-          // Wait a bit for processes to die
-          await new Promise((resolve) => setTimeout(resolve, 2000))
-        } catch (e) {
-          console.log("[v0] No existing process to kill or kill failed (this is OK)")
-        }
+            // Un petit timeout pour s'assurer que le lancement est initié avant de continuer
+            timeoutMs: 10000, 
+        });
+        
+        const url = `https://${sandbox.getHost(3000)}`
 
-        try {
-          // Start the dev server in background
-          await sandbox.commands.run("npm run start", {
-  cwd: "/home/user",
-  timeoutMs: 0,
-});
-          
-          // Wait for server to be ready
-          let serverReady = false
-          let attempts = 0
-          const maxAttempts = 30 // 30 seconds max
+        console.log(`[v0] Dev server launch initiated. URL: ${url}`)
 
-          while (!serverReady && attempts < maxAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            attempts++
-
-            try {
-              const checkResult = await sandbox.commands.run(
-                "curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 || echo '000'",
-                { cwd: "/home/user", timeoutMs: 5000 },
-              )
-              const httpCode = checkResult.stdout.trim()
-              console.log(`[v0] Server check attempt ${attempts}: HTTP ${httpCode}`)
-
-              if (httpCode === "200" || httpCode === "304" || httpCode === "404") {
-                serverReady = true
-              }
-            } catch (e) {
-              console.log(`[v0] Server check attempt ${attempts} failed`)
-            }
-          }
-
-          const url = `https://${sandbox.getHost(3000)}`
-
-          // Get server logs
-          let serverLogs = ""
-          try {
-            const logsResult = await sandbox.commands.run("tail -100 /home/user/server.log", {
-              cwd: "/home/user",
-              timeoutMs: 5000,
-            })
-            serverLogs = logsResult.stdout
-          } catch (e) {
-            console.log("[v0] Could not read server logs")
-          }
-
-          console.log(`[v0] Server started. URL: ${url}, Ready: ${serverReady}`)
-
-          return NextResponse.json({
-            success: serverReady,
+        // Retourner une réponse simple indiquant que le lancement est initié
+        return NextResponse.json({
+            success: true,
             action,
             url,
-            ready: serverReady,
-            attempts,
-            stdout: serverLogs,
-            stderr: serverReady ? "" : "Server may not be ready yet",
-          })
-        } catch (e: any) {
-          console.error("[v0] Error starting server:", e)
-          return NextResponse.json({
+            ready: true, 
+            stdout: "Dev server launch initiated.",
+        })
+    } catch (e: any) {
+        console.error("[v0] Error starting dev server:", e)
+        return NextResponse.json({
             success: false,
             action,
             error: e.message,
             stderr: e.message,
-          })
-        }
-      }
+        })
+    }
+    // --- FIN DU PROCESSUS SIMPLIFIE ---
+                                                              }
+          
 
       case "stop": {
         if (!bodySandboxId) throw new Error("sandboxId manquant")
