@@ -4,79 +4,106 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-export const runtime = "nodejs"; // important pour Daytona SDK
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const { template } = await req.json();
 
-  // 1) Initialiser Daytona
-  const daytona = new Daytona({
-    apiKey: process.env.DAYTONA_API_KEY!,
-  });
+  // Streaming response pour envoyer les logs en direct
+  const stream = new TransformStream();
+  const writer = stream.writable.getWriter();
 
-  // 2) Créer la sandbox
-  const sandbox = await daytona.create({
-    language: "typescript",
-    public: true,
-  });
+  function send(text: string) {
+    writer.write(`LOG: ${text}\n`);
+    console.log("[BACKEND]", text);
+  }
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "next-app-"));
-  const appDir = path.join(tempDir, "app");
+  async function finish(url?: string) {
+    if (url) writer.write(`URL: ${url}\n`);
+    await writer.close();
+  }
 
-  // -- Générer la structure Next.js app router --
-  fs.mkdirSync(appDir, { recursive: true });
+  (async () => {
+    try {
+      send("Initialisation de Daytona...");
+      const daytona = new Daytona({
+        apiKey: process.env.DAYTONA_API_KEY!,
+      });
 
-  fs.writeFileSync(
-    path.join(appDir, "page.tsx"),
-    template,
-    "utf-8"
-  );
+      send("Création de la sandbox...");
+      const sandbox = await daytona.create({
+        language: "typescript",
+        public: true,
+      });
 
-  fs.writeFileSync(
-    path.join(tempDir, "package.json"),
-    JSON.stringify(
-      {
-        name: "next-app-daytona",
-        version: "1.0.0",
-        private: true,
-        scripts: {
-          build: "next build",
-          start: "next start -p 3000",
-        },
-        dependencies: {
-          next: "15.0.0",
-          react: "18.3.1",
-          "react-dom": "18.3.1",
-        },
-      },
-      null,
-      2
-    )
-  );
+      send("Génération du projet temporaire...");
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "next-app-"));
+      const appDir = path.join(tempDir, "app");
+      fs.mkdirSync(appDir, { recursive: true });
 
-  // 3) Upload du projet dans la sandbox
-  await sandbox.fs.uploadDir(tempDir, "/home/daytona/app");
+      fs.writeFileSync(path.join(appDir, "page.tsx"), template, "utf-8");
 
-  const wd = "/home/daytona/app";
+      fs.writeFileSync(
+        path.join(tempDir, "package.json"),
+        JSON.stringify(
+          {
+            name: "next-app-daytona",
+            private: true,
+            scripts: {
+              build: "next build",
+              start: "next start -p 3000",
+            },
+            dependencies: {
+              next: "15.0.0",
+              react: "18.3.1",
+              "react-dom": "18.3.1",
+            },
+          },
+          null,
+          2
+        )
+      );
 
-  // 4) Installer les dépendances
-  await sandbox.process.executeCommand("npm install", wd);
+      send("Upload du projet dans Daytona...");
+      await sandbox.fs.uploadDir(tempDir, "/home/daytona/app");
 
-  // 5) Build Next.js
-  await sandbox.process.executeCommand("npm run build", wd);
+      const wd = "/home/daytona/app";
 
-  // 6) Lancer le serveur Next.js (async)
-  await sandbox.process.executeCommand(
-    "npm run start",
-    wd,
-    undefined,
-    0,
-    { async: true }
-  );
+      send("Installation des dépendances...");
+      await sandbox.process.executeCommand("npm install", wd, (log) =>
+        send(log)
+      );
 
-  // 7) Récupérer l’URL publique
-  const preview = await sandbox.getPreviewUrl(3000);
+      send("Build de Next.js...");
+      await sandbox.process.executeCommand("npm run build", wd, (log) =>
+        send(log)
+      );
 
-  return NextResponse.json({ url: preview.url });
+      send("Démarrage du serveur Next.js...");
+      await sandbox.process.executeCommand(
+        "npm run start",
+        wd,
+        (log) => send(log),
+        0,
+        { async: true }
+      );
+
+      send("Récupération de l'URL publique...");
+      const preview = await sandbox.getPreviewUrl(3000);
+
+      send("Application disponible !");
+      finish(preview.url);
+    } catch (e: any) {
+      send("❌ ERREUR : " + e.message);
+      finish();
     }
-  
+  })();
+
+  return new NextResponse(stream.readable, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Transfer-Encoding": "chunked",
+    },
+  });
+        }
+        
