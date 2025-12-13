@@ -567,6 +567,7 @@ Import trace for requested module:
 Tu dois t'assurer que l'on ne trouve jamais aucune erreur dans le code que tu génère quelques soit le fichier et l'intention. Le but est que le build soit toujours un succès.
 Tu dois t'engager à dédier une étape particulière pour t'assurer que les codes soit sans erreurs quelconques et prêt pour un build à succès. Identifie bien les exemples d'erreurs qui sont lister ici dessus, afin de te rassurer de complètement je dis bien complètement les éviter quand tu générera le code. C'est obligatoire.
         DEMANDE UTILISATEUR:
+        Tu vas juste généré deux fichiers qui vont contenir tout l'UI: app/page.tsx et app/globals.css, pas de fichier composants.
         ${promptText}
         `;
     }
