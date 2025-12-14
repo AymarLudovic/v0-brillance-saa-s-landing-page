@@ -46,7 +46,8 @@ export async function POST(req: Request) {
             next: "15.1.0",
             react: "19.0.0",
             "react-dom": "19.0.0",
-            "iconsax-reactjs": "0.0.8"
+            "iconsax-reactjs": "0.0.8",
+            "lucide-react": "0.561.0"
           },
           devDependencies: {
             typescript: "5.7.2",
