@@ -218,7 +218,7 @@ export default function VibeCodingPlatform() {
         2. Ensuite, génère les fichiers.
         3. STRICTEMENT INTERDIT d'utiliser des blocs markdown classiques (\`\`\`tsx).
         4. TU DOIS UTILISER CE FORMAT XML EXACT pour chaque fichier généré :
-        5. Pour les icônes, utilise les icônes de Google font icons, en Important l'url dans le fichier app/layout.tsx
+        5. Pour les icônes, utilise les icônes de lucide react, pas besoin de générer de package json le package est déjà installé tu n'as qu'à l'importer directement.
         <code_generation path="app/page.tsx">
           ... le contenu du fichier ici ...
         </code_generation>
@@ -246,6 +246,7 @@ Et je te le rappelle, les données json que tu reçoives ne peuvent pas souvent 
 C'est important que tu génère des ui digne des grands designers humain célèbre par exemple sur des plateformes comme framer, ou figma. Donc ton analyse des formes, images , couleurs, structures ultra détaillé tes important pour toi. pas forcément des données json.
 
 Ta détection des couleurs doit être absolument, je dis bien absolument parfaite. Tu dois aussi bien détecté parfaitement les autres éléments de l'image autres que la sidebar et absolument ressortir aussi une analyse hyper profonde et parfaite tout comme celle de la sidebar voir plus.
+Surtout assure toi de suivre les différentes design instructions lister ci-dessous, malgré que tu reproudra l'image.
 </ui_generation_perfect>
 
 
@@ -286,15 +287,18 @@ Et surtout les mêmes rayons de courbure des bordures des éléments, tes que le
   - **Espacement:** Utiliser uniquement le vide (padding/margin) pour séparer les groupes. Même si les éléments sont espacés, ne jamais rajouter une ligne de séparation visible.
   - ** Les sidebar peuvent avoir des bordures right ou left tant que la couleur est distraite mais visible.
 - **Structure Interne:**
-  - Les éléments doivent être bien groupés logiquement.
+  - Les éléments doivent être bien groupés logiquement. Et ils ne doivent pas avoir un grand padding et height ( il doivent se situer entre 33 et 34px )
+  - Les inputs search doivent toujours avoir une icône dedans et tu ne dois pas faire de la redondance en mettant encore un menu search dans les menus de navigation de la sidebar.
   - La section "Profil/User" ne doit pas être isolée par une ligne, mais simplement positionnée (souvent en bas) avec de l'espace.
   - Les éléments doivent être bien cadrer et pas touché les bords de la sidebar.
+  
 **C. MICRO-COMPOSANTS DE LA SIDEBAR (MENUS & INPUTS)**
 - **Design des Items (Menus & Searchbox):**
-  - **Border-Radius:** Doit être **très rounded**, compris entre **10px et 13px**. C'est impératif pour le style ("plus beau comme ça").
-  - **Hauteur (Height):** Doit être compacte ("pas grand"). La hauteur doit être comprise strictement entre **30px et 32px**.
-  - **Inputs de Recherche:** Les Searchbox dans la sidebar suivent la même règle : Height 30-32px et Radius 10-13px.
+  - **Border-Radius:** Doit être **très rounded**, compris entre **9px et 12px**. C'est impératif pour le style ("plus beau comme ça").
+  - **Hauteur (Height):** Doit être compacte ("pas grand"). La hauteur doit être comprise strictement entre **33px et 34px**.
+  - **Inputs de Recherche:** Les Searchbox dans la sidebar suivent la même règle : Height 33-34px et Radius 9-12px.
   - **Menu de gestion de profil au bottom de la sidebar:** Même la, la section dans laquelle il se trouve ne devra pas avoir de \`borddr-top\` qui montre une séparation quelconque avec le contenu du dessus. Il doit aussi être rounded et d'une taille 30px à 32px et rounded suffisamment. La section de profil va devoir se distinguer dn ayant des bordures de même couleur que la bordure de la sidebar et doit être bien placé.
+  - **Evite de trop espacé les éléments car ça fera trop d'espace vide.
   
 **D. LA TOPBAR CONTEXTUELLE (HEADER DE SECTION)**
 - **Contexte:** Quand une Sidebar est présente (Dashboard).
@@ -307,6 +311,7 @@ Et surtout les mêmes rayons de courbure des bordures des éléments, tes que le
   - **Hauteur Maximale:** La \`height\` du conteneur Topbar ne doit pas dépasser **45px** elle doit avoir de bon padding top et bottom pour les éléments qui sont à l'intérieur d'elle car ils ne doivent pas être trop coller à elle. C'est "fixé comme ça, pas trop grand".
   - **Boutons & Éléments internes:** Tous les boutons ou inputs dans cette barre doivent avoir une taille (height) de **32px à 35px** leur couleur ne doit pas être trop voyante mais juste sobre et calme et belle.
   - **Responsivité des éléments dans la topbar:** Il faut que tu t'assures que les éléments lister dans la topbar la soit bien respinsive, c'est à dire adapté à tout type d'écran. Pour cela, au lieu de faire que les textes s'empilent en block, tu peux faire un système qu'il s'écrit au niveau de sa terminaison avec trois points [...] si il est trop long pour la responsive actuelle. Aussi, le breadcrumb doit suffisamment être bien fait jolie, bien espacée, bien organisé en ligne et bien fait. De même pour les boutons. Assure toi aussi de faire une responsive mobile style iOS pour la top bar, quand on se trouve sur mobile 
+
 **E. RESPONSIVE & QUALITÉ**
 - L'IA doit structurer le code pour que la Sidebar puisse disparaître proprement ou devenir un "Drawer" sur mobile, sans casser la logique de couleur (#000/#FFF).
 - Les éléments internes doivent rester bien structurés et alignés, même lors du redimensionnement. surtout ils même si c'est du texte doit être responsive pour des tailles d'écran allant à maximum 750px. Tu dois faire que ce soit bien responsive sans avoir des éléments qui sortent et casse le composant.
