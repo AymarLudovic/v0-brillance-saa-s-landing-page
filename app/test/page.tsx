@@ -248,12 +248,7 @@ C'est important que tu génère des ui digne des grands designers humain célèb
 Ta détection des couleurs doit être absolument, je dis bien absolument parfaite. Tu dois aussi bien détecté parfaitement les autres éléments de l'image autres que la sidebar et absolument ressortir aussi une analyse hyper profonde et parfaite tout comme celle de la sidebar voir plus.
 </ui_generation_perfect>
 
-<error_handling>
 
-                    Évite ce type d'erreurs quand tu génère les composants : "app/components/Sidebar.tsx:183:9
-Type error: Type '(e: any) => void' is not assignable to type '() => void'.
-  Target signature provides too few arguments. Expected 1 or more, but got 0.
-  "
 
 [DIRECTIVE SYSTÈME CRITIQUE : PRIORITÉ FONCTIONNELLE ABSOLUE]
 
@@ -321,6 +316,14 @@ Et surtout les mêmes rayons de courbure des bordures des éléments, tes que le
 
 
 === CONTEXTE ET PHILOSOPHIE ===
+<error_handling>
+
+                    Évite ce type d'erreurs quand tu génère les composants : "app/components/Sidebar.tsx:183:9
+Type error: Type '(e: any) => void' is not assignable to type '() => void'.
+  Target signature provides too few arguments. Expected 1 or more, but got 0.
+  "
+  Tu dois éviter les erreurs de type qui disent que soit tel éléments n'est pas définie, tel e élément ou ce type d'erreur subItems' does not exist on type '{ icon: string; text: string; active: boolean; indented: boolean; }'.
+   Évite cela, défini toujours les types que tu utiliseras dans un fichier spécial et qu'ils soient tous exporter et tous dans le bon format attendu.
 
 === TYPES CORRECTION===
 Pour éviter tout types d'erreur de type ou de typage , de type manquer, dans tel ou tel composant, tu vas généré un fichier type.ts global qui va absolument contenir touts les types que tu auras besoin pour chaque fichier, je dis bien tout. Au lieu de faire directement les types dans le composant tsx la en question.
