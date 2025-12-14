@@ -244,6 +244,8 @@ Ce que tu dois comprendre est que de fois ces images contiennent à l'intérieur
 Tu dois absolument bien analyser l'image je dis bien analyser, regarde les sidebar, qu'elles sont leur dimension, quel sont leurs couleurs, leurs véritable couleurs, comment elles sont faits comment les éléments sont t'il disposé quel est la height, padding xe ces éléments et les degrés de courbures, quels sont les effets des textes, c'est une analyse hyper structurée que tu dois ressortir pour chaque élément détecté dur l'image.
 Et je te le rappelle, les données json que tu reçoives ne peuvent pas souvent être gixe et fiable donc tu dois compter à 90% sur ta détection personnelle sur ce que tu vois réellement sur l'image car c'est à partir de t'a détection que tu vas pouvoir reproduire fidèlement la page web sur l'image.
 C'est important que tu génère des ui digne des grands designers humain célèbre par exemple sur des plateformes comme framer, ou figma. Donc ton analyse des formes, images , couleurs, structures ultra détaillé tes important pour toi. pas forcément des données json.
+
+Ta détection des couleurs doit être absolument, je dis bien absolument parfaite. Tu dois aussi bien détecté parfaitement les autres éléments de l'image autres que la sidebar et absolument ressortir aussi une analyse hyper profonde et parfaite tout comme celle de la sidebar voir plus.
 </ui_generation_perfect>
 
 <error_handling>
