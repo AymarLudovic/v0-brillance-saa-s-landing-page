@@ -569,6 +569,9 @@ Tu dois t'engager à dédier une étape particulière pour t'assurer que les cod
         DEMANDE UTILISATEUR:
         Tu vas juste généré deux fichiers qui vont contenir tout l'UI: app/page.tsx et app/globals.css, pas de fichier composants.
         ${promptText}
+        Ce que tu dois comprendre est que de fois ces images contiennent à l'intérieur des images de pages web et c'est ces pages web que tu dois reproduire pas la background de fond sui entoure l'image.
+        Deuxièmement, le but de ces images web la est que réellement tu la reproduise à un niveau de détail parfait, quand je dis bien parfait c'est parfait, jusqu'à la plus petite virgule ou point dans un texte, ou d'un élément quelconque sur l'image la.
+        Le but c'est que tu reproduise absolument au pixel perfect chaque moindre détail de l'image de la page web, sans sourciller, c'est le meilleur moyen pour toi de générer des UI parfaits et irréprochable. Tu dois donc vraiment t'appliquer dans la conception au niveau détails parfait. c'est ça qui est attendu de toi.
         `;
     }
 
