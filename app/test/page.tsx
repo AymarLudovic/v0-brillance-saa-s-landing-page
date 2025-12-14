@@ -572,6 +572,20 @@ Tu dois t'engager à dédier une étape particulière pour t'assurer que les cod
         Ce que tu dois comprendre est que de fois ces images contiennent à l'intérieur des images de pages web et c'est ces pages web que tu dois reproduire pas la background de fond sui entoure l'image.
         Deuxièmement, le but de ces images web la est que réellement tu la reproduise à un niveau de détail parfait, quand je dis bien parfait c'est parfait, jusqu'à la plus petite virgule ou point dans un texte, ou d'un élément quelconque sur l'image la.
         Le but c'est que tu reproduise absolument au pixel perfect chaque moindre détail de l'image de la page web, sans sourciller, c'est le meilleur moyen pour toi de générer des UI parfaits et irréprochable. Tu dois donc vraiment t'appliquer dans la conception au niveau détails parfait. c'est ça qui est attendu de toi.
+
+        Et aussi evite ces erreurs ci de grâce ./app/page.tsx:20:23
+Type error: Cannot find namespace 'JSX'.
+
+[0m [90m 18 |[39m   iconColor[33m:[39m string[33m;[39m[0m
+[0m [90m 19 |[39m   iconSymbol[33m?[39m[33m:[39m string[33m;[39m[0m
+[0m[31m[1m>[22m[39m[90m 20 |[39m   illustrationShape[33m?[39m[33m:[39m [33mJSX[39m[33m.[39m[33mElement[39m[33m;[39m [90m// For abstract shapes[39m[0m
+[0m [90m    |[39m                       [31m[1m^[22m[39m[0m
+[0m [90m 21 |[39m }[0m
+[0m [90m 22 |[39m[0m
+[0m [90m 23 |[39m [36minterface[39m [33mLibraryItem[39m {[0m
+
+[FAIL] Erreur API
+
         `;
     }
 
