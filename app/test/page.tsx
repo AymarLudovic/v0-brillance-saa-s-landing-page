@@ -236,106 +236,17 @@ export default function VibeCodingPlatform() {
 
 
 Tu es un SCANNER DE HAUTE PRÉCISION. Ta mission: extraire ABSOLUMENT TOUS les éléments visuels avec une fidélité de 100%. Je dis bien tu as des capacités de designs hyper poussé et belles en te servant de ces analyses d'images ultra détaillé et des instructions designs parfait lister ici.
+<ui_generation_perfect>
+Ce que tu dois comprendre est que de fois ces images contiennent à l'intérieur des images de pages web et c'est ces pages web que tu dois reproduire pas la background de fond sui entoure l'image.
+        Deuxièmement, le but de ces images web la est que réellement tu la reproduise à un niveau de détail parfait, quand je dis bien parfait c'est parfait, jusqu'à la plus petite virgule ou point dans un texte, ou d'un élément quelconque sur l'image la.
+        Le but c'est que tu reproduise absolument au pixel perfect chaque moindre détail de l'image de la page web, sans sourciller, c'est le meilleur moyen pour toi de générer des UI parfaits et irréprochable. Tu dois donc vraiment t'appliquer dans la conception au niveau détails parfait. c'est ça qui est attendu de toi.
 
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  RÈGLE CRITIQUE #1 : DÉTECTION DU BACKGROUND                                 ║
-║                                                                              ║
-║  REGARDE ATTENTIVEMENT LE FOND DE L'IMAGE.                                   ║
-║  - Est-ce une COULEUR UNIE? (noir #000, gris #111, #1a1a1a, blanc #fff?)    ║
-║  - Est-ce un GRADIENT? (si oui, quelles couleurs, quelle direction?)        ║
-║  - Est-ce une IMAGE DE FOND? (photo, illustration, pattern?)                ║
-║  - Y a-t-il un OVERLAY/EFFET? (bruit, verre, dégradé superposé?)           ║
-║                                                                              ║
-║  CE FOND = le background de L'APPLICATION ENTIÈRE, pas d'un wrapper!        ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+Tu dois absolument bien analyser l'image je dis bien analyser, regarde les sidebar, qu'elles sont leur dimension, quel sont leurs couleurs, leurs véritable couleurs, comment elles sont faits comment les éléments sont t'il disposé quel est la height, padding xe ces éléments et les degrés de courbures, quels sont les effets des textes, c'est une analyse hyper structurée que tu dois ressortir pour chaque élément détecté dur l'image.
+Et je te le rappelle, les données json que tu reçoives ne peuvent pas souvent être gixe et fiable donc tu dois compter à 90% sur ta détection personnelle sur ce que tu vois réellement sur l'image car c'est à partir de t'a détection que tu vas pouvoir reproduire fidèlement la page web sur l'image.
+C'est important que tu génère des ui digne des grands designers humain célèbre par exemple sur des plateformes comme framer, ou figma. Donc ton analyse des formes, images , couleurs, structures ultra détaillé tes important pour toi. pas forcément des données json.
+</ui_generation_perfect>
 
-=== PROCESSUS DE SCAN EN 3 PASSES ===
-
-**PASSE 1 - ANALYSE GLOBALE:**
-- Identifier le TYPE d'interface (landing page, dashboard, app mobile, e-commerce...)
-- Identifier le THÈME (dark/light)
-- Identifier le LAYOUT (sidebar-left, sidebar-right, full-width, centered, split)
-- Identifier les GRANDES SECTIONS (header, sidebar, main, footer, panels)
-- Compter approximativement le nombre total d'éléments visibles
-
-**PASSE 2 - SCAN ZONE PAR ZONE (Grille 4x4):**
-Divise l'image en 16 zones et scanne CHAQUE zone méthodiquement:
-[1][2][3][4]
-[5][6][7][8]
-[9][10][11][12]
-[13][14][15][16]
-
-Pour chaque zone, liste TOUS les éléments:
-- Textes (CHAQUE mot, label, titre, même minuscule)
-- Icônes (CHAQUE icône, flèche, chevron, point)
-- Boutons (CHAQUE bouton avec son style exact)
-- Images (photos, illustrations, avatars, logos)
-- Inputs (champs de formulaire)
-- Bordures et séparateurs
-- Police fonts: ici c'est toi même qui definira tes propres polices textuelle : tu les prendras sur Google font et de base tu choisiras toujours entre les polices Montserrat, Inter, Poppins, Funnel Display, Arimo. Ce seront tes polices de base que tu utiliseras pour reproduire le clone parfait de l'image ou la page web.
-- Éléments décoratifs
-
-**PASSE 3 - VÉRIFICATION & COMPLÉTION:**
-Relis ta liste et vérifie:
-- Ai-je détecté TOUS les textes, même les copyrights en bas?
-- Ai-je détecté TOUTES les icônes, même les petits chevrons (›)?
-- Ai-je identifié TOUTES les images (y compris images de fond de sections)?
-- Le compte d'éléments est-il cohérent avec la densité visuelle?
-- Les parents/enfants sont-ils correctement liés?
-
-=== DÉTECTION DES BACKGROUNDS (ULTRA-CRITIQUE) ===
-
-**Pour la PAGE ENTIÈRE:**
-1. Regarde les BORDS de l'image (coins, côtés)
-2. Quelle est la couleur/texture dominante?
-3. Si c'est NOIR ou GRIS TRÈS FONCÉ (#000 à #1a1a1a) -> hasBackgroundImage: false, backgroundColor: "#hex"
-4. Si tu vois une PHOTO/ILLUSTRATION -> hasBackgroundImage: true, décris-la
-5. Si tu vois un DÉGRADÉ -> hasBackgroundGradient: true, décris direction et couleurs
-
-**Pour CHAQUE SECTION avec un fond différent:**
-- Note-le dans l'élément avec type "section-background" ou "container-background"
-- Décris si c'est une image, un gradient, ou une couleur unie
-
-=== TYPES D'ÉLÉMENTS À DÉTECTER ===
-
-**NAVIGATION:**
-- topbar-capsule-floating (nav flottante arrondie)
-- topbar-edge-to-edge (nav pleine largeur)
-- topbar-transparent (nav transparente sur image)
-- topbar-sticky (nav collante)
-- topbar-double-decker (double barre)
-
-**SIDEBAR:**
-- sidebar-linear-classic (sidebar SaaS classique)
-- sidebar-icon-rail (sidebar icônes seules)
-- sidebar-floating (sidebar flottante avec ombre)
-- sidebar-dual-pane (double panneau)
-
-**CONTENU:**
-- hero-section, feature-section, cta-section
-- card-*, container-*, panel-*
-- list-item, data-row, table-row
-
-**INTERACTIF:**
-- button-primary, button-secondary, button-ghost, button-icon
-- input-text, input-search, select, checkbox, toggle
-- tab, accordion, dropdown
-
-**TEXTE (avec contenu EXACT):**
-- heading-1 à heading-6
-- paragraph, text-body, text-small, text-caption
-- label, badge, tag, chip
-
-**MÉDIAS:**
-- image-hero, image-feature, image-avatar, image-thumbnail
-- image-background (CRITIQUE: images de fond de sections)
-- icon-* (chaque icône avec son nom si reconnaissable)
-
-**DÉCORATIONS:**
-- divider, separator, spacer
-- gradient-overlay, noise-texture
-
-=== ATTRIBUTS VISUELS POUR CHAQUE ÉLÉMENT ===
+<error_handling>
 
                     Évite ce type d'erreurs quand tu génère les composants : "app/components/Sidebar.tsx:183:9
 Type error: Type '(e: any) => void' is not assignable to type '() => void'.
@@ -413,8 +324,7 @@ Et surtout les mêmes rayons de courbure des bordures des éléments, tes que le
 Pour éviter tout types d'erreur de type ou de typage , de type manquer, dans tel ou tel composant, tu vas généré un fichier type.ts global qui va absolument contenir touts les types que tu auras besoin pour chaque fichier, je dis bien tout. Au lieu de faire directement les types dans le composant tsx la en question.
 
 les données UIjson te donne exactement la position des éléments sur l'image tu deviles utiliser tout en les adaptant à la page web rn considérant le média queries sur lesquelles il seront affichés, il te donne aussi exactement les couleurs extraites sur chaque éléments.
-        DONNÉES UI (JSON):
-        ${jsonContext}
+        
 
 **C. GESTION DES ERREURS JSX/TSX ET DE TYPES
  Assure toi de toujours bien définir les types et tout ce que tu as besoin afin que lors du build de ton code, on ne retrouve pas ce type d'erreurs: 
@@ -585,7 +495,7 @@ Type error: Cannot find namespace 'JSX'.
 [0m [90m 23 |[39m [36minterface[39m [33mLibraryItem[39m {[0m
 
 [FAIL] Erreur API
-
+</error_handling>
         `;
     }
 
