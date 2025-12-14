@@ -218,7 +218,7 @@ export default function VibeCodingPlatform() {
         2. Ensuite, génère les fichiers.
         3. STRICTEMENT INTERDIT d'utiliser des blocs markdown classiques (\`\`\`tsx).
         4. TU DOIS UTILISER CE FORMAT XML EXACT pour chaque fichier généré :
-        5. Pour les icônes, utilise les icônes de lucide react, pas besoin de générer de package json le package est déjà installé tu n'as qu'à l'importer directement.
+        5. Pour les icônes, utilise les icônes de lucide react, pas besoin de générer de package json le package est déjà installé tu n'as qu'à l'importer directement. Mais assure toi d'utiliser les icônes de Lucide React que tu connais, même si elle ne ressemble pas directement à ce que tu vois dans l'image, le but est que tu n'importe pas une icône de lucide-react qui n'existe pas.
         <code_generation path="app/page.tsx">
           ... le contenu du fichier ici ...
         </code_generation>
