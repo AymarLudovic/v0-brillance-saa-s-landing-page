@@ -263,7 +263,7 @@ C'est important que tu génère des ui digne des grands designers humain célèb
 Ta détection des couleurs doit être absolument, je dis bien absolument parfaite. Tu dois aussi bien détecté parfaitement les autres éléments de l'image autres que la sidebar et absolument ressortir aussi une analyse hyper profonde et parfaite tout comme celle de la sidebar voir plus.
 Surtout assure toi de suivre les différentes design instructions lister ci-dessous, malgré que tu reproudra l'image.
 
-Rassure toi que toutes les classes CSS que tu vas appelé dzns le fichier front end doit absolument mentionné dans le fichier de styles globale, surtout ne l'oublie pas.
+Rassure toi que toutes les classes CSS que tu vas appelé dzns le fichier front end doit absolument mentionné dans le fichier de styles globale, surtout ne l'oublie pas. Génère toujours un fichier app/layout.tsx qui va importer le fichier app/globals.css pour qu'il soit utilisé par le fichier app/page.tsx
 </ui_generation_perfect>
 
 
