@@ -1,5 +1,19 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
+import juice from "juice";
+
+// Fonction pour récupérer le contenu (HTML ou CSS)
+async function fetchResource(url: string) {
+    try {
+        const res = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0" }
+        });
+        if (!res.ok) return "";
+        return await res.text();
+    } catch (e) {
+        return "";
+    }
+}
 
 // Fonction pour rendre les URLs absolues
 const makeAbsolute = (html: string, baseUrl: string) => {
@@ -20,141 +34,175 @@ export async function POST(request: Request) {
     if (!url) return NextResponse.json({ error: "URL requise" }, { status: 400 });
 
     const targetUrl = url.startsWith("http") ? url : `https://${url}`;
-    
-    const response = await fetch(targetUrl, {
-        headers: { 
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" 
-        }
-    });
-    
-    if (!response.ok) throw new Error("Impossible d'accéder au site");
-
-    const html = await response.text();
-    const $ = cheerio.load(html);
     const baseUrl = new URL(targetUrl).origin;
 
-    // --- 1. EXTRACTION DU CSS ---
+    // 1. Récupération HTML & CSS
+    const html = await fetchResource(targetUrl);
+    if (!html) throw new Error("Site inaccessible");
+
+    const $ = cheerio.load(html);
+    
+    // Récupération de TOUS les CSS (Externes + Inline)
     let globalCSS = "";
+    const cssLinks: string[] = [];
     
     $("link[rel='stylesheet']").each((_, el) => {
-      const href = $(el).attr("href");
-      if (href) {
-        try {
-            const absHref = href.startsWith("http") ? href : new URL(href, baseUrl).href;
-            globalCSS += `<link rel="stylesheet" href="${absHref}" />\n`;
-        } catch(e) {}
-      }
+        const href = $(el).attr("href");
+        if (href) {
+            try { cssLinks.push(new URL(href, baseUrl).href); } catch {}
+        }
     });
 
-    $("style").each((_, el) => {
-      globalCSS += `<style>${$(el).html()}</style>\n`;
-    });
+    // Téléchargement parallèle des CSS pour la vitesse
+    const cssContents = await Promise.all(cssLinks.map(link => fetchResource(link)));
+    globalCSS = cssContents.join("\n");
+    $("style").each((_, el) => { globalCSS += $(el).html() + "\n"; });
 
-    // --- 2. EXTRACTION INTELLIGENTE ---
+    // Ajout de styles de base pour les inputs (Reset)
+    globalCSS += `
+      input, textarea, select { font-family: inherit; color: inherit; }
+      * { box-sizing: border-box; }
+    `;
+
+    // --- 2. LOGIQUE D'EXTRACTION (AVANT INLINING) ---
     const extracted = {
       buttons: [] as any[],
       cards: [] as any[],
-      navbars: [] as any[],
-      sidebars: [] as any[] // NOUVEAU
+      inputs: [] as any[], // NOUVELLE CATÉGORIE
+      navbars: [] as any[]
     };
-
     let idCounter = 0;
 
-    // Helper générique
-    const addItem = (category: keyof typeof extracted, el: any, typeSrc: string) => {
+    // Helper: Applique Juice (Inline CSS) sur un fragment HTML spécifique
+    const processElement = (category: string, el: any, source: string) => {
+        // 1. On nettoie l'élément
         const $el = $(el);
-        const htmlContent = makeAbsolute($.html(el), baseUrl);
+        // On récupère le HTML brut de l'élément
+        let rawHtml = $.html(el);
         
-        extracted[category].push({
-            id: `${category}-${idCounter++}`,
-            type: category,
-            source: typeSrc,
-            html: htmlContent,
-            classes: $el.attr("class") || ""
-        });
+        // 2. On rend les URLs absolues
+        rawHtml = makeAbsolute(rawHtml, baseUrl);
+
+        // 3. MAGIE : On applique le CSS Global UNIQUEMENT sur ce petit morceau
+        // Cela transforme les classes en style="..." sans casser la détection globale
+        try {
+            const inlinedHtml = juice.inlineContent(rawHtml, globalCSS, {
+                removeStyleTags: true,
+                preserveMediaQueries: false,
+                applyAttributesTableElements: false
+            });
+
+            extracted[category].push({
+                id: `${category}-${idCounter++}`,
+                type: category,
+                source: source,
+                html: inlinedHtml, // C'est ici qu'on a le style inline !
+                classes: $el.attr("class") || "" // On garde les classes au cas où
+            });
+        } catch (e) {
+            // Fallback si Juice échoue
+            extracted[category].push({
+                id: `${category}-${idCounter++}`,
+                type: category,
+                source: source + '-raw',
+                html: rawHtml,
+                classes: $el.attr("class") || ""
+            });
+        }
     };
 
-    // A. BOUTONS
-    // On cherche les boutons explicites et les liens qui ressemblent à des boutons
-    $("button, a[role='button'], input[type='submit'], [class*='btn'], [class*='button']").each((_, el) => {
-        const txt = $(el).text().trim();
-        const classes = $(el).attr('class') || "";
-        
-        // Filtre : Pas de conteneurs vides, pas de wrappers géants
-        if (txt.length > 0 && txt.length < 50 && !classes.includes('container') && !classes.includes('wrapper')) {
-            addItem('buttons', el, 'detected');
-        }
-    });
-
-    // B. NAVBARS
-    $("nav, header, [role='banner'], .navbar, .nav-wrapper").each((_, el) => {
-        // Une navbar doit avoir des liens
-        if ($(el).find('a').length > 0) {
-            addItem('navbars', el, 'structure');
-        }
-    });
-
-    // C. SIDEBARS / ASIDES (NOUVEAU)
-    $("aside, [role='complementary'], .sidebar, .drawer, [class*='sidebar']").each((_, el) => {
+    // A. INPUTS & TEXTAREAS (LOGIQUE WRAPPER)
+    $("input:not([type='hidden']):not([type='submit']), textarea, select").each((_, el) => {
         const $el = $(el);
-        // Une vraie sidebar contient généralement une liste de navigation (au moins 3 liens)
-        // et a une hauteur significative (difficile à tester avec Cheerio, donc on se fie au contenu)
-        const linkCount = $el.find('a').length;
-        if (linkCount >= 3) {
-            addItem('sidebars', el, 'structure');
-        }
-    });
-
-    // D. CARDS (AMÉLIORÉ : Fini les faux positifs texte)
-    const cardSelectors = "article, .card, .tile, .item, .box, [class*='card'], [class*='container']";
-    
-    $(cardSelectors).each((_, el) => {
-        const $el = $(el);
-        const htmlLen = $el.html()?.length || 0;
-        const textLen = $el.text().trim().length;
-
-        // CRITÈRES DE QUALITÉ STRICTS :
-        // 1. Taille raisonnable (pas toute la page, pas un micro truc)
-        // 2. DOIT contenir (Une Image OU un SVG) OU (Un Titre h2-h6)
-        // 3. DOIT contenir un peu de texte descriptif
+        const $parent = $el.parent();
         
-        const hasMedia = $el.find('img, svg').length > 0;
-        const hasTitle = $el.find('h2, h3, h4, h5, h6, strong').length > 0;
-        const isNotHuge = htmlLen < 5000;
-        const isNotTiny = textLen > 30;
+        // Est-ce que le parent est un wrapper intéressant ?
+        // On regarde s'il a une classe spécifique ou s'il est une div/label
+        const parentClasses = $parent.attr('class') || "";
+        const isWrapper = parentClasses.match(/group|wrapper|container|input|field|box/i) || $parent.is("label") || $parent.hasClass("framer-input");
 
-        if (isNotHuge && isNotTiny && (hasMedia || hasTitle)) {
-             // On vérifie qu'on a pas déjà pris le parent (évite les doublons imbriqués)
-             // C'est dur avec Cheerio pur, donc on fait confiance au filtre unique à la fin
-             addItem('cards', el, 'smart-detect');
-        }
-    });
-
-
-    // E. NETTOYAGE ET LIMITATION
-    const uniqueFilter = (items: any[], limit: number) => {
-        const seen = new Set();
-        const result = [];
-        for (const item of items) {
-            // On utilise une signature simple pour détecter les doublons visuels
-            const signature = item.html.length + item.classes; 
-            if (!seen.has(signature)) {
-                seen.add(signature);
-                result.push(item);
+        if (isWrapper && $parent.get(0).tagName !== 'BODY') {
+            // On prend le parent (qui contient l'input + icone + bordure)
+            // On vérifie qu'on ne l'a pas déjà pris (via l'ID unique cheerio)
+            // @ts-ignore
+            if (!$parent.data('scanned')) {
+                processElement('inputs', $parent, 'input-wrapper');
+                // @ts-ignore
+                $parent.data('scanned', true); // Marque comme scanné
             }
-            if (result.length >= limit) break;
+        } else {
+            // Sinon on prend l'input brut
+             processElement('inputs', $el, 'raw-input');
         }
-        return result;
+    });
+
+    // B. BOUTONS (LARGE)
+    // On inclut Framer, Webflow (w-button), et les div qui agissent comme boutons
+    const btnSelectors = [
+        "button", 
+        "a[role='button']", 
+        "input[type='submit']", 
+        "[class*='btn']", 
+        "[class*='button']",
+        ".w-button",
+        "[data-framer-name*='Button']",
+        "[class*='framer-'][class*='button']"
+    ];
+    
+    $(btnSelectors.join(", ")).each((_, el) => {
+        const txt = $(el).text().trim();
+        // Filtre léger
+        if (txt.length < 60 && $(el).find('div').length < 5) {
+            processElement('buttons', el, 'detected');
+        }
+    });
+
+    // C. NAVBARS
+    $("nav, header, .w-nav, [data-framer-name*='Nav']").each((_, el) => {
+        if ($(el).find('a').length > 0) {
+            processElement('navbars', el, 'structure');
+        }
+    });
+
+    // D. CARDS (LARGE MAIS INTELLIGENT)
+    const cardSelectors = [
+        "article", 
+        ".card", ".tile", ".item", 
+        "[class*='card']", 
+        "[class*='container']",
+        ".w-dyn-item", // Webflow CMS items
+        "[data-framer-name*='Card']",
+        "[data-framer-name*='Item']"
+    ];
+
+    $(cardSelectors.join(", ")).each((_, el) => {
+        const $el = $(el);
+        const html = $el.html() || "";
+        // Critères : Pas trop gros, contient image OU titre
+        const hasContent = html.length > 100 && html.length < 6000;
+        const hasMedia = $el.find('img, svg').length > 0;
+        const hasTitle = $el.find('h2, h3, h4, strong').length > 0;
+
+        if (hasContent && (hasMedia || hasTitle)) {
+             processElement('cards', el, 'smart-detect');
+        }
+    });
+
+    // Limitation
+    const limit = (arr: any[], max: number) => {
+        // Dédoublonnage basique sur le HTML
+        const unique = new Map();
+        arr.forEach(item => unique.set(item.html, item));
+        return Array.from(unique.values()).slice(0, max);
     };
 
     return NextResponse.json({
       success: true,
-      globalCSS, 
       data: {
-          buttons: uniqueFilter(extracted.buttons, 15),
-          navbars: uniqueFilter(extracted.navbars, 3),
-          sidebars: uniqueFilter(extracted.sidebars, 3),
-          cards: uniqueFilter(extracted.cards, 10),
+          buttons: limit(extracted.buttons, 15),
+          inputs: limit(extracted.inputs, 10), // On renvoie les inputs inlinés !
+          navbars: limit(extracted.navbars, 3),
+          cards: limit(extracted.cards, 8),
       }
     });
 
@@ -162,4 +210,4 @@ export async function POST(request: Request) {
     console.error("Extract Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+      }
