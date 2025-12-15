@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 
-// Fonction pour rendre les URLs absolues (images, fonts, liens)
+// Fonction pour rendre les URLs absolues
 const makeAbsolute = (html: string, baseUrl: string) => {
   if (!html) return "";
   return html.replace(/(src|href|srcset)=["']((?!http|data|\/\/)[^"']+)["']/g, (match, attr, path) => {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     
     const response = await fetch(targetUrl, {
         headers: { 
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" 
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" 
         }
     });
     
@@ -33,15 +33,16 @@ export async function POST(request: Request) {
     const $ = cheerio.load(html);
     const baseUrl = new URL(targetUrl).origin;
 
-    // --- 1. EXTRACTION DU CSS (CRITIQUE) ---
-    // On prend tout pour être sûr que Framer/Tailwind fonctionne dans l'iframe
+    // --- 1. EXTRACTION DU CSS ---
     let globalCSS = "";
     
     $("link[rel='stylesheet']").each((_, el) => {
       const href = $(el).attr("href");
       if (href) {
-        const absHref = href.startsWith("http") ? href : new URL(href, baseUrl).href;
-        globalCSS += `<link rel="stylesheet" href="${absHref}" />\n`;
+        try {
+            const absHref = href.startsWith("http") ? href : new URL(href, baseUrl).href;
+            globalCSS += `<link rel="stylesheet" href="${absHref}" />\n`;
+        } catch(e) {}
       }
     });
 
@@ -49,90 +50,116 @@ export async function POST(request: Request) {
       globalCSS += `<style>${$(el).html()}</style>\n`;
     });
 
-    // --- 2. LOGIQUE DE DÉTECTION AVANCÉE ---
+    // --- 2. EXTRACTION INTELLIGENTE ---
     const extracted = {
       buttons: [] as any[],
       cards: [] as any[],
-      navbars: [] as any[]
+      navbars: [] as any[],
+      sidebars: [] as any[] // NOUVEAU
     };
 
-    // Helper pour ajouter sans doublon
-    const addItem = (category: 'buttons' | 'cards' | 'navbars', el: any, typeSrc: string) => {
+    let idCounter = 0;
+
+    // Helper générique
+    const addItem = (category: keyof typeof extracted, el: any, typeSrc: string) => {
+        const $el = $(el);
         const htmlContent = makeAbsolute($.html(el), baseUrl);
-        // On évite les éléments vides ou invisibles
-        if ($(el).text().trim().length === 0 && $(el).find('img, svg').length === 0) return;
         
         extracted[category].push({
-            id: `${category}-${extracted[category].length}`,
+            id: `${category}-${idCounter++}`,
             type: category,
-            source: typeSrc, // 'framer', 'semantic', 'class'
+            source: typeSrc,
             html: htmlContent,
-            classes: $(el).attr("class") || ""
+            classes: $el.attr("class") || ""
         });
     };
 
-    // A. DÉTECTION DES BOUTONS (Framer + Standard)
-    // 1. Framer & Webflow specific
-    $("[class*='framer-'][data-framer-name*='Button'], .w-button, [class*='button-wrapper']").each((_, el) => addItem('buttons', el, 'framework'));
-    
-    // 2. Classes génériques (contient 'btn' ou 'button' mais pas trop long)
-    $("[class*='btn'], [class*='button']").each((_, el) => {
-        const cls = $(el).attr('class') || "";
-        // On évite les conteneurs géants qui s'appellent "buttons-container"
-        if (!cls.includes('container') && !cls.includes('wrapper')) {
-            addItem('buttons', el, 'class-match');
+    // A. BOUTONS
+    // On cherche les boutons explicites et les liens qui ressemblent à des boutons
+    $("button, a[role='button'], input[type='submit'], [class*='btn'], [class*='button']").each((_, el) => {
+        const txt = $(el).text().trim();
+        const classes = $(el).attr('class') || "";
+        
+        // Filtre : Pas de conteneurs vides, pas de wrappers géants
+        if (txt.length > 0 && txt.length < 50 && !classes.includes('container') && !classes.includes('wrapper')) {
+            addItem('buttons', el, 'detected');
         }
     });
 
-    // 3. Sémantique HTML
-    $("button, a[role='button']").each((_, el) => addItem('buttons', el, 'semantic'));
-
-
-    // B. DÉTECTION DES NAVBARS
-    // 1. Framer specific (souvent en haut, fixed)
-    $("[data-framer-name*='Nav'], [data-framer-name*='Header'], [class*='framer-'][class*='nav']").each((_, el) => addItem('navbars', el, 'framer'));
-    
-    // 2. Standard
-    $("nav, header, .navbar, .nav-wrapper").each((_, el) => addItem('navbars', el, 'standard'));
-
-
-    // C. DÉTECTION DES CARDS / SECTIONS
-    // C'est le plus dur. On cherche des blocs répétés ou des noms explicites.
-    $("[class*='card'], [class*='tile'], [class*='item'], article").each((_, el) => {
-        // Filtrage par taille: ni trop petit (icone), ni trop gros (page entière)
-        const content = $(el).html() || "";
-        if (content.length > 150 && content.length < 4000) {
-            addItem('cards', el, 'class-match');
+    // B. NAVBARS
+    $("nav, header, [role='banner'], .navbar, .nav-wrapper").each((_, el) => {
+        // Une navbar doit avoir des liens
+        if ($(el).find('a').length > 0) {
+            addItem('navbars', el, 'structure');
         }
     });
 
-    // Framer "Stack" ou "Container" qui ressemble à une card
-    $("[data-framer-name*='Card'], [data-framer-name*='Item']").each((_, el) => addItem('cards', el, 'framer'));
+    // C. SIDEBARS / ASIDES (NOUVEAU)
+    $("aside, [role='complementary'], .sidebar, .drawer, [class*='sidebar']").each((_, el) => {
+        const $el = $(el);
+        // Une vraie sidebar contient généralement une liste de navigation (au moins 3 liens)
+        // et a une hauteur significative (difficile à tester avec Cheerio, donc on se fie au contenu)
+        const linkCount = $el.find('a').length;
+        if (linkCount >= 3) {
+            addItem('sidebars', el, 'structure');
+        }
+    });
+
+    // D. CARDS (AMÉLIORÉ : Fini les faux positifs texte)
+    const cardSelectors = "article, .card, .tile, .item, .box, [class*='card'], [class*='container']";
+    
+    $(cardSelectors).each((_, el) => {
+        const $el = $(el);
+        const htmlLen = $el.html()?.length || 0;
+        const textLen = $el.text().trim().length;
+
+        // CRITÈRES DE QUALITÉ STRICTS :
+        // 1. Taille raisonnable (pas toute la page, pas un micro truc)
+        // 2. DOIT contenir (Une Image OU un SVG) OU (Un Titre h2-h6)
+        // 3. DOIT contenir un peu de texte descriptif
+        
+        const hasMedia = $el.find('img, svg').length > 0;
+        const hasTitle = $el.find('h2, h3, h4, h5, h6, strong').length > 0;
+        const isNotHuge = htmlLen < 5000;
+        const isNotTiny = textLen > 30;
+
+        if (isNotHuge && isNotTiny && (hasMedia || hasTitle)) {
+             // On vérifie qu'on a pas déjà pris le parent (évite les doublons imbriqués)
+             // C'est dur avec Cheerio pur, donc on fait confiance au filtre unique à la fin
+             addItem('cards', el, 'smart-detect');
+        }
+    });
 
 
-    // D. LIMITATION ET NETTOYAGE
-    // On ne garde que les X premiers uniques pour ne pas crasher le front
-    const uniqueFilter = (items: any[]) => {
+    // E. NETTOYAGE ET LIMITATION
+    const uniqueFilter = (items: any[], limit: number) => {
         const seen = new Set();
-        return items.filter(item => {
-            const duplicate = seen.has(item.html);
-            seen.add(item.html);
-            return !duplicate;
-        }).slice(0, 12); // Max 12 éléments par catégorie
+        const result = [];
+        for (const item of items) {
+            // On utilise une signature simple pour détecter les doublons visuels
+            const signature = item.html.length + item.classes; 
+            if (!seen.has(signature)) {
+                seen.add(signature);
+                result.push(item);
+            }
+            if (result.length >= limit) break;
+        }
+        return result;
     };
-
-    extracted.buttons = uniqueFilter(extracted.buttons);
-    extracted.cards = uniqueFilter(extracted.cards);
-    extracted.navbars = uniqueFilter(extracted.navbars);
 
     return NextResponse.json({
       success: true,
       globalCSS, 
-      data: extracted
+      data: {
+          buttons: uniqueFilter(extracted.buttons, 15),
+          navbars: uniqueFilter(extracted.navbars, 3),
+          sidebars: uniqueFilter(extracted.sidebars, 3),
+          cards: uniqueFilter(extracted.cards, 10),
+      }
     });
 
   } catch (err: any) {
     console.error("Extract Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-    }
+}
