@@ -4,28 +4,41 @@ import { useState } from "react";
 import { Download, Play, Check, Trash, Layers, Monitor, MousePointer2, Type, LayoutTemplate, Square, Code, Eye, EyeOff, X } from "lucide-react";
 
 // --- IFRAME AVEC TOGGLE CSS ---
-const PreviewFrame = ({ html, css, enableCss }: { html: string; css: string, enableCss: boolean }) => {
+// Dans app/extract/page.tsx
+
+const PreviewFrame = ({ html, globalCss, isolatedCss, mode }: { html: string; globalCss: string; isolatedCss: string; mode: 'global' | 'isolated' }) => {
+  
+  // Si mode 'isolated', on injecte le CSS généré par PurgeCSS
+  // Si mode 'global', on injecte le CSS total du site
+  const cssToInject = mode === 'global' ? globalCss : isolatedCss;
+
   const srcDoc = `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
-        ${enableCss ? `<style>${css}</style>` : ''}
+        
         <style>
+          ${cssToInject}
+        </style>
+
+        <style>
+            /* Reset de sécurité pour la preview */
             body { 
                 background-color: transparent !important;
                 display: flex; 
                 align-items: center; 
                 justify-content: center; 
                 min-height: 100vh;
-                margin: 0; padding: 20px;
+                margin: 0; padding: 40px;
                 font-family: system-ui, sans-serif;
                 overflow: hidden;
             }
-            /* Si CSS désactivé, on met un style minimal pour pas que ce soit illisible */
-            ${!enableCss ? 'body { color: #fff; } img { max-width: 100%; }' : ''}
+            /* Petit fond pour voir les éléments blancs */
+            ${mode === 'isolated' ? 'body { background-color: #111 !important; color: #fff; }' : ''}
             
-            nav, header, aside, footer { position: relative !important; width: 100% !important; }
+            /* Surcharges pour empêcher les éléments fixes de sortir */
+            nav, header, aside, footer { position: relative !important; width: 100% !important; top: auto !important; left: auto !important; }
             a { pointer-events: none; }
         </style>
       </head>
@@ -37,7 +50,6 @@ const PreviewFrame = ({ html, css, enableCss }: { html: string; css: string, ena
     <iframe srcDoc={srcDoc} className="w-full h-full border-none" title="preview" sandbox="allow-same-origin" />
   );
 };
-
 // --- MODAL INSPECTEUR DE CODE ---
 const CodeInspector = ({ item, globalCSS, onClose }: any) => {
     const [view, setView] = useState<'html' | 'json'>('html');
