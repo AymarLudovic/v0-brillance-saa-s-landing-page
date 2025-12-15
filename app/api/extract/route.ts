@@ -1,138 +1,178 @@
 import { NextResponse } from "next/server";
-import * as cheerio from "cheerio";
+import puppeteer from "puppeteer";
 
-// Fonction pour rendre les URLs absolues (images, fonts, liens)
-const makeAbsolute = (html: string, baseUrl: string) => {
-  if (!html) return "";
-  return html.replace(/(src|href|srcset)=["']((?!http|data|\/\/)[^"']+)["']/g, (match, attr, path) => {
-    try {
-      const absUrl = new URL(path, baseUrl).href;
-      return `${attr}="${absUrl}"`;
-    } catch {
-      return match;
-    }
-  });
+// C'est la fonction qui sera exécutée DANS le vrai navigateur
+// Elle va transformer les classes CSS en styles inline (style="...")
+const inlineComputedStyles = (rootElement: Element) => {
+    const importantProperties = [
+        // Layout & Box Model
+        'display', 'position', 'top', 'right', 'bottom', 'left', 'z-index',
+        'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+        'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+        'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+        // Flex & Grid
+        'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'align-content', 'gap',
+        'grid-template-columns', 'grid-template-rows',
+        // Typography
+        'font-family', 'font-size', 'font-weight', 'line-height', 'text-align', 'color', 'text-transform', 'letter-spacing',
+        // Visuals
+        'background-color', 'background-image', 'background-size', 'background-position',
+        'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+        'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+        'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+        'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius',
+        'box-shadow', 'opacity', 'overflow', 'transform', 'backdrop-filter'
+    ];
+
+    // Fonction récursive qui parcourt l'élément et tous ses enfants
+    const traverse = (el: Element) => {
+        if (!(el instanceof HTMLElement)) return;
+
+        const computed = window.getComputedStyle(el);
+        let styleString = "";
+
+        importantProperties.forEach(prop => {
+            const value = computed.getPropertyValue(prop);
+            // On ne garde que les valeurs qui ne sont pas "par défaut" pour alléger
+            if (value && value !== 'auto' && value !== 'normal' && value !== 'none' && value !== '0px' && value !== 'rgba(0, 0, 0, 0)') {
+                // Petit hack pour les couleurs: convertir rgb en hex si possible est mieux, mais rgb marche.
+                styleString += `${prop}:${value};`;
+            }
+        });
+
+        // On applique le style calculé directement sur l'élément
+        el.setAttribute('style', styleString);
+        
+        // On retire les classes pour prouver que le style est bien inline
+        el.removeAttribute('class');
+
+        // On continue sur les enfants
+        Array.from(el.children).forEach(child => traverse(child));
+    };
+
+    // On lance le processus sur l'élément racine
+    traverse(rootElement);
+    
+    // On nettoie les balises inutiles à l'intérieur
+    rootElement.querySelectorAll('script, style, noscript, iframe, svg[aria-hidden="true"]').forEach(e => e.remove());
+    
+    return rootElement.outerHTML;
 };
 
+
 export async function POST(request: Request) {
+  let browser;
   try {
     const { url } = await request.json();
     if (!url) return NextResponse.json({ error: "URL requise" }, { status: 400 });
 
     const targetUrl = url.startsWith("http") ? url : `https://${url}`;
     
-    const response = await fetch(targetUrl, {
-        headers: { 
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" 
-        }
+    // 1. Lancement du navigateur
+    browser = await puppeteer.launch({ 
+        headless: "new", // Mode sans interface graphique
+        args: ['--no-sandbox', '--disable-setuid-sandbox'] // Nécessaire pour certains environnements
     });
-    
-    if (!response.ok) throw new Error("Impossible d'accéder au site");
+    const page = await browser.newPage();
 
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    const baseUrl = new URL(targetUrl).origin;
+    // On se fait passer pour un vrai desktop pour avoir la version complète du site
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
-    // --- 1. EXTRACTION DU CSS (CRITIQUE) ---
-    // On prend tout pour être sûr que Framer/Tailwind fonctionne dans l'iframe
-    let globalCSS = "";
-    
-    $("link[rel='stylesheet']").each((_, el) => {
-      const href = $(el).attr("href");
-      if (href) {
-        const absHref = href.startsWith("http") ? href : new URL(href, baseUrl).href;
-        globalCSS += `<link rel="stylesheet" href="${absHref}" />\n`;
-      }
-    });
+    console.log(`[Puppeteer] Navigation vers ${targetUrl}...`);
+    // On attend que le réseau soit calme (signe que le site a fini de charger)
+    await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 60000 });
 
-    $("style").each((_, el) => {
-      globalCSS += `<style>${$(el).html()}</style>\n`;
-    });
 
-    // --- 2. LOGIQUE DE DÉTECTION AVANCÉE ---
-    const extracted = {
-      buttons: [] as any[],
-      cards: [] as any[],
-      navbars: [] as any[]
-    };
+    // 2. Injection du script d'extraction et d'inlining CSS DANS la page
+    // Tout ce qui est dans evaluate() s'exécute dans le contexte du site distant
+    const extractedData = await page.evaluate((inlineStylesFnStr) => {
+        // On recrée la fonction d'inlining dans le contexte de la page
+        // @ts-ignore
+        const inlineComputedStyles = new Function('return ' + inlineStylesFnStr)();
 
-    // Helper pour ajouter sans doublon
-    const addItem = (category: 'buttons' | 'cards' | 'navbars', el: any, typeSrc: string) => {
-        const htmlContent = makeAbsolute($.html(el), baseUrl);
-        // On évite les éléments vides ou invisibles
-        if ($(el).text().trim().length === 0 && $(el).find('img, svg').length === 0) return;
-        
-        extracted[category].push({
-            id: `${category}-${extracted[category].length}`,
-            type: category,
-            source: typeSrc, // 'framer', 'semantic', 'class'
-            html: htmlContent,
-            classes: $(el).attr("class") || ""
+        const results = {
+            buttons: [] as any[],
+            cards: [] as any[],
+            sidebars: [] as any[], // NOUVEAU TYPE
+        };
+
+        // Helper d'ajout
+        let idCounter = 0;
+        const addItem = (category: keyof typeof results, elements: NodeListOf<Element> | Element[], source: string) => {
+            elements.forEach(el => {
+                if (!(el instanceof HTMLElement)) return;
+                
+                // Filtres de qualité
+                const text = el.innerText.trim();
+                const hasMedia = el.querySelector('img, svg, video');
+                const rect = el.getBoundingClientRect();
+
+                if (rect.width === 0 || rect.height === 0) return; // Élément invisible
+
+                let isValid = false;
+                // Logique spécifique par catégorie
+                if (category === 'buttons' && (text.length > 0 || hasMedia) && rect.height < 100) isValid = true;
+                // Cards complexes : doivent avoir du contenu mixte et une certaine taille
+                if (category === 'cards' && rect.height > 100 && rect.width > 100 && (text.length > 50 || hasMedia)) isValid = true;
+                // Sidebar : Doit être grand verticalement et sur le côté
+                if (category === 'sidebars' && rect.height > 500 && rect.width < 400) isValid = true;
+
+                if (isValid) {
+                    // C'EST ICI QUE LA MAGIE OPÈRE : ON INLINE LE CSS
+                    const inlinedHTML = inlineComputedStyles(el.cloneNode(true)); // On clone pour ne pas casser la vraie page
+                    
+                    results[category].push({
+                        id: `${category}-${idCounter++}`,
+                        type: category,
+                        source,
+                        html: inlinedHTML,
+                        // Plus besoin de classes, le style est inline !
+                    });
+                }
+            });
+        };
+
+        // --- SÉLECTEURS AMÉLIORÉS ---
+
+        // A. BOUTONS
+        addItem('buttons', document.querySelectorAll('button, a[role="button"], [class*="btn"], [class*="button"]'), 'generic');
+
+        // B. CARDS COMPLEXES (On cherche des structures riches)
+        // On cherche des articles, des sections, ou des div profondes qui contiennent des titres ET des images
+        const potentialCards = Array.from(document.querySelectorAll('article, section, div[class*="card"], div[class*="container"]')).filter(el => {
+             return el.querySelector('h2, h3, h4') && (el.querySelector('img') || el.querySelector('p'));
         });
-    };
+        addItem('cards', potentialCards, 'complex-structure');
+        // Support spécifique Framer/Webflow
+        addItem('cards', document.querySelectorAll('[data-framer-name*="Card"], .w-dyn-item'), 'framework');
 
-    // A. DÉTECTION DES BOUTONS (Framer + Standard)
-    // 1. Framer & Webflow specific
-    $("[class*='framer-'][data-framer-name*='Button'], .w-button, [class*='button-wrapper']").each((_, el) => addItem('buttons', el, 'framework'));
-    
-    // 2. Classes génériques (contient 'btn' ou 'button' mais pas trop long)
-    $("[class*='btn'], [class*='button']").each((_, el) => {
-        const cls = $(el).attr('class') || "";
-        // On évite les conteneurs géants qui s'appellent "buttons-container"
-        if (!cls.includes('container') && !cls.includes('wrapper')) {
-            addItem('buttons', el, 'class-match');
-        }
-    });
-
-    // 3. Sémantique HTML
-    $("button, a[role='button']").each((_, el) => addItem('buttons', el, 'semantic'));
+        // C. SIDEBARS / ASIDES (Nouveau)
+        addItem('sidebars', document.querySelectorAll('aside, [role="complementary"], [class*="sidebar"], [class*="drawer"]'), 'structure');
 
 
-    // B. DÉTECTION DES NAVBARS
-    // 1. Framer specific (souvent en haut, fixed)
-    $("[data-framer-name*='Nav'], [data-framer-name*='Header'], [class*='framer-'][class*='nav']").each((_, el) => addItem('navbars', el, 'framer'));
-    
-    // 2. Standard
-    $("nav, header, .navbar, .nav-wrapper").each((_, el) => addItem('navbars', el, 'standard'));
+        // Limitation des résultats pour ne pas surcharger le retour
+        results.buttons = results.buttons.slice(0, 12);
+        results.cards = results.cards.slice(0, 8); // Moins de cards car elles sont grosses
+        results.sidebars = results.sidebars.slice(0, 3);
 
+        return results;
 
-    // C. DÉTECTION DES CARDS / SECTIONS
-    // C'est le plus dur. On cherche des blocs répétés ou des noms explicites.
-    $("[class*='card'], [class*='tile'], [class*='item'], article").each((_, el) => {
-        // Filtrage par taille: ni trop petit (icone), ni trop gros (page entière)
-        const content = $(el).html() || "";
-        if (content.length > 150 && content.length < 4000) {
-            addItem('cards', el, 'class-match');
-        }
-    });
+    }, inlineComputedStyles.toString()); // On passe la fonction sous forme de string
 
-    // Framer "Stack" ou "Container" qui ressemble à une card
-    $("[data-framer-name*='Card'], [data-framer-name*='Item']").each((_, el) => addItem('cards', el, 'framer'));
-
-
-    // D. LIMITATION ET NETTOYAGE
-    // On ne garde que les X premiers uniques pour ne pas crasher le front
-    const uniqueFilter = (items: any[]) => {
-        const seen = new Set();
-        return items.filter(item => {
-            const duplicate = seen.has(item.html);
-            seen.add(item.html);
-            return !duplicate;
-        }).slice(0, 12); // Max 12 éléments par catégorie
-    };
-
-    extracted.buttons = uniqueFilter(extracted.buttons);
-    extracted.cards = uniqueFilter(extracted.cards);
-    extracted.navbars = uniqueFilter(extracted.navbars);
+    await browser.close();
 
     return NextResponse.json({
       success: true,
-      globalCSS, 
-      data: extracted
+      // Plus besoin de globalCSS, tout est dans le HTML !
+      data: extractedData
     });
 
   } catch (err: any) {
-    console.error("Extract Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    if (browser) await browser.close();
+    console.error("Puppeteer Error:", err);
+    // Timeout est l'erreur la plus commune si le site est lourd
+    const msg = err.message.includes('Timeout') ? "Le site est trop long à charger ou bloque les bots." : err.message;
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
       }
