@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
-import { PurgeCSS } from "purgecss"; // L'ARMME SECRÈTE
+import { PurgeCSS } from "purgecss";
 
-// Helper URLs absolues
+// --- LISTE DES TAGS À NE JAMAIS SUPPRIMER ---
+// C'est ça qui garantit que le "Vibe" global (typo, spacing) reste
+const UNIVERSAL_TAGS = [
+    // Structure
+    'html', 'body', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'aside',
+    // Texte
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'a',
+    // Formulaires (CRUCIAL pour toi)
+    'button', 'input', 'textarea', 'select', 'label', 'form', 'fieldset', 'legend',
+    // Média
+    'img', 'svg', 'video', 'figure', 'figcaption'
+];
+
 const makeAbsolute = (html: string, baseUrl: string) => {
   if (!html) return "";
   return html.replace(/(src|href|srcset|poster|action)=["']((?!http|data|\/\/)[^"']+)["']/g, (match, attr, path) => {
@@ -31,7 +43,7 @@ export async function POST(request: Request) {
 
     const $ = cheerio.load(html);
 
-    // --- 1. ASSEMBLAGE DU CSS GLOBAL ---
+    // --- 1. ASSEMBLAGE CSS GLOBAL ---
     let globalCSS = "";
     const cssLinks: string[] = [];
     $("link[rel='stylesheet']").each((_, el) => {
@@ -39,10 +51,8 @@ export async function POST(request: Request) {
         if (href) { try { cssLinks.push(new URL(href, baseUrl).href); } catch {} }
     });
 
-    // On télécharge tout le CSS
     const cssContents = await Promise.all(cssLinks.map(link => fetchResource(link)));
     
-    // Nettoyage des URLs relatives (fonts, images de fond)
     const cleanCSS = (css: string, cssUrl: string) => {
          const cssBase = new URL(cssUrl).origin;
          return css.replace(/url\(['"]?((?!http|data)[^'")]+)['"]?\)/g, `url(${cssBase}/$1)`);
@@ -51,14 +61,14 @@ export async function POST(request: Request) {
     cssContents.forEach((css, i) => { globalCSS += cleanCSS(css, cssLinks[i]) + "\n"; });
     $("style").each((_, el) => { globalCSS += $(el).html() + "\n"; });
 
-    // Ajout des resets vitaux au CSS Global si absents
+    // Ajout de styles par défaut vitaux au cas où
     globalCSS = `
         * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
-        body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+        input, textarea, button, select, a { font-family: inherit; color: inherit; }
         ${globalCSS}
     `;
 
-    // --- 2. EXTRACTION ET ISOLATION ---
+    // --- 2. EXTRACTION ---
     const extracted = {
       buttons: [] as any[],
       inputs: [] as any[],
@@ -69,23 +79,41 @@ export async function POST(request: Request) {
     };
     let idCounter = 0;
 
-    // Fonction qui lance PurgeCSS pour un élément spécifique
-    // C'est ça qui garantit que les styles des TAGS (input, a, div) sont conservés
     const processItem = async (category: keyof typeof extracted, el: any, typeSrc: string) => {
         const $el = $(el);
         const rawHtml = makeAbsolute($.html(el), baseUrl);
         
-        // --- PURGECSS EN ACTION ---
-        // On lui donne le HTML du composant et le CSS Global.
-        // Il renvoie uniquement le CSS utilisé par ce HTML (y compris input {}, div {}, .class:hover {})
+        // On encapsule pour le contexte
+        const htmlContext = `<html><body><div id="wrapper">${rawHtml}</div></body></html>`;
+
         const purgeResult = await new PurgeCSS().purge({
-            content: [{ raw: rawHtml, extension: 'html' }],
+            content: [{ raw: htmlContext, extension: 'html' }],
             css: [{ raw: globalCSS }],
-            // Options critiques pour ne pas casser le design :
-            fontFace: true, // Garde les polices
-            keyframes: true, // Garde les animations
-            variables: true, // Garde les variables CSS
-            safelist: ['body', 'html'] // Garde les styles de base
+            
+            // --- LA PROTECTION ULTIME ---
+            safelist: {
+                standard: [
+                    ...UNIVERSAL_TAGS, // On protège tous les tags HTML de base
+                    /:root/,           // On protège les variables
+                    /\*/,              // On protège le sélecteur universel
+                    /data-/,           // On protège les data-attributes
+                    /::placeholder/,   // On protège les placeholders
+                    /::before/,        // On protège les pseudo-éléments
+                    /::after/
+                ],
+                deep: [
+                    /^framer-/,     // Frameworks
+                    /^w-/, 
+                    /^is-/,         // États (is-active, is-open)
+                    /^active/,
+                    /^hover/
+                ],
+                greedy: [], 
+                variables: true,    // Garder les variables CSS utilisées
+                keyframes: true     // Garder les animations
+            },
+            fontFace: true,         // Garder les fonts
+            keyframes: true         // Garder les keyframes
         });
 
         const isolatedCSS = purgeResult[0]?.css || "";
@@ -100,10 +128,9 @@ export async function POST(request: Request) {
         });
     };
 
-    // On prépare une liste de promesses pour tout traiter en parallèle
     const processingPromises: Promise<void>[] = [];
 
-    // A. INPUTS
+    // A. INPUTS (Smart)
     $("input:not([type='hidden']), textarea, select").each((_, el) => {
         const $parent = $(el).parent();
         const pClass = $parent.attr('class') || "";
@@ -150,7 +177,6 @@ export async function POST(request: Request) {
         }
     });
 
-    // On attend que PurgeCSS ait fini de nettoyer chaque élément
     await Promise.all(processingPromises);
 
     const limit = (arr: any[], max: number) => {
@@ -176,4 +202,4 @@ export async function POST(request: Request) {
     console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-          }
+  }
