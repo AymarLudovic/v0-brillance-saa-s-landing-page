@@ -1,21 +1,7 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
-import juice from "juice";
 
-// Fonction pour récupérer le contenu (HTML ou CSS)
-async function fetchResource(url: string) {
-    try {
-        const res = await fetch(url, {
-            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0" }
-        });
-        if (!res.ok) return "";
-        return await res.text();
-    } catch (e) {
-        return "";
-    }
-}
-
-// Fonction pour rendre les URLs absolues
+// Helper pour rendre les URLs absolues (Images et Liens)
 const makeAbsolute = (html: string, baseUrl: string) => {
   if (!html) return "";
   return html.replace(/(src|href|srcset)=["']((?!http|data|\/\/)[^"']+)["']/g, (match, attr, path) => {
@@ -28,6 +14,19 @@ const makeAbsolute = (html: string, baseUrl: string) => {
   });
 };
 
+// Helper pour récupérer le texte d'une URL
+async function fetchResource(url: string) {
+    try {
+        const res = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0" }
+        });
+        if (!res.ok) return "";
+        return await res.text();
+    } catch (e) {
+        return "";
+    }
+}
+
 export async function POST(request: Request) {
   try {
     const { url } = await request.json();
@@ -36,16 +35,18 @@ export async function POST(request: Request) {
     const targetUrl = url.startsWith("http") ? url : `https://${url}`;
     const baseUrl = new URL(targetUrl).origin;
 
-    // 1. Récupération HTML & CSS
+    // 1. Récupération du HTML
     const html = await fetchResource(targetUrl);
-    if (!html) throw new Error("Site inaccessible");
+    if (!html) throw new Error("Impossible de lire le site");
 
     const $ = cheerio.load(html);
-    
-    // Récupération de TOUS les CSS (Externes + Inline)
+
+    // --- 2. RÉCUPÉRATION MASSIVE DU CSS ---
+    // On va construire un "Blob" de CSS géant contenant tout le style du site
     let globalCSS = "";
     const cssLinks: string[] = [];
     
+    // A. Liens externes (<link rel="stylesheet">)
     $("link[rel='stylesheet']").each((_, el) => {
         const href = $(el).attr("href");
         if (href) {
@@ -53,144 +54,89 @@ export async function POST(request: Request) {
         }
     });
 
-    // Téléchargement parallèle des CSS pour la vitesse
+    // B. Téléchargement parallèle (Rapide)
     const cssContents = await Promise.all(cssLinks.map(link => fetchResource(link)));
-    globalCSS = cssContents.join("\n");
+    globalCSS += cssContents.join("\n");
+
+    // C. Styles Inline (<style>...</style>)
     $("style").each((_, el) => { globalCSS += $(el).html() + "\n"; });
 
-    // Ajout de styles de base pour les inputs (Reset)
-    globalCSS += `
-      input, textarea, select { font-family: inherit; color: inherit; }
-      * { box-sizing: border-box; }
-    `;
+    // D. Petit fix pour les fonts relatives dans le CSS (Optionnel mais utile)
+    // On essaie de remplacer grossièrement les urls relatives dans le CSS
+    // globalCSS = globalCSS.replace(/url\(['"]?((?!http|data)[^'")]+)['"]?\)/g, `url(${baseUrl}/$1)`);
 
-    // --- 2. LOGIQUE D'EXTRACTION (AVANT INLINING) ---
+
+    // --- 3. EXTRACTION DES COMPOSANTS (HTML BRUT) ---
+    // Note: On ne fait plus d'inlining ici. On prend le HTML tel quel (avec ses classes).
+    // C'est l'iframe qui fera le lien avec le CSS global.
+    
     const extracted = {
       buttons: [] as any[],
+      inputs: [] as any[],
       cards: [] as any[],
-      inputs: [] as any[], // NOUVELLE CATÉGORIE
       navbars: [] as any[]
     };
     let idCounter = 0;
 
-    // Helper: Applique Juice (Inline CSS) sur un fragment HTML spécifique
-    const processElement = (category: string, el: any, source: string) => {
-        // 1. On nettoie l'élément
+    const addItem = (category: keyof typeof extracted, el: any, typeSrc: string) => {
         const $el = $(el);
-        // On récupère le HTML brut de l'élément
-        let rawHtml = $.html(el);
+        // Important : On rend les images absolues, sinon elles seront cassées dans l'iframe
+        const rawHtml = makeAbsolute($.html(el), baseUrl);
         
-        // 2. On rend les URLs absolues
-        rawHtml = makeAbsolute(rawHtml, baseUrl);
-
-        // 3. MAGIE : On applique le CSS Global UNIQUEMENT sur ce petit morceau
-        // Cela transforme les classes en style="..." sans casser la détection globale
-        try {
-            const inlinedHtml = juice.inlineContent(rawHtml, globalCSS, {
-                removeStyleTags: true,
-                preserveMediaQueries: false,
-                applyAttributesTableElements: false
-            });
-
-            extracted[category].push({
-                id: `${category}-${idCounter++}`,
-                type: category,
-                source: source,
-                html: inlinedHtml, // C'est ici qu'on a le style inline !
-                classes: $el.attr("class") || "" // On garde les classes au cas où
-            });
-        } catch (e) {
-            // Fallback si Juice échoue
-            extracted[category].push({
-                id: `${category}-${idCounter++}`,
-                type: category,
-                source: source + '-raw',
-                html: rawHtml,
-                classes: $el.attr("class") || ""
-            });
-        }
+        extracted[category].push({
+            id: `${category}-${idCounter++}`,
+            type: category,
+            source: typeSrc,
+            html: rawHtml, // HTML Brut avec classes
+            classes: $el.attr("class") || ""
+        });
     };
 
-    // A. INPUTS & TEXTAREAS (LOGIQUE WRAPPER)
+    // --- SÉLECTEURS (Les mêmes qu'avant, robustes) ---
+
+    // A. INPUTS WRAPPERS
     $("input:not([type='hidden']):not([type='submit']), textarea, select").each((_, el) => {
         const $el = $(el);
         const $parent = $el.parent();
-        
-        // Est-ce que le parent est un wrapper intéressant ?
-        // On regarde s'il a une classe spécifique ou s'il est une div/label
-        const parentClasses = $parent.attr('class') || "";
-        const isWrapper = parentClasses.match(/group|wrapper|container|input|field|box/i) || $parent.is("label") || $parent.hasClass("framer-input");
+        const parentClass = $parent.attr('class') || "";
+        const isWrapper = parentClass.match(/group|wrapper|container|input|field|box/i) || $parent.is("label");
 
-        if (isWrapper && $parent.get(0).tagName !== 'BODY') {
-            // On prend le parent (qui contient l'input + icone + bordure)
-            // On vérifie qu'on ne l'a pas déjà pris (via l'ID unique cheerio)
+        // @ts-ignore
+        if (isWrapper && !$parent.data('scanned')) {
+            addItem('inputs', $parent, 'wrapped');
             // @ts-ignore
-            if (!$parent.data('scanned')) {
-                processElement('inputs', $parent, 'input-wrapper');
-                // @ts-ignore
-                $parent.data('scanned', true); // Marque comme scanné
-            }
-        } else {
-            // Sinon on prend l'input brut
-             processElement('inputs', $el, 'raw-input');
+            $parent.data('scanned', true);
+        } else if (!isWrapper) {
+            addItem('inputs', $el, 'raw');
         }
     });
 
-    // B. BOUTONS (LARGE)
-    // On inclut Framer, Webflow (w-button), et les div qui agissent comme boutons
-    const btnSelectors = [
-        "button", 
-        "a[role='button']", 
-        "input[type='submit']", 
-        "[class*='btn']", 
-        "[class*='button']",
-        ".w-button",
-        "[data-framer-name*='Button']",
-        "[class*='framer-'][class*='button']"
-    ];
-    
-    $(btnSelectors.join(", ")).each((_, el) => {
-        const txt = $(el).text().trim();
-        // Filtre léger
-        if (txt.length < 60 && $(el).find('div').length < 5) {
-            processElement('buttons', el, 'detected');
+    // B. BOUTONS
+    const btnSel = ["button", "a[role='button']", "[class*='btn']", "[class*='button']", ".w-button", "[data-framer-name*='Button']"];
+    $(btnSel.join(", ")).each((_, el) => {
+        if ($(el).text().trim().length < 60 && $(el).find('div').length < 5) {
+            addItem('buttons', el, 'detected');
         }
     });
 
-    // C. NAVBARS
-    $("nav, header, .w-nav, [data-framer-name*='Nav']").each((_, el) => {
-        if ($(el).find('a').length > 0) {
-            processElement('navbars', el, 'structure');
+    // C. CARDS
+    const cardSel = ["article", "[class*='card']", "[class*='container']", ".w-dyn-item", "[data-framer-name*='Card']"];
+    $(cardSel.join(", ")).each((_, el) => {
+        const h = $(el).html() || "";
+        const hasMedia = $(el).find('img, svg').length > 0;
+        const hasTitle = $(el).find('h2, h3, h4, strong').length > 0;
+        if (h.length > 100 && h.length < 6000 && (hasMedia || hasTitle)) {
+             addItem('cards', el, 'smart-detect');
         }
     });
 
-    // D. CARDS (LARGE MAIS INTELLIGENT)
-    const cardSelectors = [
-        "article", 
-        ".card", ".tile", ".item", 
-        "[class*='card']", 
-        "[class*='container']",
-        ".w-dyn-item", // Webflow CMS items
-        "[data-framer-name*='Card']",
-        "[data-framer-name*='Item']"
-    ];
-
-    $(cardSelectors.join(", ")).each((_, el) => {
-        const $el = $(el);
-        const html = $el.html() || "";
-        // Critères : Pas trop gros, contient image OU titre
-        const hasContent = html.length > 100 && html.length < 6000;
-        const hasMedia = $el.find('img, svg').length > 0;
-        const hasTitle = $el.find('h2, h3, h4, strong').length > 0;
-
-        if (hasContent && (hasMedia || hasTitle)) {
-             processElement('cards', el, 'smart-detect');
-        }
+    // D. NAVBARS
+    $("nav, header, [data-framer-name*='Nav']").each((_, el) => {
+        if ($(el).find('a').length > 0) addItem('navbars', el, 'structure');
     });
 
-    // Limitation
+    // Limitation des résultats
     const limit = (arr: any[], max: number) => {
-        // Dédoublonnage basique sur le HTML
         const unique = new Map();
         arr.forEach(item => unique.set(item.html, item));
         return Array.from(unique.values()).slice(0, max);
@@ -198,11 +144,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
+      // ON RENVOIE TOUT LE CSS DU SITE ICI
+      globalCSS: globalCSS, 
       data: {
           buttons: limit(extracted.buttons, 15),
-          inputs: limit(extracted.inputs, 10), // On renvoie les inputs inlinés !
-          navbars: limit(extracted.navbars, 3),
+          inputs: limit(extracted.inputs, 10),
           cards: limit(extracted.cards, 8),
+          navbars: limit(extracted.navbars, 3),
       }
     });
 
@@ -210,4 +158,4 @@ export async function POST(request: Request) {
     console.error("Extract Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-      }
+        }
