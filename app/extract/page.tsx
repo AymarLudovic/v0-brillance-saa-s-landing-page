@@ -1,61 +1,95 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Play, Check, Trash, Layers, Monitor, MousePointer2, Type, Square, Code, Globe, Scissors, Zap, X, Copy } from "lucide-react";
+import { Download, Play, Check, Trash, Layers, Monitor, MousePointer2, Type, Square, Code, Globe, Scissors, Zap, X, Copy, FileCode, FileJson } from "lucide-react";
 
+// --- IFRAME ---
 const PreviewFrame = ({ item, mode, globalCss }: { item: any; mode: 'global' | 'isolated' | 'inlined', globalCss: string }) => {
   let content = "";
+  const baseStyle = `<style>body{background-color:transparent !important;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;font-family:system-ui,sans-serif;overflow:hidden;} nav,header,aside,footer{position:relative !important;width:100% !important;top:auto !important;left:auto !important;} a{pointer-events:none;}</style>`;
   
   if (mode === 'global') {
       content = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${globalCss}</style>${baseStyle}</head><body>${item.html}</body></html>`;
   } else if (mode === 'isolated') {
-      content = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${item.css}</style>${baseStyle}</head><body>${item.html}</body></html>`;
+      content = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${item.isolatedCss}</style>${baseStyle}</head><body>${item.html}</body></html>`;
   } else if (mode === 'inlined') {
-      // Pour la preview INLINED, on utilise le HTML hybride généré par Juice
-      // Il contient déjà style="..." ET <style> pour les media queries
+      // Pour le mode inline, on utilise le HTML transformé par Juice.
+      // On ajoute un style minimal pour le body de la preview, mais le composant lui-même porte son style.
       content = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:20px;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#111;color:#fff;font-family:sans-serif;} *{box-sizing:border-box;} a{pointer-events:none;}</style></head><body>${item.ai_hybrid}</body></html>`;
   }
 
   return <iframe srcDoc={content} className="w-full h-full border-none" title="preview" sandbox="allow-same-origin" />;
 };
 
-const baseStyle = `<style>body{background-color:transparent !important;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;font-family:system-ui,sans-serif;overflow:hidden;} nav,header,aside,footer{position:relative !important;width:100% !important;top:auto !important;left:auto !important;} a{pointer-events:none;}</style>`;
-
+// --- INSPECTEUR ---
 const CodeInspector = ({ item, onClose }: any) => {
-    const [view, setView] = useState<'hybrid' | 'json'>('hybrid');
+    // Par défaut, on ouvre sur INLINED car c'est ce que tu veux vérifier
+    const [view, setView] = useState<'inlined' | 'separated' | 'json'>('inlined');
     const [copied, setCopied] = useState(false);
 
-    // C'EST CE FORMAT QUE L'IA DOIT RECEVOIR
-    // Il contient le meilleur des deux mondes
-    const finalData = {
-        type: item.type,
-        // Le HTML contient le style="..." pour le look immédiat
-        // ET il a conservé les classes + un bloc <style> pour les hovers/responsive
-        content: item.ai_hybrid 
-    };
+    // 1. FORMAT INLINED (Le Graal : style="...")
+    const inlinedContent = item.ai_hybrid;
 
-    const displayContent = view === 'hybrid' ? item.ai_hybrid : JSON.stringify(finalData, null, 2);
+    // 2. FORMAT SÉPARÉ (Backup propre)
+    const separatedContent = `\n${item.html}\n\n/* CSS */\n${item.isolatedCss}`;
+
+    // 3. JSON
+    const jsonContent = JSON.stringify({
+        type: item.type,
+        // C'est ce champ qui contient le code "prêt à l'emploi" pour l'IA
+        html_ready: item.ai_hybrid 
+    }, null, 2);
+
+    const contentToDisplay = view === 'inlined' ? inlinedContent : view === 'separated' ? separatedContent : jsonContent;
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(displayContent);
+        navigator.clipboard.writeText(contentToDisplay);
         setCopied(true); setTimeout(() => setCopied(false), 2000);
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-5xl h-[85vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden">
-                <div className="flex justify-between items-center p-4 border-b border-white/10 bg-black">
-                    <div className="flex gap-2">
-                        <button onClick={() => setView('hybrid')} className={`px-4 py-2 rounded-lg text-xs font-bold transition ${view === 'hybrid' ? 'bg-yellow-600 text-black' : 'bg-neutral-900 text-neutral-400'}`}>CODE HYBRIDE (IA READY)</button>
-                        <button onClick={() => setView('json')} className={`px-4 py-2 rounded-lg text-xs font-bold transition ${view === 'json' ? 'bg-green-600 text-white' : 'bg-neutral-900 text-neutral-400'}`}>JSON ENVELOPPE</button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+            <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-7xl h-[90vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+                <div className="flex flex-col md:flex-row justify-between items-center p-4 border-b border-white/10 bg-black gap-4">
+                    <div className="flex gap-2 bg-neutral-900 p-1 rounded-lg">
+                        <button 
+                            onClick={() => setView('inlined')} 
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold transition ${view === 'inlined' ? 'bg-yellow-500 text-black shadow' : 'text-neutral-400 hover:text-white'}`}
+                        >
+                            <Zap size={14}/> HTML Inliné (IA)
+                        </button>
+                        <button 
+                            onClick={() => setView('separated')} 
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold transition ${view === 'separated' ? 'bg-blue-600 text-white shadow' : 'text-neutral-400 hover:text-white'}`}
+                        >
+                            <FileCode size={14}/> HTML + CSS (Clean)
+                        </button>
+                        <button 
+                            onClick={() => setView('json')} 
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold transition ${view === 'json' ? 'bg-green-600 text-white shadow' : 'text-neutral-400 hover:text-white'}`}
+                        >
+                            <FileJson size={14}/> JSON Data
+                        </button>
                     </div>
+                    
                     <div className="flex gap-2">
-                        <button onClick={handleCopy} className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-white transition">{copied ? <Check size={14}/> : <Copy size={14}/>} {copied ? 'Copié' : 'Copier'}</button>
-                        <button onClick={onClose} className="text-neutral-500 hover:text-white"><X size={24}/></button>
+                        <button onClick={handleCopy} className="flex items-center gap-2 px-4 py-2 bg-white text-black hover:bg-neutral-200 rounded-lg text-xs font-bold transition shadow-lg shadow-white/5">
+                            {copied ? <Check size={14}/> : <Copy size={14}/>} {copied ? 'Copié' : 'Copier'}
+                        </button>
+                        <button onClick={onClose} className="p-2 text-neutral-500 hover:text-white hover:bg-white/10 rounded-lg transition"><X size={20}/></button>
                     </div>
                 </div>
-                <div className="flex-1 overflow-auto p-6 bg-[#111] font-mono text-xs text-neutral-300 custom-scrollbar">
-                    <pre className={`whitespace-pre-wrap ${view === 'hybrid' ? 'text-yellow-200' : 'text-green-300'}`}>{displayContent}</pre>
+
+                <div className="flex-1 overflow-auto bg-[#111] relative custom-scrollbar">
+                    <div className="p-6">
+                        <pre className={`font-mono text-xs leading-relaxed whitespace-pre-wrap ${
+                            view === 'inlined' ? 'text-yellow-100/90' : 
+                            view === 'separated' ? 'text-blue-100' : 
+                            'text-green-100'
+                        }`}>
+                            {contentToDisplay}
+                        </pre>
+                    </div>
                 </div>
             </div>
         </div>
@@ -69,7 +103,9 @@ export default function ExtractPage() {
   const [activeTab, setActiveTab] = useState('rich_blocks');
   const [savedItems, setSavedItems] = useState<any[]>([]);
   const [inspectItem, setInspectItem] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<'global' | 'isolated' | 'inlined'>('global');
+  
+  // Par défaut, on regarde le mode INLINED
+  const [viewMode, setViewMode] = useState<'global' | 'isolated' | 'inlined'>('inlined');
 
   const runExtraction = async () => {
     if(!url) return;
@@ -86,11 +122,14 @@ export default function ExtractPage() {
     const cleanItems = savedItems.map(item => ({
         id: item.id,
         type: item.type,
-        // On sauvegarde le format hybride parfait pour l'IA
-        ai_code: item.ai_hybrid 
+        // On priorise le format IA
+        ai_html: item.ai_hybrid, 
+        // Mais on garde aussi le format clean
+        html_source: item.html,
+        css_source: item.isolatedCss
     }));
     const blob = new Blob([JSON.stringify(cleanItems, null, 2)], { type: "application/json" });
-    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "vibe_dataset_hybrid.json"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "vibe_dataset_final.json"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const tabs = [
@@ -106,15 +145,15 @@ export default function ExtractPage() {
       <div className="border-b border-white/10 bg-black/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1800px] mx-auto p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-yellow-600 rounded-xl flex items-center justify-center font-bold text-lg text-black shadow-lg shadow-yellow-900/40">V</div>
-                <h1 className="font-bold text-lg">Vibe Extractor <span className="text-neutral-500 text-xs ml-2">Hybrid Engine</span></h1>
+                <div className="w-9 h-9 bg-yellow-500 rounded-xl flex items-center justify-center font-bold text-lg text-black shadow-lg shadow-yellow-900/40">V</div>
+                <h1 className="font-bold text-lg">Vibe Extractor <span className="text-neutral-500 text-xs ml-2">Inliner Ultimate</span></h1>
             </div>
             <div className="flex gap-3 w-full md:w-auto items-center">
                 {results && (
                     <div className="flex bg-neutral-900 rounded-lg p-1 border border-white/10">
                         <button onClick={() => setViewMode('global')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition ${viewMode === 'global' ? 'bg-neutral-700 text-white' : 'text-neutral-500'}`}><Globe size={14}/> Site</button>
-                        <button onClick={() => setViewMode('isolated')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition ${viewMode === 'isolated' ? 'bg-pink-600 text-white' : 'text-neutral-500'}`}><Scissors size={14}/> CSS</button>
-                        <button onClick={() => setViewMode('inlined')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition ${viewMode === 'inlined' ? 'bg-yellow-500 text-black shadow' : 'text-neutral-500'}`}><Zap size={14}/> Hybride</button>
+                        <button onClick={() => setViewMode('isolated')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition ${viewMode === 'isolated' ? 'bg-blue-600 text-white shadow' : 'text-neutral-500'}`}><Scissors size={14}/> Clean</button>
+                        <button onClick={() => setViewMode('inlined')} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition ${viewMode === 'inlined' ? 'bg-yellow-500 text-black shadow' : 'text-neutral-500'}`}><Zap size={14}/> IA Ready</button>
                     </div>
                 )}
                 <div className="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
@@ -135,7 +174,7 @@ export default function ExtractPage() {
                         </button>
                     ))}
                 </div>
-                <div className={`grid gap-6 ${activeTab === 'navbars' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+                <div className={`grid gap-6 ${['navbars', 'rich_blocks'].includes(activeTab) ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
                   {results.data[activeTab]?.map((item: any) => {
                       const isSaved = savedItems.some(i => i.id === item.id);
                       return (
@@ -159,7 +198,7 @@ export default function ExtractPage() {
                 </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-neutral-600 min-h-[60vh]"><Zap size={64} className="opacity-20 mb-4 text-yellow-500" /><p>Moteur d'extraction prêt.</p></div>
+            <div className="h-full flex flex-col items-center justify-center text-neutral-600 min-h-[60vh]"><Zap size={64} className="opacity-20 mb-4 text-yellow-500" /><p>Prêt à inliner.</p></div>
           )}
         </div>
         
@@ -179,4 +218,4 @@ export default function ExtractPage() {
       </div>
     </div>
   );
-}
+  }
