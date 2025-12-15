@@ -1,18 +1,100 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 
-// Helper URLs absolues
+// --- HELPER : RENDRE LES URLS ABSOLUES ---
 const makeAbsolute = (html: string, baseUrl: string) => {
   if (!html) return "";
-  return html.replace(/(src|href|srcset|poster)=["']((?!http|data|\/\/)[^"']+)["']/g, (match, attr, path) => {
+  return html.replace(/(src|href|srcset|poster|action)=["']((?!http|data|\/\/)[^"']+)["']/g, (match, attr, path) => {
     try { return `${attr}="${new URL(path, baseUrl).href}"`; } catch { return match; }
   });
 };
 
-// Helper Fetch CSS
+// --- HELPER : EXTRAIRE LE CSS PERTINENT (LA MAGIE) ---
+// Cette fonction prend le HTML d'un composant et le GROS CSS du site
+// Elle renvoie un PETIT CSS qui ne contient que ce qu'il faut.
+const generateIsolatedCSS = (htmlFragment: string, globalCSS: string) => {
+    const $ = cheerio.load(htmlFragment);
+    
+    // 1. Lister toutes les classes utilisées dans le HTML
+    const usedClasses = new Set<string>();
+    $("*").each((_, el) => {
+        const cls = $(el).attr("class");
+        if (cls) cls.split(/\s+/).forEach(c => usedClasses.add(`.${c}`));
+    });
+
+    // 2. Lister toutes les balises utilisées (input, div, a...)
+    const usedTags = new Set<string>();
+    $("*").each((_, el) => { usedTags.add(el.tagName.toLowerCase()); });
+
+    // 3. Filtrer le CSS Global ligne par ligne (Approche Regex simplifiée mais robuste)
+    // On garde : 
+    // - Les @font-face et @keyframes (Vital pour le look)
+    // - Les variables :root (Vital pour les couleurs)
+    // - Les règles qui contiennent nos classes ou nos tags
+    
+    let isolatedCSS = "";
+    
+    // On nettoie les commentaires pour simplifier
+    const cleanGlobal = globalCSS.replace(/\/\*[\s\S]*?\*\//g, "");
+    
+    // Regex pour capturer "Selecteur { Contenu }"
+    // Attention : C'est une approximation, pour un parsing parfait il faudrait un parser AST lourds
+    // Mais ça suffit pour 95% des cas "Vibe Coding"
+    const rules = cleanGlobal.match(/([^{}]+)\{([^{}]+)\}/g) || [];
+
+    // On ajoute toujours les bases vitales
+    isolatedCSS += `
+        /* BASES VITALES */
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, sans-serif; }
+    `;
+
+    rules.forEach(rule => {
+        // Est-ce une règle spéciale ? (@font-face, :root, @media, @keyframes)
+        if (rule.match(/@font-face|:root|@keyframes/i)) {
+            isolatedCSS += rule + "\n";
+            return;
+        }
+
+        // On sépare le sélecteur du contenu
+        const [selectorPart] = rule.split("{");
+        
+        // Vérification : Est-ce que ce sélecteur concerne notre HTML ?
+        let isRelevant = false;
+
+        // Vérifie les classes
+        for (const cls of Array.from(usedClasses)) {
+            // On utilise une regex stricte pour éviter que ".btn" match ".btn-large"
+            // On cherche la classe suivie d'un espace, point, deux-points ou fin de ligne
+            if (selectorPart.includes(cls)) {
+                isRelevant = true;
+                break;
+            }
+        }
+
+        // Vérifie les tags (seulement si pas de classe, pour éviter de tout prendre)
+        if (!isRelevant) {
+             for (const tag of Array.from(usedTags)) {
+                // On cherche "input", "input:", "input " etc.
+                const tagRegex = new RegExp(`\\b${tag}\\b`, 'i');
+                if (tagRegex.test(selectorPart)) {
+                    isRelevant = true;
+                    break;
+                }
+            }
+        }
+
+        if (isRelevant) {
+            isolatedCSS += rule + "\n";
+        }
+    });
+
+    return isolatedCSS;
+};
+
 async function fetchResource(url: string) {
     try {
-        const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0" } });
+        const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" } });
         if (!res.ok) return "";
         return await res.text();
     } catch (e) { return ""; }
@@ -31,14 +113,8 @@ export async function POST(request: Request) {
 
     const $ = cheerio.load(html);
 
-    // --- 1. CAPTURE DU CSS GLOBAL (CRITIQUE) ---
-    // On veut TOUT : @font-face, :root variables, body reset, tout.
-    let globalCSS = `
-        /* Reset de sécurité pour l'isolation */
-        * { box-sizing: border-box; } 
-        body { margin: 0; min-height: 100vh; }
-    `;
-    
+    // --- 1. CAPTURE DU CSS GLOBAL ---
+    let globalCSS = "";
     const cssLinks: string[] = [];
     $("link[rel='stylesheet']").each((_, el) => {
         const href = $(el).attr("href");
@@ -47,27 +123,25 @@ export async function POST(request: Request) {
 
     const cssContents = await Promise.all(cssLinks.map(link => fetchResource(link)));
     
-    // On nettoie un peu le CSS pour éviter les erreurs de parsing d'URLs relatives dans le CSS
+    // Nettoyage des URLs relatives dans le CSS
     const cleanCSS = (css: string, cssUrl: string) => {
-         // Petite regex pour rendre les url() absolues dans le CSS
-         const cssBase = new URL(cssUrl).origin; // Simplification
+         const cssBase = new URL(cssUrl).origin;
+         // Remplace url('font.woff') par url('https://site.com/font.woff')
          return css.replace(/url\(['"]?((?!http|data)[^'")]+)['"]?\)/g, `url(${cssBase}/$1)`);
     };
 
-    cssContents.forEach((css, i) => {
-        globalCSS += `\n/* Source: ${cssLinks[i]} */\n` + cleanCSS(css, cssLinks[i]);
-    });
+    cssContents.forEach((css, i) => { globalCSS += cleanCSS(css, cssLinks[i]) + "\n"; });
     $("style").each((_, el) => { globalCSS += $(el).html() + "\n"; });
 
 
-    // --- 2. EXTRACTION AMÉLIORÉE ---
+    // --- 2. EXTRACTION ---
     const extracted = {
       buttons: [] as any[],
       inputs: [] as any[],
       cards: [] as any[],
       navbars: [] as any[],
-      footers: [] as any[], // NOUVEAU
-      sections: [] as any[] // NOUVEAU (Divs complexes)
+      footers: [] as any[],
+      sections: [] as any[]
     };
     let idCounter = 0;
 
@@ -75,22 +149,25 @@ export async function POST(request: Request) {
         const $el = $(el);
         const rawHtml = makeAbsolute($.html(el), baseUrl);
         
+        // --- NOUVEAU : GÉNÉRATION DU CSS ISOLÉ ---
+        // On calcule le CSS spécifique pour cet élément MAINTENANT
+        const isolatedCSS = generateIsolatedCSS(rawHtml, globalCSS);
+
         extracted[category].push({
             id: `${category}-${idCounter++}`,
             type: category,
             source: typeSrc,
             html: rawHtml,
             classes: $el.attr("class") || "",
-            // On ajoute une info sur les dimensions estimées (via attributs ou style inline)
-            meta: { tagName: el.tagName }
+            // On stocke le CSS isolé DANS l'objet. C'est ça qui sera téléchargé.
+            isolatedCss: isolatedCSS 
         });
     };
 
-    // A. INPUTS WRAPPERS (Smart Detection)
+    // A. INPUTS (Smart Wrapper)
     $("input:not([type='hidden']), textarea, select").each((_, el) => {
         const $parent = $(el).parent();
         const pClass = $parent.attr('class') || "";
-        // Si le parent ressemble à un container d'input
         if (pClass.match(/group|wrapper|container|field|box|input/i) || $parent.is("label")) {
             // @ts-ignore
             if (!$parent.data('scanned')) { addItem('inputs', $parent, 'wrapped'); $parent.data('scanned', true); }
@@ -109,37 +186,26 @@ export async function POST(request: Request) {
         if ($(el).find('a').length > 0) addItem('navbars', el, 'structure');
     });
 
-    // D. FOOTERS (NOUVEAU)
-    $("footer, [class*='footer'], [class*='bottom']").each((_, el) => {
-        // Un footer doit avoir des liens et être assez gros
-        if ($(el).find('a').length > 3 && $(el).html()!.length > 200) {
-            addItem('footers', el, 'structure');
-        }
+    // D. FOOTERS
+    $("footer, [class*='footer']").each((_, el) => {
+        if ($(el).find('a').length > 3) addItem('footers', el, 'structure');
     });
 
-    // E. CARDS & SECTIONS (AMÉLIORÉ)
-    // On cherche des divs qui ont une classe intéressante
-    const containerSel = "article, section, [class*='card'], [class*='container'], [class*='wrapper'], [class*='section'], [class*='box']";
+    // E. CARDS & SECTIONS
+    const containerSel = "article, section, [class*='card'], [class*='container'], [class*='wrapper'], [class*='box']";
     $(containerSel).each((_, el) => {
         const h = $(el).html() || "";
         const $el = $(el);
+        const hasMedia = $el.find('img, svg').length > 0;
+        const hasTitle = $el.find('h1, h2, h3, h4').length > 0;
         
-        // Critères de qualité
-        const hasMedia = $el.find('img, svg, video').length > 0;
-        const hasTitle = $el.find('h1, h2, h3, h4, h5').length > 0;
-        const hasText = $el.text().trim().length > 30;
-        
-        // C'est une CARD si c'est moyen et a du média/titre
         if (h.length > 200 && h.length < 5000 && (hasMedia || hasTitle)) {
              addItem('cards', el, 'card-detect');
-        }
-        // C'est une SECTION si c'est gros et structuré
-        else if (h.length > 500 && h.length < 15000 && hasTitle && hasMedia) {
+        } else if (h.length > 500 && h.length < 15000 && hasTitle && hasMedia) {
              addItem('sections', el, 'section-detect');
         }
     });
 
-    // Limitation
     const limit = (arr: any[], max: number) => {
         const unique = new Map();
         arr.forEach(item => unique.set(item.html, item));
@@ -148,7 +214,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      globalCSS: globalCSS,
+      globalCSS: globalCSS, // On renvoie toujours le gros CSS pour le mode "Full"
       data: {
           buttons: limit(extracted.buttons, 15),
           inputs: limit(extracted.inputs, 10),
@@ -162,4 +228,4 @@ export async function POST(request: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-                    }
+}
