@@ -3216,73 +3216,47 @@ let shopImages: string[] = [];
              
 
  // Référence pour stocker le timestamp de la dernière création réussie (pour le délai de 15 min)
-const handleScanComplete = (elements: DetectedElement[], imageSrc: string) => {
+const handleScanComplete = (elements: DetectedElement[], annotatedImage: string, originalImage: string) => {
     setShowScanner(false);
     
-    addLog(`[Scanner] Analyse terminée. Envoi des instructions Design "Pixel Perfect" à Gemini...`);
-
-    // Tes instructions exactes
+    // NOTE: Si ton API ne supporte qu'une image, envoie 'originalImage'.
+    // Mais l'idéal est d'envoyer les deux pour qu'elle voit les boîtes ET les détails.
+    
     const designPrompt = `
-TACHE: Recréer cette interface UI à partir de l'image.
-CONTEXTE: Les données JSON jointes sont indicatives pour les positions. Fies-toi PRIORITAIREMENT à l'image pour le style.
+ROLE: Tu es le meilleur développeur Frontend du monde, spécialisé en reproduction UI "Pixel Perfect".
+TACHE: Recréer cette interface en Next.js (Tailwind CSS + Lucide React).
 
-Ta mission: extraire ABSOLUMENT TOUS les éléments visuels avec une fidélité de 100%. Je dis bien tu as des capacités de designs hyper poussé et belles en te servant de ces analyses d'images ultra détaillé et des instructions designs parfait lister ici.
+INPUTS:
+1. Une image (parfois annotée avec des boîtes vertes et des IDs).
+2. Une liste de données détectées (JSON) pour t'aider sur les dimensions.
 
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  RÈGLE CRITIQUE #1 : DÉTECTION DU BACKGROUND                                 ║
-║  REGARDE ATTENTIVEMENT LE FOND DE L'IMAGE.                                   ║
-║  - Est-ce une COULEUR UNIE? (noir #000, gris #111, #1a1a1a, blanc #fff?)     ║
-║  - Est-ce un GRADIENT? (si oui, quelles couleurs, quelle direction?)         ║
-║  - Est-ce une IMAGE DE FOND? (photo, illustration, pattern?)                 ║
-║  CE FOND = le background de L'APPLICATION ENTIÈRE, pas d'un wrapper!         ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+--- PROTOCOLE DE REPRODUCTION STRICT (NE SAUTE PAS D'ÉTAPES) ---
 
-=== PROCESSUS DE SCAN EN 3 PASSES ===
-**PASSE 1 - ANALYSE GLOBALE:**
-- Identifier le TYPE d'interface, le THÈME (dark/light), le LAYOUT.
-- Identifier les GRANDES SECTIONS (header, sidebar, main, footer).
+PHASE 1 : L'AUDIT VISUEL (Analyse les effets complexes)
+Avant de coder, analyse l'image originale et liste les propriétés CSS complexes pour les éléments clés.
+Cherche spécifiquement :
+- LES OMBRES (Box-shadow) : Sont-elles diffuses ? colorées ? internes (inset) ? Ex: "shadow-[0_0_30px_rgba(0,255,0,0.3)]"
+- LES DÉGRADÉS (Gradients) : Direction exacte ? Couleurs de stop ? Ex: "bg-gradient-to-r from-gray-900 to-black"
+- LES BORDURES (Borders) : Fines ? Translucides ? Brillantes ? Ex: "border border-white/10"
+- LE GLASMOSPHISM : Y a-t-il du 'backdrop-blur' ?
+- LA TYPOGRAPHIE : Regarde le "Hero Text". A-t-il un "text-transparent bg-clip-text" ?
 
-**PASSE 2 - SCAN ZONE PAR ZONE:**
-- Textes (CHAQUE mot, label, titre), Icônes, Boutons, Images.
-- Police fonts: Utilise Montserrat, Inter, Poppins, Funnel Display, ou Arimo.
+PHASE 2 : LA CORRECTION DE LA VISION
+Les IDs verts sur l'image indiquent les zones.
+- Zone TYPE 'BUTTON' : Regarde bien ses coins (rounded-full vs rounded-lg).
+- Zone TYPE 'CONTAINER' : Vérifie le padding interne.
 
-**PASSE 3 - VÉRIFICATION:**
-- Ai-je détecté TOUS les textes et icônes? Le compte d'éléments est-il cohérent?
+PHASE 3 : LE CODAGE (Next.js + Tailwind)
+- Utilise une structure propre : <main className="min-h-screen bg-...">
+- N'utilise JAMAIS de couleurs par défaut (red-500, blue-500) sauf si ça match PARFAITEMENT. Utilise des valeurs arbitraires si besoin (bg-[#1A1F2C]).
+- Pour les images détectées par le scanner, utilise des placeholders : <div className="w-full h-32 bg-neutral-800 animate-pulse rounded-xl" />
+- Si tu vois des icônes, utilise Lucide-React.
 
-=== RÈGLES DE DESIGN STRICTES (PIXEL PERFECT) ===
-
-A. ARCHITECTURE & THÈMES
-- DARK MODE = #000 (Pure Black) partout. Interdiction de #111 ou #1A1A1A pour le fond principal.
-- LIGHT MODE = #FFF (Pure White) partout.
-- Pas de coupure visuelle par la couleur entre Sidebar et Main.
-
-B. PHYSIQUE DE LA SIDEBAR
-- Largeur fixe: min 250px.
-- Pas de bordures de séparation (border-top/bottom) entre les sections.
-- Espacement uniquement via padding/margin.
-- Profil User: en bas, sans ligne de séparation.
-
-C. MICRO-COMPOSANTS SIDEBAR
-- Items & Searchbox: Border-Radius 10px-13px (Très arrondi).
-- Hauteur (Height): STRICTEMENT 30px-32px (Compact).
-
-D. TOPBAR (HEADER)
-- Background: #000 ou #FFF (comme le body). Pas de couleurs fancy.
-- SANS BORDURES (No border-bottom).
-- Hauteur Max: 45px.
-- Responsive mobile: Style iOS (Tab bar ou Drawer).
-
-[DIRECTIVE SYSTÈME CRITIQUE : PRIORITÉ FONCTIONNELLE ABSOLUE]
-Analyse de A à Z l'image pour reproduire le clone parfait : mêmes polices, background, couleurs, effets, positionnement.
-N'UTILISE JAMAIS DES EMOJIS POUR REMPLACER DES ICÔNES !!!!
-Utilise "lucide-react" pour les icônes.
+IMPORTANT : Je veux que tu sois obsédé par les détails. Si un bouton a une lueur (glow), ajoute-la. Si le texte a un effet métallique, fais-le.
 `;
 
-    // 1er argument : Ton prompt Design
-    // 2ème argument : Les éléments JSON (pour donner une idée des positions)
-    // 3ème argument : L'image (pour l'analyse visuelle)
-    sendChat(designPrompt, elements, imageSrc);
-  };
+    sendChat(designPrompt, elements, originalImage); // Envoie l'image originale pour la fidélité des couleurs
+};
 
 
      
