@@ -230,4 +230,4 @@ export default function ExtractPage() {
       </div>
     </div>
   );
-          }
+    }
