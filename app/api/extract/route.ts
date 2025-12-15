@@ -3,10 +3,12 @@ import * as cheerio from "cheerio";
 import { PurgeCSS } from "purgecss";
 import juice from "juice";
 
+// Tags HTML à protéger absolument
 const UNIVERSAL_TAGS = [
     'html', 'body', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'aside',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'a',
-    'button', 'input', 'textarea', 'select', 'label', 'form', 'img', 'svg', 'video', 'ul', 'li'
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'pre', 'code', 'a',
+    'button', 'input', 'textarea', 'select', 'label', 'form', 'fieldset', 'legend',
+    'img', 'svg', 'video', 'figure', 'figcaption', 'ul', 'ol', 'li', 'table', 'td', 'th', 'tr'
 ];
 
 const makeAbsolute = (html: string, baseUrl: string) => {
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
 
     const targetUrl = url.startsWith("http") ? url : `https://${url}`;
     const baseUrl = new URL(targetUrl).origin;
+
     const html = await fetchResource(targetUrl);
     if (!html) throw new Error("Site inaccessible");
 
@@ -44,6 +47,8 @@ export async function POST(request: Request) {
         if (href) { try { cssLinks.push(new URL(href, baseUrl).href); } catch {} }
     });
     const cssContents = await Promise.all(cssLinks.map(link => fetchResource(link)));
+    
+    // Nettoyage des URLs relatives
     const cleanCSS = (css: string, cssUrl: string) => {
          const cssBase = new URL(cssUrl).origin;
          return css.replace(/url\(['"]?((?!http|data)[^'")]+)['"]?\)/g, `url(${cssBase}/$1)`);
@@ -51,50 +56,90 @@ export async function POST(request: Request) {
     cssContents.forEach((css, i) => { globalCSS += cleanCSS(css, cssLinks[i]) + "\n"; });
     $("style").each((_, el) => { globalCSS += $(el).html() + "\n"; });
 
+    // Ajout de styles par défaut pour le reset
     globalCSS = `:root { --bg: #fff; } * { box-sizing: border-box; -webkit-font-smoothing: antialiased; } ${globalCSS}`;
 
-    // 2. EXTRACTION
     const extracted = {
       buttons: [] as any[],
       inputs: [] as any[],
       cards: [] as any[],
       navbars: [] as any[],
-      rich_blocks: [] as any[] // NOUVEAU : Divs complexes
+      rich_blocks: [] as any[]
     };
     let idCounter = 0;
 
     const processItem = async (category: keyof typeof extracted, el: any, typeSrc: string) => {
         const $el = $(el);
         const rawHtml = makeAbsolute($.html(el), baseUrl);
+
+        // --- NOUVEAU : EXTRACTION MANUELLE DES CLASSES ---
+        // On ne fait pas confiance à PurgeCSS pour lire le HTML.
+        // On liste nous-mêmes toutes les classes utilisées dans l'élément et ses enfants.
+        const usedClasses = new Set<string>();
         
-        const usedClasses: string[] = [];
-        $el.find('*').addBack().each((_, element) => {
-            const cls = $(element).attr('class');
-            if (cls) cls.split(/\s+/).forEach(c => { if(c.trim()) usedClasses.push(c.trim()); });
+        // 1. Classes de l'élément racine
+        const rootClasses = $el.attr('class');
+        if (rootClasses) rootClasses.split(/\s+/).forEach(c => usedClasses.add(c));
+
+        // 2. Classes de tous les enfants
+        $el.find('*').each((_, child) => {
+            const childClasses = $(child).attr('class');
+            if (childClasses) {
+                childClasses.split(/\s+/).forEach(c => {
+                    // On filtre les trucs vides ou bizarres
+                    if (c && c.trim().length > 0) usedClasses.add(c.trim());
+                });
+            }
         });
+
+        const foundClassesList = Array.from(usedClasses);
+        // ---------------------------------------------------
 
         const htmlContext = `<html><body><div id="wrapper">${rawHtml}</div></body></html>`;
 
-        // A. PURGE CSS (On isole le CSS)
+        // A. PURGE CSS (Configuration Blindée)
         const purgeResult = await new PurgeCSS().purge({
             content: [{ raw: htmlContext, extension: 'html' }],
             css: [{ raw: globalCSS }],
-            fontFace: true, keyframes: true, variables: true,
+            
+            // On active les options importantes au niveau racine
+            fontFace: true, 
+            keyframes: true, 
+            variables: true,
+
             safelist: {
-                standard: [...UNIVERSAL_TAGS, ...usedClasses, 'body', 'html', ':root', /\*/, /data-/, /::placeholder/, /::before/, /::after/],
-                deep: [/^framer-/, /^w-/, /^is-/, /^active/, /^hover/],
-                greedy: [/token/]
+                standard: [
+                    ...UNIVERSAL_TAGS, // Protège les tags HTML
+                    ...foundClassesList, // PROTÈGE LES CLASSES FRAMER/WEBFLOW DÉTECTÉES
+                    'body', 'html', ':root',
+                    /\*/, // Sélecteur universel
+                    /data-/, // Attributs data
+                    /::placeholder/,
+                    /::before/,
+                    /::after/
+                ],
+                deep: [
+                    // Sécurité supplémentaire pour les regex
+                    /^framer-/, 
+                    /^w-/, 
+                    /^is-/, 
+                    /^active/, 
+                    /^hover/
+                ],
+                greedy: [
+                    /token/ // Pour les variables --token-xyz
+                ]
             }
         });
+
         const isolatedCSS = purgeResult[0]?.css || "";
 
-        // B. JUICE (On injecte le CSS dans le HTML style="")
-        // Cela crée la version "AI Ready"
+        // B. JUICE (Injection Inline pour l'IA)
         const inlinedHTML = juice.inlineContent(rawHtml, isolatedCSS, {
             applyStyleTags: true,
-            removeStyleTags: false, // IMPORTANT: On garde les styles qu'on ne peut pas inliner (media queries, hover)
+            removeStyleTags: false, // On garde les styles complexes (<style>)
             preserveMediaQueries: true,
-            insertPreservedExtraCss: true,
+            insertPreservedExtraCss: true, 
             applyAttributesTableElements: false
         });
 
@@ -102,43 +147,31 @@ export async function POST(request: Request) {
             id: `${category}-${idCounter++}`,
             type: category,
             source: typeSrc,
-            html: rawHtml,          // HTML original (classes)
-            isolatedCss: isolatedCSS, // CSS séparé
-            inlinedHtml: inlinedHTML, // HTML avec style="..." (Le Graal pour l'IA)
+            html: rawHtml,          
+            isolatedCss: isolatedCSS,
+            // C'est ça que tu veux : HTML avec style="" + classes conservées
+            ai_hybrid: inlinedHTML 
         });
     };
 
     const processingPromises: Promise<void>[] = [];
 
-    // --- SÉLECTEURS AMÉLIORÉS ---
-
-    // 1. RICH BLOCKS (Texte + Image + Optionnel Bouton)
-    // On cherche des divs qui ne sont PAS des sections entières mais des blocs de contenu
+    // --- SÉLECTEURS ---
     $("div, [class*='wrapper'], [class*='content']").each((_, el) => {
         const $el = $(el);
-        // Ne pas scanner le body ou main direct
         if ($el.is('body') || $el.is('main')) return;
-        
         const h = $el.html() || "";
-        // Critères : Taille moyenne
         if (h.length < 300 || h.length > 8000) return;
-
+        
         const hasImg = $el.find('img, svg').length > 0;
         const hasText = $el.text().trim().length > 50;
         const hasBtn = $el.find('button, a[class*="btn"]').length > 0;
         const hasTitle = $el.find('h2, h3, h4').length > 0;
 
-        // Cas 1: Texte + Image (Classique)
-        if (hasImg && hasText && hasTitle) {
-             processingPromises.push(processItem('rich_blocks', el, 'text-image-block'));
-        }
-        // Cas 2: Texte + Image + Bouton (Call to Action)
-        else if (hasImg && hasText && hasBtn) {
-             processingPromises.push(processItem('rich_blocks', el, 'cta-block'));
-        }
+        if (hasImg && hasText && hasTitle) processingPromises.push(processItem('rich_blocks', el, 'text-image-block'));
+        else if (hasImg && hasText && hasBtn) processingPromises.push(processItem('rich_blocks', el, 'cta-block'));
     });
 
-    // 2. INPUTS
     $("input:not([type='hidden']), textarea, select").each((_, el) => {
         const $parent = $(el).parent();
         if ($parent.attr('class')?.match(/group|wrapper|container|field|box|input/i) || $parent.is("label")) {
@@ -147,15 +180,12 @@ export async function POST(request: Request) {
         } else { processingPromises.push(processItem('inputs', el, 'raw')); }
     });
 
-    // 3. BOUTONS
     $("button, a[role='button'], [class*='btn'], .w-button").each((_, el) => {
         if ($(el).text().trim().length < 50) processingPromises.push(processItem('buttons', el, 'detected'));
     });
 
-    // 4. NAVBARS
     $("nav, header").each((_, el) => { if ($(el).find('a').length > 0) processingPromises.push(processItem('navbars', el, 'structure')); });
 
-    // 5. CARDS (Classique)
     $( "article, section, [class*='card']").each((_, el) => {
         const h = $(el).html() || "";
         const hasMedia = $(el).find('img, svg').length > 0;
@@ -179,11 +209,11 @@ export async function POST(request: Request) {
           inputs: limit(extracted.inputs, 10),
           cards: limit(extracted.cards, 8),
           navbars: limit(extracted.navbars, 2),
-          rich_blocks: limit(extracted.rich_blocks, 6) // NOUVEAU
+          rich_blocks: limit(extracted.rich_blocks, 6)
       }
     });
 
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+                      }
