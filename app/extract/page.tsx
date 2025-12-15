@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Play, Check, Trash, Layers, Monitor, MousePointer2 } from "lucide-react";
+import { Download, Play, Check, Trash, Layers, Monitor, MousePointer2, Sidebar as SidebarIcon, AlertCircle } from "lucide-react";
 
-// --- COMPOSANT IFRAME ISOLÉ (Pour voir le vrai style Framer/Webflow) ---
+// --- COMPOSANT IFRAME ISOLÉ ---
 const PreviewFrame = ({ html, css }: { html: string; css: string }) => {
-  // On injecte le CSS global du site scanné pour que les classes 'framer-XYZ' fonctionnent
   const srcDoc = `
     <!DOCTYPE html>
     <html>
@@ -13,7 +12,7 @@ const PreviewFrame = ({ html, css }: { html: string; css: string }) => {
         <meta charset="utf-8">
         ${css} 
         <style>
-            /* Reset basique pour la preview */
+            /* Reset pour centrer et isoler */
             body { 
                 background: transparent; 
                 display: flex; 
@@ -21,12 +20,14 @@ const PreviewFrame = ({ html, css }: { html: string; css: string }) => {
                 justify-content: center; 
                 min-height: 100vh;
                 margin: 0;
-                padding: 20px;
-                overflow: hidden;
-                font-family: sans-serif; 
+                padding: 40px; /* Plus d'espace pour les sidebars */
+                font-family: system-ui, sans-serif; 
+                overflow: hidden; /* Cache les scrollbars moches */
             }
-            /* On désactive les liens pour pas qu'on quitte l'iframe */
+            /* Désactive les liens */
             a { pointer-events: none; }
+            /* Force les sidebars à ne pas être fixed pour la preview */
+            aside, .sidebar, nav { position: relative !important; height: auto !important; }
         </style>
       </head>
       <body>${html}</body>
@@ -38,7 +39,7 @@ const PreviewFrame = ({ html, css }: { html: string; css: string }) => {
       srcDoc={srcDoc}
       className="w-full h-full border-none bg-white/5" 
       title="preview"
-      sandbox="allow-same-origin" // Sécurité
+      sandbox="allow-same-origin"
     />
   );
 };
@@ -47,7 +48,7 @@ export default function ExtractPage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'buttons' | 'cards' | 'navbars'>('buttons');
+  const [activeTab, setActiveTab] = useState<'buttons' | 'cards' | 'navbars' | 'sidebars'>('buttons');
   const [savedItems, setSavedItems] = useState<any[]>([]);
 
   const runExtraction = async () => {
@@ -79,8 +80,8 @@ export default function ExtractPage() {
     }
   };
 
-  const removeFromLibrary = (idx: number) => {
-      setSavedItems(savedItems.filter((_, i) => i !== idx));
+  const removeFromLibrary = (id: string) => {
+      setSavedItems(savedItems.filter((i) => i.id !== id));
   };
 
   const downloadLibrary = () => {
@@ -95,160 +96,156 @@ export default function ExtractPage() {
     document.body.removeChild(link);
   };
 
+  const tabs = [
+      { id: 'buttons', icon: MousePointer2, label: 'Boutons' },
+      { id: 'cards', icon: Layers, label: 'Cards' },
+      { id: 'navbars', icon: Monitor, label: 'Navbars' },
+      { id: 'sidebars', icon: SidebarIcon, label: 'Sidebars' },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-indigo-500/30">
       
-      {/* HEADER & INPUT */}
+      {/* HEADER */}
       <div className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold">V</div>
-                <h1 className="font-bold text-lg tracking-tight">Vibe Extractor <span className="text-neutral-500 text-xs font-normal ml-2">v2.0 (Framer Support)</span></h1>
+        <div className="max-w-[1600px] mx-auto p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/20">V</div>
+                <h1 className="font-bold text-lg tracking-tight">Vibe Extractor <span className="text-neutral-500 text-xs font-normal ml-2">Cheerio Engine</span></h1>
             </div>
 
             <div className="flex gap-2 w-full md:w-auto">
                 <input 
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://framer.com/..." 
-                    className="bg-neutral-900 border border-white/10 px-4 py-2 rounded-lg w-full md:w-96 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="https://linear.app" 
+                    className="bg-neutral-900 border border-white/10 px-4 py-2 rounded-lg w-full md:w-80 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition"
                 />
                 <button 
                     onClick={runExtraction} 
                     disabled={loading || !url}
                     className="bg-white text-black hover:bg-neutral-200 px-6 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition disabled:opacity-50"
                 >
-                    {loading ? "Scanning..." : <><Play size={14}/> GO</>}
+                    {loading ? "..." : <><Play size={14}/> GO</>}
                 </button>
             </div>
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto p-6 flex flex-col lg:flex-row gap-8">
+      <div className="max-w-[1600px] mx-auto p-6 flex flex-col xl:flex-row gap-8">
         
-        {/* ZONE PRINCIPALE (GRID) */}
+        {/* RESULTATS */}
         <div className="flex-1 min-h-[50vh]">
           {results ? (
             <div className="space-y-6">
                 
-                {/* Tabs de navigation */}
-                <div className="flex gap-2 border-b border-white/10 pb-4">
-                    {[
-                        { id: 'buttons', icon: MousePointer2, label: 'Boutons' },
-                        { id: 'cards', icon: Layers, label: 'Cards' },
-                        { id: 'navbars', icon: Monitor, label: 'Navbars' }
-                    ].map((tab) => (
+                {/* Tabs */}
+                <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
+                    {tabs.map((tab) => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition ${
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition ${
                                 activeTab === tab.id 
-                                ? 'bg-blue-600 text-white' 
-                                : 'bg-neutral-900 text-neutral-400 hover:text-white'
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' 
+                                : 'bg-neutral-900 text-neutral-400 hover:text-white hover:bg-neutral-800'
                             }`}
                         >
-                            <tab.icon size={14} />
-                            {tab.label} <span className="opacity-50 ml-1">({results.data[tab.id].length})</span>
+                            <tab.icon size={16} />
+                            {tab.label} 
+                            <span className={`ml-1 text-xs px-2 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-black/20' : 'bg-black/40'}`}>
+                                {results.data[tab.id]?.length || 0}
+                            </span>
                         </button>
                     ))}
                 </div>
 
-                {/* Grille de résultats */}
-                <div className={`grid gap-6 ${activeTab === 'navbars' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
-                  {results.data[activeTab].map((item: any) => (
-                    <div key={item.id} className="bg-neutral-900 border border-white/5 rounded-xl overflow-hidden flex flex-col group h-80 hover:border-blue-500/50 transition duration-300">
+                {/* Grille */}
+                <div className={`grid gap-6 ${activeTab === 'sidebars' ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
+                  {results.data[activeTab]?.map((item: any) => {
+                      const isSaved = savedItems.some(i => i.id === item.id);
+                      return (
+                    <div key={item.id} className={`bg-neutral-900 border ${isSaved ? 'border-green-500/50' : 'border-white/5'} rounded-xl overflow-hidden flex flex-col group ${activeTab === 'sidebars' ? 'h-[500px]' : 'h-80'} hover:border-indigo-500/50 transition duration-300`}>
                       
-                      {/* Header Item */}
                       <div className="p-3 border-b border-white/5 bg-black flex justify-between items-center">
-                          <span className="text-[10px] uppercase font-mono text-neutral-500 bg-neutral-800 px-2 py-1 rounded">
+                          <span className="text-[10px] uppercase font-mono text-neutral-500 bg-neutral-800 px-2 py-1 rounded border border-white/5">
                              {item.source}
                           </span>
-                          <span className="text-[10px] text-neutral-600 truncate max-w-[150px]">
-                              {item.classes.substring(0, 20)}...
-                          </span>
+                           {isSaved && <Check size={14} className="text-green-500" />}
                       </div>
 
-                      {/* Preview Iframe */}
                       <div className="flex-1 relative bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
                          <PreviewFrame html={item.html} css={results.globalCSS} />
                          
-                         {/* Overlay au survol */}
                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center backdrop-blur-sm">
                             <button 
                                 onClick={() => addToLibrary(item)}
-                                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold transform scale-90 group-hover:scale-100 transition flex items-center gap-2 shadow-xl"
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold transform scale-95 group-hover:scale-100 transition flex items-center gap-2 shadow-xl"
                             >
-                                <Check size={18} /> Garder ce design
+                                {isSaved ? 'Déjà ajouté' : 'Garder ce design'}
                             </button>
                          </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                   
-                  {results.data[activeTab].length === 0 && (
-                      <div className="col-span-full text-center py-20 text-neutral-500">
-                          Aucun élément de ce type détecté sur cette page.
+                  {results.data[activeTab]?.length === 0 && (
+                      <div className="col-span-full flex flex-col items-center py-20 text-neutral-500 gap-4">
+                          <AlertCircle size={40} className="opacity-20"/>
+                          <p>Aucun élément "{activeTab}" détecté avec les critères stricts.</p>
                       </div>
                   )}
                 </div>
 
             </div>
           ) : (
-            /* Placeholder vide */
             <div className="h-full flex flex-col items-center justify-center text-neutral-600 space-y-4 min-h-[60vh]">
-                <Layers size={64} className="opacity-20" />
-                <p>Entrez une URL pour extraire ses secrets de design.</p>
-                <div className="flex gap-2 text-xs">
-                    <span className="bg-neutral-900 px-3 py-1 rounded-full">Supporte Framer</span>
-                    <span className="bg-neutral-900 px-3 py-1 rounded-full">Supporte Webflow</span>
-                    <span className="bg-neutral-900 px-3 py-1 rounded-full">Supporte Tailwind</span>
+                <div className="p-8 rounded-full bg-neutral-900/50 border border-white/5">
+                    <Layers size={48} className="opacity-40 text-indigo-500" />
                 </div>
+                <p>Prêt à extraire : Boutons, Cards, Navbars et Sidebars.</p>
             </div>
           )}
         </div>
 
-        {/* SIDEBAR (CART) */}
-        <div className="w-full lg:w-80 shrink-0">
+        {/* CART SIDEBAR */}
+        <div className="w-full xl:w-80 shrink-0">
             <div className="sticky top-24 bg-neutral-900 border border-white/10 rounded-xl p-6 flex flex-col max-h-[80vh]">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold flex items-center gap-2">
-                        <Download size={18} className="text-green-500"/> 
+                        <Download size={18} className="text-indigo-400"/> 
                         Dataset
                     </h3>
-                    <span className="bg-white/10 text-xs px-2 py-1 rounded-full text-white">{savedItems.length}</span>
+                    <span className="bg-indigo-600 text-xs px-2 py-1 rounded-full text-white font-bold">{savedItems.length}</span>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2 custom-scrollbar">
-                    {savedItems.map((item, idx) => (
-                        <div key={idx} className="bg-black/50 p-3 rounded-lg text-xs border border-white/5 flex gap-3 group">
+                    {savedItems.map((item) => (
+                        <div key={item.id} className="bg-black/40 p-3 rounded-lg text-xs border border-white/5 flex gap-3 group hover:border-white/10 transition">
                             <div className="w-8 h-8 bg-neutral-800 rounded flex items-center justify-center shrink-0">
-                                {item.type === 'buttons' && <MousePointer2 size={14} />}
-                                {item.type === 'cards' && <Layers size={14} />}
-                                {item.type === 'navbars' && <Monitor size={14} />}
+                                {item.type === 'buttons' && <MousePointer2 size={14} className="text-blue-400"/>}
+                                {item.type === 'cards' && <Layers size={14} className="text-orange-400"/>}
+                                {item.type === 'sidebars' && <SidebarIcon size={14} className="text-purple-400"/>}
+                                {item.type === 'navbars' && <Monitor size={14} className="text-green-400"/>}
                             </div>
-                            <div className="overflow-hidden flex-1">
+                            <div className="overflow-hidden flex-1 py-0.5">
                                 <div className="font-bold text-neutral-300 capitalize">{item.type}</div>
-                                <div className="text-neutral-600 truncate">{item.classes || "Sans classe"}</div>
+                                <div className="text-neutral-600 truncate text-[10px]">{item.id}</div>
                             </div>
                             <button 
-                                onClick={() => removeFromLibrary(idx)} 
+                                onClick={() => removeFromLibrary(item.id)} 
                                 className="text-neutral-600 hover:text-red-500 transition opacity-0 group-hover:opacity-100"
                             >
                                 <Trash size={14}/>
                             </button>
                         </div>
                     ))}
-                    {savedItems.length === 0 && (
-                        <p className="text-neutral-600 text-xs text-center py-4 italic">
-                            Sélectionnez des composants à gauche pour construire votre librairie.
-                        </p>
-                    )}
                 </div>
 
                 <button 
                     onClick={downloadLibrary}
                     disabled={savedItems.length === 0}
-                    className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl flex justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg shadow-green-900/20"
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl flex justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-900/20"
                 >
                     TÉLÉCHARGER JSON
                 </button>
@@ -258,4 +255,4 @@ export default function ExtractPage() {
       </div>
     </div>
   );
-                  }
+         }
