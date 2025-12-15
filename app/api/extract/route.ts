@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { PurgeCSS } from "purgecss";
+import juice from "juice";
 
-// --- LISTE DES TAGS À NE JAMAIS SUPPRIMER ---
 const UNIVERSAL_TAGS = [
-    // Structure
     'html', 'body', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'aside',
-    // Texte
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'a',
-    // Formulaires
-    'button', 'input', 'textarea', 'select', 'label', 'form', 'fieldset', 'legend',
-    // Média
-    'img', 'svg', 'video', 'figure', 'figcaption', 'path', 'circle', 'rect'
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'a',
+    'button', 'input', 'textarea', 'select', 'label', 'form', 'img', 'svg', 'video', 'ul', 'li'
 ];
 
 const makeAbsolute = (html: string, baseUrl: string) => {
@@ -36,45 +31,35 @@ export async function POST(request: Request) {
 
     const targetUrl = url.startsWith("http") ? url : `https://${url}`;
     const baseUrl = new URL(targetUrl).origin;
-
     const html = await fetchResource(targetUrl);
     if (!html) throw new Error("Site inaccessible");
 
     const $ = cheerio.load(html);
 
-    // --- 1. ASSEMBLAGE CSS GLOBAL ---
+    // 1. CSS GLOBAL
     let globalCSS = "";
     const cssLinks: string[] = [];
     $("link[rel='stylesheet']").each((_, el) => {
         const href = $(el).attr("href");
         if (href) { try { cssLinks.push(new URL(href, baseUrl).href); } catch {} }
     });
-
     const cssContents = await Promise.all(cssLinks.map(link => fetchResource(link)));
-    
     const cleanCSS = (css: string, cssUrl: string) => {
          const cssBase = new URL(cssUrl).origin;
          return css.replace(/url\(['"]?((?!http|data)[^'")]+)['"]?\)/g, `url(${cssBase}/$1)`);
     };
-
     cssContents.forEach((css, i) => { globalCSS += cleanCSS(css, cssLinks[i]) + "\n"; });
     $("style").each((_, el) => { globalCSS += $(el).html() + "\n"; });
 
-    // Styles vitaux par défaut
-    globalCSS = `
-        * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
-        input, textarea, button, select, a { font-family: inherit; color: inherit; }
-        ${globalCSS}
-    `;
+    globalCSS = `:root { --bg: #fff; } * { box-sizing: border-box; -webkit-font-smoothing: antialiased; } ${globalCSS}`;
 
-    // --- 2. EXTRACTION ---
+    // 2. EXTRACTION
     const extracted = {
       buttons: [] as any[],
       inputs: [] as any[],
       cards: [] as any[],
       navbars: [] as any[],
-      footers: [] as any[],
-      sections: [] as any[]
+      rich_blocks: [] as any[] // NOUVEAU : Divs complexes
     };
     let idCounter = 0;
 
@@ -82,112 +67,100 @@ export async function POST(request: Request) {
         const $el = $(el);
         const rawHtml = makeAbsolute($.html(el), baseUrl);
         
-        // ASTUCE : On récupère toutes les classes utilisées dans le HTML de cet élément
-        // pour être sûr de les passer à la safelist standard
         const usedClasses: string[] = [];
         $el.find('*').addBack().each((_, element) => {
             const cls = $(element).attr('class');
-            if (cls) {
-                cls.split(/\s+/).forEach(c => { if(c.trim()) usedClasses.push(c.trim()); });
-            }
+            if (cls) cls.split(/\s+/).forEach(c => { if(c.trim()) usedClasses.push(c.trim()); });
         });
 
         const htmlContext = `<html><body><div id="wrapper">${rawHtml}</div></body></html>`;
 
-        // --- CORRECTION MAJEURE ICI ---
+        // A. PURGE CSS (On isole le CSS)
         const purgeResult = await new PurgeCSS().purge({
             content: [{ raw: htmlContext, extension: 'html' }],
             css: [{ raw: globalCSS }],
-            
-            // Options TOP-LEVEL (Doivent être ici, pas dans safelist)
-            fontFace: true,
-            keyframes: true,
-            variables: true,
-
+            fontFace: true, keyframes: true, variables: true,
             safelist: {
-                standard: [
-                    ...UNIVERSAL_TAGS,
-                    ...usedClasses, // On force les classes trouvées
-                    'body', 'html', ':root',
-                    /\*/,              // Sélecteur universel
-                    /data-/,           // Attributs data
-                    /::placeholder/,
-                    /::before/,
-                    /::after/
-                ],
-                deep: [
-                    /^framer-/,     // Frameworks
-                    /^w-/, 
-                    /^is-/,
-                    /^active/,
-                    /^hover/
-                ],
-                greedy: [
-                    /token/ // Pour les variables Framer souvent nommées --token-xyz
-                ]
-                // PAS DE VARIABLES: TRUE ICI !
+                standard: [...UNIVERSAL_TAGS, ...usedClasses, 'body', 'html', ':root', /\*/, /data-/, /::placeholder/, /::before/, /::after/],
+                deep: [/^framer-/, /^w-/, /^is-/, /^active/, /^hover/],
+                greedy: [/token/]
             }
         });
-
         const isolatedCSS = purgeResult[0]?.css || "";
+
+        // B. JUICE (On injecte le CSS dans le HTML style="")
+        // Cela crée la version "AI Ready"
+        const inlinedHTML = juice.inlineContent(rawHtml, isolatedCSS, {
+            applyStyleTags: true,
+            removeStyleTags: false, // IMPORTANT: On garde les styles qu'on ne peut pas inliner (media queries, hover)
+            preserveMediaQueries: true,
+            insertPreservedExtraCss: true,
+            applyAttributesTableElements: false
+        });
 
         extracted[category].push({
             id: `${category}-${idCounter++}`,
             type: category,
             source: typeSrc,
-            html: rawHtml,
-            classes: $el.attr("class") || "",
-            isolatedCss: isolatedCSS 
+            html: rawHtml,          // HTML original (classes)
+            isolatedCss: isolatedCSS, // CSS séparé
+            inlinedHtml: inlinedHTML, // HTML avec style="..." (Le Graal pour l'IA)
         });
     };
 
     const processingPromises: Promise<void>[] = [];
 
-    // A. INPUTS
+    // --- SÉLECTEURS AMÉLIORÉS ---
+
+    // 1. RICH BLOCKS (Texte + Image + Optionnel Bouton)
+    // On cherche des divs qui ne sont PAS des sections entières mais des blocs de contenu
+    $("div, [class*='wrapper'], [class*='content']").each((_, el) => {
+        const $el = $(el);
+        // Ne pas scanner le body ou main direct
+        if ($el.is('body') || $el.is('main')) return;
+        
+        const h = $el.html() || "";
+        // Critères : Taille moyenne
+        if (h.length < 300 || h.length > 8000) return;
+
+        const hasImg = $el.find('img, svg').length > 0;
+        const hasText = $el.text().trim().length > 50;
+        const hasBtn = $el.find('button, a[class*="btn"]').length > 0;
+        const hasTitle = $el.find('h2, h3, h4').length > 0;
+
+        // Cas 1: Texte + Image (Classique)
+        if (hasImg && hasText && hasTitle) {
+             processingPromises.push(processItem('rich_blocks', el, 'text-image-block'));
+        }
+        // Cas 2: Texte + Image + Bouton (Call to Action)
+        else if (hasImg && hasText && hasBtn) {
+             processingPromises.push(processItem('rich_blocks', el, 'cta-block'));
+        }
+    });
+
+    // 2. INPUTS
     $("input:not([type='hidden']), textarea, select").each((_, el) => {
         const $parent = $(el).parent();
-        const pClass = $parent.attr('class') || "";
-        if (pClass.match(/group|wrapper|container|field|box|input/i) || $parent.is("label")) {
+        if ($parent.attr('class')?.match(/group|wrapper|container|field|box|input/i) || $parent.is("label")) {
             // @ts-ignore
-            if (!$parent.data('scanned')) { 
-                processingPromises.push(processItem('inputs', $parent, 'wrapped')); 
-                // @ts-ignore
-                $parent.data('scanned', true); 
-            }
-        } else {
-            processingPromises.push(processItem('inputs', el, 'raw'));
-        }
+            if (!$parent.data('scanned')) { processingPromises.push(processItem('inputs', $parent, 'wrapped')); $parent.data('scanned', true); }
+        } else { processingPromises.push(processItem('inputs', el, 'raw')); }
     });
 
-    // B. BOUTONS
-    $("button, a[role='button'], [class*='btn'], [class*='button'], .w-button").each((_, el) => {
-        if ($(el).text().trim().length < 50 && $(el).find('div').length < 3) 
-            processingPromises.push(processItem('buttons', el, 'detected'));
+    // 3. BOUTONS
+    $("button, a[role='button'], [class*='btn'], .w-button").each((_, el) => {
+        if ($(el).text().trim().length < 50) processingPromises.push(processItem('buttons', el, 'detected'));
     });
 
-    // C. NAVBARS
-    $("nav, header, [role='banner']").each((_, el) => {
-        if ($(el).find('a').length > 0) processingPromises.push(processItem('navbars', el, 'structure'));
-    });
+    // 4. NAVBARS
+    $("nav, header").each((_, el) => { if ($(el).find('a').length > 0) processingPromises.push(processItem('navbars', el, 'structure')); });
 
-    // D. FOOTERS
-    $("footer, [class*='footer']").each((_, el) => {
-        if ($(el).find('a').length > 3) processingPromises.push(processItem('footers', el, 'structure'));
-    });
-
-    // E. CARDS & SECTIONS
-    const containerSel = "article, section, [class*='card'], [class*='container'], [class*='wrapper'], [class*='box']";
-    $(containerSel).each((_, el) => {
+    // 5. CARDS (Classique)
+    $( "article, section, [class*='card']").each((_, el) => {
         const h = $(el).html() || "";
-        const $el = $(el);
-        const hasMedia = $el.find('img, svg').length > 0;
-        const hasTitle = $el.find('h1, h2, h3, h4').length > 0;
-        
-        if (h.length > 200 && h.length < 5000 && (hasMedia || hasTitle)) {
-             processingPromises.push(processItem('cards', el, 'card-detect'));
-        } else if (h.length > 500 && h.length < 15000 && hasTitle && hasMedia) {
-             processingPromises.push(processItem('sections', el, 'section-detect'));
-        }
+        const hasMedia = $(el).find('img, svg').length > 0;
+        const hasTitle = $(el).find('h1, h2, h3, h4').length > 0;
+        if (h.length > 200 && h.length < 5000 && (hasMedia || hasTitle)) processingPromises.push(processItem('cards', el, 'card-detect'));
     });
 
     await Promise.all(processingPromises);
@@ -206,13 +179,11 @@ export async function POST(request: Request) {
           inputs: limit(extracted.inputs, 10),
           cards: limit(extracted.cards, 8),
           navbars: limit(extracted.navbars, 2),
-          footers: limit(extracted.footers, 2),
-          sections: limit(extracted.sections, 3)
+          rich_blocks: limit(extracted.rich_blocks, 6) // NOUVEAU
       }
     });
 
   } catch (err: any) {
-    console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-  }
+}
