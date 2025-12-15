@@ -2,17 +2,10 @@ import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { PurgeCSS } from "purgecss";
 
-// --- LISTE DES TAGS À NE JAMAIS SUPPRIMER ---
-// C'est ça qui garantit que le "Vibe" global (typo, spacing) reste
 const UNIVERSAL_TAGS = [
-    // Structure
     'html', 'body', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'aside',
-    // Texte
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'a',
-    // Formulaires (CRUCIAL pour toi)
-    'button', 'input', 'textarea', 'select', 'label', 'form', 'fieldset', 'legend',
-    // Média
-    'img', 'svg', 'video', 'figure', 'figcaption'
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'a',
+    'button', 'input', 'textarea', 'select', 'label', 'form', 'img', 'svg', 'video', 'ul', 'li'
 ];
 
 const makeAbsolute = (html: string, baseUrl: string) => {
@@ -43,7 +36,7 @@ export async function POST(request: Request) {
 
     const $ = cheerio.load(html);
 
-    // --- 1. ASSEMBLAGE CSS GLOBAL ---
+    // 1. CSS GLOBAL
     let globalCSS = "";
     const cssLinks: string[] = [];
     $("link[rel='stylesheet']").each((_, el) => {
@@ -53,6 +46,7 @@ export async function POST(request: Request) {
 
     const cssContents = await Promise.all(cssLinks.map(link => fetchResource(link)));
     
+    // Nettoyage CSS
     const cleanCSS = (css: string, cssUrl: string) => {
          const cssBase = new URL(cssUrl).origin;
          return css.replace(/url\(['"]?((?!http|data)[^'")]+)['"]?\)/g, `url(${cssBase}/$1)`);
@@ -61,14 +55,14 @@ export async function POST(request: Request) {
     cssContents.forEach((css, i) => { globalCSS += cleanCSS(css, cssLinks[i]) + "\n"; });
     $("style").each((_, el) => { globalCSS += $(el).html() + "\n"; });
 
-    // Ajout de styles par défaut vitaux au cas où
+    // Ajout variables vitales par défaut
     globalCSS = `
+        :root { --background: #ffffff; --foreground: #000000; }
         * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
-        input, textarea, button, select, a { font-family: inherit; color: inherit; }
         ${globalCSS}
     `;
 
-    // --- 2. EXTRACTION ---
+    // 2. EXTRACTION
     const extracted = {
       buttons: [] as any[],
       inputs: [] as any[],
@@ -83,37 +77,38 @@ export async function POST(request: Request) {
         const $el = $(el);
         const rawHtml = makeAbsolute($.html(el), baseUrl);
         
-        // On encapsule pour le contexte
+        // --- ASTUCE : Récupérer toutes les classes utilisées dans cet élément ---
+        // On va les forcer dans la Safelist pour être sûr que PurgeCSS ne les rate pas
+        const usedClasses: string[] = [];
+        $el.find('*').addBack().each((_, element) => {
+            const cls = $(element).attr('class');
+            if (cls) {
+                cls.split(/\s+/).forEach(c => {
+                    if(c.trim()) usedClasses.push(c.trim());
+                });
+            }
+        });
+
+        // Contexte pour PurgeCSS
         const htmlContext = `<html><body><div id="wrapper">${rawHtml}</div></body></html>`;
 
         const purgeResult = await new PurgeCSS().purge({
             content: [{ raw: htmlContext, extension: 'html' }],
             css: [{ raw: globalCSS }],
-            
-            // --- LA PROTECTION ULTIME ---
             safelist: {
                 standard: [
-                    ...UNIVERSAL_TAGS, // On protège tous les tags HTML de base
-                    /:root/,           // On protège les variables
-                    /\*/,              // On protège le sélecteur universel
-                    /data-/,           // On protège les data-attributes
-                    /::placeholder/,   // On protège les placeholders
-                    /::before/,        // On protège les pseudo-éléments
-                    /::after/
+                    ...UNIVERSAL_TAGS,
+                    ...usedClasses, // ON FORCE TOUTES LES CLASSES TROUVÉES
+                    'body', 'html', ':root'
                 ],
-                deep: [
-                    /^framer-/,     // Frameworks
-                    /^w-/, 
-                    /^is-/,         // États (is-active, is-open)
-                    /^active/,
-                    /^hover/
-                ],
-                greedy: [], 
-                variables: true,    // Garder les variables CSS utilisées
-                keyframes: true     // Garder les animations
+                deep: [/framer-/, /w-/, /data-/], // Regex pour Framer/Webflow
+                greedy: [/token/], // Pour les variables Framer --token-xyz
+                variables: true,
+                keyframes: true
             },
-            fontFace: true,         // Garder les fonts
-            keyframes: true         // Garder les keyframes
+            fontFace: true,
+            keyframes: true,
+            variables: true
         });
 
         const isolatedCSS = purgeResult[0]?.css || "";
@@ -124,57 +119,35 @@ export async function POST(request: Request) {
             source: typeSrc,
             html: rawHtml,
             classes: $el.attr("class") || "",
-            isolatedCss: isolatedCSS 
+            isolatedCss: isolatedCSS // C'est ici que le CSS filtré se trouve
         });
     };
 
     const processingPromises: Promise<void>[] = [];
 
-    // A. INPUTS (Smart)
+    // SELECTEURS (Inchangés)
     $("input:not([type='hidden']), textarea, select").each((_, el) => {
         const $parent = $(el).parent();
-        const pClass = $parent.attr('class') || "";
-        if (pClass.match(/group|wrapper|container|field|box|input/i) || $parent.is("label")) {
+        if ($parent.attr('class')?.match(/group|wrapper|container|field|box|input/i) || $parent.is("label")) {
             // @ts-ignore
-            if (!$parent.data('scanned')) { 
-                processingPromises.push(processItem('inputs', $parent, 'wrapped')); 
-                // @ts-ignore
-                $parent.data('scanned', true); 
-            }
-        } else {
-            processingPromises.push(processItem('inputs', el, 'raw'));
-        }
+            if (!$parent.data('scanned')) { processingPromises.push(processItem('inputs', $parent, 'wrapped')); $parent.data('scanned', true); }
+        } else { processingPromises.push(processItem('inputs', el, 'raw')); }
     });
 
-    // B. BOUTONS
-    $("button, a[role='button'], [class*='btn'], [class*='button'], .w-button").each((_, el) => {
-        if ($(el).text().trim().length < 50 && $(el).find('div').length < 3) 
-            processingPromises.push(processItem('buttons', el, 'detected'));
+    $("button, a[role='button'], [class*='btn'], .w-button").each((_, el) => {
+        if ($(el).text().trim().length < 50) processingPromises.push(processItem('buttons', el, 'detected'));
     });
 
-    // C. NAVBARS
-    $("nav, header, [role='banner']").each((_, el) => {
-        if ($(el).find('a').length > 0) processingPromises.push(processItem('navbars', el, 'structure'));
-    });
+    $("nav, header").each((_, el) => { if ($(el).find('a').length > 0) processingPromises.push(processItem('navbars', el, 'structure')); });
 
-    // D. FOOTERS
-    $("footer, [class*='footer']").each((_, el) => {
-        if ($(el).find('a').length > 3) processingPromises.push(processItem('footers', el, 'structure'));
-    });
+    $("footer").each((_, el) => { if ($(el).find('a').length > 3) processingPromises.push(processItem('footers', el, 'structure')); });
 
-    // E. CARDS & SECTIONS
-    const containerSel = "article, section, [class*='card'], [class*='container'], [class*='wrapper'], [class*='box']";
-    $(containerSel).each((_, el) => {
+    $( "article, section, [class*='card'], [class*='container']").each((_, el) => {
         const h = $(el).html() || "";
-        const $el = $(el);
-        const hasMedia = $el.find('img, svg').length > 0;
-        const hasTitle = $el.find('h1, h2, h3, h4').length > 0;
-        
-        if (h.length > 200 && h.length < 5000 && (hasMedia || hasTitle)) {
-             processingPromises.push(processItem('cards', el, 'card-detect'));
-        } else if (h.length > 500 && h.length < 15000 && hasTitle && hasMedia) {
-             processingPromises.push(processItem('sections', el, 'section-detect'));
-        }
+        const hasMedia = $(el).find('img, svg').length > 0;
+        const hasTitle = $(el).find('h1, h2, h3, h4').length > 0;
+        if (h.length > 200 && h.length < 5000 && (hasMedia || hasTitle)) processingPromises.push(processItem('cards', el, 'card-detect'));
+        else if (h.length > 500 && h.length < 15000 && hasTitle && hasMedia) processingPromises.push(processItem('sections', el, 'section-detect'));
     });
 
     await Promise.all(processingPromises);
@@ -199,7 +172,6 @@ export async function POST(request: Request) {
     });
 
   } catch (err: any) {
-    console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-  }
+        }
