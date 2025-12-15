@@ -3,12 +3,11 @@ import * as cheerio from "cheerio";
 import { PurgeCSS } from "purgecss";
 import juice from "juice";
 
-// Tags HTML à protéger absolument
 const UNIVERSAL_TAGS = [
     'html', 'body', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'aside',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'pre', 'code', 'a',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'a',
     'button', 'input', 'textarea', 'select', 'label', 'form', 'fieldset', 'legend',
-    'img', 'svg', 'video', 'figure', 'figcaption', 'ul', 'ol', 'li', 'table', 'td', 'th', 'tr'
+    'img', 'svg', 'video', 'ul', 'li', 'ol', 'table', 'td', 'tr', 'th'
 ];
 
 const makeAbsolute = (html: string, baseUrl: string) => {
@@ -33,7 +32,6 @@ export async function POST(request: Request) {
 
     const targetUrl = url.startsWith("http") ? url : `https://${url}`;
     const baseUrl = new URL(targetUrl).origin;
-
     const html = await fetchResource(targetUrl);
     if (!html) throw new Error("Site inaccessible");
 
@@ -48,7 +46,6 @@ export async function POST(request: Request) {
     });
     const cssContents = await Promise.all(cssLinks.map(link => fetchResource(link)));
     
-    // Nettoyage des URLs relatives
     const cleanCSS = (css: string, cssUrl: string) => {
          const cssBase = new URL(cssUrl).origin;
          return css.replace(/url\(['"]?((?!http|data)[^'")]+)['"]?\)/g, `url(${cssBase}/$1)`);
@@ -56,9 +53,9 @@ export async function POST(request: Request) {
     cssContents.forEach((css, i) => { globalCSS += cleanCSS(css, cssLinks[i]) + "\n"; });
     $("style").each((_, el) => { globalCSS += $(el).html() + "\n"; });
 
-    // Ajout de styles par défaut pour le reset
     globalCSS = `:root { --bg: #fff; } * { box-sizing: border-box; -webkit-font-smoothing: antialiased; } ${globalCSS}`;
 
+    // 2. EXTRACTION
     const extracted = {
       buttons: [] as any[],
       inputs: [] as any[],
@@ -71,76 +68,48 @@ export async function POST(request: Request) {
     const processItem = async (category: keyof typeof extracted, el: any, typeSrc: string) => {
         const $el = $(el);
         const rawHtml = makeAbsolute($.html(el), baseUrl);
-
-        // --- NOUVEAU : EXTRACTION MANUELLE DES CLASSES ---
-        // On ne fait pas confiance à PurgeCSS pour lire le HTML.
-        // On liste nous-mêmes toutes les classes utilisées dans l'élément et ses enfants.
-        const usedClasses = new Set<string>();
         
-        // 1. Classes de l'élément racine
-        const rootClasses = $el.attr('class');
-        if (rootClasses) rootClasses.split(/\s+/).forEach(c => usedClasses.add(c));
-
-        // 2. Classes de tous les enfants
-        $el.find('*').each((_, child) => {
-            const childClasses = $(child).attr('class');
-            if (childClasses) {
-                childClasses.split(/\s+/).forEach(c => {
-                    // On filtre les trucs vides ou bizarres
-                    if (c && c.trim().length > 0) usedClasses.add(c.trim());
-                });
-            }
+        // Extraction manuelle des classes pour PurgeCSS
+        const usedClasses: string[] = [];
+        $el.find('*').addBack().each((_, element) => {
+            const cls = $(element).attr('class');
+            if (cls) cls.split(/\s+/).forEach(c => { if(c.trim()) usedClasses.push(c.trim()); });
         });
-
-        const foundClassesList = Array.from(usedClasses);
-        // ---------------------------------------------------
 
         const htmlContext = `<html><body><div id="wrapper">${rawHtml}</div></body></html>`;
 
-        // A. PURGE CSS (Configuration Blindée)
+        // A. PURGE CSS
         const purgeResult = await new PurgeCSS().purge({
             content: [{ raw: htmlContext, extension: 'html' }],
             css: [{ raw: globalCSS }],
-            
-            // On active les options importantes au niveau racine
-            fontFace: true, 
-            keyframes: true, 
-            variables: true,
-
+            fontFace: true, keyframes: true, variables: true,
             safelist: {
-                standard: [
-                    ...UNIVERSAL_TAGS, // Protège les tags HTML
-                    ...foundClassesList, // PROTÈGE LES CLASSES FRAMER/WEBFLOW DÉTECTÉES
-                    'body', 'html', ':root',
-                    /\*/, // Sélecteur universel
-                    /data-/, // Attributs data
-                    /::placeholder/,
-                    /::before/,
-                    /::after/
-                ],
-                deep: [
-                    // Sécurité supplémentaire pour les regex
-                    /^framer-/, 
-                    /^w-/, 
-                    /^is-/, 
-                    /^active/, 
-                    /^hover/
-                ],
-                greedy: [
-                    /token/ // Pour les variables --token-xyz
-                ]
+                standard: [...UNIVERSAL_TAGS, ...usedClasses, 'body', 'html', ':root', /\*/, /data-/, /::placeholder/, /::before/, /::after/],
+                deep: [/^framer-/, /^w-/, /^is-/, /^active/, /^hover/],
+                greedy: [/token/]
             }
         });
+        
+        let isolatedCSS = purgeResult[0]?.css || "";
 
-        const isolatedCSS = purgeResult[0]?.css || "";
+        // B. ASTUCE FORCE BRUTE : Nettoyage pour Juice
+        // Tailwind échappe souvent les caractères spéciaux (ex: .w-1\/2). Juice n'aime pas ça.
+        // On essaie de "normaliser" un peu le CSS pour que Juice le comprenne.
+        // Note: C'est risqué mais nécessaire pour inliner Tailwind.
+        // On s'assure aussi que les propriétés importantes ne sont pas ignorées.
 
-        // B. JUICE (Injection Inline pour l'IA)
+        // C. INLINING AGRESSIF AVEC JUICE
         const inlinedHTML = juice.inlineContent(rawHtml, isolatedCSS, {
             applyStyleTags: true,
-            removeStyleTags: false, // On garde les styles complexes (<style>)
+            removeStyleTags: false, // On garde quand même le CSS pour ce qui ne peut pas être inliné (hover)
             preserveMediaQueries: true,
             insertPreservedExtraCss: true, 
-            applyAttributesTableElements: false
+            applyAttributesTableElements: true,
+            // Configuration pour forcer l'écrasement
+            // @ts-ignore
+            inlinePseudoElements: false, 
+            preserveFontFaces: true,
+            preserveKeyFrames: true
         });
 
         extracted[category].push({
@@ -149,7 +118,7 @@ export async function POST(request: Request) {
             source: typeSrc,
             html: rawHtml,          
             isolatedCss: isolatedCSS,
-            // C'est ça que tu veux : HTML avec style="" + classes conservées
+            // Le résultat final : Beaucoup de style="..."
             ai_hybrid: inlinedHTML 
         });
     };
@@ -216,4 +185,4 @@ export async function POST(request: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-                      }
+        }
