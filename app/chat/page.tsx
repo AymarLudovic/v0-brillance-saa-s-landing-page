@@ -643,7 +643,25 @@ const getRefImageById = async (id: string): Promise<string | null> => {
 
 // --- RÉCUPÉRER TOUTES LES IMAGES DU SHOP ---
 // --- UTILITAIRE : RÉCUPÉRER TOUS LES STYLES ---
-
+const getDesignLibrary = async () => {
+  if (typeof window === 'undefined') return [];
+  return new Promise((resolve) => {
+    const request = indexedDB.open("VibeDesignDB", 1);
+    request.onerror = () => resolve([]);
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains("components")) {
+        resolve([]);
+        return;
+      }
+      const transaction = db.transaction("components", "readonly");
+      const store = transaction.objectStore("components");
+      const getAllRequest = store.getAll();
+      getAllRequest.onsuccess = () => resolve(getAllRequest.result || []);
+      getAllRequest.onerror = () => resolve([]);
+    };
+  });
+};
 // --- UTILITAIRES DE LECTURE SHOP (DANS CHAT PAGE) ---
 
 const getAllShopImages = async (): Promise<string[]> => {
@@ -3006,21 +3024,29 @@ let shopImages: string[] = [];
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-        res = await fetch("/api/gemini", {
-          method: "POST",
-          headers: { 
-              "Content-Type": "application/json",
-              "x-gemini-api-key": apiKey // 🔥 Envoi de la clé dans les headers
-          },
-          body: JSON.stringify({ 
-            history: historyForApi, 
-            currentProjectFiles,
-            uploadedImages,
-            uploadedFiles,
-            allReferenceImages: shopImages
-         
-          }),
-        });
+const vibeComponents = await getDesignLibrary();
+
+if (vibeComponents.length > 0) {
+  addLog(`✅ Succès : ${vibeComponents.length} composants design trouvés dans la mémoire locale.`);
+} else {
+  addLog("ℹ️ Info : Aucun composant design trouvé dans la mémoire locale, envoi sans contexte visuel avancé.");
+}
+
+res = await fetch("/api/gemini", {
+  method: "POST",
+  headers: { 
+      "Content-Type": "application/json",
+      "x-gemini-api-key": apiKey 
+  },
+  body: JSON.stringify({ 
+    history: historyForApi, 
+    currentProjectFiles,
+    uploadedImages,
+    uploadedFiles,
+    allReferenceImages: shopImages,
+    vibeComponents
+  }),
+});
 
         if (!res.ok || !res.body) {
           throw new Error(`Gemini API request failed: ${res.statusText}`);
