@@ -3,11 +3,12 @@ import * as cheerio from "cheerio";
 import { PurgeCSS } from "purgecss";
 import juice from "juice";
 
+// Tags HTML à protéger absolument
 const UNIVERSAL_TAGS = [
     'html', 'body', 'div', 'section', 'article', 'main', 'header', 'footer', 'nav', 'aside',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'a',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'blockquote', 'pre', 'code', 'a',
     'button', 'input', 'textarea', 'select', 'label', 'form', 'fieldset', 'legend',
-    'img', 'svg', 'video', 'ul', 'li', 'ol', 'table', 'td', 'tr', 'th'
+    'img', 'svg', 'video', 'figure', 'figcaption', 'ul', 'ol', 'li', 'table', 'td', 'th', 'tr'
 ];
 
 const makeAbsolute = (html: string, baseUrl: string) => {
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
 
     const targetUrl = url.startsWith("http") ? url : `https://${url}`;
     const baseUrl = new URL(targetUrl).origin;
+
     const html = await fetchResource(targetUrl);
     if (!html) throw new Error("Site inaccessible");
 
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
       inputs: [] as any[],
       cards: [] as any[],
       navbars: [] as any[],
+      sidebars: [] as any[], // NOUVEAU: Sidebar explicite
       rich_blocks: [] as any[]
     };
     let idCounter = 0;
@@ -69,11 +72,13 @@ export async function POST(request: Request) {
         const $el = $(el);
         const rawHtml = makeAbsolute($.html(el), baseUrl);
         
-        // Extraction manuelle des classes pour PurgeCSS
-        const usedClasses: string[] = [];
-        $el.find('*').addBack().each((_, element) => {
-            const cls = $(element).attr('class');
-            if (cls) cls.split(/\s+/).forEach(c => { if(c.trim()) usedClasses.push(c.trim()); });
+        // Extraction manuelle des classes
+        const usedClasses = new Set<string>();
+        const rootClasses = $el.attr('class');
+        if (rootClasses) rootClasses.split(/\s+/).forEach(c => usedClasses.add(c));
+        $el.find('*').each((_, child) => {
+            const childClasses = $(child).attr('class');
+            if (childClasses) childClasses.split(/\s+/).forEach(c => { if(c.trim()) usedClasses.add(c.trim()); });
         });
 
         const htmlContext = `<html><body><div id="wrapper">${rawHtml}</div></body></html>`;
@@ -84,32 +89,20 @@ export async function POST(request: Request) {
             css: [{ raw: globalCSS }],
             fontFace: true, keyframes: true, variables: true,
             safelist: {
-                standard: [...UNIVERSAL_TAGS, ...usedClasses, 'body', 'html', ':root', /\*/, /data-/, /::placeholder/, /::before/, /::after/],
-                deep: [/^framer-/, /^w-/, /^is-/, /^active/, /^hover/],
+                standard: [...UNIVERSAL_TAGS, ...Array.from(usedClasses), 'body', 'html', ':root', /\*/, /data-/, /::placeholder/, /::before/, /::after/],
+                deep: [/^framer-/, /^w-/, /^is-/, /^active/, /^hover/, /^btn/, /^nav/, /^sidebar/], // Plus permissif
                 greedy: [/token/]
             }
         });
-        
-        let isolatedCSS = purgeResult[0]?.css || "";
+        const isolatedCSS = purgeResult[0]?.css || "";
 
-        // B. ASTUCE FORCE BRUTE : Nettoyage pour Juice
-        // Tailwind échappe souvent les caractères spéciaux (ex: .w-1\/2). Juice n'aime pas ça.
-        // On essaie de "normaliser" un peu le CSS pour que Juice le comprenne.
-        // Note: C'est risqué mais nécessaire pour inliner Tailwind.
-        // On s'assure aussi que les propriétés importantes ne sont pas ignorées.
-
-        // C. INLINING AGRESSIF AVEC JUICE
+        // B. JUICE
         const inlinedHTML = juice.inlineContent(rawHtml, isolatedCSS, {
             applyStyleTags: true,
-            removeStyleTags: false, // On garde quand même le CSS pour ce qui ne peut pas être inliné (hover)
+            removeStyleTags: false,
             preserveMediaQueries: true,
             insertPreservedExtraCss: true, 
-            applyAttributesTableElements: true,
-            // Configuration pour forcer l'écrasement
-            // @ts-ignore
-            inlinePseudoElements: false, 
-            preserveFontFaces: true,
-            preserveKeyFrames: true
+            applyAttributesTableElements: false
         });
 
         extracted[category].push({
@@ -118,29 +111,93 @@ export async function POST(request: Request) {
             source: typeSrc,
             html: rawHtml,          
             isolatedCss: isolatedCSS,
-            // Le résultat final : Beaucoup de style="..."
             ai_hybrid: inlinedHTML 
         });
     };
 
     const processingPromises: Promise<void>[] = [];
 
-    // --- SÉLECTEURS ---
-    $("div, [class*='wrapper'], [class*='content']").each((_, el) => {
-        const $el = $(el);
-        if ($el.is('body') || $el.is('main')) return;
-        const h = $el.html() || "";
-        if (h.length < 300 || h.length > 8000) return;
-        
-        const hasImg = $el.find('img, svg').length > 0;
-        const hasText = $el.text().trim().length > 50;
-        const hasBtn = $el.find('button, a[class*="btn"]').length > 0;
-        const hasTitle = $el.find('h2, h3, h4').length > 0;
+    // --- SÉLECTEURS HEURISTIQUES AVANCÉS ---
 
-        if (hasImg && hasText && hasTitle) processingPromises.push(processItem('rich_blocks', el, 'text-image-block'));
-        else if (hasImg && hasText && hasBtn) processingPromises.push(processItem('rich_blocks', el, 'cta-block'));
+    // 1. SIDEBARS (Divs cachées)
+    // On cherche: aside, ou div avec class 'sidebar'/'drawer', ou nav verticale
+    $("aside, nav, div[class*='sidebar'], div[class*='drawer'], div[class*='menu'], div[class*='panel']").each((_, el) => {
+        const $el = $(el);
+        const txt = $el.text().trim();
+        const linkCount = $el.find('a').length;
+        const hasList = $el.find('ul, ol').length > 0;
+        
+        // Une sidebar a souvent beaucoup de liens sous forme de liste, mais pas trop de texte "paragraphe"
+        if (linkCount > 3 && hasList && txt.length < 2000) {
+            // On vérifie si c'est pas une navbar horizontale (souvent <header>)
+            if (!$el.is('header') && !$el.closest('header').length) {
+                processingPromises.push(processItem('sidebars', el, 'sidebar-heuristic'));
+            }
+        }
     });
 
+    // 2. BLOCS RICHES (Hero, Features, CTA)
+    $("section, header, div[class*='hero'], div[class*='feature'], div[class*='cta'], div[class*='wrapper'], div[class*='container']").each((_, el) => {
+        const $el = $(el);
+        // Pas le body ni main
+        if ($el.is('body') || $el.is('main')) return;
+
+        const h = $el.html() || "";
+        // Taille minimale pour un bloc riche
+        if (h.length < 200) return;
+
+        // Score de "Richesse"
+        let score = 0;
+        if ($el.find('h1, h2, h3').length > 0) score += 2; // Titre
+        if ($el.find('p').length > 0) score += 1; // Texte
+        if ($el.find('img, svg, video').length > 0) score += 2; // Média
+        if ($el.find('a[class*="btn"], button').length > 0) score += 2; // Action
+
+        // Si score élevé, c'est un bloc intéressant
+        if (score >= 4) {
+             processingPromises.push(processItem('rich_blocks', el, 'rich-block-score-' + score));
+        }
+    });
+
+    // 3. CARDS (Divs répétitives)
+    // On cherche des éléments qui ont des "frères" similaires
+    $("div, article, li").each((_, el) => {
+        const $el = $(el);
+        const $siblings = $el.siblings();
+        
+        // Si l'élément a au moins 2 frères du même tag
+        if ($siblings.length >= 2 && $el.prop('tagName') === $siblings.first().prop('tagName')) {
+            // Et qu'il a du contenu (Image + Titre)
+            const hasMedia = $el.find('img, svg').length > 0;
+            const hasTitle = $el.find('h3, h4, h5, strong').length > 0;
+            const hasLink = $el.find('a').length > 0 || $el.parent('a').length > 0;
+
+            if ((hasMedia && hasTitle) || (hasTitle && hasLink)) {
+                // On évite les doublons (si le parent est déjà pris comme rich_block, c'est pas grave, on prend quand même pour la granularité)
+                if ($el.html()!.length < 3000) { // Pas trop gros
+                    processingPromises.push(processItem('cards', el, 'sibling-pattern'));
+                }
+            }
+        }
+    });
+
+    // 4. BUTTONS & LINKS (Détection large)
+    $("button, a, input[type='submit'], div[role='button']").each((_, el) => {
+        const $el = $(el);
+        const cls = $el.attr('class') || "";
+        const txt = $el.text().trim();
+        
+        // Est-ce que ça ressemble à un bouton ?
+        const isBtnClass = cls.match(/btn|button|cta|primary|secondary/i);
+        const isClickable = $el.is('button') || $el.attr('role') === 'button';
+        const isShortLink = $el.is('a') && txt.length < 30 && txt.length > 0 && cls.length > 0; // Lien court avec classe
+
+        if ((isBtnClass || isClickable || isShortLink) && $el.find('div').length < 2) {
+             processingPromises.push(processItem('buttons', el, 'btn-heuristic'));
+        }
+    });
+
+    // 5. INPUTS (Inchangé car marche bien)
     $("input:not([type='hidden']), textarea, select").each((_, el) => {
         const $parent = $(el).parent();
         if ($parent.attr('class')?.match(/group|wrapper|container|field|box|input/i) || $parent.is("label")) {
@@ -149,40 +206,46 @@ export async function POST(request: Request) {
         } else { processingPromises.push(processItem('inputs', el, 'raw')); }
     });
 
-    $("button, a[role='button'], [class*='btn'], .w-button").each((_, el) => {
-        if ($(el).text().trim().length < 50) processingPromises.push(processItem('buttons', el, 'detected'));
-    });
-
-    $("nav, header").each((_, el) => { if ($(el).find('a').length > 0) processingPromises.push(processItem('navbars', el, 'structure')); });
-
-    $( "article, section, [class*='card']").each((_, el) => {
-        const h = $(el).html() || "";
-        const hasMedia = $(el).find('img, svg').length > 0;
-        const hasTitle = $(el).find('h1, h2, h3, h4').length > 0;
-        if (h.length > 200 && h.length < 5000 && (hasMedia || hasTitle)) processingPromises.push(processItem('cards', el, 'card-detect'));
+    // 6. NAVBARS (Structure classique)
+    $("nav, header").each((_, el) => {
+         // Doit être en haut ou avoir une nav
+         if ($(el).find('a').length > 2 && $(el).html()!.length > 100) {
+             processingPromises.push(processItem('navbars', el, 'structure'));
+         }
     });
 
     await Promise.all(processingPromises);
 
-    const limit = (arr: any[], max: number) => {
-        const unique = new Map();
-        arr.forEach(item => unique.set(item.html, item));
-        return Array.from(unique.values()).slice(0, max);
+    // Fonction de dédoublonnage strict (sur le HTML pur)
+    const uniqueFilter = (arr: any[], max: number) => {
+        const seen = new Set();
+        const result = [];
+        for (const item of arr) {
+            // On nettoie un peu le HTML pour comparer (enlever les espaces)
+            const sign = item.html.replace(/\s/g, ''); 
+            if (!seen.has(sign)) {
+                seen.add(sign);
+                result.push(item);
+            }
+            if (result.length >= max) break;
+        }
+        return result;
     };
 
     return NextResponse.json({
       success: true,
       globalCSS: globalCSS,
       data: {
-          buttons: limit(extracted.buttons, 15),
-          inputs: limit(extracted.inputs, 10),
-          cards: limit(extracted.cards, 8),
-          navbars: limit(extracted.navbars, 2),
-          rich_blocks: limit(extracted.rich_blocks, 6)
+          buttons: uniqueFilter(extracted.buttons, 20), // Plus de boutons
+          inputs: uniqueFilter(extracted.inputs, 10),
+          cards: uniqueFilter(extracted.cards, 12),
+          sidebars: uniqueFilter(extracted.sidebars, 3),
+          navbars: uniqueFilter(extracted.navbars, 2),
+          rich_blocks: uniqueFilter(extracted.rich_blocks, 8)
       }
     });
 
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-        }
+                      }
