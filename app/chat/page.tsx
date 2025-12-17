@@ -643,24 +643,67 @@ const getRefImageById = async (id: string): Promise<string | null> => {
 
 // --- RÉCUPÉRER TOUTES LES IMAGES DU SHOP ---
 // --- UTILITAIRE : RÉCUPÉRER TOUS LES STYLES ---
+// 1. Récupération des composants stockés localement
 const getDesignLibrary = async () => {
   if (typeof window === 'undefined') return [];
-  return new Promise((resolve) => {
+  return new Promise<any[]>((resolve) => {
     const request = indexedDB.open("VibeDesignDB", 1);
     request.onerror = () => resolve([]);
     request.onsuccess = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains("components")) {
-        resolve([]);
-        return;
-      }
-      const transaction = db.transaction("components", "readonly");
-      const store = transaction.objectStore("components");
-      const getAllRequest = store.getAll();
-      getAllRequest.onsuccess = () => resolve(getAllRequest.result || []);
-      getAllRequest.onerror = () => resolve([]);
+      if (!db.objectStoreNames.contains("components")) { resolve([]); return; }
+      const tx = db.transaction("components", "readonly");
+      const req = tx.objectStore("components").getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
     };
   });
+};
+
+// 2. Le Routeur Sémantique (Appel IA #1)
+// Il demande à Gemini quels types sont nécessaires pour répondre à la demande
+const getRoutingDecision = async (userPrompt: string, availableTypes: string[], apiKey: string) => {
+  try {
+    const routerPrompt = `
+      CONTEXTE: Tu es un système de routage API invisible.
+      TYPES DISPONIBLES DANS LA BDD: ${JSON.stringify(availableTypes)}
+      DEMANDE UTILISATEUR: "${userPrompt}"
+      
+      TÂCHE:
+      1. Analyse sémantiquement la demande (qu'elle soit en Français, Arabe, Anglais, etc.).
+      2. Retourne UNIQUEMENT un tableau JSON des types nécessaires pour construire cette interface.
+      3. Si la demande est trop vague, retourne un tableau vide [].
+      
+      EXEMPLE DE RÉPONSE ATTENDUE: ["navbars", "buttons"]
+    `;
+
+    // On utilise ta route API existante en simulant un historique court
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
+      body: JSON.stringify({
+        history: [{ role: "user", content: routerPrompt }]
+      })
+    });
+
+    if (!res.body) return [];
+    
+    // Lecture du stream pour récupérer la réponse texte brute
+    const reader = res.body.getReader();
+    let text = "";
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += new TextDecoder().decode(value);
+    }
+
+    // Extraction du JSON (au cas où l'IA mettrait du texte autour)
+    const jsonMatch = text.match(/\[.*\]/s);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+  } catch (e) {
+    console.warn("Router Log: Fallback activé (tout envoyer ou rien)", e);
+    return []; 
+  }
 };
 // --- UTILITAIRES DE LECTURE SHOP (DANS CHAT PAGE) ---
 
@@ -2854,6 +2897,43 @@ const sendChat = async (promptOverride?: string, hiddenAnalysisData?: any, hidde
     mentionedFiles
   };
 
+    // --- DÉBUT DU BLOC VIBE INTELLIGENCE ---
+  
+  // 1. Chargement de la mémoire locale (Instantané)
+  const allVibeData = await getDesignLibrary();
+  let optimizedComponents: any[] = [];
+
+  if (allVibeData.length > 0) {
+      // Liste des "rayons" disponibles (ex: ['navbars', 'cards'])
+      const availableTypes = [...new Set(allVibeData.map((c: any) => c.type))];
+      
+      let selectedComponents = [];
+
+      // 2. APPEL IA #1 : Le Routeur (Seulement si y'a du texte)
+      // Si l'utilisateur a écrit quelque chose, on demande à l'IA de filtrer
+      if (finalUserPrompt && finalUserPrompt.trim().length > 2) {
+          addLog("🧠 Analyse sémantique des besoins...");
+          const neededTypes = await getRoutingDecision(finalUserPrompt, availableTypes, apiKey); // Assure-toi que apiKey est accessible ici
+          
+          if (neededTypes.length > 0) {
+              selectedComponents = allVibeData.filter((c: any) => neededTypes.includes(c.type));
+              addLog(`✅ Vibe: ${selectedComponents.length} composants chargés (${neededTypes.join(', ')})`);
+          }
+      }
+
+      // Si le routeur n'a rien trouvé (ou prompt vide), on peut décider 
+      // soit de ne rien envoyer, soit d'envoyer un petit pack par défaut.
+      // Ici, on garde selectedComponents (qui est vide ou rempli par le routeur).
+
+      // 3. Compression Sémantique (Pour réduire la latence de l'appel final)
+      optimizedComponents = selectedComponents.map((c: any) => ({
+          type: c.type,
+          // On prend le meilleur code disponible et on retire les espaces inutiles
+          code: (c.ai_code || c.ai_hybrid || c.html_inlined || "").replace(/\s+/g, ' ').trim()
+      }));
+  }
+  // --- FIN DU BLOC VIBE INTELLIGENCE ---
+
   // ... (Le reste de la fonction sendChat continue ici comme avant)
 
   // 2. Préparation du placeholder
@@ -3024,13 +3104,6 @@ let shopImages: string[] = [];
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-const vibeComponents = await getDesignLibrary();
-
-if (vibeComponents.length > 0) {
-  addLog(`✅ Succès : ${vibeComponents.length} composants design trouvés dans la mémoire locale.`);
-} else {
-  addLog("ℹ️ Info : Aucun composant design trouvé dans la mémoire locale, envoi sans contexte visuel avancé.");
-}
 
 res = await fetch("/api/gemini", {
   method: "POST",
@@ -3038,14 +3111,17 @@ res = await fetch("/api/gemini", {
       "Content-Type": "application/json",
       "x-gemini-api-key": apiKey 
   },
-  body: JSON.stringify({ 
-    history: historyForApi, 
-    currentProjectFiles,
-    uploadedImages,
-    uploadedFiles,
-    allReferenceImages: shopImages,
-    vibeComponents
-  }),
+  // ... dans ton fetch existant ...
+    body: JSON.stringify({ 
+        history: historyForApi, // Ton historique existant
+        currentProjectFiles,
+        uploadedImages,
+        uploadedFiles,
+        allReferenceImages: shopImages, // Tes images existantes
+
+        // 🔥 AJOUTE JUSTE CETTE LIGNE :
+        vibeComponents: optimizedComponents 
+    }),
 });
 
         if (!res.ok || !res.body) {
