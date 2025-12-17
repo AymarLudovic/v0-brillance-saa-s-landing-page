@@ -132,13 +132,18 @@ export default function ExtractPage() {
     const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "vibe_dataset_final.json"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
+  // ... (le reste du code est identique)
+
   const tabs = [
       { id: 'rich_blocks', icon: Square, label: 'Blocks Riches' },
+      { id: 'sidebars', icon: LayoutTemplate, label: 'Sidebars' }, // Ajouté !
+      { id: 'cards', icon: Layers, label: 'Cards' },
       { id: 'buttons', icon: MousePointer2, label: 'Boutons' },
       { id: 'inputs', icon: Type, label: 'Inputs' },
-      { id: 'cards', icon: Layers, label: 'Cards' },
       { id: 'navbars', icon: Monitor, label: 'Navbars' },
   ];
+
+// ...
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-yellow-500/30">
