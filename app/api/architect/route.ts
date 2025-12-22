@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { GoogleGenAI } from "@google/genai"
+import { GoogleGenAI, Part } from "@google/genai"
 
 const FULL_PROMPT_INJECTION = `
 ### ROLE : ARCHITECTE SUPRÊME
@@ -15,64 +15,47 @@ Utilise le délimiteur ||| pour séparer ton texte d'explication du XML techniqu
 Exemple: Voici le plan de votre application. ||| <plan>...</plan>
 `.trim();
 
+// On s'assure que c'est bien "export async function POST"
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('x-gemini-api-key');
-    const apiKey = (authHeader && authHeader !== "null") ? authHeader : process.env.GEMINI_API_KEY;
-
+    const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
+    
+    // Sécurité au cas où l'API KEY est absente
     if (!apiKey) {
-      return NextResponse.json({ error: "Clé API non trouvée" }, { status: 401 });
+      return NextResponse.json({ error: "API Key missing" }, { status: 401 });
     }
 
     const body = await req.json();
     const { history, allReferenceImages } = body;
 
-    const genAI = new GoogleGenAI(apiKey);
+    // Ton code initial
+    const ai = new (GoogleGenAI as any)({ apiKey });
     
-    // CORRECTION ICI : Utilisation de getGenerativeModel
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.0-flash", // Utilise 2.0 ou 1.5 pour la stabilité du SDK standard
-      systemInstruction: FULL_PROMPT_INJECTION,
-    });
-
     const contents: any[] = [];
-    
-    // Images de référence (Shop)
     if (allReferenceImages?.length > 0) {
-        contents.push({ 
-          role: 'user', 
-          parts: allReferenceImages.slice(0, 5).map((img: string) => ({ 
-            inlineData: { data: img.split(',')[1], mimeType: 'image/png' } 
-          })) 
-        });
+        contents.push({ role: 'user', parts: allReferenceImages.map((img: string) => ({ inlineData: { data: img.split(',')[1], mimeType: 'image/png' } })) });
         contents.push({ role: 'model', parts: [{ text: "Analyse visuelle prête." }] });
     }
 
-    // Historique
     history.forEach((msg: any) => {
-        if (msg.role !== 'system' && msg.content) {
-            contents.push({ 
-              role: msg.role === 'assistant' ? 'model' : 'user', 
-              parts: [{ text: msg.content }] 
-            });
+        if (msg.role !== 'system') {
+            contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] });
         }
     });
 
-    // Appel du stream
-    const result = await model.generateContentStream({
-      contents,
-      // Note: Le SDK standard GoogleGenAI gère le search via les tools différemment selon la version
-      tools: [{ googleSearchRetrieval: {} } as any], 
+    const response = await (ai as any).models.generateContentStream({
+      model: "gemini-3-flash-preview", 
+      contents, 
+      tools: [{ googleSearch: {} }],
+      systemInstruction: FULL_PROMPT_INJECTION,
+      config: { thinkingConfig: { thinkingLevel: 'HIGH' } }
     });
 
     const stream = new ReadableStream({
       async start(controller) {
-        const encoder = new TextEncoder();
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text();
-          if (chunkText) {
-            controller.enqueue(encoder.encode(chunkText));
-          }
+        for await (const chunk of response.stream) {
+          controller.enqueue(new TextEncoder().encode(chunk.text()));
         }
         controller.close();
       },
@@ -80,7 +63,7 @@ export async function POST(req: Request) {
 
     return new NextResponse(stream);
   } catch (err: any) {
-    console.error("DEBUG ARCHITECT ERROR:", err.message);
+    // Si l'erreur 500 revient, c'est que la syntaxe "ai.models" n'est pas supportée par ton SDK actuel
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-  }
+      }
