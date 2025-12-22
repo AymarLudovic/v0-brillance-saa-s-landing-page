@@ -1,61 +1,47 @@
-import { NextResponse } from "next/server"
-import { GoogleGenAI, Part } from "@google/genai"
+import { NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
 
-const FULL_PROMPT_INJECTION = `
-### ROLE : ARCHITECTE SUPRÊME
-Ton unique but est de planifier la création du logiciel. 
-1. Analyse la demande et utilise Google Search pour les standards 2025.
-2. Tu dois impérativement générer un plan détaillé sous format XML :
-<plan>
-  <task id="1" path="chemin/fichier1.ext">Description précise de ce que ce fichier doit contenir</task>
-  <task id="2" path="chemin/fichier2.ext">Description précise de ce que ce fichier doit contenir</task>
-</plan>
-
-Utilise le délimiteur ||| pour séparer ton texte d'explication du XML technique.
-Exemple: Voici le plan de votre application. ||| <plan>...</plan>
-`.trim();
-
+// ⚠️ IMPORTANT: Le nom de la fonction doit être POST
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('x-gemini-api-key');
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
+    }
+
     const body = await req.json();
     const { history, allReferenceImages } = body;
 
-    const ai = new GoogleGenAI({ apiKey });
-    const model = "gemini-3-flash-preview"; 
-    
-    const contents: any[] = [];
-    if (allReferenceImages?.length > 0) {
-        contents.push({ role: 'user', parts: allReferenceImages.map((img: string) => ({ inlineData: { data: img.split(',')[1], mimeType: 'image/png' } })) });
-        contents.push({ role: 'model', parts: [{ text: "Analyse visuelle prête." }] });
-    }
+    const ai = new GoogleGenAI(apiKey);
+    const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    history.forEach((msg: any) => {
-        if (msg.role !== 'system') {
-            contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] });
-        }
-    });
+    // Ton instruction système pour forcer le format XML
+    const systemPrompt = "Tu es un architecte. Réponds UNIQUEMENT avec ce format: Explication ||| <plan><task id='1' path='fichier.js'>Action</task></plan>";
 
-    const response = await ai.models.generateContentStream({
-      model,
-      contents, 
-      tools: [{ googleSearch: {} }],
-      systemInstruction: FULL_PROMPT_INJECTION,
-      config: { thinkingConfig: { thinkingLevel: 'HIGH' } }
+    const result = await model.generateContentStream({
+      contents: history.map((m: any) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      })),
+      // On peut aussi passer l'instruction ici selon la version du SDK
     });
 
     const stream = new ReadableStream({
       async start(controller) {
-        for await (const chunk of response.stream) {
-          controller.enqueue(new TextEncoder().encode(chunk.text()));
+        const encoder = new TextEncoder();
+        for await (const chunk of result.stream) {
+          controller.enqueue(encoder.encode(chunk.text()));
         }
         controller.close();
       },
     });
 
     return new NextResponse(stream);
+
   } catch (err: any) {
+    console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
       }
