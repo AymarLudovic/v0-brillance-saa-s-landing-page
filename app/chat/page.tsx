@@ -2862,16 +2862,29 @@ const sendChat = async (promptOverride?: string) => {
 
   try {
     // 🏗️ ÉTAPE 1 : L'ARCHITECTE (Génère le plan)
-    addLog("🏗️ Architecte : Phase de réflexion...");
-    let archText = "";
+    // --- ÉTAPE 1 : APPEL ARCHITECTE AVEC DEBUG LOG ---
+    addLog("🏗️ Tentative d'appel Architecte...");
     
     const archRes = await fetch("/api/architect", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-      body: JSON.stringify({ history: historyForApi, allReferenceImages: shopImages }),
+      headers: { 
+          "Content-Type": "application/json", 
+          "x-gemini-api-key": apiKey 
+      },
+      body: JSON.stringify({ 
+          history: historyForApi, 
+          allReferenceImages: shopImages 
+      }),
     });
 
-    if (!archRes.ok || !archRes.body) throw new Error("Architect failed");
+    // SI LE SERVEUR RÉPOND UNE ERREUR (404, 500, etc.)
+    if (!archRes.ok) {
+        const errorData = await archRes.text(); // On récupère le message d'erreur brut
+        addLog(`❌ ERREUR SERVEUR (${archRes.status}): ${errorData.slice(0, 100)}`);
+        throw new Error(`Architect failed with status ${archRes.status}`);
+    }
+
+    addLog("✅ Connexion établie avec l'Architecte, réception du flux...");
     const archReader = archRes.body.getReader();
     const decoder = new TextDecoder();
 
