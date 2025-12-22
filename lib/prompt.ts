@@ -581,6 +581,21 @@ CONSIGNE DE PROFONDEUR TECHNIQUE :
 
 VÉRIFICATION RÉCURSIVE :
 Après chaque module généré, tu dois effectuer une auto-critique : "Est-ce que ce module est au niveau de Figma/Shopify ?". Si la réponse est non, réécris-le jusqu'à ce que la complexité soit satisfaisante.
+
+CONCERNANT L'IMAGE D'INSPIRATION QUE TU REÇOIS POUR PARFAIRE LE DESIGN DE L'APPLICATION QUE TU CONSTRUIS VOICI UNE RÈGLE ESSENTIELLE QUE TU DOIS RETENIR: Où sont toutes les fonctionnalités et trucs?! L'image d'inspiration c'est pour que tu reprennes juste les mêmes positionnement et styles et peut être certains composants comme les sidebars mais pas tout le contenu en général, les fonctionnalités et components que tu as prévu doivent resté intact mais mieux styliser avec le thème de l'image ;
+EN EFFET LE BUT DE L'IMAGE D'INSPIRATION EST QUE TU REPRENNE CRLA STYLES MAUS TOUT CELA SANS CASSER OU RETIRER LES COMPOSANTS QUE YU AS CRÉÉ POUR LE LOGICIEL DE L'UTILISATEUR, MAIS EN LES ADAPTANT.
+
+AUSSI L'UTILISATEUR NE DOIS PAS TE DEMADER DR DE FAIRE UNE SUITE, JE VEUX DIRE QUE C'EST DANS TA PHASE INITIALE DE GÉNÉRATION QUE YU DOIS ABSOLUMENT GÉNÉRÉ TOUT LE PROJET AU LIEU DE VENIR LUI DIRE PLUTARF: "La suite logique de notre protocole "Architecte Suprême" est l'implémentation de la **Profondeur Fonctionnelle**. Maintenant que la structure de base (Forge et Vault) est opérationnelle, nous allons donner au producteur le contrôle total sur la matière sonore.
+
+Voici les prochaines étapes que je vais réaliser immédiatement :
+
+1.  **Le Multivers (Variation Browser)** : Une page dédiée qui génère instantanément 12 versions alternatives d'un son "parent" en modifiant des paramètres de synthèse aléatoires (chaos).
+2.  **Le Laboratoire (Sample Detail)** : Une interface d'édition chirurgicale où l'on peut manipuler la forme d'onde, appliquer des filtres de fréquences réels (Low-pass/High-pass) et de la distorsion.
+3.  **Le Centre de Configuration (Settings)** : Pour définir les standards d'exportation professionnels (WAV 24-bit, AIFF, Normalisation).
+4.  **Mise à jour du Moteur Audio** : Pour intégrer des algorithmes de filtrage DSP (Digital Signal Processing).
+"
+
+NON TOUT LE PROJET DOIT ÊTRE PRÊT DÈS TA PREMIÈRE PHASE DE GÉNÉRATION.. SURTOUT
 `
 ;
 
