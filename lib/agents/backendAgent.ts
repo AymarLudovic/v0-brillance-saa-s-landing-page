@@ -1,29 +1,19 @@
 import { GoogleGenAI } from "@google/genai"
 import { PKG } from "../types"
 
-export async function generateBackend(
-  pkg: PKG,
-  apiKey: string
-) {
+export async function generateBackend(pkg: PKG, apiKey: string) {
   const ai = new GoogleGenAI({ apiKey })
+  const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" })
 
-  return ai.models.generateContentStream({
-    model: "gemini-3-flash-preview",
-    contents: [{
-      role: "user",
-      parts: [{ text: JSON.stringify(pkg) }]
-    }],
-    config: {
-      systemInstruction: `
-Generate backend logic.
-- Auth
-- Data models
-- APIs
-- Security
-- No fake logic
-- IndexedDB allowed for demo
-- Use <create_file />
-`
-    }
+  const system = `
+   DIRECTIVE : BACKEND & LOGIC
+   Génère la logique API et les modèles de données.
+   Format XML obligatoire.
+   <create_file path="lib/backend.ts">code</create_file>
+  `
+
+  return model.generateContentStream({
+    contents: [{ role: "user", parts: [{ text: JSON.stringify(pkg) }] }],
+    generationConfig: { systemInstruction: system }
   })
-}
+                       }
