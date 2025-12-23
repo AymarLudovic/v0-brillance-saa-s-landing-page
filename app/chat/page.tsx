@@ -2805,188 +2805,20 @@ const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\
 // const FETCH_FILE_REGEX = /<fetch_file path=["']([^"']+)["'][^>]*\/>/g; 
 
 
-
-const sendChat = async (promptOverride?: string) => {
-  const userPrompt = promptOverride || chatInput;
-
-  if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
-  if (!currentProject && !promptOverride) {
-    addLog("Please create or load a project before starting a conversation.");
-    return;
-  }
-
-  // 1. Préparation du message utilisateur (Inchangé)
-  let contextForPrompt = "";
-  if (mentionedFiles.length > 0 && currentProject) {
-    contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
-  }
-  const finalUserPrompt = userPrompt + contextForPrompt;
-
-  const userMsg: Message = {
-    role: "user",
-    content: finalUserPrompt,
-    artifactData: { type: null, rawJson: "", parsedList: [] },
-    images: uploadedImages,
-    externalFiles: uploadedFiles,
-    mentionedFiles
-  };
-
   // 2. Préparation du placeholder initial (pour le plan)
-  const assistantPlaceholder: Message = {
-    role: "assistant",
-    content: "",
-    artifactData: { type: null, rawJson: "", parsedList: [] }
-  };
-  
-  let assistantMessageIndex = -1;
-  setMessages((prev) => {
-    assistantMessageIndex = prev.length + 1; 
-    if (!promptOverride) setChatInput("");
-    return [...prev, userMsg, assistantPlaceholder];
-  });
-  
-  const currentProjectFiles = currentProject
-    ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
-    : [];
 
-  // 3. Contexte Système & Design (Inchangé)
-  // ... [Garder ici tout ton bloc d'injection FILES_LIST et ContentSnapshots] ...
-  const systemFileContext: Message = { role: "system", content: "..." }; // Ton code actuel
-  let historyForApi = [systemFileContext, ...messages, userMsg];
-
-  setLoading(true);
   
-  // 🔥 Récupération API Key & Images (Inchangé)
-  let apiKey = await getApiKeyFromIDB();
-  let shopImages = await getAllShopImages();
 
-  try {
-    // 🏗️ ÉTAPE 1 : L'ARCHITECTE (Génère le plan)
-    // --- ÉTAPE 1 : APPEL ARCHITECTE AVEC DEBUG LOG ---
-    addLog("🏗️ Tentative d'appel Architecte...");
     
-    const archRes = await fetch("/api/architect", {
-      method: "POST",
-      headers: { 
-          "Content-Type": "application/json", 
-          "x-gemini-api-key": apiKey 
-      },
-      body: JSON.stringify({ 
-          history: historyForApi, 
-          allReferenceImages: shopImages 
-      }),
-    });
 
-    // SI LE SERVEUR RÉPOND UNE ERREUR (404, 500, etc.)
-    if (!archRes.ok) {
-        const errorData = await archRes.text(); // On récupère le message d'erreur brut
-        addLog(`❌ ERREUR SERVEUR (${archRes.status}): ${errorData.slice(0, 100)}`);
-        throw new Error(`Architect failed with status ${archRes.status}`);
-    }
 
-    addLog("✅ Connexion établie avec l'Architecte, réception du flux...");
-    const archReader = archRes.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await archReader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      archText += chunk;
-
-      setMessages((prev) => {
-        const updated = [...prev];
-        if (updated[assistantMessageIndex]) {
-            // On affiche le texte avant le ||| pour garder l'UI propre
-            updated[assistantMessageIndex].content = archText.split('|||')[0];
-        }
-        return updated;
-      });
-    }
-
-    // 4. Extraction des tâches du XML
-    const taskRegex = /<task\s+id=["']([^"']+)["']\s+path=["']([^"']+)["']>(.*?)<\/task>/gs;
-    const tasks = [];
-    let match;
-    while ((match = taskRegex.exec(archText)) !== null) {
-      tasks.push({ id: match[1], path: match[2], description: match[3] });
-    }
-
-    if (tasks.length === 0) {
-      addLog("✅ Aucun plan détecté, fin de l'opération.");
-      setLoading(false);
-      return;
-    }
-
-    // 🛠️ ÉTAPE 2 : LE BUILDER (Boucle sur chaque tâche)
-    addLog(`🛠️ Builder : ${tasks.length} fichiers à créer.`);
-
-    for (const task of tasks) {
-      addLog(`🔨 Construction de : ${task.path}...`);
-      let buildText = "";
-      
       // On crée une NOUVELLE bulle de message Assistant pour chaque fichier
-      setMessages(prev => [...prev, { 
-        role: "assistant", 
-        content: `Implémentation de ${task.path}...`,
-        artifactData: { type: 'files', parsedList: [{path: task.path, type: 'create'}], rawJson: "" }
-      }]);
-
-      const buildRes = await fetch("/api/builder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-        body: JSON.stringify({ history: historyForApi, currentTask: task.description, plan: archText }),
-      });
-
-      if (!buildRes.body) continue;
-      const buildReader = buildRes.body.getReader();
-
-      while (true) {
-        const { done, value } = await buildReader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        buildText += chunk;
-
-        // On utilise ta fonction extractFileArtifacts existante
-        const artifacts = extractFileArtifacts(buildText);
-        
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastMsg = updated[updated.length - 1];
-          if (lastMsg && lastMsg.role === "assistant") {
-            lastMsg.content = buildText.split('|||')[0];
-            lastMsg.artifactData = { 
-                type: 'files', 
-                parsedList: artifacts.map(a => ({path: a.filePath, type: a.type})),
-                rawJson: buildText 
-            };
-          }
-          return updated;
-        });
-      }
-
-      // 5. Application du code (Inchangé)
-      const finalArtifacts = extractFileArtifacts(buildText);
-      if (finalArtifacts.length > 0) {
-        applyArtifactsToProject(finalArtifacts);
-        addLog(`✔️ ${task.path} terminé.`);
-      }
-    }
-
-    addLog("✅ Système complet généré.");
-
-  } catch (err: any) {
-    addLog(`❌ ERROR: ${err.message}`);
-    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
-  } finally {
-    setLoading(false);
-  }
-};
-    
+      
+                
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 
 
-const sendChatBloc = async (promptOverride?: string) => {
+const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
   if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
