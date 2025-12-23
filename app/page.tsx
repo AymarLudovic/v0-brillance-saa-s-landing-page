@@ -21,37 +21,50 @@ export default function HomePage() {
   const [selectedFile, setSelectedFile] = useState<number | null>(null)
 
   async function runGeneration() {
-    setLoading(true)
-    setLogs([])
-    setResult(null)
-    setError(null)
-    setSelectedFile(null)
+  setLoading(true)
+  setLogs([])
+  setResult("") // On va stocker le texte brut ici
+  setError(null)
 
-    try {
-      const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea }),
-      })
+  try {
+    const res = await fetch("/api/ai/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idea }),
+    })
 
-      const data = await res.json()
+    if (!res.ok) throw new Error("Erreur serveur")
 
-      if (!res.ok) {
-        throw new Error(data.error || "Generation failed")
+    const reader = res.body?.getReader()
+    const decoder = new TextDecoder()
+    let cumulativeText = ""
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        const chunk = decoder.decode(value, { stream: true })
+        cumulativeText += chunk
+        
+        // On met à jour l'état pour afficher le code en temps réel
+        setResult(cumulativeText) 
+        
+        // Optionnel : Extraire les logs à la volée s'ils commencent par [STEP]
+        if (chunk.includes("[STEP]")) {
+           const stepMatch = chunk.match(/\[STEP\].*/g);
+           if (stepMatch) {
+             setLogs(prev => [...prev, { type: "step", message: stepMatch[0] }]);
+           }
+        }
       }
-
-      setLogs(data.logs || [])
-      setResult(data)
-      if (data.files && data.files.length > 0) {
-        setSelectedFile(0) // Sélectionne le premier fichier par défaut
-      }
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
     }
+  } catch (err: any) {
+    setError(err.message)
+  } finally {
+    setLoading(false)
   }
-
+    }
   return (
     <main style={{ padding: "40px", maxWidth: "1200px", margin: "0 auto", fontFamily: "Inter, system-ui, sans-serif" }}>
       <header style={{ marginBottom: "32px" }}>
