@@ -1,99 +1,74 @@
 import { NextResponse } from "next/server"
+import { GoogleGenAI } from "@google/genai"
 import { generatePKG } from "@/lib/agents/pkgAgent"
 import { planFromPKG } from "@/lib/agents/plannerAgent"
 import { generateUI } from "@/lib/agents/uiAgent"
 import { generateBackend } from "@/lib/agents/backendAgent"
 
-type LogType = "step" | "info" | "error"
-type Log = { type: LogType; message: string }
-
 export async function POST(req: Request) {
-  const logs: Log[] = []
-  const generatedFiles: { path: string; content: string }[] = []
-
-  const log = (type: LogType, message: string) => {
-    console.log(`[${type.toUpperCase()}]`, message)
-    logs.push({ type, message })
-  }
-
   try {
-    log("step", "API /ai/generate called")
-    const body = await req.json()
-    const { idea } = body
-    const apiKey = process.env.GEMINI_API_KEY
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
-    if (!apiKey) throw new Error("GEMINI_API_KEY missing")
+    const { idea } = await req.json();
+    if (!idea) return NextResponse.json({ error: "Idée manquante" }, { status: 400 });
 
-    // 1. GENERATE PKG
-    log("step", "Running PKG agent")
-    const pkgResult = await generatePKG(idea, apiKey)
+    const encoder = new TextEncoder();
     
-    // Sécurité pour extraire le bon objet PKG
-    const actualPkg = (pkgResult as any).pkg?.pkg || (pkgResult as any).pkg || pkgResult
-    
-    if (!actualPkg.pages) {
-      console.error("Structure PKG invalide:", pkgResult)
-      throw new Error("Le PKG généré est incomplet (pas de pages trouvées)")
-    }
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (text: string) => controller.enqueue(encoder.encode(text));
 
-    log("step", "Running Planner agent")
-    const plan = planFromPKG(actualPkg)
+        try {
+          // 1. ÉTAPE PKG (Architecte)
+          send(" [STEP] Running PKG Agent...\n");
+          const pkgResponse = await generatePKG(idea, apiKey);
+          const pkg = (pkgResponse as any).pkg?.pkg || (pkgResponse as any).pkg || pkgResponse;
+          
+          send(` [INFO] Architecture planned for ${Object.keys(pkg.pages || {}).length} pages.\n\n`);
 
-    // 2. GENERATE UI PAGES
-    const pages = Object.keys(actualPkg.pages)
-    log("step", `Generating UI for ${pages.length} pages...`)
+          // 2. ÉTAPE UI (Maçons) - On boucle sur chaque page
+          const pages = Object.keys(pkg.pages || {});
+          for (const pageName of pages) {
+            send(`\n [STEP] Generating UI for: ${pageName}...\n`);
+            const uiStream = await generateUI(pageName, pkg, apiKey);
+            
+            // On pipe le stream de l'agent UI directement dans notre flux principal
+            for await (const chunk of uiStream.stream) {
+              if (chunk.text) {
+                send(chunk.text());
+              }
+            }
+          }
 
-    for (const pageName of pages) {
-      log("info", `Generating UI for: ${pageName}`)
-      
-      try {
-        const result = await generateUI(pageName, actualPkg, apiKey)
-        
-        // VÉRIFICATION CRUCIALE : Le stream existe-t-il ?
-        if (!result || !result.stream) {
-          throw new Error(`No stream returned for page ${pageName}`)
+          // 3. ÉTAPE BACKEND (Électricien)
+          send(`\n\n [STEP] Generating Backend Logic...\n`);
+          const beStream = await generateBackend(pkg, apiKey);
+          
+          for await (const chunk of beStream.stream) {
+            if (chunk.text) {
+              send(chunk.text());
+            }
+          }
+
+          send("\n\n [SUCCESS] Full application generation completed.");
+          controller.close();
+
+        } catch (err: any) {
+          send(`\n [ERROR] Pipeline failed: ${err.message}`);
+          controller.close();
         }
-
-        let pageCode = ""
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text()
-          pageCode += chunkText
-        }
-        
-        generatedFiles.push({ 
-          path: `app/${pageName}/page.tsx`, 
-          content: pageCode 
-        })
-      } catch (uiErr: any) {
-        log("error", `Failed UI for ${pageName}: ${uiErr.message}`)
       }
-    }
+    });
 
-    // 3. GENERATE BACKEND
-    log("step", "Generating Backend logic...")
-    try {
-      const beResult = await generateBackend(actualPkg, apiKey)
-      if (beResult && beResult.stream) {
-        let backendCode = ""
-        for await (const chunk of beResult.stream) {
-          backendCode += chunk.text()
-        }
-        generatedFiles.push({ path: `lib/backend.ts`, content: backendCode })
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Transfer-Encoding": "chunked"
       }
-    } catch (beErr: any) {
-      log("error", `Backend generation failed: ${beErr.message}`)
-    }
-
-    log("step", "Generation pipeline completed")
-
-    return NextResponse.json({
-      pkg: actualPkg,
-      files: generatedFiles,
-      logs,
-    })
+    });
 
   } catch (err: any) {
-    log("error", err?.message || "Unknown server error")
-    return NextResponse.json({ error: err?.message, logs }, { status: 500 })
+    return NextResponse.json({ error: "Server Error: " + err.message }, { status: 500 });
   }
-  }
+        }
