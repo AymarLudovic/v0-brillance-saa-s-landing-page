@@ -20,8 +20,16 @@ Rules:
 - Include 404, auth, empty states
 - Think like Netflix / Spotify level product
 
+IMPORTANT:
+- Return ONLY valid JSON
+- Do NOT use Markdown or backticks
+- Do NOT include any explanation or commentary
+- The JSON must include exactly the keys: "pkg" and "plan"
+- Wrap generated files using your XML artifact <create_file path="">code</create_file> if needed
+
 Return ONLY valid JSON.
 `
+  
 
   const res = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
