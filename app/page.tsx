@@ -1,168 +1,143 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 
 type Log = {
   type: "step" | "info" | "error"
   message: string
 }
 
-type GeneratedFile = {
-  path: string
-  content: string
-}
-
 export default function HomePage() {
   const [idea, setIdea] = useState("")
-  const [logs, setLogs] = useState<Log[]>([])
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<{ pkg: any; files: GeneratedFile[] } | null>(null)
+  const [streamedText, setStreamedText] = useState("")
+  const [logs, setLogs] = useState<Log[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [selectedFile, setSelectedFile] = useState<number | null>(null)
+  
+  // Ref pour scroller automatiquement les logs
+  const logEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [logs])
+
+  // Fonction pour extraire les fichiers du texte XML streamé
+  const parseFiles = (text: string) => {
+    const files: { path: string; content: string }[] = []
+    const regex = /<create_file path="([^"]+)">([\s\S]*?)(?:<\/create_file>|$)/g
+    let match
+    while ((match = regex.exec(text)) !== null) {
+      files.push({ path: match[1], content: match[2].trim() })
+    }
+    return files
+  }
 
   async function runGeneration() {
-  setLoading(true)
-  setLogs([])
-  setResult("") // On va stocker le texte brut ici
-  setError(null)
+    setLoading(true)
+    setStreamedText("")
+    setLogs([])
+    setError(null)
 
-  try {
-    const res = await fetch("/api/ai/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idea }),
-    })
+    try {
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea }),
+      })
 
-    if (!res.ok) throw new Error("Erreur serveur")
+      if (!res.ok) throw new Error(`Server error: ${res.statusText}`)
+      if (!res.body) throw new Error("No response body")
 
-    const reader = res.body?.getReader()
-    const decoder = new TextDecoder()
-    let cumulativeText = ""
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let done = false
+      let fullText = ""
 
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        
+      while (!done) {
+        const { value, done: doneReading } = await reader.read()
+        done = doneReading
         const chunk = decoder.decode(value, { stream: true })
-        cumulativeText += chunk
+        fullText += chunk
         
-        // On met à jour l'état pour afficher le code en temps réel
-        setResult(cumulativeText) 
-        
-        // Optionnel : Extraire les logs à la volée s'ils commencent par [STEP]
-        if (chunk.includes("[STEP]")) {
-           const stepMatch = chunk.match(/\[STEP\].*/g);
-           if (stepMatch) {
-             setLogs(prev => [...prev, { type: "step", message: stepMatch[0] }]);
-           }
-        }
-      }
-    }
-  } catch (err: any) {
-    setError(err.message)
-  } finally {
-    setLoading(false)
-  }
-    }
-  return (
-    <main style={{ padding: "40px", maxWidth: "1200px", margin: "0 auto", fontFamily: "Inter, system-ui, sans-serif" }}>
-      <header style={{ marginBottom: "32px" }}>
-        <h1 style={{ fontSize: "2.5rem", fontWeight: "800", marginBottom: "8px" }}>AI App Architect</h1>
-        <p style={{ color: "#666" }}>Describe your vision, and I'll build the architecture, UI, and Backend.</p>
-      </header>
+        // Mise à jour du texte brut
+        setStreamedText(fullText)
 
-      {/* INPUT SECTION */}
-      <section style={{ marginBottom: "32px", background: "#f9f9f9", padding: "24px", borderRadius: "12px", border: "1px solid #eee" }}>
+        // Extraction des logs à la volée (lignes commençant par [)
+        const lines = chunk.split('\n')
+        lines.forEach(line => {
+          if (line.startsWith(" [STEP]")) {
+            setLogs(prev => [...prev, { type: "step", message: line.replace(" [STEP] ", "") }])
+          } else if (line.startsWith(" [INFO]")) {
+            setLogs(prev => [...prev, { type: "info", message: line.replace(" [INFO] ", "") }])
+          } else if (line.startsWith(" [ERROR]")) {
+            setLogs(prev => [...prev, { type: "error", message: line.replace(" [ERROR] ", "") }])
+          }
+        })
+      }
+    } catch (err: any) {
+      console.error("Stream error:", err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const generatedFiles = parseFiles(streamedText)
+
+  return (
+    <main style={{ padding: "40px", maxWidth: "1200px", margin: "0 auto", fontFamily: "sans-serif", backgroundColor: "#fff", color: "#000" }}>
+      <h1 style={{ fontSize: "2rem", fontWeight: "bold", marginBottom: "20px" }}>Gemini App Architect</h1>
+      
+      <div style={{ marginBottom: "20px" }}>
         <textarea
-          placeholder="Ex: A minimalist task manager with drag and drop and offline sync..."
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
-          rows={4}
-          style={{ 
-            width: "100%", padding: "16px", borderRadius: "8px", border: "1px solid #ddd",
-            fontSize: "1rem", marginBottom: "16px", outline: "none", resize: "vertical"
-          }}
+          placeholder="Describe your app idea..."
+          style={{ width: "100%", height: "100px", padding: "12px", borderRadius: "8px", border: "1px solid #ccc", marginBottom: "10px", display: "block" }}
         />
         <button 
           onClick={runGeneration} 
           disabled={loading || !idea}
-          style={{ 
-            backgroundColor: loading ? "#ccc" : "#000", color: "#fff", padding: "12px 24px",
-            borderRadius: "8px", border: "none", fontWeight: "600", cursor: loading ? "not-allowed" : "pointer",
-            transition: "all 0.2s"
-          }}
+          style={{ padding: "12px 24px", backgroundColor: loading ? "#ccc" : "#000", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}
         >
-          {loading ? "🔨 Building Architecture..." : "🚀 Generate Full App"}
+          {loading ? "Generating..." : "Start Pipeline"}
         </button>
-      </section>
+      </div>
 
-      {/* ERROR DISPLAY */}
-      {error && (
-        <div style={{ padding: "16px", backgroundColor: "#fff5f5", color: "#c53030", borderRadius: "8px", marginBottom: "24px", border: "1px solid #feb2b2" }}>
-          <strong>Error:</strong> {error}
-        </div>
-      )}
+      {error && <div style={{ color: "red", padding: "10px", border: "1px solid red", borderRadius: "4px", marginBottom: "20px" }}>{error}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: result ? "300px 1fr" : "1fr", gap: "24px" }}>
-        
-        {/* LOGS & STATUS */}
-        <aside>
-          <h2 style={{ fontSize: "1.2rem", marginBottom: "16px" }}>Pipeline Progress</h2>
-          <div style={{ 
-            background: "#1e1e1e", color: "#d4d4d4", padding: "16px", borderRadius: "8px", 
-            fontFamily: "'Fira Code', monospace", fontSize: "0.85rem", height: "400px", overflowY: "auto" 
-          }}>
-            {logs.length === 0 && <span style={{ color: "#666" }}>Waiting for prompt...</span>}
-            {logs.map((log, i) => (
-              <div key={i} style={{ marginBottom: "6px", borderLeft: `3px solid ${log.type === 'step' ? '#4CAF50' : '#2196F3'}`, paddingLeft: "8px" }}>
-                <span style={{ opacity: 0.5, fontSize: "0.7rem" }}>[{log.type.toUpperCase()}]</span> {log.message}
+      <div style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: "20px" }}>
+        {/* Colonne de gauche : Logs */}
+        <div style={{ background: "#f4f4f4", padding: "20px", borderRadius: "8px", height: "600px", overflowY: "auto" }}>
+          <h3 style={{ marginTop: 0 }}>System Logs</h3>
+          <div style={{ fontFamily: "monospace", fontSize: "13px" }}>
+            {logs.map((l, i) => (
+              <div key={i} style={{ marginBottom: "8px", color: l.type === "step" ? "#0070f3" : l.type === "error" ? "red" : "#666" }}>
+                [{l.type.toUpperCase()}] {l.message}
               </div>
             ))}
-            {loading && <div style={{ color: "#4CAF50", marginTop: "10px" }}>● Agent is thinking...</div>}
+            {loading && <div style={{ color: "#0070f3" }}>_ Loading...</div>}
+            <div ref={logEndRef} />
           </div>
-        </aside>
+        </div>
 
-        {/* RESULTS: FILE EXPLORER */}
-        {result && (
-          <section>
-            <h2 style={{ fontSize: "1.2rem", marginBottom: "16px" }}>Generated Assets</h2>
-            <div style={{ border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden", display: "flex", height: "500px" }}>
-              
-              {/* Sidebar: File List */}
-              <div style={{ width: "250px", borderRight: "1px solid #ddd", background: "#f5f5f5", overflowY: "auto" }}>
-                {result.files.map((file, i) => (
-                  <div 
-                    key={i}
-                    onClick={() => setSelectedFile(i)}
-                    style={{ 
-                      padding: "12px 16px", cursor: "pointer", fontSize: "0.9rem",
-                      borderBottom: "1px solid #eee", background: selectedFile === i ? "#fff" : "transparent",
-                      fontWeight: selectedFile === i ? "bold" : "normal", color: selectedFile === i ? "#000" : "#555"
-                    }}
-                  >
-                    📄 {file.path.split('/').pop()}
-                    <div style={{ fontSize: "0.7rem", color: "#999" }}>{file.path}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Main: Code Viewer */}
-              <div style={{ flex: 1, background: "#fff", overflow: "auto" }}>
-                {selectedFile !== null ? (
-                  <pre style={{ margin: 0, padding: "20px", fontSize: "0.9rem", lineHeight: "1.5", color: "#333" }}>
-                    <code>{result.files[selectedFile].content}</code>
-                  </pre>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#999" }}>
-                    Select a file to view code
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
+        {/* Colonne de droite : Code Viewer */}
+        <div style={{ border: "1px solid #eee", borderRadius: "8px", height: "600px", overflowY: "auto", background: "#fafafa" }}>
+          <h3 style={{ padding: "0 20px" }}>Generated Files ({generatedFiles.length})</h3>
+          {generatedFiles.length === 0 && !loading && <p style={{ padding: "20px", color: "#999" }}>No files generated yet.</p>}
+          
+          {generatedFiles.map((file, i) => (
+            <details key={i} open={i === generatedFiles.length - 1} style={{ marginBottom: "10px", background: "#fff", border: "1px solid #eee" }}>
+              <summary style={{ padding: "10px 20px", cursor: "pointer", fontWeight: "bold", backgroundColor: "#eee" }}>
+                {file.path}
+              </summary>
+              <pre style={{ margin: 0, padding: "20px", overflowX: "auto", fontSize: "12px", background: "#1e1e1e", color: "#fff" }}>
+                <code>{file.content}</code>
+              </pre>
+            </details>
+          ))}
+        </div>
       </div>
     </main>
   )
-          }
+                                       }
