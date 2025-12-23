@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai"
+import { GoogleGenAI, SchemaType } from "@google/genai"
 import { PKG } from "../types"
 
 export async function generatePKG(
@@ -6,42 +6,41 @@ export async function generatePKG(
   apiKey: string
 ): Promise<PKG> {
   const ai = new GoogleGenAI({ apiKey })
+  // Utilisation de la méthode getGenerativeModel conforme à ton autre projet
+  const model = ai.getGenerativeModel({ 
+    model: "gemini-3-flash-preview",
+  })
 
   const prompt = `
-You are a PRODUCT ARCHITECT.
-Generate a COMPLETE Product Knowledge Graph (PKG) in JSON.
-
-Rules:
-- Return ONLY valid JSON.
-- No markdown, no backticks, no text before or after the JSON.
-- Structure: { "pkg": { "pages": {...}, "features": {...}, "interactions": {...} }, "plan": {...} }
+You are a PRODUCT ARCHITECT. Generate a Product Knowledge Graph (PKG).
+Format: JSON ONLY.
+Structure:
+{
+  "pkg": {
+    "pages": { "page_name": { "path": "...", "logic": "..." } },
+    "features": { "name": { "functionality": "..." } },
+    "interactions": { "name": { "trigger": "..." } }
+  }
+}
 `
 
-  const res = await ai.models.generateContent({
-    model: "gemini-3-flash-preview", // Utilise 1.5-flash pour plus de stabilité
-    contents: [{
-      role: "user",
-      parts: [{ text: idea }]
-    }],
-    config: {
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: idea }] }],
+    generationConfig: {
       systemInstruction: prompt,
-      // On force l'IA à répondre en format JSON si possible
-      responseMimeType: "application/json" 
+      responseMimeType: "application/json", // Force la sortie JSON
     }
   })
 
-  const rawText = res.response.text();
+  const response = result.response;
+  const text = response.text();
 
   try {
-    // Tentative de parsing direct
-    return JSON.parse(rawText)
+    // Nettoyage au cas où Gemini ajouterait des backticks malgré le mimeType
+    const cleanJson = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleanJson);
   } catch (e) {
-    // Si ça échoue, on tente d'extraire ce qui ressemble à du JSON
-    console.warn("Parsing direct échoué, tentative d'extraction...")
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    throw new Error("L'IA n'a pas renvoyé un format JSON valide : " + rawText.substring(0, 100));
+    console.error("PKG Parsing Error. Raw text:", text);
+    throw new Error("Failed to parse PKG JSON");
   }
 }
