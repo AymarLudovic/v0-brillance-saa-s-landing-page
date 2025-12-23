@@ -9,46 +9,39 @@ export async function generatePKG(
 
   const prompt = `
 You are a PRODUCT ARCHITECT.
-
 Generate a COMPLETE Product Knowledge Graph (PKG) in JSON.
 
 Rules:
-- Every page must be real
-- Every feature must be functional
-- No fake data
-- No UI without logic
-- Include 404, auth, empty states
-- Think like Netflix / Spotify level product
-
-IMPORTANT:
-- Return ONLY valid JSON
-- Do NOT use Markdown or backticks
-- Do NOT include any explanation or commentary
-- The JSON must include exactly the keys: "pkg" and "plan"
-- Wrap generated files using your XML artifact <create_file path="">code</create_file> if needed
-
-Return ONLY valid JSON.
-IMPORTANT:
-- Always include "pages", "features", and "interactions" keys, even if empty.
-{
-  "pages": {},
-  "features": {},
-  "interactions": {}
-}
-
+- Return ONLY valid JSON.
+- No markdown, no backticks, no text before or after the JSON.
+- Structure: { "pkg": { "pages": {...}, "features": {...}, "interactions": {...} }, "plan": {...} }
 `
-  
 
   const res = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3-flash-preview", // Utilise 1.5-flash pour plus de stabilité
     contents: [{
       role: "user",
       parts: [{ text: idea }]
     }],
     config: {
-      systemInstruction: prompt
+      systemInstruction: prompt,
+      // On force l'IA à répondre en format JSON si possible
+      responseMimeType: "application/json" 
     }
   })
 
-  return JSON.parse(res.text!)
+  const rawText = res.response.text();
+
+  try {
+    // Tentative de parsing direct
+    return JSON.parse(rawText)
+  } catch (e) {
+    // Si ça échoue, on tente d'extraire ce qui ressemble à du JSON
+    console.warn("Parsing direct échoué, tentative d'extraction...")
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    throw new Error("L'IA n'a pas renvoyé un format JSON valide : " + rawText.substring(0, 100));
+  }
 }
