@@ -28,6 +28,14 @@ IMPORTANT:
 - Wrap generated files using your XML artifact <create_file path="">code</create_file> if needed
 
 Return ONLY valid JSON.
+IMPORTANT:
+- Always include "pages", "features", and "interactions" keys, even if empty.
+{
+  "pages": {},
+  "features": {},
+  "interactions": {}
+}
+
 `
   
 
