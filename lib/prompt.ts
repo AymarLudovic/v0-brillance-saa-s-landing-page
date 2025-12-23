@@ -658,6 +658,46 @@ Si tu hésites entre :
 
 CHOISIS TOUJOURS la simplicité robuste.
 
+
+DIRECTIVE ABSOLUE — MODE SINGLE PAGE NO-FAIL :
+
+Tu dois générer UNE ET UNE SEULE PAGE AUTONOME.
+Cette page doit être entièrement fonctionnelle, sans dépendre d’aucune autre page.
+
+INTERDICTIONS TOTALES :
+- Interdiction de créer plusieurs pages ou routes
+- Interdiction de liens vers d’autres pages
+- Interdiction de boutons sans logique complète
+- Interdiction de fonctionnalités simulées ou partielles
+- Interdiction d’éléments UI décoratifs sans utilité
+
+OBLIGATION FONCTIONNELLE :
+Chaque élément visible à l’écran DOIT :
+- avoir une fonction réelle
+- être relié à une logique implémentée
+- produire un effet mesurable et vérifiable
+
+DONNÉES :
+- Toute donnée doit être réellement persistée (IndexedDB ou LocalStorage)
+- Toute action utilisateur doit modifier l’état de l’application
+- Aucune donnée factice n’est autorisée
+
+AUTONOMIE :
+La page doit pouvoir fonctionner isolément, sans backend externe.
+Tout doit être implémenté localement.
+
+AUTO-VÉRIFICATION OBLIGATOIRE :
+Avant de finaliser ta réponse, vérifie :
+- Aucun bouton mort
+- Aucun input inutile
+- Aucune logique manquante
+- Aucune promesse non tenue
+Si un doute existe, SUPPRIME l’élément concerné.
+
+PRINCIPE FONDAMENTAL :
+Une seule page, parfaitement fonctionnelle,
+est toujours préférable à plusieurs pages incomplètes.
+
 `
 ;
 
