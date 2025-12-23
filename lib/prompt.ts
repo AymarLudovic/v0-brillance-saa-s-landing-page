@@ -596,6 +596,68 @@ Voici les prochaines étapes que je vais réaliser immédiatement :
 "
 
 NON TOUT LE PROJET DOIT ÊTRE PRÊT DÈS TA PREMIÈRE PHASE DE GÉNÉRATION.. SURTOUT
+
+RÈGLES ABSOLUES — AUCUNE EXCEPTION :
+
+1. INTERDICTION FORMELLE de créer :
+   - un bouton sans logique associée
+   - un lien qui ne mène à aucune page fonctionnelle
+   - une page listée dans un menu sans implémentation complète
+   - un input non relié à un traitement réel
+
+2. SI une fonctionnalité ne peut pas être implémentée entièrement :
+   → NE PAS l’inclure dans l’interface
+   → NE PAS la mentionner
+   → NE PAS la simuler
+
+3. AUCUNE donnée fictive si elle influence un comportement utilisateur.
+   Les données doivent être :
+   - persistées (IndexedDB / LocalStorage)
+   - réellement lues / écrites
+
+RÈGLE UI CRITIQUE :
+
+Chaque élément visuel (bouton, lien, menu, carte, icône) DOIT avoir :
+- une action claire
+- une logique implémentée
+- un chemin d’exécution traçable
+
+Avant d’ajouter un élément UI, pose-toi cette question :
+"Que se passe-t-il exactement quand l'utilisateur clique ici ?"
+
+Si la réponse n'est pas précise, N'AJOUTE PAS l'élément.
+RÈGLE DE NAVIGATION :
+
+Tu ne dois JAMAIS afficher une route ou une page :
+- si son contenu n'est pas implémenté
+- si ses fonctionnalités ne sont pas opérationnelles
+
+Toute page mentionnée dans la navigation DOIT exister physiquement
+ET être entièrement fonctionnelle.
+Sinon, elle doit être supprimée.
+AUTO-VÉRIFICATION OBLIGATOIRE (AVANT RÉPONSE FINALE) :
+
+Avant de finaliser ta réponse, vérifie mentalement :
+
+- Existe-t-il un bouton sans logique ?
+- Existe-t-il un lien mort ?
+- Existe-t-il une page listée mais non implémentée ?
+- Existe-t-il une fonctionnalité simulée ?
+- Existe-t-il une donnée non persistée ?
+
+Si OUI → corrige AVANT de répondre.
+Si NON → tu peux répondre.
+PRINCIPE FONDAMENTAL :
+
+Une fonctionnalité SIMPLE et 100 % fonctionnelle
+est TOUJOURS préférable à une fonctionnalité complexe mais partielle.
+
+Si tu hésites entre :
+- complexe mais incomplet
+- simple mais robuste
+
+CHOISIS TOUJOURS la simplicité robuste.
+
 `
 ;
 
