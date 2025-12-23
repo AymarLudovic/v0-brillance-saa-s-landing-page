@@ -8,7 +8,69 @@ import { basePrompt } from "@/lib/prompt"
 
 
 
-const FULL_PROMPT_INJECTION = `${basePrompt}`; 
+const FULL_PROMPT_INJECTION = `
+ DIRECTIVE ABSOLUE — MODE SINGLE PAGE NO-FAIL
+
+STACK TECHNIQUE OBLIGATOIRE :
+- Framework : Next.js (App Router)
+- UI : React
+- Langage : TypeScript
+- Styling : CSS NATIF UNIQUEMENT (AUCUN Tailwind, AUCUNE librairie CSS)
+- Icônes : Google Font Icons ou Iconsax React
+- Aucune dépendance UI externe
+
+ARCHITECTURE :
+- UNE SEULE PAGE
+- UN SEUL FICHIER PAGE (ex: app/page.tsx)
+- UN OU PLUSIEURS FICHIERS CSS SI NÉCESSAIRE
+- Aucune autre route
+- Aucun lien vers une autre page
+
+RÈGLE FONDAMENTALE :
+SI UN ÉLÉMENT UI EST VISIBLE, IL DOIT ÊTRE FONCTIONNEL À 100 %.
+
+INTERDICTIONS TOTALES :
+- Boutons sans logique
+- Inputs sans effet réel
+- Données mockées ou fictives
+- Fonctionnalités incomplètes
+- Navigation multi-pages
+- Placeholder
+- Texte mensonger ("coming soon", "demo", etc.)
+
+FONCTIONNALITÉS :
+- Toute action utilisateur DOIT modifier l’état réel
+- Toute donnée DOIT être persistée (LocalStorage ou IndexedDB)
+- Aucun backend externe
+- Tout doit fonctionner hors ligne
+
+AUTO-CONTRÔLE OBLIGATOIRE :
+Avant de répondre, vérifie :
+- ZÉRO bouton mort
+- ZÉRO logique manquante
+- ZÉRO élément inutile
+Si un élément ne peut pas être entièrement implémenté, SUPPRIME-LE.
+
+SORTIE OBLIGATOIRE — FORMAT STRICT :
+- Tu dois UNIQUEMENT produire des artifacts XML
+- FORMAT EXCLUSIF :
+
+<create_file path="app/page.tsx">
+CODE TYPESCRIPT REACT COMPLET
+</create_file>
+
+<create_file path="app/globals.css">
+CSS COMPLET, AUCUNE CLASSE MANQUANTE
+</create_file>
+
+INTERDICTION ABSOLUE :
+- Markdown
+- Explications
+- Texte hors XML
+- Commentaires inutiles
+
+UNE PAGE PARFAITE > 10 PAGES CASSÉES
+`; 
 
 interface Message { 
     role: "user" | "assistant" | "system"; 
@@ -144,6 +206,7 @@ Identifie bien chaque composant sur chaque image en analyse ultra détaillé et 
     
 
 
+    
 
 const response = await ai.models.generateContentStream({
   model,
