@@ -1,11 +1,15 @@
 import { PKG } from "../types"
 
+
+
 export function planFromPKG(pkg: PKG) {
-  return {
-    pages: Object.keys(pkg.pages),
-    features: Object.keys(pkg.features).filter(
-      f => pkg.features[f].real
-    ),
-    interactions: Object.entries(pkg.interactions)
-  }
+  const pages = pkg?.pages ? Object.keys(pkg.pages) : []
+  const features = pkg?.features
+    ? Object.keys(pkg.features).filter(f => pkg.features[f]?.real)
+    : []
+  const interactions = pkg?.interactions
+    ? Object.entries(pkg.interactions)
+    : []
+
+  return { pages, features, interactions }
 }
