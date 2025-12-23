@@ -3,162 +3,142 @@
 import { useState } from "react"
 
 type Log = {
-  type: "info" | "step" | "error"
+  type: "step" | "info" | "error"
   message: string
 }
 
-export default function Home() {
+export default function HomePage() {
   const [idea, setIdea] = useState("")
-  const [pkg, setPkg] = useState<any>(null)
-  const [plan, setPlan] = useState<any>(null)
   const [logs, setLogs] = useState<Log[]>([])
   const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  function addLog(type: Log["type"], message: string) {
-    setLogs(prev => [...prev, { type, message }])
-  }
-
-  async function generate() {
-    setPkg(null)
-    setPlan(null)
-    setLogs([])
+  async function runGeneration() {
     setLoading(true)
+    setLogs([])
+    setResult(null)
+    setError(null)
 
     try {
-      addLog("step", "Starting generation pipeline")
-      addLog("info", "Sending idea to AI backend")
-
       const res = await fetch("/api/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea })
+        body: JSON.stringify({ idea }),
       })
 
-      if (!res.ok) {
-        const errorText = await res.text()
-        throw new Error(errorText)
-      }
-
-      addLog("step", "AI response received")
       const data = await res.json()
 
-      if (!data.pkg) {
-        throw new Error("PKG missing in AI response")
+      if (!res.ok) {
+        setError(data.error || "Unknown error")
       }
 
-      addLog("step", "Product Knowledge Graph generated")
-      setPkg(data.pkg)
-
-      if (data.plan) {
-        addLog("step", "Execution plan generated")
-        setPlan(data.plan)
+      if (data.logs) {
+        setLogs(data.logs)
       }
 
-      addLog("info", "Generation completed successfully")
-
+      if (data.pkg || data.plan) {
+        setResult(data)
+      }
     } catch (err: any) {
-      addLog("error", err.message || "Unknown error")
+      setError(err.message)
     } finally {
       setLoading(false)
     }
   }
 
-  function copyLogs() {
-    const text = logs
-      .map(l => `[${l.type.toUpperCase()}] ${l.message}`)
-      .join("\n")
-    navigator.clipboard.writeText(text)
-  }
-
   return (
-    <main style={{ padding: 32, fontFamily: "sans-serif", maxWidth: 900 }}>
-      <h1>AI Product Generator</h1>
+    <main style={{ padding: 24, fontFamily: "system-ui" }}>
+      <h1>AI App Generator</h1>
 
+      {/* INPUT */}
       <textarea
+        placeholder="Describe your app idea..."
         value={idea}
-        onChange={e => setIdea(e.target.value)}
-        placeholder="Describe your product idea..."
-        style={{ width: "100%", height: 120 }}
+        onChange={(e) => setIdea(e.target.value)}
+        rows={4}
+        style={{ width: "100%", marginBottom: 12 }}
       />
 
-      <br /><br />
-      <button onClick={generate} disabled={loading}>
+      <button onClick={runGeneration} disabled={loading}>
         {loading ? "Generating..." : "Generate"}
       </button>
 
       {/* LOGS */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Logs</h2>
+      {logs.length > 0 && (
+        <section style={{ marginTop: 24 }}>
+          <h2>Logs</h2>
 
-        <button onClick={copyLogs} disabled={logs.length === 0}>
-          Copy logs
-        </button>
-
-        <div
-          style={{
-            marginTop: 12,
-            background: "#0e0e0e",
-            color: "#eaeaea",
-            padding: 16,
-            borderRadius: 6,
-            fontSize: 13,
-            maxHeight: 260,
-            overflowY: "auto",
-            whiteSpace: "pre-wrap"
-          }}
-        >
-          {logs.length === 0 && "No logs yet"}
-
-          {logs.map((log, i) => (
-            <div
-              key={i}
-              style={{
-                color:
-                  log.type === "error"
-                    ? "#ff5c5c"
-                    : log.type === "step"
-                    ? "#5cc8ff"
-                    : "#b7ff5c"
-              }}
-            >
-              [{log.type.toUpperCase()}] {log.message}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* PKG */}
-      {pkg && (
-        <section style={{ marginTop: 32 }}>
-          <h2>Product Knowledge Graph</h2>
-
-          <h3>Pages</h3>
-          <ul>
-            {Object.keys(pkg.pages).map(p => (
-              <li key={p}>{p}</li>
+          <div
+            style={{
+              background: "#0d1117",
+              color: "#c9d1d9",
+              padding: 12,
+              borderRadius: 6,
+              fontFamily: "monospace",
+              fontSize: 13,
+              maxHeight: 300,
+              overflowY: "auto",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {logs.map((log, i) => (
+              <div
+                key={i}
+                style={{
+                  color:
+                    log.type === "error"
+                      ? "#ff7b72"
+                      : log.type === "step"
+                      ? "#79c0ff"
+                      : "#a5d6ff",
+                }}
+              >
+                [{log.type.toUpperCase()}] {log.message}
+              </div>
             ))}
-          </ul>
+          </div>
 
-          <h3>Features</h3>
-          <ul>
-            {Object.keys(pkg.features).map(f => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-
-          <h3>Constraints</h3>
-          <pre>{JSON.stringify(pkg.constraints, null, 2)}</pre>
+          <button
+            style={{ marginTop: 8 }}
+            onClick={() =>
+              navigator.clipboard.writeText(
+                logs
+                  .map((l) => `[${l.type.toUpperCase()}] ${l.message}`)
+                  .join("\n")
+              )
+            }
+          >
+            Copy logs
+          </button>
         </section>
       )}
 
-      {/* PLAN */}
-      {plan && (
-        <section style={{ marginTop: 32 }}>
-          <h2>Execution Plan</h2>
-          <pre>{JSON.stringify(plan, null, 2)}</pre>
+      {/* ERROR */}
+      {error && (
+        <p style={{ marginTop: 16, color: "red" }}>
+          Error: {error}
+        </p>
+      )}
+
+      {/* RESULT */}
+      {result && (
+        <section style={{ marginTop: 24 }}>
+          <h2>Result</h2>
+          <pre
+            style={{
+              background: "#f6f8fa",
+              padding: 12,
+              borderRadius: 6,
+              fontSize: 13,
+              overflowX: "auto",
+            }}
+          >
+            {JSON.stringify(result, null, 2)}
+          </pre>
         </section>
       )}
     </main>
   )
-                  }
-        
+      }
+          
