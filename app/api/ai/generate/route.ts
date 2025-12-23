@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { generatePKG } from "@/lib/agents/pkgAgent"
 import { planFromPKG } from "@/lib/agents/plannerAgent"
-import { generateUI } from "@/lib/agents/uiAgent" // Importation nécessaire
-import { generateBackend } from "@/lib/agents/backendAgent" // Importation nécessaire
+import { generateUI } from "@/lib/agents/uiAgent"
+import { generateBackend } from "@/lib/agents/backendAgent"
 
 type LogType = "step" | "info" | "error"
 type Log = { type: LogType; message: string }
@@ -17,48 +17,78 @@ export async function POST(req: Request) {
   }
 
   try {
+    log("step", "API /ai/generate called")
     const body = await req.json()
     const { idea } = body
-    const apiKey = process.env.GEMINI_API_KEY!
+    const apiKey = process.env.GEMINI_API_KEY
 
+    if (!apiKey) throw new Error("GEMINI_API_KEY missing")
+
+    // 1. GENERATE PKG
     log("step", "Running PKG agent")
-    const fullPkgResponse = await generatePKG(idea, apiKey)
+    const pkgResult = await generatePKG(idea, apiKey)
     
-    // Attention : d'après tes logs, les données sont dans fullPkgResponse.pkg.pkg
-    const actualPkg = (fullPkgResponse as any).pkg?.pkg || (fullPkgResponse as any).pkg || fullPkgResponse
+    // Sécurité pour extraire le bon objet PKG
+    const actualPkg = (pkgResult as any).pkg?.pkg || (pkgResult as any).pkg || pkgResult
+    
+    if (!actualPkg.pages) {
+      console.error("Structure PKG invalide:", pkgResult)
+      throw new Error("Le PKG généré est incomplet (pas de pages trouvées)")
+    }
 
     log("step", "Running Planner agent")
     const plan = planFromPKG(actualPkg)
 
-    // --- NOUVEAU : GÉNÉRATION DE L'UI ---
-    const pages = Object.keys(actualPkg.pages || {})
+    // 2. GENERATE UI PAGES
+    const pages = Object.keys(actualPkg.pages)
     log("step", `Generating UI for ${pages.length} pages...`)
 
     for (const pageName of pages) {
-      log("info", `Generating UI for page: ${pageName}`)
-      const stream = await generateUI(pageName, actualPkg, apiKey)
+      log("info", `Generating UI for: ${pageName}`)
       
-      let pageCode = ""
-      for await (const chunk of stream.stream) {
-        pageCode += chunk.text()
+      try {
+        const result = await generateUI(pageName, actualPkg, apiKey)
+        
+        // VÉRIFICATION CRUCIALE : Le stream existe-t-il ?
+        if (!result || !result.stream) {
+          throw new Error(`No stream returned for page ${pageName}`)
+        }
+
+        let pageCode = ""
+        for await (const chunk of result.stream) {
+          const chunkText = chunk.text()
+          pageCode += chunkText
+        }
+        
+        generatedFiles.push({ 
+          path: `app/${pageName}/page.tsx`, 
+          content: pageCode 
+        })
+      } catch (uiErr: any) {
+        log("error", `Failed UI for ${pageName}: ${uiErr.message}`)
       }
-      generatedFiles.push({ path: `app/${pageName}/page.tsx`, content: pageCode })
     }
 
-    // --- NOUVEAU : GÉNÉRATION DU BACKEND ---
+    // 3. GENERATE BACKEND
     log("step", "Generating Backend logic...")
-    const beStream = await generateBackend(actualPkg, apiKey)
-    let backendCode = ""
-    for await (const chunk of beStream.stream) {
-      backendCode += chunk.text()
+    try {
+      const beResult = await generateBackend(actualPkg, apiKey)
+      if (beResult && beResult.stream) {
+        let backendCode = ""
+        for await (const chunk of beResult.stream) {
+          backendCode += chunk.text()
+        }
+        generatedFiles.push({ path: `lib/backend.ts`, content: backendCode })
+      }
+    } catch (beErr: any) {
+      log("error", `Backend generation failed: ${beErr.message}`)
     }
-    generatedFiles.push({ path: `lib/backend.ts`, content: backendCode })
 
-    log("step", "Generation pipeline completed successfully")
+    log("step", "Generation pipeline completed")
 
     return NextResponse.json({
       pkg: actualPkg,
-      files: generatedFiles, // On renvoie les fichiers générés !
+      files: generatedFiles,
       logs,
     })
 
@@ -66,4 +96,4 @@ export async function POST(req: Request) {
     log("error", err?.message || "Unknown server error")
     return NextResponse.json({ error: err?.message, logs }, { status: 500 })
   }
-      }
+  }
