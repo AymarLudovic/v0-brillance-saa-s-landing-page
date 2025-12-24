@@ -5,7 +5,7 @@ import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 const FULL_PROMPT_INJECTION = `
  DIRECTIVE ABSOLUE — MODE SINGLE PAGE NO-FAIL
  STACK TECHNIQUE OBLIGATOIRE : Next.js, React, CSS NATIF (AUCUN Tailwind).
- ... (ton prompt complet ici) ...
+ 
 `;
 
 interface Message { 
