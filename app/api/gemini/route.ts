@@ -102,7 +102,7 @@ export async function POST(req: Request) {
             const backendRes = await ai.models.generateContent({
                 model,
                 contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
-                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT. Ne touche pas au UI.` }
+                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT sous cette forme sans markdown pour créé les fichiers backend en question : <create_file path="nomdufichier(lib/type.ts par exemple)">code_fichier_sans_markdown</create_file>. Renvoie uniquement les fichiers du backend en utilisant ce xml La pour chaque fichier. Ne touche pas au UI.` }
             });
             fullCode = backendRes.candidates[0].content.parts[0].text;
             send(`${fullCode}\n`);
