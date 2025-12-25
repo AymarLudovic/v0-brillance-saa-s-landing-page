@@ -5,13 +5,11 @@ import { basePrompt } from "@/lib/prompt"
 const STACK_INFO = "STACK: Next.js (App Router), React, TypeScript. INTERDICTION de Tailwind CSS. Utilise uniquement du CSS NATIF (.css).";
 
 const FULL_PROMPT_INJECTION = `
- DIRECTIVE ABSOLUE — MODE SINGLE PAGE NO-FAIL
+ DIRECTIVE ABSOLUE —  NO-FAIL
  ${STACK_INFO}
  
  ARCHITECTURE :
- - UNE SEULE PAGE (app/page.tsx)
- - CSS NATIF UNIQUEMENT (app/globals.css)
- - Persistance : LocalStorage uniquement.
+ 
  
  SORTIE OBLIGATOIRE — FORMAT STRICT XML :
  <create_file path="app/page.tsx">
@@ -28,22 +26,6 @@ const FULL_PROMPT_INJECTION = `
 interface Message { 
     role: "user" | "assistant" | "system"; 
     content: string; 
-    images?: string[]; 
-    externalFiles?: { fileName: string; base64Content: string }[]; 
-    mentionedFiles?: string[]; 
-    functionResponse?: { name: string; response: any; }
-}
-
-const BATCH_SIZE = 256; 
-
-const readFileDeclaration: FunctionDeclaration = {
-  name: "readFile",
-  description: "Lit le contenu d'un fichier du projet.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: { path: { type: Type.STRING } },
-    required: ["path"],
-  }
 }
 
 export async function POST(req: Request) {
@@ -54,58 +36,75 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages, cssMasterUrl } = body;
+    const { history } = body;
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = "gemini-3-flash-preview"; 
     
+    // Récupération de l'historique pour la mémoire
     const lastUserPrompt = history[history.length - 1].content;
+    const conversationContext = history.map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
+
     const encoder = new TextEncoder();
+    const createdFiles = new Set<string>(); // Pour éviter les doublons
 
     const stream = new ReadableStream({
       async start(controller) {
-        const send = (txt: string) => controller.enqueue(encoder.encode(txt));
+        const send = (txt: string) => {
+            // Logique anti-doublon simple pour les balises de création de fichiers
+            const match = txt.match(/<create_file path="([^"]+)">/);
+            if (match && createdFiles.has(match[1])) return; 
+            if (match) createdFiles.add(match[1]);
+            controller.enqueue(encoder.encode(txt));
+        };
 
         try {
-          // --- AGENT 1: MANAGER (Le seul qui parle normalement) ---
+          // --- AGENT 1: MANAGER (Décisionnaire) ---
           const managerRes = await ai.models.generateContent({
             model,
-            contents: [{ role: 'user', parts: [{ text: `Planifie : ${lastUserPrompt}` }] }],
-            config: { systemInstruction: `Tu es le Manager. Réponds de manière chaleureuse et concise. Explique ce que tu vas construire. INTERDICTION de générer du code ici.` }
+            contents: [{ role: 'user', parts: [{ text: `CONTEXTE PRÉCÉDENT: ${conversationContext}\n\nREQUÊTE ACTUELLE: ${lastUserPrompt}` }] }],
+            config: { systemInstruction: `Tu es le Manager. Analyse si la requête est une "CRÉATION" complète ou une "MODIFICATION" légère. 
+            Si c'est une modification, réponds par '[MODE: FAST]'. Sinon, planifie normalement. Réponds brièvement.` }
           });
-          const managerText = managerRes.candidates[0].content.parts[0].text;
-          send(`[MANAGER]: ${managerText}\n\n`);
+          const managerDecision = managerRes.candidates[0].content.parts[0].text;
+          const isFastMode = managerDecision.includes("[MODE: FAST]");
+          
+          send(`[MANAGER]: ${managerDecision.replace("[MODE: FAST]", "Appliquons ces modifications...")}\n\n`);
 
-          // --- AGENT 2: PKG (Architecture - Invisible) ---
-          send("→ 🏗️ Analyse des structures...\n");
-          const pkgRes = await ai.models.generateContent({
-            model,
-            contents: [{ role: 'user', parts: [{ text: lastUserPrompt }] }],
-            config: { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants techniques. NE GÉNÈRE AUCUN CODE ET AUCUN TEXTE POUR L'UTILISATEUR.` }
-          });
-          const blueprint = pkgRes.candidates[0].content.parts[0].text;
+          let fullCode = "";
+          let blueprint = "Utiliser l'existant";
 
-          // --- AGENT 3: BACKEND BUILDER (Logique pure) ---
-          send("→ ⚙️ Configuration de la logique...\n");
-          const backendRes = await ai.models.generateContent({
-            model,
-            contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
-            config: { systemInstruction: `Agent Backend. Génère la logique TypeScript (State/Storage) UNIQUEMENT en format XML <create_file>. INTERDICTION d'écrire du texte ou des explications.` }
-          });
-          const backendCode = backendRes.candidates[0].content.parts[0].text;
-          send(`${backendCode}\n`);
+          if (!isFastMode) {
+            // --- AGENT 2: PKG (Uniquement en mode création/grosse modif) ---
+            send("→ 🏗️ Analyse structurelle profonde...\n");
+            const pkgRes = await ai.models.generateContent({
+                model,
+                contents: [{ role: 'user', parts: [{ text: `Historique: ${conversationContext}\nPrompt: ${lastUserPrompt}` }] }],
+                config: { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants techniques requis.` }
+            });
+            blueprint = pkgRes.candidates[0].content.parts[0].text;
 
-          // --- AGENT 4: UI BUILDER (Interface pure) ---
-          send("→ 🎨 Finalisation du design...\n");
+            // --- AGENT 3: BACKEND BUILDER ---
+            send("→ ⚙️ Génération de la logique métier...\n");
+            const backendRes = await ai.models.generateContent({
+                model,
+                contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
+                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT.` }
+            });
+            fullCode = backendRes.candidates[0].content.parts[0].text;
+            send(`${fullCode}\n`);
+          }
+
+          // --- AGENT 4: UI BUILDER (Appelé systématiquement mais avec le contexte) ---
+          send(isFastMode ? "→ ⚡ Modification rapide du code...\n" : "→ 🎨 Finalisation du design...\n");
           const uiStream = await ai.models.generateContentStream({
             model,
             contents: [
-                { role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nLogique existante: ${backendCode}` }] }
+                { role: 'user', parts: [{ text: `HISTORIQUE COMPLET: ${conversationContext}\nLOGIQUE: ${fullCode}\nACTION: ${lastUserPrompt}` }] }
             ],
             config: { systemInstruction: FULL_PROMPT_INJECTION }
           });
 
-          let fullCode = backendCode;
           for await (const chunk of uiStream) {
             if (chunk.text) {
               fullCode += chunk.text;
@@ -113,21 +112,20 @@ export async function POST(req: Request) {
             }
           }
 
-          // --- AGENT 5: VERIFICATOR (Binaire) ---
-          send("\n→ 🔍 Vérification finale...\n");
+          // --- AGENT 5: VERIFICATOR ---
+          send("\n→ 🔍 Validation...\n");
           const validatorRes = await ai.models.generateContent({
             model,
-            contents: [{ role: 'user', parts: [{ text: `Vérifie ce code. Stack: ${STACK_INFO}. Code:\n${fullCode}` }] }],
-            config: { systemInstruction: "Verificator. Si OK, réponds UNIQUEMENT '[VALIDATOR]: CONFIRME'. Sinon, liste les erreurs brièvement." }
+            contents: [{ role: 'user', parts: [{ text: `Code final à vérifier:\n${fullCode}` }] }],
+            config: { systemInstruction: "Réponds 'CONFIRME' si le code respecte le XML et la stack, sinon liste les erreurs." }
           });
           const validationReport = validatorRes.candidates[0].content.parts[0].text;
-          send(`${validationReport}\n\n`);
 
-          // --- AGENT 6: CORRECTOR ---
           if (!validationReport.includes("CONFIRME")) {
+            send("→ 🛠️ Correction automatique...\n");
             const fixerRes = await ai.models.generateContentStream({
               model,
-              contents: [{ role: 'user', parts: [{ text: `Corrige: ${validationReport} dans : ${fullCode}` }] }],
+              contents: [{ role: 'user', parts: [{ text: `Corrige ces erreurs: ${validationReport} dans ce code: ${fullCode}` }] }],
               config: { systemInstruction: FULL_PROMPT_INJECTION }
             });
             for await (const chunk of fixerRes) {
@@ -135,11 +133,11 @@ export async function POST(req: Request) {
             }
           }
 
-          send("\n✅ Prêt.");
+          send("\n✅ Opération terminée.");
           controller.close();
 
         } catch (error: any) {
-          send("\nERREUR_ORCHESTRATION: " + error.message);
+          send("\nERREUR: " + error.message);
           controller.close();
         }
       }
@@ -150,6 +148,6 @@ export async function POST(req: Request) {
     });
 
   } catch (err: any) {
-    return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
+    return NextResponse.json({ error: "Server Error: " + err.message }, { status: 500 })
   }
-}
+                                             }
