@@ -19,6 +19,8 @@ const FULL_PROMPT_INJECTION = `
  CSS COMPLET
  </create_file>
 
+ pas de tailwind CSS et pas de chemin de fichier commençant par src/
+
  INTERDICTION TOTALE : Markdown, explications, commentaires hors code, et texte de politesse. Produis UNIQUEMENT le XML.
 `; 
 
@@ -66,7 +68,9 @@ export async function POST(req: Request) {
             1. Si c'est une simple discussion/salutation : Réponds amicalement et ajoute '[MODE: CHAT]'.
             2. Si c'est une modification de code existant : Réponds brièvement et ajoute '[MODE: FAST]'.
             3. Si c'est une création d'application/grosse feature : Planifie et ajoute '[MODE: FULL]'.
+            PAS DE TAILWIND CSS.
             Tu es le seul à décider si on appelle les agents techniques ou non.` }
+           
           });
           
           const managerDecision = managerRes.candidates[0].content.parts[0].text;
@@ -102,7 +106,7 @@ export async function POST(req: Request) {
             const backendRes = await ai.models.generateContent({
                 model,
                 contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
-                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT sous cette forme sans markdown pour créé les fichiers backend en question : <create_file path="nomdufichier(lib/type.ts par exemple)">code_fichier_sans_markdown</create_file>. Renvoie uniquement les fichiers du backend en utilisant ce xml La pour chaque fichier. Ne touche pas au UI.` }
+                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT sous cette forme sans markdown pour créé les fichiers backend en question : <create_file path="nomdufichier(lib/type.ts par exemple)">code_fichier_sans_markdown</create_file>. Renvoie uniquement les fichiers du backend en utilisant ce xml La pour chaque fichier.Et surtout le chemin des fichiers ne doit pas commencer par src/ sinon rien ne cera capturer. N'utilise pas de chemin src/app/page.tsx par  mais directement app/page.tsx .Ne touche pas au UI.` }
             });
             fullCode = backendRes.candidates[0].content.parts[0].text;
             send(`${fullCode}\n`);
