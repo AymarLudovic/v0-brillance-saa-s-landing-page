@@ -4,7 +4,7 @@ import { basePrompt } from "@/lib/prompt"
 
 const FULL_PROMPT_INJECTION = `
  DIRECTIVE ABSOLUE — MODE SINGLE PAGE NO-FAIL
- ... (Tes directives habituelles) ...
+ ... (Tes directives habituelles : CSS Natif, XML strict, Zéro bouton mort) ...
 `; 
 
 interface Message { 
@@ -14,15 +14,6 @@ interface Message {
     externalFiles?: { fileName: string; base64Content: string }[]; 
     mentionedFiles?: string[]; 
     functionResponse?: { name: string; response: any; }
-}
-
-function getMimeTypeFromBase64(dataUrl: string): string {
-    const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
-    return match ? match[1] : 'application/octet-stream';
-}
-
-function cleanBase64Data(dataUrl: string): string {
-    return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 }
 
 const BATCH_SIZE = 256; 
@@ -45,130 +36,109 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { 
-        history, 
-        uploadedImages,
-        uploadedFiles,
-        allReferenceImages,
-        cssMasterUrl 
-    } = body as { 
-        history: Message[], 
-        uploadedImages: string[],
-        uploadedFiles: any[],
-        allReferenceImages?: string[],
-        cssMasterUrl?: string
-    }
-
-    if (!history || history.length === 0) return NextResponse.json({ error: "Historique manquant" }, { status: 400 });
+    const { history, uploadedImages, uploadedFiles, allReferenceImages, cssMasterUrl } = body;
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = "gemini-3-flash-preview"; 
     
-    // --- CONSTRUCTION DES CONTENTS (TON CODE ORIGINAL) ---
-    const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
-    const lastUserIndex = history.length - 1; 
-    const systemContextParts: Part[] = []; 
-
-    if (allReferenceImages && allReferenceImages.length > 0) {
-        const styleParts: Part[] = [];
-        allReferenceImages.forEach((imgBase64) => {
-            styleParts.push({ inlineData: { data: cleanBase64Data(imgBase64), mimeType: getMimeTypeFromBase64(imgBase64) } });
-        });
-        let instructionText = `[DIRECTIVE SYSTÈME : ANALYSE VISUELLE CROISÉE] ... (Ton texte original) ...`;
-        styleParts.push({ text: instructionText });
-        contents.push({ role: 'user', parts: styleParts });
-        contents.push({ role: 'model', parts: [{ text: "Compris. J'ai analysé les références visuelles." }] });
-    }
-
-    for (let i = 0; i < history.length; i++) {
-        const msg = history[i];
-        const parts: Part[] = [];
-        let role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
-        if (msg.role === 'system') { systemContextParts.push({ text: msg.content }); continue; }
-        if (msg.functionResponse) {
-            parts.push({ functionResponse: { name: msg.functionResponse.name, response: msg.functionResponse.response } });
-        } else {
-            if (i === lastUserIndex && role === 'user') {
-                if (uploadedImages && uploadedImages.length > 0) {
-                    uploadedImages.forEach((dataUrl) => { parts.push({ inlineData: { data: cleanBase64Data(dataUrl), mimeType: getMimeTypeFromBase64(dataUrl) } }); });
-                }
-                if (uploadedFiles && uploadedFiles.length > 0) {
-                     uploadedFiles.forEach((file) => {
-                        parts.push({ inlineData: { data: file.base64Content, mimeType: 'text/plain' } });
-                        parts.push({ text: `\n[Fichier: "${file.fileName}"]` });
-                    });
-                }
-            }
-            parts.push({ text: msg.content || ' ' }); 
-        }
-        if (parts.length > 0) contents.push({ role, parts });
-    }
-
-    const finalSystemInstruction = (FULL_PROMPT_INJECTION + (systemContextParts.length > 0 ? "\n\n--- CONTEXTE PROJET ---\n" + systemContextParts.map(p => p.text).join('\n') : ""));
-
+    // --- CONSTRUCTION DU CONTEXTE DE BASE ---
+    const lastUserPrompt = history[history.length - 1].content;
     const encoder = new TextEncoder();
-    let batchBuffer = ""; 
 
     const stream = new ReadableStream({
       async start(controller) {
         const send = (txt: string) => controller.enqueue(encoder.encode(txt));
 
         try {
-          // --- AJOUT LOGIQUE MULTI-AGENTS (Utilisant ai.models.generateContent) ---
-          
-          // 1. MANAGER
+          // --- AGENT 1: MANAGER (La Vibe) ---
           const managerRes = await ai.models.generateContent({
             model,
-            contents: [{ role: 'user', parts: [{ text: `Explique brièvement ton plan pour : ${history[lastUserIndex].content}` }] }],
-            config: { systemInstruction: "Tu es le Manager. Réponds par une phrase courte et stylée." }
+            contents: [{ role: 'user', parts: [{ text: `Explique ton plan pour : ${lastUserPrompt}` }] }],
+            config: { systemInstruction: "Tu es le Manager. Réponds par une phrase courte, stylée et rassurante." }
           });
-          send(`[MANAGER]: ${managerRes.candidates[0].content.parts[0].text}\n\n`);
+          const managerText = managerRes.candidates[0].content.parts[0].text;
+          send(`[MANAGER]: ${managerText}\n\n`);
 
-          // 2. PKG
+          // --- AGENT 2: PKG (Architecture) ---
           send("→ 🏗️ Agent PKG : Établissement de la structure...\n");
           const pkgRes = await ai.models.generateContent({
             model,
-            contents: [{ role: 'user', parts: [{ text: history[lastUserIndex].content }] }],
-            config: { systemInstruction: "Tu es l'Agent PKG. Liste les sections techniques nécessaires en Markdown." }
+            contents: [{ role: 'user', parts: [{ text: lastUserPrompt }] }],
+            config: { systemInstruction: "Tu es l'Agent PKG. Liste les fonctionnalités et les fichiers nécessaires (Blueprint)." }
           });
+          const blueprint = pkgRes.candidates[0].content.parts[0].text;
           send(`\n`);
 
-          // --- 3. GÉNÉRATION FINALE (TON FLUX INITIAL) ---
-          const response = await ai.models.generateContentStream({
+          // --- AGENT 3: BACKEND BUILDER (Logique & Data) ---
+          send("→ ⚙️ Agent Backend : Génération de la logique et persistance...\n");
+          const backendRes = await ai.models.generateContent({
             model,
-            contents, 
-            tools: [{ functionDeclarations: [readFileDeclaration] }],
-            config: { systemInstruction: finalSystemInstruction }
+            contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
+            config: { systemInstruction: "Tu es l'Agent Backend. Génère la logique TypeScript (State, LocalStorage). Utilise le format XML <create_file path='...'>code</create_file>." }
+          });
+          const backendCode = backendRes.candidates[0].content.parts[0].text;
+          send(`${backendCode}\n`);
+
+          // --- AGENT 4: UI BUILDER (L'Interface) ---
+          send("→ 🎨 Agent UI : Design Pixel-Perfect et intégration...\n");
+          // On utilise ici generateContentStream pour la partie visible du code
+          const uiStream = await ai.models.generateContentStream({
+            model,
+            contents: [
+                { role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nLogique existante: ${backendCode}` }] }
+            ],
+            config: { systemInstruction: FULL_PROMPT_INJECTION } // Ton prompt d'injection ultra-strict
           });
 
-          let functionCall = false; 
-          for await (const chunk of response) {
-              if (chunk.functionCalls && chunk.functionCalls.length > 0) {
-                  functionCall = true; 
-                  send(JSON.stringify({ functionCall: chunk.functionCalls[0] }));
-                  break; 
-              }
-              if (chunk.text) {
-                batchBuffer += chunk.text; 
-                if (batchBuffer.length >= BATCH_SIZE) {
-                  send(batchBuffer);
-                  batchBuffer = ""; 
-                }
-              }
+          let fullCode = backendCode;
+          for await (const chunk of uiStream) {
+            if (chunk.text) {
+              fullCode += chunk.text;
+              send(chunk.text);
+            }
           }
-          if (!functionCall && batchBuffer.length > 0) send(batchBuffer);
+
+          // --- AGENT 5: VERIFICATOR (Analyse de conformité) ---
+          send("\n→ 🔍 Agent Verificator : Analyse de conformité et erreurs...\n");
+          const validatorRes = await ai.models.generateContent({
+            model,
+            contents: [{ role: 'user', parts: [{ text: `Vérifie ce code par rapport au blueprint : ${blueprint}\n\nCode généré:\n${fullCode}` }] }],
+            config: { systemInstruction: "Tu es le Verificator. Si tout est ok, dis 'CONFIRME'. Sinon liste les manques ou erreurs TS." }
+          });
+          const validationReport = validatorRes.candidates[0].content.parts[0].text;
+          send(`[VALIDATOR]: ${validationReport}\n\n`);
+
+          // --- AGENT 6: CORRECTOR (Le Fixer) ---
+          if (!validationReport.includes("CONFIRME")) {
+            send("→ 🛠️ Agent Fixer : Correction finale en cours...\n");
+            const fixerRes = await ai.models.generateContentStream({
+              model,
+              contents: [{ role: 'user', parts: [{ text: `Corrige ces erreurs: ${validationReport} dans le code suivant : ${fullCode}` }] }],
+              config: { systemInstruction: FULL_PROMPT_INJECTION }
+            });
+            for await (const chunk of fixerRes) {
+              if (chunk.text) send(chunk.text);
+            }
+          }
+
+          send("\n✅ Système prêt. Orchestration réussie.");
           controller.close();
 
         } catch (error: any) {
-          console.error("Stream Error:", error);
-          send("\nErreur d'orchestration: " + error.message);
+          send("\nERREUR_ORCHESTRATION: " + error.message);
           controller.close();
         }
       }
     });
 
-    return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" } })
+    return new Response(stream, { 
+        headers: { 
+            "Content-Type": "text/plain; charset=utf-8", 
+            "Transfer-Encoding": "chunked" 
+        } 
+    });
+
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-                         }
+   }
