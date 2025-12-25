@@ -2,9 +2,28 @@ import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
 
+// --- STACK TECHNIQUE ET DIRECTIVES ---
+const STACK_INFO = "STACK: Next.js (App Router), React, TypeScript. INTERDICTION de Tailwind CSS. Utilise uniquement du CSS NATIF (.css).";
+
 const FULL_PROMPT_INJECTION = `
  DIRECTIVE ABSOLUE — MODE SINGLE PAGE NO-FAIL
- ... (Tes directives habituelles : CSS Natif, XML strict, Zéro bouton mort) ...
+ ${STACK_INFO}
+ 
+ ARCHITECTURE :
+ - UNE SEULE PAGE (app/page.tsx)
+ - CSS NATIF UNIQUEMENT (app/globals.css)
+ - Persistance : LocalStorage uniquement.
+ 
+ SORTIE OBLIGATOIRE — FORMAT STRICT XML :
+ <create_file path="app/page.tsx">
+ CODE TSX COMPLET
+ </create_file>
+ 
+ <create_file path="app/globals.css">
+ CSS COMPLET
+ </create_file>
+
+ RÈGLE : AUCUN bouton mort, AUCUN Tailwind, AUCUN Markdown.
 `; 
 
 interface Message { 
@@ -41,7 +60,6 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = "gemini-3-flash-preview"; 
     
-    // --- CONSTRUCTION DU CONTEXTE DE BASE ---
     const lastUserPrompt = history[history.length - 1].content;
     const encoder = new TextEncoder();
 
@@ -50,11 +68,11 @@ export async function POST(req: Request) {
         const send = (txt: string) => controller.enqueue(encoder.encode(txt));
 
         try {
-          // --- AGENT 1: MANAGER (La Vibe) ---
+          // --- AGENT 1: MANAGER ---
           const managerRes = await ai.models.generateContent({
             model,
-            contents: [{ role: 'user', parts: [{ text: `Explique ton plan pour : ${lastUserPrompt}` }] }],
-            config: { systemInstruction: "Tu es le Manager. Réponds par une phrase courte, stylée et rassurante." }
+            contents: [{ role: 'user', parts: [{ text: `Planifie : ${lastUserPrompt}` }] }],
+            config: { systemInstruction: `Tu es le Manager. ${STACK_INFO} Réponds par une phrase courte sur l'organisation.` }
           });
           const managerText = managerRes.candidates[0].content.parts[0].text;
           send(`[MANAGER]: ${managerText}\n\n`);
@@ -64,30 +82,29 @@ export async function POST(req: Request) {
           const pkgRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: lastUserPrompt }] }],
-            config: { systemInstruction: "Tu es l'Agent PKG. Liste les fonctionnalités et les fichiers nécessaires (Blueprint)." }
+            config: { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants React et les styles CSS nécessaires.` }
           });
           const blueprint = pkgRes.candidates[0].content.parts[0].text;
           send(`\n`);
 
-          // --- AGENT 3: BACKEND BUILDER (Logique & Data) ---
+          // --- AGENT 3: BACKEND BUILDER (Logique) ---
           send("→ ⚙️ Agent Backend : Génération de la logique et persistance...\n");
           const backendRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
-            config: { systemInstruction: "Tu es l'Agent Backend. Génère la logique TypeScript (State, LocalStorage). Utilise le format XML <create_file path='...'>code</create_file>." }
+            config: { systemInstruction: `Agent Backend. ${STACK_INFO} Génère la logique TypeScript (State, LocalStorage). Utilise le format XML <create_file>.` }
           });
           const backendCode = backendRes.candidates[0].content.parts[0].text;
           send(`${backendCode}\n`);
 
-          // --- AGENT 4: UI BUILDER (L'Interface) ---
+          // --- AGENT 4: UI BUILDER (Interface) ---
           send("→ 🎨 Agent UI : Design Pixel-Perfect et intégration...\n");
-          // On utilise ici generateContentStream pour la partie visible du code
           const uiStream = await ai.models.generateContentStream({
             model,
             contents: [
                 { role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nLogique existante: ${backendCode}` }] }
             ],
-            config: { systemInstruction: FULL_PROMPT_INJECTION } // Ton prompt d'injection ultra-strict
+            config: { systemInstruction: FULL_PROMPT_INJECTION }
           });
 
           let fullCode = backendCode;
@@ -98,22 +115,22 @@ export async function POST(req: Request) {
             }
           }
 
-          // --- AGENT 5: VERIFICATOR (Analyse de conformité) ---
+          // --- AGENT 5: VERIFICATOR (Analyse) ---
           send("\n→ 🔍 Agent Verificator : Analyse de conformité et erreurs...\n");
           const validatorRes = await ai.models.generateContent({
             model,
-            contents: [{ role: 'user', parts: [{ text: `Vérifie ce code par rapport au blueprint : ${blueprint}\n\nCode généré:\n${fullCode}` }] }],
-            config: { systemInstruction: "Tu es le Verificator. Si tout est ok, dis 'CONFIRME'. Sinon liste les manques ou erreurs TS." }
+            contents: [{ role: 'user', parts: [{ text: `Vérifie ce code. Stack: ${STACK_INFO}. Code:\n${fullCode}` }] }],
+            config: { systemInstruction: "Tu es le Verificator. Vérifie l'absence de Tailwind et la présence du XML. Réponds 'CONFIRME' ou liste les erreurs." }
           });
           const validationReport = validatorRes.candidates[0].content.parts[0].text;
           send(`[VALIDATOR]: ${validationReport}\n\n`);
 
-          // --- AGENT 6: CORRECTOR (Le Fixer) ---
+          // --- AGENT 6: CORRECTOR (Fixer) ---
           if (!validationReport.includes("CONFIRME")) {
             send("→ 🛠️ Agent Fixer : Correction finale en cours...\n");
             const fixerRes = await ai.models.generateContentStream({
               model,
-              contents: [{ role: 'user', parts: [{ text: `Corrige ces erreurs: ${validationReport} dans le code suivant : ${fullCode}` }] }],
+              contents: [{ role: 'user', parts: [{ text: `Corrige les erreurs suivantes : ${validationReport} dans le code : ${fullCode}` }] }],
               config: { systemInstruction: FULL_PROMPT_INJECTION }
             });
             for await (const chunk of fixerRes) {
@@ -141,4 +158,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-   }
+  }
