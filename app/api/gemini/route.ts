@@ -8,10 +8,9 @@ const FULL_PROMPT_INJECTION = `
  DIRECTIVE ABSOLUE —  NO-FAIL
  ${STACK_INFO}
  
- ARCHITECTURE :
+ RÔLE : Tu es l'UI BUILDER. Ton domaine est UNIQUEMENT l'interface (app/page.tsx, composants, styles).
  
- 
- SORTIE OBLIGATOIRE — FORMAT STRICT XML :
+ SORTIE OBLIGATOIRE — FORMAT STRICT XML (SANS MARKDOWN) :
  <create_file path="app/page.tsx">
  CODE TSX COMPLET
  </create_file>
@@ -20,7 +19,7 @@ const FULL_PROMPT_INJECTION = `
  CSS COMPLET
  </create_file>
 
- INTERDICTION TOTALE : Markdown, explications, commentaires hors code, et texte de politesse. Produis UNIQUEMENT le XML.
+ INTERDICTION TOTALE : Markdown (\`\`\`xml), explications, commentaires hors code, et texte de politesse. Produis UNIQUEMENT les balises XML. Ne touche JAMAIS aux fichiers backend (api/ ou lib/).
 `; 
 
 interface Message { 
@@ -59,12 +58,14 @@ export async function POST(req: Request) {
         };
 
         try {
-          // --- AGENT 1: MANAGER (Décisionnaire) ---
+          // --- AGENT 1: MANAGER (Optimisé pour être plus humain et précis) ---
           const managerRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: `CONTEXTE PRÉCÉDENT: ${conversationContext}\n\nREQUÊTE ACTUELLE: ${lastUserPrompt}` }] }],
-            config: { systemInstruction: `Tu es le Manager. Analyse si la requête est une "CRÉATION" complète ou une "MODIFICATION" légère. 
-            Si c'est une modification, réponds par '[MODE: FAST]'. Sinon, planifie normalement. Réponds brièvement.` }
+            config: { systemInstruction: `Tu es le Manager de "Project 40". 
+            - Si l'utilisateur te salue ou discute de façon informelle, réponds avec chaleur et professionnalisme sans parler de planification. 
+            - Si c'est une demande technique : analyse si c'est une "CRÉATION" (planifie les étapes) ou une "MODIFICATION" (réponds '[MODE: FAST]'). 
+            - Sois concis et jamais robotique.` }
           });
           const managerDecision = managerRes.candidates[0].content.parts[0].text;
           const isFastMode = managerDecision.includes("[MODE: FAST]");
@@ -80,27 +81,28 @@ export async function POST(req: Request) {
             const pkgRes = await ai.models.generateContent({
                 model,
                 contents: [{ role: 'user', parts: [{ text: `Historique: ${conversationContext}\nPrompt: ${lastUserPrompt}` }] }],
-                config: { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants techniques requis.` }
+                config: { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants techniques requis (API, Types, Components).` }
             });
             blueprint = pkgRes.candidates[0].content.parts[0].text;
 
-            // --- AGENT 3: BACKEND BUILDER ---
+            // --- AGENT 3: BACKEND BUILDER (Strictement Backend) ---
             send("→ ⚙️ Génération de la logique métier...\n");
             const backendRes = await ai.models.generateContent({
                 model,
                 contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
-                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT.` }
+                config: { systemInstruction: `Agent Backend. Génère UNIQUEMENT de la logique (API routes dans app/api/, lib/ ou types/). 
+                INTERDICTION de générer app/page.tsx ou du CSS. Format XML strict : <create_file path="...">code</create_file>. PAS de markdown.` }
             });
             fullCode = backendRes.candidates[0].content.parts[0].text;
             send(`${fullCode}\n`);
           }
 
-          // --- AGENT 4: UI BUILDER (Appelé systématiquement mais avec le contexte) ---
+          // --- AGENT 4: UI BUILDER ---
           send(isFastMode ? "→ ⚡ Modification rapide du code...\n" : "→ 🎨 Finalisation du design...\n");
           const uiStream = await ai.models.generateContentStream({
             model,
             contents: [
-                { role: 'user', parts: [{ text: `HISTORIQUE COMPLET: ${conversationContext}\nLOGIQUE: ${fullCode}\nACTION: ${lastUserPrompt}` }] }
+                { role: 'user', parts: [{ text: `HISTORIQUE COMPLET: ${conversationContext}\nLOGIQUE EXISTANTE: ${fullCode}\nACTION DEMANDÉE: ${lastUserPrompt}` }] }
             ],
             config: { systemInstruction: FULL_PROMPT_INJECTION }
           });
@@ -117,7 +119,7 @@ export async function POST(req: Request) {
           const validatorRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: `Code final à vérifier:\n${fullCode}` }] }],
-            config: { systemInstruction: "Réponds 'CONFIRME' si le code respecte le XML et la stack, sinon liste les erreurs." }
+            config: { systemInstruction: "Réponds 'CONFIRME' si le code respecte le XML (<create_file>) et la stack (CSS natif). Sinon, liste précisément les erreurs." }
           });
           const validationReport = validatorRes.candidates[0].content.parts[0].text;
 
@@ -150,4 +152,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Server Error: " + err.message }, { status: 500 })
   }
-                                             }
+     }
