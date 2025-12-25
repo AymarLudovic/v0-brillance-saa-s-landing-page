@@ -2,7 +2,6 @@ import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
 
-// --- STACK TECHNIQUE ET DIRECTIVES ---
 const STACK_INFO = "STACK: Next.js (App Router), React, TypeScript. INTERDICTION de Tailwind CSS. Utilise uniquement du CSS NATIF (.css).";
 
 const FULL_PROMPT_INJECTION = `
@@ -23,7 +22,7 @@ const FULL_PROMPT_INJECTION = `
  CSS COMPLET
  </create_file>
 
- RÈGLE : AUCUN bouton mort, AUCUN Tailwind, AUCUN Markdown.
+ INTERDICTION TOTALE : Markdown, explications, commentaires hors code, et texte de politesse. Produis UNIQUEMENT le XML.
 `; 
 
 interface Message { 
@@ -68,37 +67,36 @@ export async function POST(req: Request) {
         const send = (txt: string) => controller.enqueue(encoder.encode(txt));
 
         try {
-          // --- AGENT 1: MANAGER ---
+          // --- AGENT 1: MANAGER (Le seul qui parle normalement) ---
           const managerRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: `Planifie : ${lastUserPrompt}` }] }],
-            config: { systemInstruction: `Tu es le Manager. ${STACK_INFO} Réponds par une phrase courte sur l'organisation.` }
+            config: { systemInstruction: `Tu es le Manager. Réponds de manière chaleureuse et concise. Explique ce que tu vas construire. INTERDICTION de générer du code ici.` }
           });
           const managerText = managerRes.candidates[0].content.parts[0].text;
           send(`[MANAGER]: ${managerText}\n\n`);
 
-          // --- AGENT 2: PKG (Architecture) ---
-          send("→ 🏗️ Agent PKG : Établissement de la structure...\n");
+          // --- AGENT 2: PKG (Architecture - Invisible) ---
+          send("→ 🏗️ Analyse des structures...\n");
           const pkgRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: lastUserPrompt }] }],
-            config: { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants React et les styles CSS nécessaires.` }
+            config: { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants techniques. NE GÉNÈRE AUCUN CODE ET AUCUN TEXTE POUR L'UTILISATEUR.` }
           });
           const blueprint = pkgRes.candidates[0].content.parts[0].text;
-          send(`\n`);
 
-          // --- AGENT 3: BACKEND BUILDER (Logique) ---
-          send("→ ⚙️ Agent Backend : Génération de la logique et persistance...\n");
+          // --- AGENT 3: BACKEND BUILDER (Logique pure) ---
+          send("→ ⚙️ Configuration de la logique...\n");
           const backendRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
-            config: { systemInstruction: `Agent Backend. ${STACK_INFO} Génère la logique TypeScript (State, LocalStorage). Utilise le format XML <create_file>.` }
+            config: { systemInstruction: `Agent Backend. Génère la logique TypeScript (State/Storage) UNIQUEMENT en format XML <create_file>. INTERDICTION d'écrire du texte ou des explications.` }
           });
           const backendCode = backendRes.candidates[0].content.parts[0].text;
           send(`${backendCode}\n`);
 
-          // --- AGENT 4: UI BUILDER (Interface) ---
-          send("→ 🎨 Agent UI : Design Pixel-Perfect et intégration...\n");
+          // --- AGENT 4: UI BUILDER (Interface pure) ---
+          send("→ 🎨 Finalisation du design...\n");
           const uiStream = await ai.models.generateContentStream({
             model,
             contents: [
@@ -115,22 +113,21 @@ export async function POST(req: Request) {
             }
           }
 
-          // --- AGENT 5: VERIFICATOR (Analyse) ---
-          send("\n→ 🔍 Agent Verificator : Analyse de conformité et erreurs...\n");
+          // --- AGENT 5: VERIFICATOR (Binaire) ---
+          send("\n→ 🔍 Vérification finale...\n");
           const validatorRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: `Vérifie ce code. Stack: ${STACK_INFO}. Code:\n${fullCode}` }] }],
-            config: { systemInstruction: "Tu es le Verificator. Vérifie l'absence de Tailwind et la présence du XML. Réponds 'CONFIRME' ou liste les erreurs." }
+            config: { systemInstruction: "Verificator. Si OK, réponds UNIQUEMENT '[VALIDATOR]: CONFIRME'. Sinon, liste les erreurs brièvement." }
           });
           const validationReport = validatorRes.candidates[0].content.parts[0].text;
-          send(`[VALIDATOR]: ${validationReport}\n\n`);
+          send(`${validationReport}\n\n`);
 
-          // --- AGENT 6: CORRECTOR (Fixer) ---
+          // --- AGENT 6: CORRECTOR ---
           if (!validationReport.includes("CONFIRME")) {
-            send("→ 🛠️ Agent Fixer : Correction finale en cours...\n");
             const fixerRes = await ai.models.generateContentStream({
               model,
-              contents: [{ role: 'user', parts: [{ text: `Corrige les erreurs suivantes : ${validationReport} dans le code : ${fullCode}` }] }],
+              contents: [{ role: 'user', parts: [{ text: `Corrige: ${validationReport} dans : ${fullCode}` }] }],
               config: { systemInstruction: FULL_PROMPT_INJECTION }
             });
             for await (const chunk of fixerRes) {
@@ -138,7 +135,7 @@ export async function POST(req: Request) {
             }
           }
 
-          send("\n✅ Système prêt. Orchestration réussie.");
+          send("\n✅ Prêt.");
           controller.close();
 
         } catch (error: any) {
@@ -149,13 +146,10 @@ export async function POST(req: Request) {
     });
 
     return new Response(stream, { 
-        headers: { 
-            "Content-Type": "text/plain; charset=utf-8", 
-            "Transfer-Encoding": "chunked" 
-        } 
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" } 
     });
 
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-  }
+}
