@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
+// @ts-ignore - On suppose que le package est installé ou sera géré dans l'environnement
+import packageJson from 'package-json';
 
 const STACK_INFO = "STACK: Next.js (App Router), React, TypeScript. INTERDICTION de Tailwind CSS. Utilise uniquement du CSS NATIF (.css).";
 
@@ -29,6 +31,16 @@ interface Message {
     content: string; 
 }
 
+// Fonction utilitaire pour récupérer la version exacte via package-json
+async function getPackageVersion(pkgName: string): Promise<string> {
+    try {
+        const metadata = await packageJson(pkgName.toLowerCase());
+        return `^${metadata.version}`;
+    } catch (e) {
+        return "latest"; // Fallback si le package n'est pas trouvé
+    }
+}
+
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('x-gemini-api-key');
@@ -37,22 +49,23 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history } = body;
+    // Ajout de uploadFiles extrait du body
+    const { history, uploadedFiles, uploadedImages } = body;
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = "gemini-3-flash-preview"; 
     
-    // Récupération de l'historique pour la mémoire
     const lastUserPrompt = history[history.length - 1].content;
-    const conversationContext = history.map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
+    // On inclut les fichiers uploadés dans le contexte textuel
+    const filesContext = uploadFiles ? `\nFICHIERS UPLOADÉS: ${JSON.stringify(uploadFiles)}` : "";
+    const conversationContext = history.map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join("\n") + filesContext;
 
     const encoder = new TextEncoder();
-    const createdFiles = new Set<string>(); // Pour éviter les doublons
+    const createdFiles = new Set<string>();
 
     const stream = new ReadableStream({
       async start(controller) {
         const send = (txt: string) => {
-            // Logique anti-doublon simple pour les balises de création de fichiers
             const match = txt.match(/<create_file path="([^"]+)">/);
             if (match && createdFiles.has(match[1])) return; 
             if (match) createdFiles.add(match[1]);
@@ -60,28 +73,24 @@ export async function POST(req: Request) {
         };
 
         try {
-          // --- AGENT 1: MANAGER (Chef d'orchestre) ---
+          // --- AGENT 1: MANAGER ---
           const managerRes = await ai.models.generateContent({
             model,
             contents: [{ role: 'user', parts: [{ text: `CONTEXTE PRÉCÉDENT: ${conversationContext}\n\nREQUÊTE ACTUELLE: ${lastUserPrompt}` }] }],
             config: { systemInstruction: `Tu es le Manager des projets. Analyse l'intention de l'utilisateur :
-            1. Si c'est une simple discussion/salutation : Réponds amicalement et ajoute '[MODE: CHAT]'.
-            2. Si c'est une modification de code existant : Réponds brièvement et ajoute '[MODE: FAST]'.
-            3. Si c'est une création d'application/grosse feature : Planifie et ajoute '[MODE: FULL]'.
-            PAS DE TAILWIND CSS.
-            Tu es le seul à décider si on appelle les agents techniques ou non.` }
-           
+            1. Si c'est une simple discussion : Réponds amicalement et ajoute '[MODE: CHAT]'.
+            2. Si c'est une modification : Réponds brièvement et ajoute '[MODE: FAST]'.
+            3. Si c'est une création : Planifie et ajoute '[MODE: FULL]'.
+            PAS DE TAILWIND CSS. Tu décides si on appelle les agents techniques.` }
           });
           
           const managerDecision = managerRes.candidates[0].content.parts[0].text;
           const isChatMode = managerDecision.includes("[MODE: CHAT]");
           const isFastMode = managerDecision.includes("[MODE: FAST]");
           
-          // Nettoyage et envoi de la réponse du Manager
           const cleanResponse = managerDecision.replace(/\[MODE: (CHAT|FAST|FULL)\]/g, "").trim();
           send(`[MANAGER]: ${cleanResponse}\n\n`);
 
-          // ARRÊT SI CHAT : Si le manager a décidé que c'est juste une discussion, on s'arrête ici.
           if (isChatMode) {
             controller.close();
             return;
@@ -90,7 +99,6 @@ export async function POST(req: Request) {
           let fullCode = "";
           let blueprint = "Utiliser l'existant";
 
-          // --- LOGIQUE TECHNIQUE DÉCLENCHÉE UNIQUEMENT SI NÉCESSAIRE ---
           if (!isFastMode && managerDecision.includes("[MODE: FULL]")) {
             // --- AGENT 2: PKG ---
             send("→ 🏗️ Analyse structurelle profonde...\n");
@@ -106,7 +114,7 @@ export async function POST(req: Request) {
             const backendRes = await ai.models.generateContent({
                 model,
                 contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
-                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT sous cette forme sans markdown pour créé les fichiers backend en question : <create_file path="nomdufichier(lib/type.ts par exemple)">code_fichier_sans_markdown</create_file>. Renvoie uniquement les fichiers du backend en utilisant ce xml La pour chaque fichier.Et surtout le chemin des fichiers ne doit pas commencer par src/ sinon rien ne cera capturer. N'utilise pas de chemin src/app/page.tsx par  mais directement app/page.tsx .Ne touche pas au UI.` }
+                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT : <create_file path="app/api/...">code</create_file>. Pas de src/, pas de UI.` }
             });
             fullCode = backendRes.candidates[0].content.parts[0].text;
             send(`${fullCode}\n`);
@@ -128,6 +136,49 @@ export async function POST(req: Request) {
                 fullCode += chunk.text;
                 send(chunk.text);
               }
+            }
+
+            // --- NOUVEAU : AGENT 6 (SCANNER DE DÉPENDANCES) ---
+            send("→ 📦 Analyse des dépendances NPM...\n");
+            const scannerRes = await ai.models.generateContent({
+                model,
+                contents: [{ role: 'user', parts: [{ text: `Code généré:\n${fullCode}` }] }],
+                config: { systemInstruction: `Tu es l'Agent Scanner. Identifie tous les packages npm tiers importés dans le code (ex: lucide-react, date-fns). 
+                Réponds UNIQUEMENT par une liste JSON simple : ["pkg1", "pkg2"]. Si rien, réponds [].` }
+            });
+            
+            let packagesToInstall: string[] = [];
+            try {
+                const scannerText = scannerRes.candidates[0].content.parts[0].text;
+                packagesToInstall = JSON.parse(scannerText.match(/\[.*\]/s)?.[0] || "[]");
+            } catch (e) {
+                packagesToInstall = [];
+            }
+
+            if (packagesToInstall.length > 0) {
+                // --- PROCESSUS package-json (RECHERCHE VERSIONS) ---
+                const dependencies: Record<string, string> = {
+                    "next": "latest",
+                    "react": "latest",
+                    "react-dom": "latest"
+                };
+
+                for (const pkg of packagesToInstall) {
+                    dependencies[pkg] = await getPackageVersion(pkg);
+                }
+
+                // --- AGENT 7: PACKAGE GENERATOR (CRÉATION DU package.json via XML) ---
+                const packageJsonContent = JSON.stringify({
+                    name: "project-40-app",
+                    version: "0.1.0",
+                    private: true,
+                    scripts: { "dev": "next dev", "build": "next build", "start": "next start" },
+                    dependencies: dependencies
+                }, null, 2);
+
+                const packageXml = `<create_file path="package.json">\n${packageJsonContent}\n</create_file>\n`;
+                send(packageXml);
+                fullCode += packageXml;
             }
 
             // --- AGENT 5: VERIFICATOR ---
