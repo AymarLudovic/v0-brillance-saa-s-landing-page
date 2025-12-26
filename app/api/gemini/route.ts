@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     } = body;
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
-    const model = "gemini-2.5-flash"; 
+    const model = "gemini-3-flash-preview"; 
     
     let componentsContext = "";
     
