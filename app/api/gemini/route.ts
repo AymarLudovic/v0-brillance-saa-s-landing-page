@@ -84,6 +84,7 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
         async start(controller) {
+            // --- 1. STREAMING DU CODE UI/BACKEND ---
             for await (const chunk of response) {
                 if (chunk.text) {
                     const txt = chunk.text;
@@ -92,12 +93,13 @@ export async function POST(req: Request) {
                 }
             }
 
+            // --- 2. AGENT PACKAGE (DÉCLENCHÉ APRÈS LE CODE) ---
             try {
                 const scannerRes = await ai.models.generateContent({
                     model,
                     contents: [{ 
                         role: 'user', 
-                        parts: [{ text: `Liste uniquement les packages npm tiers (ex: lucide-react) importés dans ce code. Réponds strictement sous forme de tableau JSON : ["pkg1", "pkg2"]. Si aucun, réponds [].\n\nCODE:\n${fullGeneratedCode}` }] 
+                        parts: [{ text: `Liste uniquement les packages npm tiers (ex: lucide-react, framer-motion) importés dans ce code. Réponds strictement sous forme de tableau JSON : ["pkg1", "pkg2"]. Si aucun, réponds [].\n\nCODE:\n${fullGeneratedCode}` }] 
                     }]
                 });
 
@@ -106,27 +108,34 @@ export async function POST(req: Request) {
                 const packagesToInstall: string[] = match ? JSON.parse(match[0]) : [];
 
                 if (packagesToInstall.length > 0 || fullGeneratedCode.includes('import')) {
+                    // --- DÉPENDANCES DE PRODUCTION ---
                     const deps: Record<string, string> = {
                         "next": "latest",
                         "react": "latest",
                         "react-dom": "latest"
                     };
-
                     for (const pkg of packagesToInstall) {
                         deps[pkg] = await getPackageVersion(pkg);
                     }
 
+                    // --- DÉPENDANCES DE DÉVELOPPEMENT (TS + Types) ---
+                    const devDepsList = ["typescript", "@types/node", "@types/react", "@types/react-dom"];
+                    const devDeps: Record<string, string> = {};
+                    for (const d of devDepsList) {
+                        devDeps[d] = await getPackageVersion(d);
+                    }
+
                     const packageJsonContent = JSON.stringify({
-                        name: "project-40-app",
+                        name: "project-app",
                         version: "0.1.0",
                         private: true,
                         scripts: { 
-                            // Changement ICI : Ajout du flag -H 0.0.0.0
                             "dev": "next dev -H 0.0.0.0", 
                             "build": "next build", 
                             "start": "next start" 
                         },
-                        dependencies: deps
+                        dependencies: deps,
+                        devDependencies: devDeps // Ajout de la section devDependencies
                     }, null, 2);
 
                     const packageXml = `\n<create_file path="package.json">\n${packageJsonContent}\n</create_file>\n`;
@@ -146,4 +155,4 @@ export async function POST(req: Request) {
     console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-  }
+      }
