@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
-// @ts-ignore - On suppose que le package est installé ou sera géré dans l'environnement
+// @ts-ignore
 import packageJson from 'package-json';
 
 const STACK_INFO = "STACK: Next.js (App Router), React, TypeScript. INTERDICTION de Tailwind CSS. Utilise uniquement du CSS NATIF (.css).";
@@ -31,13 +31,13 @@ interface Message {
     content: string; 
 }
 
-// Fonction utilitaire pour récupérer la version exacte via package-json
+// Utilitaire pour récupérer la version exacte via package-json
 async function getPackageVersion(pkgName: string): Promise<string> {
     try {
         const metadata = await packageJson(pkgName.toLowerCase());
         return `^${metadata.version}`;
     } catch (e) {
-        return "latest"; // Fallback si le package n'est pas trouvé
+        return "latest";
     }
 }
 
@@ -49,16 +49,33 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    // Ajout de uploadFiles extrait du body
-    const { history } = body;
+    // Récupération de l'historique et des médias uploadés
+    const { history, uploadedFiles, uploadedImages } = body;
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = "gemini-3-flash-preview"; 
     
     const lastUserPrompt = history[history.length - 1].content;
-    // On inclut les fichiers uploadés dans le contexte textuel
-    const filesContext = uploadFiles ? `\nFICHIERS UPLOADÉS: ${JSON.stringify(uploadFiles)}` : "";
-    const conversationContext = history.map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join("\n") + filesContext;
+    const conversationContext = history.map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
+
+    // Conversion des médias en format Base64 compatible Gemini (Parts)
+    const mediaParts: Part[] = [];
+    
+    if (uploadedFiles && Array.isArray(uploadedFiles)) {
+        uploadedFiles.forEach((file: any) => {
+            if (file.data && file.mimeType) {
+                mediaParts.push({ inlineData: { data: file.data, mimeType: file.mimeType } });
+            }
+        });
+    }
+
+    if (uploadedImages && Array.isArray(uploadedImages)) {
+        uploadedImages.forEach((img: any) => {
+            if (img.data && img.mimeType) {
+                mediaParts.push({ inlineData: { data: img.data, mimeType: img.mimeType } });
+            }
+        });
+    }
 
     const encoder = new TextEncoder();
     const createdFiles = new Set<string>();
@@ -73,18 +90,21 @@ export async function POST(req: Request) {
         };
 
         try {
-          // --- AGENT 1: MANAGER ---
-          const managerRes = await ai.models.generateContent({
-            model,
-            contents: [{ role: 'user', parts: [{ text: `CONTEXTE PRÉCÉDENT: ${conversationContext}\n\nREQUÊTE ACTUELLE: ${lastUserPrompt}` }] }],
-            config: { systemInstruction: `Tu es le Manager des projets. Analyse l'intention de l'utilisateur :
-            1. Si c'est une simple discussion : Réponds amicalement et ajoute '[MODE: CHAT]'.
-            2. Si c'est une modification : Réponds brièvement et ajoute '[MODE: FAST]'.
-            3. Si c'est une création : Planifie et ajoute '[MODE: FULL]'.
-            PAS DE TAILWIND CSS. Tu décides si on appelle les agents techniques.` }
+          const genModel = ai.getGenerativeModel({ model });
+
+          // --- AGENT 1: MANAGER (Chef d'orchestre) ---
+          const managerRes = await genModel.generateContent([
+            { text: `CONTEXTE PRÉCÉDENT: ${conversationContext}\n\nREQUÊTE ACTUELLE: ${lastUserPrompt}` },
+            ...mediaParts 
+          ], { 
+            systemInstruction: `Tu es le Manager des projets. Analyse l'intention :
+            1. Discussion/Salutation : Réponds amicalement et ajoute '[MODE: CHAT]'.
+            2. Modification : Réponds brièvement et ajoute '[MODE: FAST]'.
+            3. Création : Planifie et ajoute '[MODE: FULL]'.
+            PAS DE TAILWIND CSS. Tu décides si on appelle les agents techniques.` 
           });
           
-          const managerDecision = managerRes.candidates[0].content.parts[0].text;
+          const managerDecision = managerRes.response.text();
           const isChatMode = managerDecision.includes("[MODE: CHAT]");
           const isFastMode = managerDecision.includes("[MODE: FAST]");
           
@@ -102,76 +122,58 @@ export async function POST(req: Request) {
           if (!isFastMode && managerDecision.includes("[MODE: FULL]")) {
             // --- AGENT 2: PKG ---
             send("→ 🏗️ Analyse structurelle profonde...\n");
-            const pkgRes = await ai.models.generateContent({
-                model,
-                contents: [{ role: 'user', parts: [{ text: `Historique: ${conversationContext}\nPrompt: ${lastUserPrompt}` }] }],
-                config: { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants techniques.` }
-            });
-            blueprint = pkgRes.candidates[0].content.parts[0].text;
+            const pkgRes = await genModel.generateContent([
+                { text: `Historique: ${conversationContext}\nPrompt: ${lastUserPrompt}` },
+                ...mediaParts
+            ], { systemInstruction: `Agent PKG. ${STACK_INFO} Liste les composants techniques.` });
+            blueprint = pkgRes.response.text();
 
             // --- AGENT 3: BACKEND BUILDER ---
             send("→ ⚙️ Génération de la logique métier...\n");
-            const backendRes = await ai.models.generateContent({
-                model,
-                contents: [{ role: 'user', parts: [{ text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }] }],
-                config: { systemInstruction: `Agent Backend. XML UNIQUEMENT : <create_file path="app/api/...">code</create_file>. Pas de src/, pas de UI.` }
-            });
-            fullCode = backendRes.candidates[0].content.parts[0].text;
+            const backendRes = await genModel.generateContent([
+                { text: `Prompt: ${lastUserPrompt}\nBlueprint: ${blueprint}` }
+            ], { systemInstruction: `Agent Backend. XML UNIQUEMENT sous cette forme sans markdown : <create_file path="nomdufichier">code_sans_markdown</create_file>. Pas de src/. Ne touche pas au UI.` });
+            fullCode = backendRes.response.text();
             send(`${fullCode}\n`);
           }
 
           // --- AGENT 4: UI BUILDER ---
           if (isFastMode || managerDecision.includes("[MODE: FULL]")) {
             send(isFastMode ? "→ ⚡ Modification rapide du code...\n" : "→ 🎨 Finalisation du design...\n");
-            const uiStream = await ai.models.generateContentStream({
-              model,
-              contents: [
-                  { role: 'user', parts: [{ text: `HISTORIQUE COMPLET: ${conversationContext}\nLOGIQUE: ${fullCode}\nACTION: ${lastUserPrompt}` }] }
-              ],
-              config: { systemInstruction: FULL_PROMPT_INJECTION }
-            });
+            const uiStream = await genModel.generateContentStream([
+                { text: `HISTORIQUE: ${conversationContext}\nLOGIQUE: ${fullCode}\nACTION: ${lastUserPrompt}` },
+                ...mediaParts
+            ], { systemInstruction: FULL_PROMPT_INJECTION });
 
-            for await (const chunk of uiStream) {
-              if (chunk.text) {
-                fullCode += chunk.text;
-                send(chunk.text);
+            for await (const chunk of uiStream.stream) {
+              const chunkText = chunk.text();
+              if (chunkText) {
+                fullCode += chunkText;
+                send(chunkText);
               }
             }
 
-            // --- NOUVEAU : AGENT 6 (SCANNER DE DÉPENDANCES) ---
+            // --- AGENT 6: SCANNER DE DÉPENDANCES ---
             send("→ 📦 Analyse des dépendances NPM...\n");
-            const scannerRes = await ai.models.generateContent({
-                model,
-                contents: [{ role: 'user', parts: [{ text: `Code généré:\n${fullCode}` }] }],
-                config: { systemInstruction: `Tu es l'Agent Scanner. Identifie tous les packages npm tiers importés dans le code (ex: lucide-react, date-fns). 
-                Réponds UNIQUEMENT par une liste JSON simple : ["pkg1", "pkg2"]. Si rien, réponds [].` }
-            });
+            const scannerRes = await genModel.generateContent([
+                { text: `Identifie les packages tiers importés dans ce code :\n${fullCode}` }
+            ], { systemInstruction: `Réponds UNIQUEMENT par une liste JSON simple : ["pkg1", "pkg2"]. Si rien, réponds [].` });
             
             let packagesToInstall: string[] = [];
             try {
-                const scannerText = scannerRes.candidates[0].content.parts[0].text;
+                const scannerText = scannerRes.response.text();
                 packagesToInstall = JSON.parse(scannerText.match(/\[.*\]/s)?.[0] || "[]");
-            } catch (e) {
-                packagesToInstall = [];
-            }
+            } catch (e) { packagesToInstall = []; }
 
             if (packagesToInstall.length > 0) {
-                // --- PROCESSUS package-json (RECHERCHE VERSIONS) ---
-                const dependencies: Record<string, string> = {
-                    "next": "latest",
-                    "react": "latest",
-                    "react-dom": "latest"
-                };
-
+                // Recherche des versions via package-json
+                const dependencies: Record<string, string> = { "next": "latest", "react": "latest", "react-dom": "latest" };
                 for (const pkg of packagesToInstall) {
                     dependencies[pkg] = await getPackageVersion(pkg);
                 }
 
-                // --- AGENT 7: PACKAGE GENERATOR (CRÉATION DU package.json via XML) ---
                 const packageJsonContent = JSON.stringify({
-                    name: "project-40-app",
-                    version: "0.1.0",
-                    private: true,
+                    name: "project-40-app", version: "0.1.0", private: true,
                     scripts: { "dev": "next dev", "build": "next build", "start": "next start" },
                     dependencies: dependencies
                 }, null, 2);
@@ -183,22 +185,19 @@ export async function POST(req: Request) {
 
             // --- AGENT 5: VERIFICATOR ---
             send("\n→ 🔍 Validation...\n");
-            const validatorRes = await ai.models.generateContent({
-              model,
-              contents: [{ role: 'user', parts: [{ text: `Code final à vérifier:\n${fullCode}` }] }],
-              config: { systemInstruction: "Réponds 'CONFIRME' si le code respecte le XML et la stack, sinon liste les erreurs." }
-            });
-            const validationReport = validatorRes.candidates[0].content.parts[0].text;
+            const validatorRes = await genModel.generateContent([
+              { text: `Code final à vérifier:\n${fullCode}` }
+            ], { systemInstruction: "Réponds 'CONFIRME' si le code respecte le XML et la stack, sinon liste les erreurs." });
+            const validationReport = validatorRes.response.text();
 
             if (!validationReport.includes("CONFIRME")) {
               send("→ 🛠️ Correction automatique...\n");
-              const fixerRes = await ai.models.generateContentStream({
-                model,
-                contents: [{ role: 'user', parts: [{ text: `Corrige ces erreurs: ${validationReport} dans ce code: ${fullCode}` }] }],
-                config: { systemInstruction: FULL_PROMPT_INJECTION }
-              });
-              for await (const chunk of fixerRes) {
-                if (chunk.text) send(chunk.text);
+              const fixerRes = await genModel.generateContentStream([
+                { text: `Corrige ces erreurs: ${validationReport} dans ce code: ${fullCode}` }
+              ], { systemInstruction: FULL_PROMPT_INJECTION });
+              for await (const chunk of fixerRes.stream) {
+                const text = chunk.text();
+                if (text) send(text);
               }
             }
           }
@@ -220,4 +219,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Server Error: " + err.message }, { status: 500 })
   }
-     }
+                               }
