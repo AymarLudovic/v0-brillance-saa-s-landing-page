@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     // Ajout de uploadFiles extrait du body
-    const { history, uploadedFiles, uploadedImages } = body;
+    const { history } = body;
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = "gemini-3-flash-preview"; 
