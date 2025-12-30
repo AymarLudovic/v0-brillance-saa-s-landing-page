@@ -58,7 +58,8 @@ import {
   Download,
   Loader,
   LogOut,
-  Trash2
+  Trash2,
+  ImagePlus
 } from "lucide-react"
 
 
@@ -4346,24 +4347,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 </button>
             </div>
         ))}
-        {uploadedImages.length > 0 && (
-    <div className="flex flex-wrap gap-2 p-1 mt-1">
-        {uploadedImages.map((src, index) => (
-            <div key={index} className="relative w-[40px] h-[40px] rounded-[10px] overflow-hidden group">
-                <img 
-                    src={src} 
-                    alt={`Uploaded image ${index + 1}`} 
-                    className="w-full h-full object-cover"
-                />
-                <button
-                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
-                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
-                    title="Remove"
-                >
-                    <X size={18} color="#000" />
-                </button>
-            </div>
-        ))}
+        
     </div>
 )}
         {/* Fichiers Mentionnés (Nouveau) */}
