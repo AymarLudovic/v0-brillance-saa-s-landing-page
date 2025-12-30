@@ -3878,8 +3878,19 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </div>
         </div>
 
-        <div className="flex-grow overflow-y-auto relative">
-          <ScrollArea className="absolute overflow-y-auto inset-0 p-6" viewportRef={chatScrollAreaRef}>
+
+  {!currentProject && (
+    <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center">
+      <h2 className="text-2xl font-semibold text-[#37322F]">Build native web apps, fast.</h2>
+      <p className="text-[rgba(55,50,47,0.6)] mt-2">
+        Rork builds complete, cross-platform mobile apps using AI and Expo (React Native).
+      </p>
+      {/* Tu peux même mettre un bouton ici si tu veux */}
+    </div>
+  )}
+          {currentProject && (
+        <div className="flex-grow w-full overflow-y-auto relative">
+          <ScrollArea className="w-full absolute  overflow-y-auto inset-0 p-6" viewportRef={chatScrollAreaRef}>
             <div className="space-y-6 pb-4">
               
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}
@@ -4099,7 +4110,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-
+)}
 
 
 
