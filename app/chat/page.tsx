@@ -3779,15 +3779,16 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   return (
     <div className="flex h-screen bg-[#fffcf6] font-sans text-[#37322F]">
       
-        <div 
+        
+
+    <div 
   className={`
     h-full flex flex-col bg-[#fffcf6] border-[rgba(55,50,47,0.12)] 
+    /* CONDITION DE LARGEUR : 100% si pas de projet, sinon 40% sur desktop */
+    ${!currentProject ? "w-full flex" : "md:w-[40%] md:flex"}
     
-    
-    md:w-[40%] md:flex
-    
-    
-    ${viewMode === "chat" ? "w-full flex" : "hidden"} 
+    /* GESTION DU MOBILE (viewMode) : Uniquement si un projet existe */
+    ${currentProject ? (viewMode === "chat" ? "w-full flex" : "hidden md:flex") : ""}
   `}
 >
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
@@ -4444,15 +4445,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
         
-          <div 
+          
+
+    <div 
   className={`
     h-full flex flex-col bg-[#fffcf6] 
-    
-    
-    md:w-[60%] md:flex
-    
-    
-    ${viewMode === "preview" ? "w-full flex" : "hidden"}
+    md:w-[60%] 
+    /* Condition : Si pas de projet, on cache tout sauf si on veut afficher un état vide */
+    ${!currentProject ? "hidden" : (viewMode === "preview" ? "flex" : "hidden md:flex")}
   `}
 >
         <div className="flex items-center gap-1 justify-between p-4 flex-shrink-0 h-12  border-[rgba(55,50,47,0.12)]">
