@@ -3881,7 +3881,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {!currentProject && (
     <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center">
-      <h2 className="text-2xl font-semibold text-[#37322F]">Build native web apps, fast.</h2>
+      <h2 className="text-5xl font-semibold text-[#37322F]">Build native web apps, fast.</h2>
       <p className="text-[rgba(55,50,47,0.6)] mt-2">
         Rork builds complete, cross-platform mobile apps using AI and Expo (React Native).
       </p>
