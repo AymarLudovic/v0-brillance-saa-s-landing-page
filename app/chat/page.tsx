@@ -4114,12 +4114,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-<div className="p-1 h-[200px] md:h-[250px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+<div className="p-1 h-[180px] md:h-[230px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
   <div className="relative p-2 flex flex-col h-[170px] md:h-[190px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
+    <div className="flex flex-col h-[10%] rounded-t-[25px] bg-[#FFFAF0] w-full">
      <div className="w-full h-full flex items-center justify-center">
         <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[rgba(55,50,47,0.12)] gap-1">
         
@@ -4206,10 +4206,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full bg-[#FFFAF0] h-[60%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)] p-2 ">
+    <div className="w-full p-2 bg-[#FFFAF0] h-[70%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)] p-2 ">
       <textarea
   placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
-  className="h-full w-full rounded-[8px] border-none outline-none resize-none bg-none"
+  className="h-full w-full text-[19px] font-semibold border-none outline-none resize-none bg-none"
   value={chatInput}
   onChange={(e) => setChatInput(e.target.value)}
   onKeyDown={(e) => {
