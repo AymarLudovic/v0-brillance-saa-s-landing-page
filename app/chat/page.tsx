@@ -3929,7 +3929,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       
       {/* Conteneur du message */}
       <div
-        className={`p-2 rounded-xl max-w-xl group relative ${
+        className={`p-2 rounded-xl w-full relative ${
           msg.role === "user"
             ? "bg-[#37322F] text-white self-end border-[#37322F]"
             : "bg-none text-[#37322F] self-start"
@@ -4114,12 +4114,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-<div className="p-1 h-[180px] md:h-[230px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+<div className="p-1 h-[140px] md:h-[200px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
   <div className="relative p-2 flex flex-col h-[170px] md:h-[190px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[10%] rounded-t-[25px] bg-[#FFFAF0] w-full">
+    <div className="hidden flex-col h-[0%] rounded-t-[25px] bg-[#FFFAF0] w-full">
      <div className="w-full h-full flex items-center justify-center">
         <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[rgba(55,50,47,0.12)] gap-1">
         
@@ -4186,7 +4186,26 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         )}
         
         {/* BOUTON CONNECT DATABASE (Masqué si isCloning est vrai) */}
-        
+        {uploadedImages.length > 0 && (
+    <div className="flex flex-wrap gap-2 p-1 mt-1">
+        {uploadedImages.map((src, index) => (
+            <div key={index} className="relative w-[40px] h-[40px] rounded-[10px] overflow-hidden group">
+                <img 
+                    src={src} 
+                    alt={`Uploaded image ${index + 1}`} 
+                    className="w-full h-full object-cover"
+                />
+                <button
+                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
+                    title="Remove"
+                >
+                    <X size={18} color="#000" />
+                </button>
+            </div>
+        ))}
+    </div>
+)}
 
         
 {/* BOUTON CONNECT DATABASE (Masqué si isCloning est vrai) */}
@@ -4206,10 +4225,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full p-2 bg-[#FFFAF0] h-[70%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)] p-2 ">
+    <div className="w-full p-2 bg-[#FFFAF0] h-[80%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)] p-2 ">
       <textarea
   placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
-  className="h-full w-full text-[19px] font-semibold border-none outline-none resize-none bg-none"
+  className="h-full w-full pl-3 text-[18px] font-semibold border-none outline-none resize-none bg-none"
   value={chatInput}
   onChange={(e) => setChatInput(e.target.value)}
   onKeyDown={(e) => {
@@ -4240,7 +4259,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
   
-  <label className="w-[22px] relative p-1 h-[22px] border border-black rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-100">
+  <label className="w-[30px] relative p-1 h-[30px] border border-[rgba(55,50,47,0.12)] rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-100">
                 <Plus size={16} />
                 <input 
                     type="file" 
@@ -4251,10 +4270,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 />
             </label>
   <label className="flex pr-1 items-center gap-1  cursor-pointer">
-    <div className="h-[22px] w-auto  flex text-[17px] items-center gap-[3px]">
+    <div className="h-[30px] bg-[rgba(55,50,47,0.12)] w-[30px] rounded-full  flex text-[17px] items-center gap-[3px]">
         {/* L'icône du bouton d'upload (utiliser un simple SVG ou une icône) */}
-        <Image size={18} />
-      <p>attach</p>
+        <ImagePlus size={18} />
+      
     </div>
     <input 
         type="file" 
@@ -4299,7 +4318,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 <button
                     key={file.filePath}
                     className={`w-full text-left py-1 px-2 flex items-center gap-2 rounded text-xs transition-all ${
-                        mentionedFiles.includes(file.filePath) ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-gray-100'
+                        mentionedFiles.includes(file.filePath) ? 'bg-[rgba(55,50,47,0.12)] text-black font-medium' : 'hover:bg-gray-100'
                     }`}
                     onClick={() => handleMentionFile(file.filePath)}
                 >
@@ -4328,21 +4347,21 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 <button
                     onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
                     className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
-                    title="Retirer l'image"
+                    title="Remove"
                 >
-                    X
+                    <X size={18} color="#000" />
                 </button>
             </div>
         ))}
         {/* Fichiers Externes (Nouveau) */}
         {uploadedFiles.map((file, index) => (
-            <div key={`file-${index}`} className="flex items-center gap-1.5 h-[24px] border border-black rounded-[8px] bg-[#F7F5FF] px-2 text-sm max-w-xs truncate">
+            <div key={`file-${index}`} className="flex items-center gap-1.5 h-[24px] border border-black rounded-[8px] bg-[rgba(55,50,47,0.12)] px-2 text-sm max-w-xs truncate">
                 {file.fileName}
                 <button 
                     onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
-                    className="text-xs text-red-600 font-bold"
+                    className="text-xs text-black font-bold"
                 >
-                    ×
+                    <X size={18} color="#000" />
                 </button>
             </div>
         ))}
@@ -4370,37 +4389,18 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 {/* ZONE D'AFFICHAGE DES IMAGES UPLOADEES */}
-{uploadedImages.length > 0 && (
-    <div className="flex flex-wrap gap-2 p-1 border-t border-gray-200 mt-1">
-        {uploadedImages.map((src, index) => (
-            <div key={index} className="relative w-[40px] h-[40px] rounded-[10px] overflow-hidden group">
-                <img 
-                    src={src} 
-                    alt={`Uploaded image ${index + 1}`} 
-                    className="w-full h-full object-cover"
-                />
-                <button
-                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
-                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
-                    title="Remove"
-                >
-                    X
-                </button>
-            </div>
-        ))}
-    </div>
-)}
 
-<button className="h-[24px] w-auto bg-transparent px-3 flex items-center gap-[2px] text-[17px] text-black">
+
+<button className="h-[24px] w-auto bg-transparent px-3 hidden items-center gap-[2px] text-[17px] text-black">
          <svg className="h-[20px] w-[20px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
          <p>Plan</p>
 </button>
         <Button
-      className=" bg-[#37322F] -ml-[2px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-full flex items-center justify-center p-1"
+      className=" bg-[#37322F] mb-1 -ml-[8px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[31px] w-[31px] rounded-full flex items-center justify-center p-1"
       onClick={() => sendChat()}
       disabled={loading || !chatInput || !currentProject}
     >
-      <ArrowUp size={16} /> 
+      <ArrowUp size={18} /> 
     </Button>
       </div>
     </div>
