@@ -3854,6 +3854,19 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           No projects yet. Create one!
         </div>
       )}
+       <div className="flex items-center">
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={createNewProject}
+              className="bg-[#37322F] gap-2 hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[100%] rounded-[12px] flex items-center justify-start p-1"
+              
+            >
+              <Plus className="h-4 w-4" />
+             Create new project
+            </Button>
+          </div>
     </div>
   )}
 </div>
@@ -3862,18 +3875,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             
             
           </div>
-          <div className="flex items-center">
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={createNewProject}
-              className="bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white h-[24px] w-[24px] rounded-[12px] flex items-center justify-center p-1"
-              
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+       
           <div className="flex items-center gap-2">
             
           </div>
@@ -4349,22 +4351,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         ))}
         {uploadedImages.length > 0 && (
     <div className="flex flex-wrap gap-2 p-1 mt-1">
-        {uploadedImages.map((src, index) => (
-            <div key={index} className="relative w-[40px] h-[40px] rounded-[10px] overflow-hidden group">
-                <img 
-                    src={src} 
-                    alt={`Uploaded image ${index + 1}`} 
-                    className="w-full h-full object-cover"
-                />
-                <button
-                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
-                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
-                    title="Remove"
-                >
-                    <X size={18} color="#000" />
-                </button>
-            </div>
-        ))}
+        
     </div>
 )}
         {/* Fichiers Mentionnés (Nouveau) */}
@@ -4398,7 +4385,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
          <p>Plan</p>
 </button>
         <Button
-      className=" bg-[#37322F] mb-1 -ml-[8px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[31px] w-[31px] rounded-full flex items-center justify-center p-1"
+      className=" bg-[#37322F] mb-1 -ml-[8px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[30px] rounded-full flex items-center justify-center p-1"
       onClick={() => sendChat()}
       disabled={loading || !chatInput || !currentProject}
     >
