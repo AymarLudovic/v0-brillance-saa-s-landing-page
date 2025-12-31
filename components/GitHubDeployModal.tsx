@@ -160,30 +160,30 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-[900px] h-[700px] bg-[#0f0f0f] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+            <div className="relative w-[900px] h-[700px] bg-[#000] rounded-2xl border border-black/10  flex flex-col overflow-hidden">
                 
-                <div className="flex justify-between items-center p-5 border-b border-white/5 bg-[#141414]">
+                <div className="flex justify-between items-center p-5 border-b border-black/5 bg-[#111]">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-white/5 rounded-lg border border-white/10">
                             <Github size={20} className="text-white" />
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-white">Push to GitHub</h2>
-                            <p className="text-xs text-gray-500">Git Plumbing Pipeline</p>
+                            <p className="text-xs text-[#888]">Git Pipeline</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+                    <button onClick={onClose} className="text-[#888] hover:text-white transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
                 <div className="flex-1 p-6 flex gap-6 overflow-hidden">
                     
-                    <div className="w-1/3 flex flex-col gap-5 border-r border-white/5 pr-6 overflow-y-auto">
+                    <div className="w-1/3 flex flex-col gap-5 border-r border-black/5 pr-6 overflow-y-auto">
                         
                         <div className="flex flex-col gap-2">
                             <div className="flex justify-between">
-                                <label className="text-xs font-medium text-gray-400 uppercase">Personal Access Token</label>
+                                <label className="text-xs font-medium text-[#777] uppercase">Personal Access Token</label>
                                 {token && <span className="text-[10px] text-green-500 flex items-center gap-1"><Check size={10}/> Saved</span>}
                             </div>
                             <div className="relative">
@@ -191,8 +191,8 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                     type="password" 
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
-                                    placeholder="ghp_..."
-                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30 transition-colors pr-8"
+                                    placeholder="Your github access token...."
+                                    className="w-full bg-[#222] border border-black/10 rounded-[12px] px-3 py-1 text-sm text-white focus:outline-none focus:border-white/30 transition-colors pr-8"
                                 />
                                 <Save size={12} className="absolute right-3 top-3 text-gray-600" />
                             </div>
@@ -209,12 +209,12 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                     value={repoName}
                                     onChange={(e) => setRepoName(e.target.value)}
                                     placeholder="my-awesome-project"
-                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30"
+                                    className="w-full bg-[#222] border border-black/10 rounded-[12px] px-3 py-1 text-sm text-white focus:outline-none focus:border-white/30"
                                 />
                             </div>
 
                             <div className="flex flex-col gap-1">
-                                <label className="text-xs font-medium text-gray-400 uppercase flex items-center gap-1">
+                                <label className="text-xs font-medium text-[#777] uppercase flex items-center gap-1">
                                     <GitBranch size={12}/> Branch
                                 </label>
                                 <input 
@@ -222,12 +222,12 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                     value={branch}
                                     onChange={(e) => setBranch(e.target.value)}
                                     placeholder="main"
-                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30"
+                                    className="w-full bg-[#222] border border-black/10 rounded-lg px-3 py-1 text-sm text-white focus:outline-none focus:border-white/30"
                                 />
                             </div>
 
                             <div className="flex flex-col gap-1">
-                                <label className="text-xs font-medium text-gray-400 uppercase flex items-center gap-1">
+                                <label className="text-xs font-medium text-[#777] uppercase flex items-center gap-1">
                                     <GitCommit size={12}/> Commit Message
                                 </label>
                                 <input 
@@ -243,9 +243,9 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         <button 
                             onClick={handlePushToGitHub}
                             disabled={isDeploying || !token || !repoName}
-                            className={`mt-auto w-full py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                            className={`mt-auto w-full py-2.5 rounded-[13px] text-sm font-bold flex items-center justify-center gap-2 transition-all ${
                                 isDeploying 
-                                ? 'bg-gray-800 text-gray-400 cursor-not-allowed' 
+                                ? 'bg-[#999] text-black cursor-not-allowed' 
                                 : 'bg-white text-black hover:bg-gray-200'
                             }`}
                         >
@@ -257,9 +257,9 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         </button>
                     </div>
 
-                    <div className="flex-1 flex flex-col gap-2 bg-black rounded-lg border border-white/10 p-4 font-mono text-xs h-full overflow-hidden shadow-inner">
+                    <div className="flex-1 flex flex-col gap-2 bg-black rounded-[12px] border border-white/10 p-4 font-mono text-xs h-full overflow-hidden shadow-inner">
                          <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1">
-                            <span className="text-gray-500 flex items-center gap-2 uppercase tracking-wider text-[10px]">
+                            <span className="text-[#555] flex items-center gap-2 uppercase tracking-wider text-[10px]">
                                 <Terminal size={12} /> Git Output
                             </span>
                             {isDeploying && <span className="text-green-500 text-[10px] animate-pulse">● Live</span>}
@@ -273,7 +273,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                             )}
                             {logs.map((log) => (
                                 <div key={log.id} className="flex gap-3 items-start">
-                                    <span className="text-gray-700 shrink-0 select-none w-[60px] text-[10px] pt-[1px]">{log.timestamp}</span>
+                                    <span className="text-[#888] shrink-0 select-none w-[60px] text-[10px] pt-[1px]">{log.timestamp}</span>
                                     <span className={`break-all ${
                                         log.type === 'error' ? 'text-red-400 font-bold' :
                                         log.type === 'success' ? 'text-green-400' :
