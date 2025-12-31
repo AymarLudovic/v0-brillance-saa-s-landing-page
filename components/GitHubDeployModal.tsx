@@ -175,7 +175,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         </div>
                         {/* Utilisation de la même icône 3D ou Github */}
                         <div className="bg-[#0a0a0a] p-3 rounded-2xl border border-white/5 shadow-inner">
-                            <Github size={32} className="text-white" />
+                            <img className="h-[80px] object-cover" src="/3dicons-locker-dynamic-premium.png" alt="Logo images" />
                         </div>
                     </div>
 
@@ -189,7 +189,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                     type="password"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
-                                    placeholder="ghp_xxxxxxxxxxxx"
+                                    placeholder="Your github Access token...."
                                     className="bg-transparent border-none outline-none text-xs text-white w-full placeholder:text-[#444]"
                                 />
                                 {token && <Check size={14} className="text-green-500" />}
@@ -199,7 +199,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         {/* Repo & Branch (Côté à côte pour gagner de la place) */}
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Repo Name</label>
+                                <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Repo name</label>
                                 <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
                                     <input 
                                         type="text"
