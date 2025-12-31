@@ -1,8 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Github, Loader, Check, Terminal, Save, GitBranch, GitCommit, FolderGit2, ArrowRight, Copy } from 'lucide-react'; 
-import { ArrowUp } from 'lucide-react'; // Pour matcher le style du lien
+import { X, Github, Loader, Check, Terminal, GitBranch, GitCommit, ArrowRight } from 'lucide-react'; 
+import { ArrowUp } from 'lucide-react';
 
 const DB_NAME = 'StudioCodeDB';
 const DB_VERSION = 2; 
@@ -123,7 +123,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         const data = JSON.parse(line);
                         if (data.type === 'DONE') {
                             setRepoUrl(data.url);
-                            setIsDeploying(false);
+                            setIsDeploying(false); // Arrête le spin ici
                         } else {
                             setLogs(prev => [...prev, {
                                 id: Math.random().toString(),
@@ -147,10 +147,8 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             
-            {/* Conteneur Principal (Style ApiKeyModal) */}
-            <div className="relative w-[420px] max-h-[90vh] bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="relative w-[420px] max-h-[95vh] bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
                 
-                {/* Bouton Fermer */}
                 <button 
                     onClick={onClose}
                     className="absolute top-4 right-4 p-1.5 rounded-full bg-black/20 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-20"
@@ -160,10 +158,10 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
 
                 <div className="flex-1 p-6 flex flex-col overflow-y-auto custom-scrollbar">
                     
-                    {/* Header (Style ApiKeyModal) */}
+                    {/* Header */}
                     <div className="flex justify-between items-start bg-[#111] rounded-[12px] mb-6 p-4 border border-white/5 shrink-0">
                         <div>
-                            <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#000] border border-white/10 text-[10px] font-medium text-[#e4e4e4] mb-2 uppercase tracking-wider">
+                            <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#000] border border-white/10 text-[10px] font-medium text-[#e4e4e4] mb-2 tracking-wider">
                                 Git Pipeline
                             </div>
                             <h2 className="text-xl font-bold text-white leading-tight">
@@ -173,33 +171,30 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                 Deploy your code to a repository.
                             </p>
                         </div>
-                        {/* Utilisation de la même icône 3D ou Github */}
-                        <div className="bg-[#0a0a0a] p-3 rounded-2xl border border-white/5 shadow-inner">
-                            <img className="h-[80px] object-cover" src="/3dicons-locker-dynamic-premium.png" alt="Logo images" />
+                        <div className="bg-[#0a0a0a] p-1 rounded-2xl border border-white/5 shadow-inner">
+                            <img className="h-[70px] w-[70px] object-contain" src="/3dicons-locker-dynamic-premium.png" alt="Locker Icon" />
                         </div>
                     </div>
 
-                    {/* Formulaire (Style ApiKeyModal) */}
-                    <div className="space-y-4 mb-6">
-                        {/* Token Field */}
+                    {/* Formulaire */}
+                    <div className="space-y-4 mb-6 shrink-0">
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Personal Access Token</label>
+                            <label className="text-[10px] font-bold text-[#666] ml-1">Personal access token</label>
                             <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
                                 <input 
                                     type="password"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
-                                    placeholder="Your github Access token...."
+                                    placeholder="Your GitHub access token...."
                                     className="bg-transparent border-none outline-none text-xs text-white w-full placeholder:text-[#444]"
                                 />
                                 {token && <Check size={14} className="text-green-500" />}
                             </div>
                         </div>
 
-                        {/* Repo & Branch (Côté à côte pour gagner de la place) */}
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Repo name</label>
+                                <label className="text-[10px] font-bold text-[#666] ml-1">Repo name</label>
                                 <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
                                     <input 
                                         type="text"
@@ -210,7 +205,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                 </div>
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Branch</label>
+                                <label className="text-[10px] font-bold text-[#666] ml-1">Branch</label>
                                 <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
                                     <input 
                                         type="text"
@@ -222,9 +217,8 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                             </div>
                         </div>
 
-                        {/* Commit Message */}
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Commit Message</label>
+                            <label className="text-[10px] font-bold text-[#666] ml-1">Commit message</label>
                             <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
                                 <input 
                                     type="text"
@@ -236,9 +230,9 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         </div>
                     </div>
 
-                    {/* Git Output (Terminal réinventé style ApiKeyModal logs) */}
-                    <div className="flex-1 min-h-[120px] bg-[#050505] rounded-xl border border-white/5 p-3 font-mono text-[10px] overflow-y-auto mb-6 custom-scrollbar">
-                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 text-[#444] uppercase tracking-tighter font-bold">
+                    {/* Git Output - Fixé en hauteur pour ne pas bouger le modal */}
+                    <div className="h-[140px] shrink-0 bg-[#050505] rounded-xl border border-white/5 p-3 font-mono text-[10px] overflow-y-auto mb-6 custom-scrollbar">
+                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 text-[#444] tracking-tighter font-bold">
                             <Terminal size={10} /> Git Output
                         </div>
                         <div className="space-y-1">
@@ -246,7 +240,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                 <p className="text-[#333] italic">Ready to deploy...</p>
                             )}
                             {logs.map((log) => (
-                                <div key={log.id} className="flex gap-2">
+                                <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-left-1">
                                     <span className={`shrink-0 ${
                                         log.type === 'error' ? 'text-red-500' :
                                         log.type === 'success' ? 'text-green-500' : 'text-[#666]'
@@ -260,11 +254,11 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         </div>
                     </div>
 
-                    {/* Bouton Action Principal (Style ApiKeyModal) */}
+                    {/* Bouton Action */}
                     <button 
                         onClick={handlePushToGitHub}
                         disabled={isDeploying || !token || !repoName}
-                        className={`w-full h-11 rounded-[12px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
+                        className={`w-full h-11 shrink-0 rounded-[12px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
                             isDeploying 
                             ? 'bg-[#1a1a1a] text-[#444] cursor-not-allowed' 
                             : 'bg-white text-black hover:bg-gray-200 shadow-white/5'
@@ -273,28 +267,39 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         {isDeploying ? (
                             <><Loader size={16} className="animate-spin" /> Deploying...</>
                         ) : (
-                            <>Push Changes <ArrowRight size={16} /></>
+                            <>Push changes <ArrowRight size={16} /></>
                         )}
                     </button>
 
-                    {/* Footer Links (Style ApiKeyModal) */}
-                    <div className="mt-4 flex flex-col items-center gap-1">
+                    {/* Footer Links */}
+                    <div className="mt-4 flex flex-col items-center gap-1 shrink-0 pb-2">
                         {repoUrl ? (
                             <a 
                                 href={repoUrl} 
                                 target="_blank" 
-                                className="text-[10px] text-green-400 hover:text-green-300 transition-colors flex items-center gap-1 underline decoration-dotted"
+                                className="text-[10px] text-green-400 hover:text-green-300 transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-4"
                             >
                                 View repository on GitHub <ArrowUp size={10} className="rotate-45" />
                             </a>
                         ) : (
-                            <p className="text-[10px] text-[#444]">
-                                Requires 'repo' scope on your Personal Access Token.
-                            </p>
+                            <div className="flex flex-col items-center gap-1">
+                                <p className="text-[10px] text-[#444]">
+                                    Make sure to check the <span className="text-[#666] font-bold">repo</span> scope.
+                                </p>
+                                <a 
+                                    href="https://github.com/settings/tokens/new?scopes=repo&description=StudioCode" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-[#888] hover:text-white transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-4"
+                                >
+                                    Get your access token here
+                                    <ArrowUp size={10} className="rotate-45" />
+                                </a>
+                            </div>
                         )}
                     </div>
                 </div>
             </div>
         </div>
     );
-  }
+           }
