@@ -90,7 +90,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
         await saveGitHubTokenToIDB(val);
     };
 
-    const handlePushToGitHub = async () => {
+const handlePushToGitHub = async () => {
         if (!token || !repoName) return;
         setIsDeploying(true);
         setLogs([]);
@@ -116,15 +116,28 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                 if (done) break;
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
+                
                 for (let i = 0; i < lines.length - 1; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
                     try {
                         const data = JSON.parse(line);
+                        
+                        // CONDITION DE FIN 1 : Type DONE
                         if (data.type === 'DONE') {
                             setRepoUrl(data.url);
-                            setIsDeploying(false); // Arrête le spin ici
-                        } else {
+                            setIsDeploying(false);
+                        } 
+                        
+                        // AJOUT : On scanne aussi le message pour arrêter le bouton
+                        if (data.message && data.message.includes('🚀')) {
+                            setIsDeploying(false);
+                            // Si l'URL est dans le message mais pas encore en state
+                            if (data.url) setRepoUrl(data.url);
+                        }
+
+                        // Mise à jour des logs
+                        if (data.type !== 'DONE') {
                             setLogs(prev => [...prev, {
                                 id: Math.random().toString(),
                                 timestamp: data.timestamp,
@@ -132,7 +145,9 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                 type: data.type
                             }]);
                         }
-                    } catch (e) {}
+                    } catch (e) {
+                        console.error("Parse error", e);
+                    }
                 }
                 buffer = lines[lines.length - 1];
             }
