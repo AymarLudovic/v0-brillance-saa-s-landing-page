@@ -34,18 +34,19 @@ export async function POST(req: Request) {
     } else {
         // 1.B. S'il n'existe pas, on le CRÉE explicitement avec le framework Next.js
         console.log("Projet introuvable, création en cours...");
-        const createProjectRes = await fetch('https://api.vercel.com/v9/projects', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                name: cleanProjectName,
-                framework: 'nextjs', // <--- CRUCIAL : On dit à Vercel "C'est du Next.js !"
-                gitRepository: null // Pas de git lié
-            }),
-        });
+        // ... à l'intérieur de la condition !getProjectRes.ok
+const createProjectRes = await fetch('https://api.vercel.com/v13/projects', {
+    method: 'POST',
+    headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+        name: cleanProjectName,
+        framework: 'nextjs',
+        // On retire gitRepository: null ici
+    }),
+});
 
         if (!createProjectRes.ok) {
             const err = await createProjectRes.json();
