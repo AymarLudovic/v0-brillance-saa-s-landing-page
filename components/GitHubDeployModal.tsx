@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Github, Loader, Check, Terminal, Save, GitBranch, GitCommit, FolderGit2, ArrowRight, RefreshCw } from 'lucide-react'; 
+import { X, Github, Loader, Check, Terminal, Save, GitBranch, GitCommit, FolderGit2, ArrowRight, Copy } from 'lucide-react'; 
+import { ArrowUp } from 'lucide-react'; // Pour matcher le style du lien
 
 const DB_NAME = 'StudioCodeDB';
 const DB_VERSION = 2; 
@@ -90,11 +91,7 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
     };
 
     const handlePushToGitHub = async () => {
-        if (!token || !repoName) {
-            setLogs(p => [...p, { id: Date.now().toString(), timestamp: '', message: 'Missing token or repo name', type: 'error' }]);
-            return;
-        }
-
+        if (!token || !repoName) return;
         setIsDeploying(true);
         setLogs([]);
         setRepoUrl(null);
@@ -104,16 +101,12 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    token,
-                    repoName,
-                    branch,
-                    commitMessage,
+                    token, repoName, branch, commitMessage,
                     files: currentProject.files
                 })
             });
 
-            if (!response.body) throw new Error("No response from server");
-
+            if (!response.body) throw new Error("No response");
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -121,17 +114,13 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
-                
                 for (let i = 0; i < lines.length - 1; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
-                    
                     try {
                         const data = JSON.parse(line);
-                        
                         if (data.type === 'DONE') {
                             setRepoUrl(data.url);
                             setIsDeploying(false);
@@ -143,13 +132,10 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                                 type: data.type
                             }]);
                         }
-                    } catch (e) {
-                        console.error("Error parsing log line:", line);
-                    }
+                    } catch (e) {}
                 }
                 buffer = lines[lines.length - 1];
             }
-
         } catch (error: any) {
             setLogs(prev => [...prev, { id: 'err', timestamp: '', message: error.message, type: 'error' }]);
             setIsDeploying(false);
@@ -160,126 +146,112 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-[900px] h-[700px] bg-[#000] rounded-2xl border border-black/10  flex flex-col overflow-hidden">
+            
+            {/* Conteneur Principal (Style ApiKeyModal) */}
+            <div className="relative w-[420px] max-h-[90vh] bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
                 
-                <div className="flex justify-between items-center p-5 border-b border-black/5 bg-[#111]">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/5 rounded-lg border border-white/10">
-                            <Github size={20} className="text-white" />
-                        </div>
+                {/* Bouton Fermer */}
+                <button 
+                    onClick={onClose}
+                    className="absolute top-4 right-4 p-1.5 rounded-full bg-black/20 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-20"
+                >
+                    <X size={18} />
+                </button>
+
+                <div className="flex-1 p-6 flex flex-col overflow-y-auto custom-scrollbar">
+                    
+                    {/* Header (Style ApiKeyModal) */}
+                    <div className="flex justify-between items-start bg-[#111] rounded-[12px] mb-6 p-4 border border-white/5 shrink-0">
                         <div>
-                            <h2 className="text-lg font-bold text-white">Push to GitHub</h2>
-                            <p className="text-xs text-[#888]">Git Pipeline</p>
+                            <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#000] border border-white/10 text-[10px] font-medium text-[#e4e4e4] mb-2 uppercase tracking-wider">
+                                Git Pipeline
+                            </div>
+                            <h2 className="text-xl font-bold text-white leading-tight">
+                                Push to GitHub
+                            </h2>
+                            <p className="text-[11px] text-[#888] mt-1">
+                                Deploy your code to a repository.
+                            </p>
+                        </div>
+                        {/* Utilisation de la même icône 3D ou Github */}
+                        <div className="bg-[#0a0a0a] p-3 rounded-2xl border border-white/5 shadow-inner">
+                            <Github size={32} className="text-white" />
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-[#888] hover:text-white transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
 
-                <div className="flex-1 p-6 flex gap-6 overflow-hidden">
-                    
-                    <div className="w-1/3 flex flex-col gap-5 border-r border-black/5 pr-6 overflow-y-auto">
-                        
-                        <div className="flex flex-col gap-2">
-                            <div className="flex justify-between">
-                                <label className="text-xs font-medium text-[#777] uppercase">Personal Access Token</label>
-                                {token && <span className="text-[10px] text-green-500 flex items-center gap-1"><Check size={10}/> Saved</span>}
-                            </div>
-                            <div className="relative">
+                    {/* Formulaire (Style ApiKeyModal) */}
+                    <div className="space-y-4 mb-6">
+                        {/* Token Field */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Personal Access Token</label>
+                            <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
                                 <input 
-                                    type="password" 
+                                    type="password"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
-                                    placeholder="Your github access token...."
-                                    className="w-full bg-[#222] border border-black/10 rounded-[12px] px-3 py-1 text-sm text-white focus:outline-none focus:border-white/30 transition-colors pr-8"
+                                    placeholder="ghp_xxxxxxxxxxxx"
+                                    className="bg-transparent border-none outline-none text-xs text-white w-full placeholder:text-[#444]"
                                 />
-                                <Save size={12} className="absolute right-3 top-3 text-gray-600" />
+                                {token && <Check size={14} className="text-green-500" />}
                             </div>
-                            <p className="text-[10px] text-gray-600">Requires 'repo' scope.</p>
                         </div>
 
-                        <div className="flex flex-col gap-3">
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-medium text-gray-400 uppercase flex items-center gap-1">
-                                    <FolderGit2 size={12}/> Repository Name
-                                </label>
-                                <input 
-                                    type="text" 
-                                    value={repoName}
-                                    onChange={(e) => setRepoName(e.target.value)}
-                                    placeholder="my-awesome-project"
-                                    className="w-full bg-[#222] border border-black/10 rounded-[12px] px-3 py-1 text-sm text-white focus:outline-none focus:border-white/30"
-                                />
+                        {/* Repo & Branch (Côté à côte pour gagner de la place) */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Repo Name</label>
+                                <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
+                                    <input 
+                                        type="text"
+                                        value={repoName}
+                                        onChange={(e) => setRepoName(e.target.value)}
+                                        className="bg-transparent border-none outline-none text-xs text-white w-full"
+                                    />
+                                </div>
                             </div>
-
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-medium text-[#777] uppercase flex items-center gap-1">
-                                    <GitBranch size={12}/> Branch
-                                </label>
-                                <input 
-                                    type="text" 
-                                    value={branch}
-                                    onChange={(e) => setBranch(e.target.value)}
-                                    placeholder="main"
-                                    className="w-full bg-[#222] border border-black/10 rounded-lg px-3 py-1 text-sm text-white focus:outline-none focus:border-white/30"
-                                />
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Branch</label>
+                                <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
+                                    <input 
+                                        type="text"
+                                        value={branch}
+                                        onChange={(e) => setBranch(e.target.value)}
+                                        className="bg-transparent border-none outline-none text-xs text-white w-full"
+                                    />
+                                </div>
                             </div>
+                        </div>
 
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-medium text-[#777] uppercase flex items-center gap-1">
-                                    <GitCommit size={12}/> Commit Message
-                                </label>
+                        {/* Commit Message */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#666] uppercase ml-1">Commit Message</label>
+                            <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
                                 <input 
-                                    type="text" 
+                                    type="text"
                                     value={commitMessage}
                                     onChange={(e) => setCommitMessage(e.target.value)}
-                                    placeholder="Initial commit"
-                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30"
+                                    className="bg-transparent border-none outline-none text-xs text-white w-full placeholder:text-[#444]"
                                 />
                             </div>
                         </div>
-                        
-                        <button 
-                            onClick={handlePushToGitHub}
-                            disabled={isDeploying || !token || !repoName}
-                            className={`mt-auto w-full py-2.5 rounded-[13px] text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                                isDeploying 
-                                ? 'bg-[#999] text-black cursor-not-allowed' 
-                                : 'bg-white text-black hover:bg-gray-200'
-                            }`}
-                        >
-                            {isDeploying ? (
-                                <><Loader size={14} className="animate-spin" /> Pushing...</>
-                            ) : (
-                                'Push Changes'
-                            )}
-                        </button>
                     </div>
 
-                    <div className="flex-1 flex flex-col gap-2 bg-black rounded-[12px] border border-white/10 p-4 font-mono text-xs h-full overflow-hidden shadow-inner">
-                         <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1">
-                            <span className="text-[#555] flex items-center gap-2 uppercase tracking-wider text-[10px]">
-                                <Terminal size={12} /> Git Output
-                            </span>
-                            {isDeploying && <span className="text-green-500 text-[10px] animate-pulse">● Live</span>}
-                         </div>
-
-                        <div className="flex-1 overflow-y-auto space-y-1">
+                    {/* Git Output (Terminal réinventé style ApiKeyModal logs) */}
+                    <div className="flex-1 min-h-[120px] bg-[#050505] rounded-xl border border-white/5 p-3 font-mono text-[10px] overflow-y-auto mb-6 custom-scrollbar">
+                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 text-[#444] uppercase tracking-tighter font-bold">
+                            <Terminal size={10} /> Git Output
+                        </div>
+                        <div className="space-y-1">
                             {logs.length === 0 && (
-                                <div className="text-gray-700 italic h-full flex items-center justify-center">
-                                    Waiting to push...
-                                </div>
+                                <p className="text-[#333] italic">Ready to deploy...</p>
                             )}
                             {logs.map((log) => (
-                                <div key={log.id} className="flex gap-3 items-start">
-                                    <span className="text-[#888] shrink-0 select-none w-[60px] text-[10px] pt-[1px]">{log.timestamp}</span>
-                                    <span className={`break-all ${
-                                        log.type === 'error' ? 'text-red-400 font-bold' :
-                                        log.type === 'success' ? 'text-green-400' :
-                                        log.type === 'warning' ? 'text-yellow-400' :
-                                        'text-gray-300'
-                                    }`}>
+                                <div key={log.id} className="flex gap-2">
+                                    <span className={`shrink-0 ${
+                                        log.type === 'error' ? 'text-red-500' :
+                                        log.type === 'success' ? 'text-green-500' : 'text-[#666]'
+                                    }`}>•</span>
+                                    <span className={log.type === 'error' ? 'text-red-400' : 'text-gray-400'}>
                                         {log.message}
                                     </span>
                                 </div>
@@ -288,25 +260,41 @@ export default function GitHubDeployModal({ currentProject, isOpen, onClose }: G
                         </div>
                     </div>
 
-                </div>
+                    {/* Bouton Action Principal (Style ApiKeyModal) */}
+                    <button 
+                        onClick={handlePushToGitHub}
+                        disabled={isDeploying || !token || !repoName}
+                        className={`w-full h-11 rounded-[12px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
+                            isDeploying 
+                            ? 'bg-[#1a1a1a] text-[#444] cursor-not-allowed' 
+                            : 'bg-white text-black hover:bg-gray-200 shadow-white/5'
+                        }`}
+                    >
+                        {isDeploying ? (
+                            <><Loader size={16} className="animate-spin" /> Deploying...</>
+                        ) : (
+                            <>Push Changes <ArrowRight size={16} /></>
+                        )}
+                    </button>
 
-                {repoUrl && (
-                    <div className="p-4 border-t border-white/5 bg-green-900/20 flex justify-between items-center animate-in slide-in-from-bottom-2">
-                        <span className="text-green-400 text-xs flex items-center gap-2">
-                            <Check size={14} /> Repository successfully updated!
-                        </span>
-                        <a 
-                            href={repoUrl} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="px-4 py-1.5 bg-green-600 text-white rounded-md text-xs font-bold hover:bg-green-500 flex items-center gap-2 transition-all"
-                        >
-                            View on GitHub <ArrowRight size={12} />
-                        </a>
+                    {/* Footer Links (Style ApiKeyModal) */}
+                    <div className="mt-4 flex flex-col items-center gap-1">
+                        {repoUrl ? (
+                            <a 
+                                href={repoUrl} 
+                                target="_blank" 
+                                className="text-[10px] text-green-400 hover:text-green-300 transition-colors flex items-center gap-1 underline decoration-dotted"
+                            >
+                                View repository on GitHub <ArrowUp size={10} className="rotate-45" />
+                            </a>
+                        ) : (
+                            <p className="text-[10px] text-[#444]">
+                                Requires 'repo' scope on your Personal Access Token.
+                            </p>
+                        )}
                     </div>
-                )}
-
+                </div>
             </div>
         </div>
     );
-                  }
+  }
