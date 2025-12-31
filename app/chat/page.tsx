@@ -3797,16 +3797,16 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             <div className="flex items-center gap-3">
 {/* Import nécessaire en haut : import { Trash2, ChevronsUpDown } from 'lucide-react' */}
 
-<div className="relative w-[80%]">
+<div className="relative w-[250px]">
   {/* Bouton AFFICHEUR */}
   <button
     onClick={() => setShowProjectSelect(!showProjectSelect)}
-    className="flex items-center w-[80%] gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium max-w-[150px] text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
+    className="flex items-center w-[80%] gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium  text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
   >
     <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px] shrink-0">
         <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
     </div>
-    <span className=" flex-1 x-fukl text-left">
+    <span className=" w-full white-space-none">
       {currentProject?.name || "Select a Project"}
     </span>
     <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
@@ -4207,7 +4207,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full p-2 bg-[#FFFAF0] h-[60%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)] p-2 ">
+    <div className="w-full  bg-[#FFFAF0] h-[60%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)]  ">
       <textarea
   placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
   className="h-full w-full pl-3 text-[18px] font-semibold border-none outline-none resize-none bg-none"
