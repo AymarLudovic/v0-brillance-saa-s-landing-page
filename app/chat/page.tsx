@@ -3860,7 +3860,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               variant="ghost"
               size="icon"
               onClick={createNewProject}
-              className="bg-[#37322F] gap-2 hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[100%] rounded-[12px] flex items-center justify-start p-1"
+              className="bg-[#37322F] gap-[2px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[100%] rounded-[8px] flex items-center justify-start p-1"
               
             >
               <Plus className="h-4 w-4" />
@@ -4123,7 +4123,59 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
     <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
+        
      <div className="w-full h-full flex items-center justify-center">
+         {(uploadedImages.length > 0 || uploadedFiles.length > 0 || mentionedFiles.length > 0) && (
+    <div className="flex flex-wrap gap-1.5 p-1 border-t border-gray-200 mt-1">
+        {/* Images (existant) */}
+        {uploadedImages.map((src, index) => (
+            <div key={`img-${index}`} className="relative w-[40px] h-[40px] rounded-[10px] overflow-hidden group">
+                <img 
+                    src={src} 
+                    alt="Image uploadée" 
+                    className="w-full h-full object-cover"
+                />
+                <button
+                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
+                    title="Remove"
+                >
+                    <X size={18} color="#000" />
+                </button>
+            </div>
+        ))}
+        {/* Fichiers Externes (Nouveau) */}
+        {uploadedFiles.map((file, index) => (
+            <div key={`file-${index}`} className="flex items-center gap-1.5 h-[24px] border border-black rounded-[8px] bg-[rgba(55,50,47,0.12)] px-2 text-sm max-w-xs truncate">
+                {file.fileName}
+                <button 
+                    onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
+                    className="text-xs text-black font-bold"
+                >
+                    <X size={18} color="#000" />
+                </button>
+            </div>
+        ))}
+        {uploadedImages.length > 0 && (
+    <div className="flex flex-wrap gap-2 p-1 mt-1">
+        
+    </div>
+)}
+        {/* Fichiers Mentionnés (Nouveau) */}
+        {mentionedFiles.map((filePath, index) => (
+            <div key={`mention-${index}`} className="flex items-center gap-1.5 h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
+                @{filePath}
+                <button 
+                    onClick={() => handleRemoveMention(filePath)}
+                    className="text-xs text-red-600 font-bold"
+                >
+                    ×
+                </button>
+            </div>
+        ))}
+    </div>
+)}
+           
         <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[rgba(55,50,47,0.12)] gap-1">
         
         {/* BOUTON/INPUT CLONE WEBSITE */}
@@ -4318,56 +4370,6 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 {/* 🛑 NOUVEAU BLOC : Affichage des Fichiers Uploadés et Mentionnés */}
-{(uploadedImages.length > 0 || uploadedFiles.length > 0 || mentionedFiles.length > 0) && (
-    <div className="flex flex-wrap gap-1.5 p-1 border-t border-gray-200 mt-1">
-        {/* Images (existant) */}
-        {uploadedImages.map((src, index) => (
-            <div key={`img-${index}`} className="relative w-[40px] h-[40px] rounded-[10px] overflow-hidden group">
-                <img 
-                    src={src} 
-                    alt="Image uploadée" 
-                    className="w-full h-full object-cover"
-                />
-                <button
-                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
-                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold"
-                    title="Remove"
-                >
-                    <X size={18} color="#000" />
-                </button>
-            </div>
-        ))}
-        {/* Fichiers Externes (Nouveau) */}
-        {uploadedFiles.map((file, index) => (
-            <div key={`file-${index}`} className="flex items-center gap-1.5 h-[24px] border border-black rounded-[8px] bg-[rgba(55,50,47,0.12)] px-2 text-sm max-w-xs truncate">
-                {file.fileName}
-                <button 
-                    onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
-                    className="text-xs text-black font-bold"
-                >
-                    <X size={18} color="#000" />
-                </button>
-            </div>
-        ))}
-        {uploadedImages.length > 0 && (
-    <div className="flex flex-wrap gap-2 p-1 mt-1">
-        
-    </div>
-)}
-        {/* Fichiers Mentionnés (Nouveau) */}
-        {mentionedFiles.map((filePath, index) => (
-            <div key={`mention-${index}`} className="flex items-center gap-1.5 h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
-                @{filePath}
-                <button 
-                    onClick={() => handleRemoveMention(filePath)}
-                    className="text-xs text-red-600 font-bold"
-                >
-                    ×
-                </button>
-            </div>
-        ))}
-    </div>
-)}
 
 
       
