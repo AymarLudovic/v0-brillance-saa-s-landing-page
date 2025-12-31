@@ -3797,7 +3797,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             <div className="flex items-center gap-3">
 {/* Import nécessaire en haut : import { Trash2, ChevronsUpDown } from 'lucide-react' */}
 
-<div className="relative">
+<div className="relative w-[80%]">
   {/* Bouton AFFICHEUR */}
   <button
     onClick={() => setShowProjectSelect(!showProjectSelect)}
@@ -3806,7 +3806,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px] shrink-0">
         <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
     </div>
-    <span className="truncate flex-1 x-fukl text-left">
+    <span className=" flex-1 x-fukl text-left">
       {currentProject?.name || "Select a Project"}
     </span>
     <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
@@ -4115,12 +4115,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-<div className="p-1 h-[140px] md:h-[200px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+<div className="p-1 h-[120px] md:h-[170px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
   <div className="relative p-2 flex flex-col h-[170px] md:h-[190px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[5%] rounded-t-[25px] bg-[#FFFAF0] w-full">
+    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
      <div className="w-full h-full flex items-center justify-center">
         <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[rgba(55,50,47,0.12)] gap-1">
         
@@ -4207,7 +4207,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full p-2 bg-[#FFFAF0] h-[75%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)] p-2 ">
+    <div className="w-full p-2 bg-[#FFFAF0] h-[60%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)] p-2 ">
       <textarea
   placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
   className="h-full w-full pl-3 text-[18px] font-semibold border-none outline-none resize-none bg-none"
@@ -4252,7 +4252,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 />
             </label>
   <label className="flex pr-1 items-center gap-1  cursor-pointer">
-    <div className="h-[30px] bg-[rgba(55,50,47,0.12)] w-[30px] rounded-full  flex text-[17px] items-center gap-[3px]">
+    <div className="h-[30px] bg-[rgba(55,50,47,0.12)] w-[30px] rounded-full justify-center  flex text-[17px] items-center gap-[3px]">
         {/* L'icône du bouton d'upload (utiliser un simple SVG ou une icône) */}
         <ImagePlus size={18} />
       
