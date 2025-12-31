@@ -1,9 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Zap, Loader, Check, Terminal, AlertCircle, ArrowRight, Save } from 'lucide-react'; 
+import { X, Zap, Loader, Check, Terminal, ArrowRight, ArrowUp } from 'lucide-react'; 
 
-// ... (Garde tes utilitaires IndexedDB ici : initDB, saveVercelTokenToIDB, getVercelTokenFromIDB) ...
 // --- UTILITAIRES INDEXEDDB ---
 const DB_NAME = 'StudioCodeDB';
 const DB_VERSION = 2; 
@@ -41,7 +40,6 @@ const getVercelTokenFromIDB = async (): Promise<string | null> => {
     request.onerror = () => reject(request.error);
   });
 };
-// -----------------------------
 
 interface VercelDeployModalProps {
     currentProject: any;
@@ -99,58 +97,45 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
         setLogs(prev => [...prev, { id, timestamp, message, type }]);
     };
 
-    // --- NOUVELLE LOGIQUE : APPEL DU SDK VIA API ---
     const fetchLogsViaSDK = async (deploymentId: string) => {
         try {
-            // 1. Appel à notre nouvelle route API qui utilise le SDK
             const res = await fetch('/api/deploy/logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deploymentId, token })
             });
-
             if (!res.ok) return;
-
             const { logs: sdkLogs } = await res.json();
 
             if (Array.isArray(sdkLogs)) {
                 sdkLogs.forEach((event: any) => {
-                    // L'ID est souvent dans event.payload.id ou event.id
                     const eventId = event.payload?.id || event.id;
-                    
                     if (processedLogIds.current.has(eventId)) return;
                     processedLogIds.current.add(eventId);
 
-                    // Structure complexe de Vercel (Payload)
                     const payload = event.payload || {};
                     const text = payload.text || event.text || ''; 
                     
-                    // Gestion spécifique du changement d'état
                     if (event.type === 'deployment-state') {
                         const state = payload.info?.readyState;
                         if (state) {
-                            addLog(`[STATUS] ${state}`, 'system');
+                            addLog(`[status] ${state}`, 'system');
                             if (state === 'READY') {
                                 stopPolling();
                                 setIsDeploying(false);
-                                // L'URL est souvent dispo ici ou via un dernier check
                                 checkFinalStatus(deploymentId); 
                             }
                             if (state === 'ERROR') {
                                 stopPolling();
                                 setIsDeploying(false);
-                                addLog('❌ Deployment Failed', 'stderr');
+                                addLog('❌ deployment failed', 'stderr');
                             }
                         }
-                        return; // On n'affiche pas ça comme du texte
+                        return;
                     }
-
                     if (!text) return;
-
                     let type: LogEntry['type'] = 'stdout';
-                    if (event.type === 'stderr' || text.toLowerCase().includes('error')) {
-                        type = 'stderr';
-                    }
+                    if (event.type === 'stderr' || text.toLowerCase().includes('error')) type = 'stderr';
 
                     setLogs(prev => [...prev, {
                         id: eventId,
@@ -160,39 +145,32 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     }]);
                 });
             }
-        } catch (e) {
-            console.error("Log polling error:", e);
-        }
+        } catch (e) { console.error(e); }
     };
 
     const checkFinalStatus = async (deploymentId: string) => {
         try {
-            // Petit appel direct pour choper l'URL finale
             const res = await fetch(`https://api.vercel.com/v13/deployments/${deploymentId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = await res.json();
             if (data.url) {
                 setDeployUrl(`https://${data.url}`);
-                addLog(`Deployed: https://${data.url}`, 'system');
+                addLog(`🚀 code successfully deployed to vercel!`, 'system');
+                setIsDeploying(false);
             }
         } catch(e) {}
     };
 
     const handleDeploy = async () => {
-        if (!token) {
-            addLog('Error: Token missing.', 'stderr');
-            return;
-        }
-        
+        if (!token) return;
         setIsDeploying(true);
         setLogs([]);
         setDeployUrl(null);
         processedLogIds.current.clear();
-        addLog('Starting deployment via SDK...', 'system');
+        addLog('starting deployment via SDK...', 'system');
 
         try {
-            // 1. Création du déploiement (Route précédente)
             const response = await fetch('/api/deploy/vercel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -202,20 +180,12 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     token: token
                 })
             });
-
             const data = await response.json();
-
             if (!response.ok) throw new Error(data.error || 'Failed');
-
-            addLog(`Project uploaded (ID: ${data.deploymentId}). Fetching logs...`, 'system');
-
-            // 2. Polling via SDK API
-            pollingInterval.current = setInterval(() => {
-                fetchLogsViaSDK(data.deploymentId);
-            }, 1500);
-
+            addLog(`project uploaded (id: ${data.deploymentId}). fetching logs...`, 'system');
+            pollingInterval.current = setInterval(() => fetchLogsViaSDK(data.deploymentId), 1500);
         } catch (error: any) {
-            addLog(`Error: ${error.message}`, 'stderr');
+            addLog(`error: ${error.message}`, 'stderr');
             setIsDeploying(false);
         }
     };
@@ -224,64 +194,81 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-[900px] h-[700px] bg-[#0f0f0f] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+            
+            <div className="relative w-[420px] max-h-[95vh] bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
                 
-                {/* Header */}
-                <div className="flex justify-between items-center p-5 border-b border-white/5 bg-[#141414]">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-black rounded-lg border border-white/10">
-                            <Zap size={20} className="text-white" fill="currentColor" />
-                        </div>
+                <button 
+                    onClick={onClose}
+                    className="absolute top-4 right-4 p-1.5 rounded-full bg-black/20 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-20"
+                >
+                    <X size={18} />
+                </button>
+
+                <div className="flex-1 p-6 flex flex-col overflow-y-auto custom-scrollbar">
+                    
+                    {/* Header */}
+                    <div className="flex justify-between items-start bg-[#111] rounded-[12px] mb-6 p-4 border border-white/5 shrink-0">
                         <div>
-                            <h2 className="text-lg font-bold text-white">Vercel Deployment</h2>
-                            <p className="text-xs text-gray-500">Powered by @vercel/sdk</p>
+                            <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#000] border border-white/10 text-[10px] font-medium text-[#e4e4e4] mb-2 tracking-wider">
+                                Vercel SDK
+                            </div>
+                            <h2 className="text-xl font-bold text-white leading-tight">
+                                Vercel Deploy
+                            </h2>
+                            <p className="text-[11px] text-[#888] mt-1">
+                                Go live with the Vercel cloud.
+                            </p>
+                        </div>
+                        <div className="bg-[#0a0a0a] p-1 rounded-2xl border border-white/5 shadow-inner">
+                            <img className="h-[70px] w-[70px] object-contain" src="/3dicons-locker-dynamic-premium.png" alt="Icon" />
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
 
-                {/* Body */}
-                <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
-                    
-                    {/* Token Section */}
-                    {!token ? (
-                        <div className="flex flex-col gap-2 mb-2">
-                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Access Token</label>
-                            <div className="relative">
+                    {/* Formulaire */}
+                    <div className="space-y-4 mb-6 shrink-0">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#666] ml-1">Vercel access token</label>
+                            <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
                                 <input 
-                                    type="password" 
+                                    type="password"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
-                                    placeholder="Paste your Vercel token..."
-                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors pr-10"
+                                    placeholder="your Vercel token...."
+                                    className="bg-transparent border-none outline-none text-xs text-white w-full placeholder:text-[#444]"
                                 />
-                                <Save size={14} className="absolute right-3 top-3.5 text-gray-500" />
+                                {token && <Check size={14} className="text-green-500" />}
                             </div>
                         </div>
-                    ) : (
-                        <div className="flex justify-between items-center bg-[#1a1a1a] px-4 py-2 rounded-lg border border-white/5">
-                             <span className="text-xs text-green-500 flex items-center gap-2"><Check size={12}/> Token loaded</span>
-                        </div>
-                    )}
 
-                    {/* Console Output */}
-                    <div className="flex-1 bg-black rounded-lg border border-white/10 flex flex-col overflow-hidden font-mono text-xs shadow-inner">
-                        <div className="bg-[#1a1a1a] px-4 py-2 border-b border-white/5 text-gray-500 flex items-center gap-2 text-[10px] uppercase tracking-wider">
-                            <Terminal size={12} /> SDK Log Stream
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#666] ml-1">Project name</label>
+                            <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
+                                <input 
+                                    type="text"
+                                    readOnly
+                                    value={currentProject?.name?.toLowerCase().replace(/\s+/g, '-')}
+                                    className="bg-transparent border-none outline-none text-xs text-[#666] w-full"
+                                />
+                            </div>
                         </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-4 space-y-1">
-                            {logs.length === 0 && <div className="text-gray-700 italic">Ready...</div>}
+                    </div>
+
+                    {/* Console Output (Hauteur fixée) */}
+                    <div className="h-[140px] shrink-0 bg-[#050505] rounded-xl border border-white/5 p-3 font-mono text-[10px] overflow-y-auto mb-6 custom-scrollbar">
+                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 text-[#444] tracking-tighter font-bold">
+                            <Terminal size={10} /> SDK Log Stream
+                        </div>
+                        <div className="space-y-1">
+                            {logs.length === 0 && (
+                                <p className="text-[#333] italic">Ready to deploy...</p>
+                            )}
                             {logs.map((log) => (
-                                <div key={log.id} className="flex gap-3 items-start group hover:bg-white/5 px-2 rounded transition-colors">
-                                    <span className="text-gray-600 shrink-0 select-none w-[60px] text-[10px] pt-[2px]">{log.timestamp}</span>
-                                    <span className={`break-all whitespace-pre-wrap ${
-                                        log.type === 'stderr' ? 'text-red-400 font-bold' :
-                                        log.type === 'system' ? 'text-blue-400' :
-                                        'text-gray-300'
-                                    }`}>
+                                <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-left-1">
+                                    <span className={`shrink-0 ${
+                                        log.type === 'stderr' ? 'text-red-500' :
+                                        log.type === 'system' ? 'text-blue-500' : 'text-[#666]'
+                                    }`}>•</span>
+                                    <span className={log.type === 'stderr' ? 'text-red-400' : 'text-gray-400'}>
                                         {log.message}
                                     </span>
                                 </div>
@@ -290,30 +277,52 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                         </div>
                     </div>
 
-                </div>
-
-                {/* Footer */}
-                <div className="p-5 border-t border-white/5 bg-[#141414] flex justify-between items-center">
-                    <div className="text-xs text-gray-500">{isDeploying ? 'Deploying...' : 'Idle'}</div>
-                    <div className="flex items-center gap-3">
-                        {deployUrl && (
-                            <a href={deployUrl} target="_blank" rel="noreferrer" className="px-4 py-2 bg-green-600/10 text-green-400 border border-green-600/20 rounded-lg text-xs font-bold hover:bg-green-600/20 flex items-center gap-2">
-                                <Check size={14} /> Open Website
-                            </a>
+                    {/* Bouton Action */}
+                    <button 
+                        onClick={handleDeploy}
+                        disabled={isDeploying || !token}
+                        className={`w-full h-11 shrink-0 rounded-[12px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
+                            isDeploying 
+                            ? 'bg-[#1a1a1a] text-[#444] cursor-not-allowed' 
+                            : 'bg-white text-black hover:bg-gray-200 shadow-white/5'
+                        }`}
+                    >
+                        {isDeploying ? (
+                            <><Loader size={16} className="animate-spin" /> Deploying...</>
+                        ) : (
+                            <>Start Deployment <Zap size={16} fill="currentColor" /></>
                         )}
-                        <button 
-                            onClick={handleDeploy}
-                            disabled={isDeploying || !token}
-                            className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${
-                                isDeploying ? 'bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-white text-black hover:bg-gray-200'
-                            }`}
-                        >
-                            {isDeploying ? <><Loader size={16} className="animate-spin" /> Deploying...</> : 'Start Deployment'}
-                        </button>
+                    </button>
+
+                    {/* Footer Links */}
+                    <div className="mt-4 flex flex-col items-center gap-1 shrink-0 pb-2">
+                        {deployUrl ? (
+                            <a 
+                                href={deployUrl} 
+                                target="_blank" 
+                                className="text-[10px] text-green-400 hover:text-green-300 transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-4"
+                            >
+                                Open website <ArrowUp size={10} className="rotate-45" />
+                            </a>
+                        ) : (
+                            <div className="flex flex-col items-center gap-1">
+                                <p className="text-[10px] text-[#444]">
+                                    Use a <span className="text-[#666] font-bold">Personal Access Token</span>.
+                                </p>
+                                <a 
+                                    href="https://vercel.com/account/tokens" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-[#888] hover:text-white transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-4"
+                                >
+                                    Get your Vercel token here
+                                    <ArrowUp size={10} className="rotate-45" />
+                                </a>
+                            </div>
+                        )}
                     </div>
                 </div>
-
             </div>
         </div>
     );
-                                   }
+      }
