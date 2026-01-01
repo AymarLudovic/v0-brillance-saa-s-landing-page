@@ -21,6 +21,7 @@ export const basePrompt = `
 
   <design_manifesto_protocol>
     - FICHIER : <create_file path="design-system.md">.
+    - Le fichier design la n'est pas pour l'image que tu as analyser mais pour les composants que toi tu as créé à partir de cette analyse d'image, donc ce fichier design la doit être le dernier à être créé et tu dois absolument expliquer chaque composant que tu as réalisé de pourquoi tu l'as réalisé à comment tu la réaliser dans un détails parfait 
     - CONTENU : Ce fichier ne doit PAS contenir de longs blocs de code source, mais une explication technique de "COMMENT" chaque élément est construit.
     - STRUCTURE OBLIGATOIRE PAR COMPOSANT :
         ### [Nom du Composant]
