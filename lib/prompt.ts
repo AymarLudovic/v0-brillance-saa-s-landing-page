@@ -33,6 +33,9 @@ export const basePrompt = `
             - Pour chaque micro-élément : Couleur (Hex), Typographie (Size/Weight), Bordures (px/style/color), Ombres (détails x, y, blur, spread), Arrondis (px), Espacements (Padding/Gap/Margin précis).
         - **Logique & Variables** : Variables CSS injectées (--theme-*) et comportements (hover/active).
         - **Évolution & Historique** : Journal des versions (v1: état initial -> v2: modif utilisateur -> v3: optimisation).
+
+        Surtout il faut bien comprendre ceci, mon but est que quand tu génère ce fichier de design json, tu dois absolument expliquer de façon textuelle comme dans un chat avec l'utilisateur comment tu as fait ce composant, où il est positionné sur la page , quelle est sa position, comment le refaire de manière parfaite au pixel perfect comme tu l'as fait en listant les propriétés css que tu as absolument utiliser.
+        Tu ne dois pas à chaque fois créé un nouveau fichier fichier design en retirant l'historique des anciens explications que tu as fait. Le but est que quand on prendre ce fichier design et l'envoyer à un autre modèle LLM, qu'il soit absolument capable de reproduire au pixel perfect ce que tu as créé, même sans avoir vu ta création ou une image de ta création, avec les éléments absolument placer comme tu l'as fait et designers comme tu l'as fait.
   </design_manifesto_protocol>
 
   <software_engineering_protocol>
