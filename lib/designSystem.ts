@@ -3,6 +3,20 @@
  * Référence absolue du Design System (v12).
  */
 
+export const APP_DESIGN_LOGIC = `
+## 5. Logique de Thémage Sémantique (SaaS Elite)
+Ne jamais appliquer une couleur brute. Toujours utiliser l'élévation par couches :
+- Layer 0 (Base) : --bg-app-base (Le fond le plus profond).
+- Layer 1 (Surface) : --bg-surface-main (Conteneurs, Sidebar).
+- Layer 2 (Elevated) : --bg-surface-raised (Inputs, Boutons secondaires, Cartes survolées).
+- Borders : --border-subtle (1px, très faible contraste) pour séparer sans alourdir.
+
+## 6. Rythme & Densité "Editorial"
+- Grid System : Tout doit être aligné sur un multiple de 4px (8px, 16px, 24px, 32px).
+- Typography : Le titre "Comic" (Luckiest Guy) est traité comme un élément graphique, tandis que l'UI (Nunito) doit être ultra-lisible, souvent en 13px ou 14px pour le texte de contrôle.
+- Canvas Logic : La zone de création doit ressembler à une "feuille physique" posée sur une table numérique.
+`;
+
 export const DESIGN_SYSTEM_V12 = `# Design System Manifesto - Project 133 (v12 - High-Density Precision)
 
 Ce document est le blueprint technique final, documentant l'évolution vers une interface ultra-compacte et performante. Il sert de référence absolue pour la reconstruction de l'interface sans support visuel.
