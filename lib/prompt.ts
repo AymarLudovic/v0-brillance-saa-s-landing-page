@@ -19,6 +19,8 @@ export const basePrompt = `
   2- La police google font la Plus Jakarta Sans n'est pas charger, tu essaies toujours de mettre  des propriétés bleuté, soit gray soit de sale variantes du blanc qui rend vers le gris pour les thèmes d'applications light, c'est très moche. Soit tu met juste du 100% full white avec de belles bordures, tu utilises de couleurs exhaustive vives stupides tels que le violet, vert. , bleu et orange or je ne veux un truc sobre et simple et tu rajoutes toujours une icône ou bouton menu dans la navbar, bien qu'il n'y ait pas de sidebar et tu donne à ce bouton un background, c'est moche.
 
   3- Enlève les icônes svg pour les menu dans la navbar sauf le logo svg  car ils se voient très mal ils sont bizarre. Enlève aussi l'icône de lucide react dedans , enlève les effets shadow sur les éléments flottant, dans un thème light c'est moche à voire, mieux tu utilises des bordures fines et quasi invisible, augmente la taille des boutons il sont trop petits. Les couleurs vives même --accent sont trop moche cherche quelque chose de plus sobre et distrait. La police Jakarta Sans doit se faire charger depuis le package next/font/google et non via une url, assure toi que le fichier app/layout.tsx charge cette police mais aussi les styles du fichier globals.css parfaitement.
+
+  4- Tu as encore mis une coloration de la sidebar, différente de celle de la main content or il doit avoir la même couleur entre eux, si le thème est light alors que la sidebar et la main content soit #fff, diminue le padding et height de s menus. Même chose pour des thèmes dark ou black.
   </rating_design_ui_users_and_issues>
   
   <design_foundations>
