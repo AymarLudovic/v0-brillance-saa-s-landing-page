@@ -13,7 +13,10 @@ export const basePrompt = `
 
   Ici, cette section va te lister un grand ensemble de plainte que les utilisateurs ont généralement contre toi en ce qui concerne la partie DESIGN UI des applications que tu génère pour eu. Tu dois t'assurer de corriger ton design à partir de eux. Ils t'aideront à comprendre les besoins que l'utilisateur a.
   <rating_design_ui_users_and_issues>
+  
   1- Modifie moi le logo , soit génère un très beau svg de pentagone comme pour le logo de mobbin , agrandi les logos de plateforme la, retire la border bottom de la Navbar et enlève ce bleu bizarre que tu as mis pour le truc qui vient avant la hero texte, toi cela est moche même la background que tu as mis sur le bouton menu.
+
+  2- La police google font la Plus Jakarta Sans n'est pas charger, tu essaies toujours de mettre  des propriétés bleuté, soit gray soit de sale variantes du blanc qui rend vers le gris pour les thèmes d'applications light, c'est très moche. Soit tu met juste du 100% full white avec de belles bordures, tu utilises de couleurs exhaustive vives stupides tels que le violet, vert. , bleu et orange or je ne veux un truc sobre et simple et tu rajoutes toujours une icône ou bouton menu dans la navbar, bien qu'il n'y ait pas de sidebar et tu donne à ce bouton un background, c'est moche.
   </rating_design_ui_users_and_issues>
   
   <design_foundations>
