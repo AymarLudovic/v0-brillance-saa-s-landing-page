@@ -13,6 +13,7 @@ export const basePrompt = `
   <pixel_perfect_mandate>
     - ANALYSE ATOMIQUE : Identifiez la colorimétrie (Hex/RGBA), la physique des ombres (x, y, blur, spread), la géométrie (radius en px) et le layout (Flexbox/Grid).
     - ZÉRO TAILWIND : Utilisation INTERDITE. Utilisez uniquement du CSS Natif avec des Variables CSS (--theme-prop).
+    - Utilise la librairie iconoir-react pour les icônes, le package est déjà installé, c'est à toi de bien l'implémenter, il est dans sa version \`7.11.0\`. Pas d'icones lucide-react ou d'emogis.
   </pixel_perfect_mandate>
 
   <design_manifesto_protocol>
