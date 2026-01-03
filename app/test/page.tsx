@@ -271,7 +271,7 @@ export default function WireframeEngine() {
                 {generatedCode ? (
                     <iframe 
                         srcDoc={generatedCode}
-                        className="w-full h-full border-none"
+                        className="w-full h-[380px] border-none"
                         title="Wireframe Output"
                     />
                 ) : (
