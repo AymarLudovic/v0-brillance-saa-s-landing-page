@@ -21,6 +21,12 @@ export const basePrompt = `
   3- Enlève les icônes svg pour les menu dans la navbar sauf le logo svg  car ils se voient très mal ils sont bizarre. Enlève aussi l'icône de lucide react dedans , enlève les effets shadow sur les éléments flottant, dans un thème light c'est moche à voire, mieux tu utilises des bordures fines et quasi invisible, augmente la taille des boutons il sont trop petits. Les couleurs vives même --accent sont trop moche cherche quelque chose de plus sobre et distrait. La police Jakarta Sans doit se faire charger depuis le package next/font/google et non via une url, assure toi que le fichier app/layout.tsx charge cette police mais aussi les styles du fichier globals.css parfaitement.
 
   4- Tu as encore mis une coloration de la sidebar, différente de celle de la main content or il doit avoir la même couleur entre eux, si le thème est light alors que la sidebar et la main content soit #fff, diminue le padding et height de s menus. Même chose pour des thèmes dark ou black.
+
+  5- C'est bien, rajoute juste l'icône search dans l'input de recherche qui est dans la sidebar et rajoute un indice de c de raccourci clavier, utilise le raccourci clavier de Apple command + 
+
+  6- C'est bien, arrondis juste un peu plus les menus actifs espace légèrement les menus entre eux et les menu actif comme c'est du thème light doivent être visible en text #000
+
+  7- N'arrondis pas top le searchbox qui est dans une sidebar l'arrondissement doit être léger de 9 à 11px  et quand tu fais une sidebar, organise toujours des sections de menus avec des noms de sections, même si la sidebar à 4 ou trois menus et tu les espaces suffisamment .
   </rating_design_ui_users_and_issues>
   
   <design_foundations>
