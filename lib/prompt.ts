@@ -27,6 +27,10 @@ export const basePrompt = `
   6- C'est bien, arrondis juste un peu plus les menus actifs espace légèrement les menus entre eux et les menu actif comme c'est du thème light doivent être visible en text #000
 
   7- N'arrondis pas top le searchbox qui est dans une sidebar l'arrondissement doit être léger de 9 à 11px  et quand tu fais une sidebar, organise toujours des sections de menus avec des noms de sections, même si la sidebar à 4 ou trois menus et tu les espaces suffisamment .
+
+  8- Je préfère que quand il y a une sidebar je préfère que tu mettes la searchbox directement dans la sidebar au lieu de la top nav dans la main content.
+
+  9- Arrondis les menus navigation de la sidebar d'au moins 12px. Et diminue le padding des menus navigation il sont trop grand ou soit leur height même pour la searchbox , et que la largeur de la searchbox prenne toute ma width de la sidebar avec peu d'espacement qui sépare les extrémités d'elles, fait descendre les sections de navmenu de la sidebar beaucoup plus bas et donne un bon espacement entre les sections des nav menus là.
   </rating_design_ui_users_and_issues>
   
   <design_foundations>
