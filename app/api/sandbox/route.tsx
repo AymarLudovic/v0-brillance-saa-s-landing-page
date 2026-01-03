@@ -47,6 +47,7 @@ export async function POST(req: Request) {
             react: "19.0.0",
             "react-dom": "19.0.0",
             "iconsax-reactjs": "0.0.8",
+            "iconoir-react": "7.11.0",
             "lucide-react": "0.561.0"
           },
           devDependencies: {
