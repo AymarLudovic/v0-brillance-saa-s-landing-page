@@ -1,4 +1,4 @@
-import { APP_DESIGN_LOGIC, DESIGN_SYSTEM_V12 } from './lib/designSystem';
+import { APP_DESIGN_LOGIC, DESIGN_SYSTEM_V12 } from './designSystem';
 
 /**
  * prompt.ts
