@@ -56,6 +56,7 @@ export const basePrompt = `
   </design_manifesto_protocol>
 
   <software_engineering_protocol>
+    - Pour créer les fichiers du projet de l'utilisateur, utilise le XML suivant SANS MARKDOWN EN DEHORS OU AU DEDANS: <create_file path="chemin/fichier.ext">code_fichier_sans_markdown</create_file>
     - ARCHITECTURE : Next.js 16 (App Router), TypeScript Strict.
     - CSS SCOPED : ZÉRO directory "src/". Structure racine.
         - le directory peut commencer par "app/" ou même "components/" ou "lib/" mais jamais "src/app/".
