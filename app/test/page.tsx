@@ -1,64 +1,50 @@
 "use client";
 
-import React, { useState, useRef, ChangeEvent, useEffect } from 'react';
-import { Upload, Cpu, Scan, Layers, Play, Code, Eye, RefreshCw, BoxSelect } from 'lucide-react';
+import React, { useState, useRef, ChangeEvent } from 'react';
+import { Upload, Cpu, Scan, Activity, Play, Eye, Code, Terminal, Zap } from 'lucide-react';
 
-// --- TYPES ---
-type BotStatus = 'idle' | 'running' | 'completed';
+// --- CONFIGURATION ---
+const CONFIG = {
+  gridSize: 6, // Plus petit = plus précis (mais plus lourd)
+  threshold: 40, // Sensibilité de détection des bords
+  colors: {
+    bg: '#050505',
+    primary: '#00ff41', // Matrix Green
+    secondary: 'rgba(0, 255, 65, 0.15)', // Transparent Green
+  }
+};
 
-interface LogEntry {
-  id: number;
-  timestamp: string;
-  message: string;
-  type: 'info' | 'success' | 'process' | 'error';
-}
-
-// --- HELPER: RGB to HEX ---
-const rgbToHex = (r: number, g: number, b: number) => 
-  "#" + [r, g, b].map(x => {
-    const hex = x.toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  }).join('');
-
-export default function ArchitectEnginePage() {
+export default function WireframeEngine() {
   // --- STATE ---
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string>("");
-  
-  // Refs Canvas
+  const [nodeCount, setNodeCount] = useState(0);
+
+  // Refs
   const canvasSourceRef = useRef<HTMLCanvasElement>(null);
-  const canvasSobelRef = useRef<HTMLCanvasElement>(null); // Le plan structurel
-  
-  // Stats
-  const [elementCount, setElementCount] = useState(0);
+  const canvasSobelRef = useRef<HTMLCanvasElement>(null);
 
-  // --- LOGS ---
-  const addLog = (msg: string, type: LogEntry['type'] = 'info') => {
-    setLogs(prev => [...prev, { id: Date.now(), timestamp: new Date().toLocaleTimeString().split(' ')[0], message: msg, type }]);
-  };
+  // --- LOGIC ---
+  const addLog = (msg: string) => setLogs(prev => [`> ${msg}`, ...prev]);
 
-  // --- 1. UPLOAD ---
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
-      img.onload = () => { 
-          setupCanvases(img); 
-          addLog("Source initialisée. Moteur prêt.", 'info'); 
-      };
+      img.onload = () => { setupCanvases(img); addLog("Source chargée. Prêt pour extraction vectorielle."); };
       img.src = event.target?.result as string;
       setImageSrc(event.target?.result as string);
-      setGeneratedCode(""); setLogs([]); setElementCount(0);
+      setGeneratedCode(""); setNodeCount(0);
     };
     reader.readAsDataURL(file);
   };
 
   const setupCanvases = (img: HTMLImageElement) => {
-    const maxWidth = 600; // On réduit légèrement pour la performance du scan DOM
+    const maxWidth = 800; 
     const scale = Math.min(maxWidth / img.width, 1);
     const w = Math.floor(img.width * scale);
     const h = Math.floor(img.height * scale);
@@ -70,306 +56,247 @@ export default function ArchitectEnginePage() {
         if (ctx) {
             ctx.clearRect(0, 0, w, h);
             if (ref === canvasSourceRef) ctx.drawImage(img, 0, 0, w, h);
-            else { ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, w, h); }
+            else { ctx.fillStyle = "#000"; ctx.fillRect(0,0,w,h); }
         }
       }
     });
   };
 
-  // --- SEQUENCE DE CONSTRUCTION ---
-  const runArchitectSequence = async () => {
+  // --- ENGINE CORE ---
+  const runSequence = async () => {
     if(!imageSrc) return;
-    setIsProcessing(true);
-    setLogs([]);
-    setGeneratedCode("");
+    setIsProcessing(true); setLogs([]);
+    
+    // 1. SOBEL FILTER
+    addLog("Phase 1: Sobel Edge Detection...");
+    await new Promise(r => setTimeout(r, 100));
+    runSobel();
+    
+    // 2. DOM GENERATION
+    addLog("Phase 2: Conversion Vectorielle -> HTML/CSS...");
+    await new Promise(r => setTimeout(r, 500));
+    runWireframeGenerator();
+    
+    setIsProcessing(false);
+  };
 
-    try {
-        await runSobelScan();
-        await runDomAssembler(); // LE NOUVEAU BOT
-    } catch (e) {
-        addLog("Erreur critique dans la matrice.", 'error');
-    } finally {
-        setIsProcessing(false);
+  const runSobel = () => {
+    const src = canvasSourceRef.current;
+    const dest = canvasSobelRef.current;
+    if (!src || !dest) return;
+    
+    const ctxSrc = src.getContext('2d');
+    const ctxDest = dest.getContext('2d');
+    if(!ctxSrc || !ctxDest) return;
+    
+    const w = src.width; const h = src.height;
+    const inputData = ctxSrc.getImageData(0, 0, w, h).data;
+    const outputData = ctxDest.createImageData(w, h);
+    
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            // Grayscale rapide
+            const gray = (inputData[i]*0.3 + inputData[i+1]*0.59 + inputData[i+2]*0.11);
+            
+            // Detection bords (simplifiée pour perf)
+            const right = ((y * w) + Math.min(x + 1, w - 1)) * 4;
+            const down = (Math.min(y + 1, h - 1) * w + x) * 4;
+            const diff = Math.abs(gray - inputData[right]) + Math.abs(gray - inputData[down]); // Comparaison brute canal rouge suffisant souvent
+
+            if (diff > 15) {
+                // VERT FLUO INTENSE
+                outputData.data[i] = 0; 
+                outputData.data[i+1] = 255; 
+                outputData.data[i+2] = 65; 
+                outputData.data[i+3] = 255; 
+            } else {
+                outputData.data[i] = 0; outputData.data[i+1] = 0; outputData.data[i+2] = 0; outputData.data[i+3] = 255;
+            }
+        }
     }
+    ctxDest.putImageData(outputData, 0, 0);
   };
 
-  // --- BOT 1: SOBEL (Extraction de Structure) ---
-  const runSobelScan = () => {
-    return new Promise<void>((resolve) => {
-        addLog("Bot 1: Extraction des arêtes (Sobel)...", 'process');
-        setTimeout(() => {
-            const src = canvasSourceRef.current;
-            const dest = canvasSobelRef.current;
-            if (!src || !dest) return resolve();
+  const runWireframeGenerator = () => {
+    const sobelCanvas = canvasSobelRef.current;
+    if (!sobelCanvas) return;
+    const ctx = sobelCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = sobelCanvas.width;
+    const h = sobelCanvas.height;
+    const gs = CONFIG.gridSize;
+    let divs = "";
+    let nodes = 0;
+
+    // SCANNING GRID
+    for(let y = 0; y < h; y += gs) {
+        for(let x = 0; x < w; x += gs) {
             
-            const ctxSrc = src.getContext('2d');
-            const ctxDest = dest.getContext('2d');
-            if(!ctxSrc || !ctxDest) return resolve();
-            
-            const w = src.width; const h = src.height;
-            const inputData = ctxSrc.getImageData(0, 0, w, h).data;
-            const outputData = ctxDest.createImageData(w, h);
-            
-            // Grayscale + Sobel Kernel
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    const idx = (y * w + x) * 4;
-                    // Simple grayscale pour le calcul
-                    const gray = (inputData[idx]*0.3 + inputData[idx+1]*0.59 + inputData[idx+2]*0.11);
-                    
-                    // Détection simplifiée des bords (Contraste voisin)
-                    const rightIdx = ((y * w) + Math.min(x + 1, w - 1)) * 4;
-                    const downIdx = (Math.min(y + 1, h - 1) * w + x) * 4;
-                    
-                    const diff = Math.abs(gray - (inputData[rightIdx]*0.3 + inputData[rightIdx+1]*0.59 + inputData[rightIdx+2]*0.11)) +
-                                 Math.abs(gray - (inputData[downIdx]*0.3 + inputData[downIdx+1]*0.59 + inputData[downIdx+2]*0.11));
-
-                    const threshold = 15;
-                    if (diff > threshold) {
-                        // Bord détecté -> VERT (pour le style Matrix)
-                        outputData.data[idx] = 0; 
-                        outputData.data[idx+1] = 255; 
-                        outputData.data[idx+2] = 0; 
-                        outputData.data[idx+3] = 255; 
-                    } else {
-                        outputData.data[idx] = 0; 
-                        outputData.data[idx+1] = 0; 
-                        outputData.data[idx+2] = 0; 
-                        outputData.data[idx+3] = 255;
-                    }
-                }
-            }
-            ctxDest.putImageData(outputData, 0, 0);
-            addLog("Bot 1: Matrice structurelle terminée.", 'success');
-            resolve();
-        }, 100);
-    });
-  };
-
-  // --- BOT 2: L'ASSEMBLEUR (Le Constructeur HTML) ---
-  const runDomAssembler = () => {
-    return new Promise<void>((resolve) => {
-        addLog("Bot 2: Reconstruction DOM Pixel-par-Pixel...", 'process');
-        
-        setTimeout(() => {
-            const sobelCanvas = canvasSobelRef.current;
-            const sourceCanvas = canvasSourceRef.current;
-            if (!sobelCanvas || !sourceCanvas) return resolve();
-
-            const ctxSobel = sobelCanvas.getContext('2d');
-            const ctxSource = sourceCanvas.getContext('2d');
-            if (!ctxSobel || !ctxSource) return resolve();
-
-            const w = sobelCanvas.width;
-            const h = sobelCanvas.height;
-            const gridSize = 10; // Résolution de la reconstruction (plus petit = plus précis mais plus lourd)
-            
-            let divs = "";
-            let count = 0;
-
-            // On scanne la grille
-            for(let y = 0; y < h; y += gridSize) {
-                for(let x = 0; x < w; x += gridSize) {
-                    
-                    // 1. Analyse de la densité dans ce bloc (Sobel)
-                    const sobelData = ctxSobel.getImageData(x, y, gridSize, gridSize).data;
-                    let edgePixels = 0;
-                    for(let i=0; i<sobelData.length; i+=4) {
-                        if(sobelData[i+1] > 100) edgePixels++; // Si pixel vert
-                    }
-
-                    // Seuil de détection : S'il y a assez de "structure" ici
-                    if(edgePixels > 2) {
-                        // 2. Échantillonnage de la couleur réelle (Source)
-                        const sourceData = ctxSource.getImageData(x, y, gridSize, gridSize).data;
-                        // On prend la couleur du pixel central du bloc pour la moyenne
-                        const centerIdx = Math.floor(sourceData.length / 2);
-                        // Alignement sur canal Rouge (R, G, B, A) -> on recule au début du pixel (modulo 4)
-                        const safeIdx = centerIdx - (centerIdx % 4);
-                        
-                        const r = sourceData[safeIdx];
-                        const g = sourceData[safeIdx+1];
-                        const b = sourceData[safeIdx+2];
-                        const hex = rgbToHex(r, g, b);
-
-                        // 3. Construction du HTML Element
-                        // On utilise position: absolute pour une fidélité stricte aux coordonnées
-                        divs += `
-                        <div style="
-                            position: absolute;
-                            left: ${x}px;
-                            top: ${y}px;
-                            width: ${gridSize}px;
-                            height: ${gridSize}px;
-                            background-color: ${hex};
-                            opacity: 0.8;
-                            border-radius: 2px;
-                            pointer-events: none;
-                        "></div>`;
-                        count++;
-                    }
-                }
+            // Analyse de l'énergie dans la case (Combien de vert ?)
+            const data = ctx.getImageData(x, y, gs, gs).data;
+            let greenEnergy = 0;
+            for(let k=0; k<data.length; k+=4) {
+                if(data[k+1] > 100) greenEnergy++;
             }
 
-            // Génération du Wrapper HTML complet
-            const fullHtml = `
+            // SEUILS DE DÉCISION
+            if(greenEnergy > 0) {
+                const density = greenEnergy / (gs * gs);
+                let style = "";
+                
+                // TYPE 1: TEXTE / CONTENU DENSE (Bloc semi-transparent)
+                if(density > 0.3) {
+                     style = `background: ${CONFIG.colors.secondary}; box-shadow: 0 0 4px ${CONFIG.colors.secondary};`;
+                } 
+                // TYPE 2: BORDURE / STRUCTURE (Ligne fine)
+                else {
+                    // On simule un pixel "allumé"
+                    style = `background: ${CONFIG.colors.primary}; box-shadow: 0 0 2px ${CONFIG.colors.primary}; opacity: 0.8;`;
+                }
+
+                // Génération du div absolu
+                divs += `<div style="position:absolute; left:${x}px; top:${y}px; width:${gs}px; height:${gs}px; ${style}"></div>`;
+                nodes++;
+            }
+        }
+    }
+
+    setNodeCount(nodes);
+    addLog(`Structure terminée : ${nodes} nœuds DOM injectés.`);
+
+    // LE CODE FINAL (TEMPLATE MATRIX)
+    const html = `
 <!DOCTYPE html>
 <html>
 <head>
 <style>
-  body { margin: 0; padding: 0; background: #111; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-  .canvas-container { 
-      position: relative; 
-      width: ${w}px; 
-      height: ${h}px; 
-      background: #000; 
-      box-shadow: 0 0 50px rgba(0,0,0,0.5);
-  }
+    body { background: #000; margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: monospace; }
+    .scan-container { position: relative; width: ${w}px; height: ${h}px; border: 1px solid #111; }
+    /* Effet CRT optionnel */
+    .scan-container::after {
+        content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+        z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+    }
 </style>
 </head>
 <body>
-  <div class="canvas-container">
-    ${divs}
-  </div>
+    <div class="scan-container">
+        ${divs}
+    </div>
 </body>
 </html>`;
-
-            setElementCount(count);
-            setGeneratedCode(fullHtml);
-            addLog(`Bot 2: ${count} éléments DOM injectés aux coordonnées exactes.`, 'success');
-            resolve();
-        }, 500);
-    });
+    setGeneratedCode(html);
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-slate-300 p-6 font-mono selection:bg-green-900/50">
+    <div className="min-h-screen bg-[#020202] text-green-500 font-mono p-4 selection:bg-green-900 selection:text-white">
       
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-3rem)]">
-        
-        {/* === GAUCHE : INPUT & PROCESSING === */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
-            {/* Header */}
-            <div className="bg-[#111] border border-slate-800 p-4 rounded-xl flex items-center justify-between">
-                <div>
-                    <h1 className="text-xl font-bold text-green-500 flex items-center gap-2">
-                        <Cpu size={20}/> ARCHITECT_ENGINE v4
-                    </h1>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest">Reconstruction Déterministe</p>
-                </div>
-                <div className="text-right">
-                    <div className="text-2xl font-bold text-white">{elementCount}</div>
-                    <div className="text-[9px] text-slate-500">NODES GÉNÉRÉS</div>
-                </div>
-            </div>
+      {/* HEADER */}
+      <div className="flex items-center justify-between border-b border-green-900/30 pb-4 mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-3">
+          <Terminal className="animate-pulse" /> 
+          WIREFRAME_ARCHITECT <span className="text-xs bg-green-900/20 px-2 py-1 rounded text-green-400">V5.0</span>
+        </h1>
+        <div className="flex gap-4 text-xs text-green-700">
+            <span>GRID_SIZE: {CONFIG.gridSize}px</span>
+            <span>THRESHOLD: {CONFIG.threshold}</span>
+        </div>
+      </div>
 
-            {/* Controls */}
-            <div className="grid grid-cols-2 gap-2">
-                <label className="bg-[#111] border border-dashed border-slate-700 hover:border-green-500 cursor-pointer rounded-lg h-24 flex flex-col items-center justify-center transition-all group">
-                    <Upload className="text-slate-500 group-hover:text-green-400 mb-2" size={20}/>
-                    <span className="text-[10px] font-bold text-slate-400">INPUT SOURCE</span>
-                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-140px)]">
+
+        {/* --- LEFT: CONTROL & VISUALS --- */}
+        <div className="lg:col-span-5 flex flex-col gap-4 h-full">
+            
+            {/* UPLOAD & ACTION */}
+            <div className="flex gap-2">
+                <label className="flex-1 bg-green-900/10 border border-green-800/50 hover:bg-green-900/20 hover:border-green-500 cursor-pointer h-16 flex items-center justify-center gap-2 rounded transition-all">
+                    <Upload size={18} />
+                    <span className="text-xs font-bold">CHARGER SOURCE</span>
+                    <input type="file" className="hidden" onChange={handleImageUpload} />
                 </label>
-
                 <button 
-                    onClick={runArchitectSequence}
+                    onClick={runSequence}
                     disabled={!imageSrc || isProcessing}
-                    className="bg-green-900/20 border border-green-800/50 hover:bg-green-900/40 text-green-400 rounded-lg flex flex-col items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    className="flex-1 bg-green-600 hover:bg-green-500 text-black font-bold h-16 flex items-center justify-center gap-2 rounded transition-all disabled:opacity-20 disabled:cursor-not-allowed"
                 >
-                    {isProcessing ? <RefreshCw className="animate-spin mb-2" size={20}/> : <Play className="mb-2" size={20}/>}
-                    <span className="text-[10px] font-bold">LANCER LA RECONSTRUCTION</span>
+                    {isProcessing ? <Activity className="animate-spin" /> : <Play />}
+                    <span className="text-xs">EXTRAIRE LE CODE</span>
                 </button>
             </div>
 
-            {/* Visualisation Pipeline */}
-            <div className="flex-1 bg-[#0a0a0a] border border-slate-800 rounded-xl p-4 overflow-y-auto space-y-6 scrollbar-none">
+            {/* PREVIEWS */}
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4 scrollbar-thin scrollbar-thumb-green-900">
+                <div className="border border-green-900/30 p-2 rounded bg-black">
+                    <div className="flex justify-between mb-1 text-[10px] uppercase text-green-700 font-bold">
+                        <span>Input Source</span>
+                        <span>RGB</span>
+                    </div>
+                    <canvas ref={canvasSourceRef} className="w-full h-auto opacity-50 hover:opacity-100 transition-opacity" />
+                </div>
                 
-                {/* Source */}
-                <div className="relative group">
-                    <div className="absolute -left-3 top-0 bottom-0 w-1 bg-slate-800"></div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-2 block pl-2">STEP 1: SOURCE</label>
-                    <div className="aspect-video bg-black rounded border border-slate-800 overflow-hidden">
-                        <canvas ref={canvasSourceRef} className="w-full h-full object-contain" />
+                <div className="border border-green-500/50 p-2 rounded bg-black relative">
+                    <div className="flex justify-between mb-1 text-[10px] uppercase text-green-400 font-bold">
+                        <span className="flex items-center gap-1"><Scan size={10}/> Sobel Logic</span>
+                        <span>MATRIX_LAYER</span>
                     </div>
+                    <canvas ref={canvasSobelRef} className="w-full h-auto" />
+                    {isProcessing && <div className="absolute inset-0 bg-green-900/20 animate-pulse"></div>}
                 </div>
+            </div>
 
-                {/* Sobel */}
-                <div className="relative group">
-                    <div className="absolute -left-3 top-0 bottom-0 w-1 bg-green-900"></div>
-                    <label className="text-[10px] font-bold text-green-600 mb-2 block pl-2 flex items-center gap-2">
-                        <Scan size={12}/> STEP 2: BLUEPRINT (SOBEL)
-                    </label>
-                    <div className="aspect-video bg-black rounded border border-green-900/50 overflow-hidden relative">
-                        <canvas ref={canvasSobelRef} className="w-full h-full object-contain opacity-80" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent pointer-events-none"></div>
-                    </div>
-                </div>
-
-                 {/* Console */}
-                 <div className="font-mono text-[10px] space-y-1 pt-4 border-t border-slate-900">
-                    {logs.map(log => (
-                        <div key={log.id} className={`${log.type === 'error' ? 'text-red-500' : log.type === 'success' ? 'text-green-400' : 'text-slate-600'}`}>
-                            {`> ${log.message}`}
-                        </div>
-                    ))}
-                    {isProcessing && <div className="text-green-500 animate-pulse">{`> Traitement en cours...`}</div>}
-                </div>
-
+            {/* LOGS */}
+            <div className="h-32 bg-black border border-green-900/50 p-3 font-mono text-[10px] overflow-y-auto shadow-[inset_0_0_20px_rgba(0,50,0,0.5)]">
+                {logs.map((l, i) => <div key={i} className="opacity-80">{l}</div>)}
+                {!logs.length && <span className="text-green-900">// Attente d'instructions...</span>}
             </div>
         </div>
 
-        {/* === DROITE : LIVE PREVIEW (IFRAME) === */}
-        <div className="lg:col-span-7 bg-[#111] border border-slate-800 rounded-xl flex flex-col overflow-hidden">
-            <div className="bg-[#080808] p-3 border-b border-slate-800 flex justify-between items-center">
-                <div className="flex items-center gap-2 text-slate-400">
+        {/* --- RIGHT: FINAL OUTPUT --- */}
+        <div className="lg:col-span-7 flex flex-col h-full bg-[#080808] border border-green-900 rounded-lg overflow-hidden relative shadow-[0_0_50px_rgba(0,255,65,0.05)]">
+            <div className="bg-black border-b border-green-900 p-3 flex justify-between items-center">
+                <div className="flex items-center gap-2">
                     <Eye size={16} />
-                    <span className="text-xs font-bold tracking-wider">RENDU FINAL (HTML/CSS INJECTÉ)</span>
+                    <span className="text-xs font-bold tracking-widest text-green-400">RENDU DOM (HTML GÉNÉRÉ)</span>
                 </div>
-                <div className="flex gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></div>
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div>
-                    <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50"></div>
+                <div className="text-[10px] text-green-600 bg-green-900/10 px-2 py-1 rounded border border-green-900/30">
+                    {nodeCount > 0 ? `${nodeCount} DIVS INJECTÉS` : 'STANDBY'}
                 </div>
             </div>
 
-            <div className="flex-1 relative bg-neutral-900 checkerboard-pattern">
+            <div className="flex-1 relative bg-black">
                 {generatedCode ? (
                     <iframe 
-                        title="Rendered Result"
                         srcDoc={generatedCode}
                         className="w-full h-full border-none"
+                        title="Wireframe Output"
                     />
                 ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-700 gap-4">
-                        <BoxSelect size={48} strokeWidth={1} />
-                        <p className="text-xs uppercase tracking-widest">En attente de reconstruction...</p>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-green-900/30 gap-4">
+                        <Cpu size={64} strokeWidth={1} />
+                        <p className="text-xs uppercase tracking-[0.2em]">En attente du signal Sobel...</p>
                     </div>
                 )}
             </div>
             
-            {/* Raw Code Toggle (Optional) */}
-            <div className="h-32 bg-[#050505] border-t border-slate-800 p-4 overflow-hidden relative group">
-                 <div className="absolute top-2 right-2 p-1 bg-slate-900 rounded text-slate-500">
-                    <Code size={14}/>
-                 </div>
-                 <pre className="text-[10px] text-slate-600 font-mono overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity">
-                    {generatedCode || "// Le code brut apparaîtra ici..."}
-                 </pre>
-            </div>
+            {/* Raw Code Snippet */}
+            {generatedCode && (
+                <div className="h-12 bg-black border-t border-green-900 flex items-center px-4 justify-between">
+                     <span className="text-[10px] text-green-700 truncate w-2/3">{`<div style="position:absolute; background:#00ff41...">`}</span>
+                     <button 
+                        onClick={() => navigator.clipboard.writeText(generatedCode)}
+                        className="text-[10px] bg-green-900/20 hover:bg-green-900/50 text-green-400 px-3 py-1 rounded border border-green-800 transition-colors"
+                     >
+                        COPIER HTML
+                     </button>
+                </div>
+            )}
         </div>
 
       </div>
-
-      <style jsx global>{`
-        .checkerboard-pattern {
-            background-image: linear-gradient(45deg, #111 25%, transparent 25%), 
-                              linear-gradient(-45deg, #111 25%, transparent 25%), 
-                              linear-gradient(45deg, transparent 75%, #111 75%), 
-                              linear-gradient(-45deg, transparent 75%, #111 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-        }
-      `}</style>
     </div>
   );
-  }
+    }
