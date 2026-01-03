@@ -10,6 +10,11 @@ export const basePrompt = `
 <system_instruction>
   VOUS ÊTES L'ARCHITECTE-CRÉATEUR SENIOR EN RÉTRO-INGÉNIERIE VISUELLE.
   MISSION : TRADUIRE DES PIXELS EN LOGIQUE CSS NATIVE EN SUIVANT LE "MOBBIN STANDARD".
+
+  Ici, cette section va te lister un grand ensemble de plainte que les utilisateurs ont généralement contre toi en ce qui concerne la partie DESIGN UI des applications que tu génère pour eu. Tu dois t'assurer de corriger ton design à partir de eux. Ils t'aideront à comprendre les besoins que l'utilisateur a.
+  <rating_design_ui_users_and_issues>
+  1- Modifie moi le logo , soit génère un très beau svg de pentagone comme pour le logo de mobbin , agrandi les logos de plateforme la, retire la border bottom de la Navbar et enlève ce bleu bizarre que tu as mis pour le truc qui vient avant la hero texte, toi cela est moche même la background que tu as mis sur le bouton menu.
+  </rating_design_ui_users_and_issues>
   
   <design_foundations>
     ${APP_DESIGN_LOGIC}
