@@ -17,7 +17,7 @@ Ne jamais appliquer une couleur brute. Toujours utiliser l'élévation par couch
 - Canvas Logic : La zone de création doit ressembler à une "feuille physique" posée sur une table numérique.
 `;
 
-export const DESIGN_SYSTEM_V12 = `# Design System Manifesto - Project 133 (v12 - High-Density Precision)
+export const DESIGN_SYSTEM_V12 = `# Design System Manifesto - Project 133 (v12 - High-Density Precision) ( celles ci est pour les thèmes dark, ou sombres)
 
 Ce document est le blueprint technique final, documentant l'évolution vers une interface ultra-compacte et performante. Il sert de référence absolue pour la reconstruction de l'interface sans support visuel.
 
@@ -81,15 +81,6 @@ Ce document est le blueprint technique final, documentant l'évolution vers une 
     - **Logo Dot**: 6px de diamètre, Background --accent-green, Box-shadow 0 0 12px vert.
     - **Margin Bottom**: 40px (Ajusté pour densité).
 
-### [Profile Management Section - Bento Style]
-- **Cartographie Structurelle (DOM)** :
-    - .userProfile agit comme un conteneur bento flottant en bas de sidebar.
-- **Blueprint CSS Precision** :
-    - **Background**: rgba(241, 241, 230, 0.03) (Surgit du noir sans bordure).
-    - **Padding**: 10px 14px.
-    - **UserInfo Column**: display: flex, flex-direction: column, gap: 2px.
-    - **Avatar**: 32px x 32px, Radius 10px, Background gradient technique sombre.
-    - **Icon Action**: ChevronRight de Lucide-react en 16px.
 
 ---
 
@@ -115,4 +106,48 @@ Ce document est le blueprint technique final, documentant l'évolution vers une 
     - Réduction de la largeur repliée à 88px pour maximiser l'espace du Main Content.
 
 ---
-**Note pour reconstruction par IA** : Respectez scrupuleusement le cubic-bezier(0.23, 1, 0.32, 1). C'est l'âme de l'interface. En mode replié, centrez les icônes de navigation par rapport à la largeur de 88px.`;
+**Note pour reconstruction par IA** : Respectez scrupuleusement le cubic-bezier(0.23, 1, 0.32, 1). C'est l'âme de l'interface. En mode replié, centrez les icônes de navigation par rapport à la largeur de 88px.
+
+
+Celle-ci (cette sidebar est pour les thèmes light, clair:
+
+# Design System Manifesto - Project 167 (Final Seamless Architecture)
+
+Ce document détaille la reconstruction de l'interface Dashboard en suivant le standard de précision "Mobbin".
+
+## 1. Architecture Structurelle (Unified Background)
+L'interface repose sur une suppression totale des lignes de séparation (borders) entre la navigation et le contenu.
+- Fond Unifié : La sidebar (aside) et le contenu principal (main) partagent le même code couleur #FFFFFF.
+- Absence de Bordures : Aucune bordure verticale ne sépare la sidebar du contenu. L'élévation est suggérée par la hiérarchie typographique et les éléments "Raised".
+
+## 2. La Sidebar (Analyse de Précision)
+La sidebar est le centre de contrôle haute densité.
+- Largeur : 280px fixe.
+- Logo : SVG natif de pentagone noir avec un point vert vibrant (#0ae448) au centre. Texte "mobbin" en ExtraBold (800) avec letter-spacing de -0.05em.
+- Searchbox (Composant Mobbin) :
+    - Fond : #F7F7F7 (Layer 2).
+    - Rayon (Radius) : 11px.
+    - Hauteur : 38px.
+    - Accessoires : Icône loupe à gauche, raccourci clavier "⌘K" à droite (opacité 0.6).
+- Navigation :
+    - Headers de Section : Texte 11px, ExtraBold 800, Uppercase, espacement de 0.08em. Sert à catégoriser sans alourdir.
+    - Éléments de Menu : Rayon de 12px. Pas de bordures entre eux. État actif marqué par un fond blanc pur et une ombre de 1px ultra-fine (0.02 opacity).
+    - Indicateurs de Statut : Cercles de 8px (statusDot) pour les niveaux de sévérité (Critical, High, etc.).
+    - Compteurs : Pastilles grises (#F7F7F7) à droite des menus pour indiquer le volume d'items.
+
+## 3. Géométrie & Boutons (Mandat Mobbin)
+- Boutons (CTA) : Hauteur fixe de 35px. Rayon de 25px (Forme pilule parfaite). Texte en Bold 700.
+- Cards : Rayon de 24px. Bordure ultra-subtle de 1px (rgba 0,0,0,0.04). Padding généreux de 28px.
+
+## 4. Typographie (Next.js Optimization)
+- Police : Plus Jakarta Sans (Chargée via next/font/google).
+- Tailles UI : 13px pour les menus, 32px pour les titres de page.
+- Poids : 800 (Titres/Logo), 700 (Badges), 600 (UI/Navigation).
+
+## 5. Colorimétrie Sémantique
+- Layer 0/1 : #FFFFFF (Base & Surface).
+- Layer 2 : #F7F7F7 (Inputs & Hover).
+- Sévérité : Rouge Apple (#FF3B30), Orange (#FF9500), Jaune (#FFCC00), Vert (#34C759).
+
+Cette approche garantit une interface "Editorial Tech" ultra-propre, où chaque pixel est justifié par une fonction de navigation claire.
+`;
