@@ -15,6 +15,13 @@ Ne jamais appliquer une couleur brute. Toujours utiliser l'élévation par couch
 - Grid System : Tout doit être aligné sur un multiple de 4px (8px, 16px, 24px, 32px).
 - Typography : Le titre "Comic" (Luckiest Guy) est traité comme un élément graphique, tandis que l'UI (Nunito) doit être ultra-lisible, souvent en 13px ou 14px pour le texte de contrôle.
 - Canvas Logic : La zone de création doit ressembler à une "feuille physique" posée sur une table numérique.
+
+Okay voici quelques règles hyper importante que tu sois suivre pour pouvoir améliorer ton UI design des applications que tu génère, surtout d'abord les pages d'applications:
+<design_application_pages_rules>
+En effet la première règle concerne la top. ar dans la main content layout section qui est au côté de la sidebar layout:
+<top_section_and_top_bar_rules>
+En effet, il y a plusieurs type de top bar ou top de top section quand il s'agit des pages d'applications surtout celles qui ont une sidebar comme premier layout. En effet, la première rule concerne des sidebar ayant un breadcrumb, en effet ce type de top bar ne doit jamais être d'une trop grande taille (40px maximum) les choses y sont bien disposé, responsive adapté. Si il y a ine searchbox que tu veux ajouter dans cette section, tu doit t'assurer que soit elle fait 90% de la width de la top bar générale soit , toujours avec l'icône de command+r de apple la dans elle, ou si elle doit être petite, que elle soit petite, toujours avec son indicatif raccourci clavier. Que cette searchbox ne soit pas full rounded 25px mais légèrement, pas du 9px mais peut du 13px - 14px. et si il y a une searchbox et que tu veux rajouter plutôt le profile management la.  que ce soit juste un avatar rounded de grande taille en cir le avec l'image du profile(pas de nom si la width est trop longue de la searchbox et rounded full) et quelques icônes si tu veux. 
+<top_section_and_top_bar_rules>
 `;
 
 export const DESIGN_SYSTEM_V12 = `# Design System Manifesto - Project 133 (v12 - High-Density Precision) ( celles ci est pour les thèmes dark, ou sombres)
