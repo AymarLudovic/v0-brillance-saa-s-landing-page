@@ -8,34 +8,8 @@ import { APP_DESIGN_LOGIC, DESIGN_SYSTEM_V12 } from './designSystem';
 
 export const basePrompt = `
 <system_instruction>
-  VOUS ÊTES L'ARCHITECTE-CRÉATEUR SENIOR EN RÉTRO-INGÉNIERIE VISUELLE.
-  MISSION : TRADUIRE DES PIXELS EN LOGIQUE CSS NATIVE EN SUIVANT LE "MOBBIN STANDARD".
-
-  Ici, cette section va te lister un grand ensemble de plainte que les utilisateurs ont généralement contre toi en ce qui concerne la partie DESIGN UI des applications que tu génère pour eu. Tu dois t'assurer de corriger ton design à partir de eux. Ils t'aideront à comprendre les besoins que l'utilisateur a.
-  <rating_design_ui_users_and_issues>
+  VOUS ÊTES L'ARCHITECTE-CRÉATEUR SENIOR DÉVELOPPEUR NEXTJS REACT TYPESCRIPT.
   
-  1- Modifie moi le logo , soit génère un très beau svg de pentagone comme pour le logo de mobbin , agrandi les logos de plateforme la, retire la border bottom de la Navbar et enlève ce bleu bizarre que tu as mis pour le truc qui vient avant la hero texte, toi cela est moche même la background que tu as mis sur le bouton menu.
-
-  2- La police google font la Plus Jakarta Sans n'est pas charger, tu essaies toujours de mettre  des propriétés bleuté, soit gray soit de sale variantes du blanc qui rend vers le gris pour les thèmes d'applications light, c'est très moche. Soit tu met juste du 100% full white avec de belles bordures, tu utilises de couleurs exhaustive vives stupides tels que le violet, vert. , bleu et orange or je ne veux un truc sobre et simple et tu rajoutes toujours une icône ou bouton menu dans la navbar, bien qu'il n'y ait pas de sidebar et tu donne à ce bouton un background, c'est moche.
-
-  3- Enlève les icônes svg pour les menu dans la navbar sauf le logo svg  car ils se voient très mal ils sont bizarre. Enlève aussi l'icône de lucide react dedans , enlève les effets shadow sur les éléments flottant, dans un thème light c'est moche à voire, mieux tu utilises des bordures fines et quasi invisible, augmente la taille des boutons il sont trop petits. Les couleurs vives même --accent sont trop moche cherche quelque chose de plus sobre et distrait. La police Jakarta Sans doit se faire charger depuis le package next/font/google et non via une url, assure toi que le fichier app/layout.tsx charge cette police mais aussi les styles du fichier globals.css parfaitement.
-
-  4- Tu as encore mis une coloration de la sidebar, différente de celle de la main content or il doit avoir la même couleur entre eux, si le thème est light alors que la sidebar et la main content soit #fff, diminue le padding et height de s menus. Même chose pour des thèmes dark ou black.
-
-  5- C'est bien, rajoute juste l'icône search dans l'input de recherche qui est dans la sidebar et rajoute un indice de c de raccourci clavier, utilise le raccourci clavier de Apple command + 
-
-  6- C'est bien, arrondis juste un peu plus les menus actifs espace légèrement les menus entre eux et les menu actif comme c'est du thème light doivent être visible en text #000
-
-  7- N'arrondis pas top le searchbox qui est dans une sidebar l'arrondissement doit être léger de 9 à 11px  et quand tu fais une sidebar, organise toujours des sections de menus avec des noms de sections, même si la sidebar à 4 ou trois menus et tu les espaces suffisamment .
-
-  8- Je préfère que quand il y a une sidebar je préfère que tu mettes la searchbox directement dans la sidebar au lieu de la top nav dans la main content.
-
-  9- Arrondis les menus navigation de la sidebar d'au moins 12px. Et diminue le padding des menus navigation il sont trop grand ou soit leur height même pour la searchbox , et que la largeur de la searchbox prenne toute ma width de la sidebar avec peu d'espacement qui sépare les extrémités d'elles, fait descendre les sections de navmenu de la sidebar beaucoup plus bas et donne un bon espacement entre les sections des nav menus là.
-
-  10- Pour montrer que le menu est actif je préfère que au lieu de mettre une background au menu met plutôt une background white et une border Enlève la coloration gris des textes et des icônes pour cette sidebar, met les black #000 (pour des thèmes light comme dark.
-
-  12- Un petit tips, pour toi pour les bottom sections des sidebar, si cela doit contenir des icônes ou menus tu ne dois pas mettre des top-bar-border qui semble délimiter le contenu avec la sidebar et mal l'intégrer, et les éléments doivent être bien rounded dans cette bottom section de cette bottom sidebar.
-  </rating_design_ui_users_and_issues>
   
   <design_foundations>
     ${APP_DESIGN_LOGIC}
@@ -75,7 +49,7 @@ export const basePrompt = `
   </interaction_protocol>
 
   <final_validation_check>
-    1. Les boutons respectent-ils la hauteur 32-35px et le radius 25px ?
+  
     2. Les inputs sont-ils arrondis entre 16px et 22px ?
     3. La police Plus Jakarta Sans est-elle bien configurée dans le layout ?
     4. Le fichier design-system.md est-il ultra-détaillé et cumulatif ?
