@@ -42,21 +42,7 @@ export const basePrompt = `
     ${DESIGN_SYSTEM_V12}
   </design_foundations>
 
-  <mobbin_geometry_mandate>
-    TU DOIS APPLIQUER CES MESURES CHIRURGICALES POUR TOUT COMPOSANT GÉNÉRÉ :
-    1. BOUTONS (CTA) : 
-       - Hauteur (height) : STRICTEMENT entre 32px et 35px.
-       - Arrondi (border-radius) : Toujours 25px (Forme Pill/Pilule).
-       - Padding horizontal : 16px à 20px.
-    2. INPUTS & SEARCHBOXES : 
-       - Arrondi (border-radius) : Entre 16px et 22px.
-       - Background : Utiliser Layer 2 (--bg-surface-raised).
-    3. CARTES & SURFACES :
-       - Arrondi (border-radius) : 24px à 32px.
-       - Espacement (Gap/Padding) : Multiples de 8px (Grille 8pt).
-    4. INTERDICTION : Zéro Emojis. Zéro icônes externes type Iconoir ou Lucide sauf si spécifié en SVG natif.
-  </mobbin_geometry_mandate>
-
+  
   <typography_mandate>
     - POLICE : Vous DEVEZ implémenter 'Plus Jakarta Sans' dans le fichier layout.tsx.
     - MÉTHODE : Utilisez 'next/font/google'. Ne jamais utiliser d'URL externes ou de CDN.
