@@ -22,6 +22,44 @@ En effet la première règle concerne la top. ar dans la main content layout sec
 <top_section_and_top_bar_rules>
 En effet, il y a plusieurs type de top bar ou top de top section quand il s'agit des pages d'applications surtout celles qui ont une sidebar comme premier layout. En effet, la première rule concerne des sidebar ayant un breadcrumb, en effet ce type de top bar ne doit jamais être d'une trop grande taille (40px maximum) les choses y sont bien disposé, responsive adapté. Si il y a ine searchbox que tu veux ajouter dans cette section, tu doit t'assurer que soit elle fait 90% de la width de la top bar générale soit , toujours avec l'icône de command+r de apple la dans elle, ou si elle doit être petite, que elle soit petite, toujours avec son indicatif raccourci clavier. Que cette searchbox ne soit pas full rounded 25px mais légèrement, pas du 9px mais peut du 13px - 14px. et si il y a une searchbox et que tu veux rajouter plutôt le profile management la.  que ce soit juste un avatar rounded de grande taille en cir le avec l'image du profile(pas de nom si la width est trop longue de la searchbox et rounded full) et quelques icônes si tu veux. 
 <top_section_and_top_bar_rules>
+
+<bottom_navigation_sidebar_rules_account>
+### BLUEPRINT TECHNIQUE : MODULE "ACCOUNT MANAGER" (STYLE MOBBIN/PREMIUM)
+
+1. POSITIONNEMENT ET STRATÉGIE DE COUCHE (LAYERING)
+- ANCRAGE : Le module est systématiquement ancré au point le plus bas de la sidebar (Section Bottom).
+- ÉLÉVATION (BENTO STYLE) : Contrairement aux anciens designs, le module ne se fond pas toujours dans le reste de la liste. Il est souvent traité comme une "carte flottante" ou un bloc distinct.
+- CONTRASTE DE COUCHE : 
+    * Si la sidebar est sur le Layer 1 (gris très léger), le module Account Manager est sur le Layer 2 (blanc pur).
+    * En mode sombre, il utilise une teinte légèrement plus claire que le fond de la sidebar pour marquer l'interactivité.
+
+2. CARTOGRAPHIE STRUCTURELLE (DOM HIERARCHY)
+L'élément est construit comme un conteneur Flexbox horizontal (\`align-items: center\`, \`justify-content: space-between\`) :
+- BLOC GAUCHE (IDENTITÉ) :
+    * AVATAR : Cercle ou carré très arrondi situé à l'extrême gauche. Il peut comporter une bordure très fine ou un indicateur de statut (pastille verte).
+    * STACK TEXTUEL : Une colonne verticale contenant deux lignes :
+        - Ligne 1 (Nom) : Texte en gras (SemiBold), couleur primaire.
+        - Ligne 2 (Email/Rôle) : Texte de taille réduite, couleur atténuée (text-dim), souvent en majuscules légères ou avec un espacement de lettres (letter-spacing) pour la lisibilité.
+- BLOC DROIT (CONTRÔLE) :
+    * Une icône discrète (souvent un chevron pointant vers le haut ou la droite, ou trois points verticaux) indiquant que le bloc est un menu déclencheur.
+
+3. DÉTAILS DE STYLE ET FINITIONS
+- GÉOMÉTRIE (RADIUS) :
+    * Le conteneur global possède un arrondi généreux (Border-Radius), aligné sur le style des cartes du tableau de bord.
+    * L'avatar suit cette logique d'arrondi (souvent un rayon de courbure identique ou un cercle parfait).
+- PADDINGS ET ESPACEMENT :
+    * Utilisation d'un padding interne symétrique pour que les informations ne touchent jamais les bords du conteneur.
+    * Un espace fixe (gap) entre l'avatar et le stack textuel pour aérer l'identité.
+- BORDURES ET SÉPARATIONS :
+    * Souvent séparé du reste de la navigation par une ligne horizontale (divider) extrêmement fine à opacité réduite, ou simplement par un espace vide (margin-top auto) qui le pousse vers le bas.
+- ÉTAT DE SURVOL (HOVER) :
+    * Lors du passage de la souris, le fond du module change de couleur de manière subtile ou une bordure de surbrillance apparaît, signalant que l'utilisateur peut cliquer pour ouvrir les réglages du compte.
+
+4. LOGIQUE D'ADAPTATION (COLLAPSED STATE)
+- Lorsque la sidebar est réduite, le module ne montre plus que l'avatar, centré horizontalement. Les textes et l'icône de contrôle sont masqués par une transition d'opacité.
+
+Son padding et sa taille 'e sont pas vraiment gros, environ 35px max
+<bottom_navigation_sidebar_rules_account> Cette règle elle estla pour le account management dans la sidebar ou la top bar et main content.
 `;
 
 export const DESIGN_SYSTEM_V12 = `# Design System Manifesto - Project 133 (v12 - High-Density Precision) ( celles ci est pour les thèmes dark, ou sombres)
