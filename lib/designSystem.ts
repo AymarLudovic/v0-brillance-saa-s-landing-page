@@ -152,6 +152,45 @@ La sidebar est le centre de contrôle haute densité.
 Cette approche garantit une interface "Editorial Tech" ultra-propre, où chaque pixel est justifié par une fonction de navigation claire.
 
 
+
+Voici encore quelques détails sur souvent une sidebar d'application peut contenir et être structuré :
+
+### RÉFÉRENTIEL DE STRUCTURE : SIDEBAR ET NAVIGATION PREMIUM
+
+1. ARCHITECTURE SEGMENTÉE (TOP / MIDDLE / BOTTOM)
+- Zone Supérieure (Top) :
+    * Intègre l'identité de l'application ou le nom du projet en cours.
+    * Comprend souvent un sélecteur de contexte (dropdown) permettant de basculer entre différents espaces de travail ou comptes.
+    * Propose des actions globales immédiates comme la recherche ou l'accès à une boîte de réception.
+- Zone Centrale (Middle - Navigation Principale) :
+    * Organisée par groupes thématiques séparés par des titres de section discrets en majuscules ou en texte léger.
+    * Utilise des listes verticales où chaque élément combine une icône à gauche et un intitulé textuel à droite.
+    * Permet une hiérarchie visuelle avec des sous-éléments ou des listes imbriquées rétractables pour les projets ou dossiers.
+    * Affiche des indicateurs d'état (badges numériques ou points de couleur) à l'extrémité droite des lignes pour signaler des notifications.
+- Zone Inférieure (Bottom - Utilitaires et Profil) :
+    * Regroupe les actions de support, les invitations de membres et les réglages généraux.
+    * Présente le module de profil utilisateur tout en bas, contenant l'avatar et les informations de compte.
+    * Inclut parfois des boutons de feedback isolés pour ne pas encombrer la navigation principale.
+
+2. LOGIQUE VISUELLE ET SÉPARATION DES COUCHES
+- Bordures et Délimitations :
+    * La sidebar est physiquement séparée du contenu principal par une bordure verticale fine et continue.
+    * Utilisation de contrastes de fonds : la sidebar possède souvent une teinte de gris très légère ou un fond légèrement plus sombre que la zone de travail principale pour marquer la profondeur.
+- Géométrie des Éléments de Liste :
+    * Les items de navigation possèdent des angles arrondis lorsqu'ils sont en état de survol ou de sélection.
+    * L'état actif est marqué par un changement de couleur de l'icône, du texte, ou par l'ajout d'un fond coloré subtil derrière l'élément.
+- Typographie et Rythme :
+    * Utilisation de la police 'Plus Jakarta Sans' pour l'ensemble des textes, avec des variations de graisses (gras pour les titres, régulier pour les liens).
+    * Espacement vertical régulier entre les items pour garantir une lisibilité maximale sans surcharge visuelle.
+
+3. COMPOSANTS DE NAVIGATION ÉLARGIS
+- Barres de Recherche et Filtres :
+    * Les champs de saisie dans la navigation sont systématiquement traités avec des rayons de courbure importants (style pilule).
+    * Les filtres rapides sont représentés sous forme de "pills" (boutons ovales) alignés horizontalement au-dessus des listes.
+- Modales et Overlays :
+    * Les menus surgissants ou modales de navigation utilisent des ombres portées très douces et des flous d'arrière-plan pour se détacher des couches inférieures.
+
+
 Pour les landing pages ceci peut être des instructions de base, tu pourras créé des variations ou variétés après , récupérer certaines sections, construire de nouveaux sections en t'inspirant parfaitement de soit la hero section, ou une autre section:
 
 # Design System - Project 129 (v5 Final)
