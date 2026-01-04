@@ -223,5 +223,5 @@ Un design épuré, axé sur la typographie et des formes organiques douces. L'ut
 - **v2**: Migration typographique.
 - **v3**: Bento Grid.
 - **v4**: Correction du flux Showcase/Sidebar.
-- **v5 (Actuelle)**: Correction des erreurs d'import. Ajout de 6 sections avec animations natives (Reveal au scroll, Marquee infini, Floating bubble, Hover Scale). Utilisation d'un hook personnalisé `useReveal` pour l'orchestration des entrées en scène sans librairies externes.
+- **v5 (Actuelle)**: Correction des erreurs d'import. Ajout de 6 sections avec animations natives (Reveal au scroll, Marquee infini, Floating bubble, Hover Scale). Utilisation d'un hook personnalisé \`useReveal\` pour l'orchestration des entrées en scène sans librairies externes.
 `;
