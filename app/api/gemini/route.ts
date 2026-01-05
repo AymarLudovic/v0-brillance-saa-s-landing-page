@@ -2,12 +2,6 @@ import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
 
-
-
-  
-
-
-
 const FULL_PROMPT_INJECTION = `${basePrompt}`; 
 
 interface Message { 
@@ -52,8 +46,8 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
-        allReferenceImages,
-        cssMasterUrl // <-- L'URL peut toujours être envoyée comme fallback
+        allReferenceImages, // C'est ici que tes images aléatoires (3 à 5 max) arrivent
+        cssMasterUrl 
     } = body as { 
         history: Message[], 
         uploadedImages: string[],
@@ -71,10 +65,13 @@ export async function POST(req: Request) {
     const lastUserIndex = history.length - 1; 
     const systemContextParts: Part[] = []; 
 
-    // --- INJECTION VISUELLE HYBRIDE ---
+    // --- INJECTION VISUELLE HYBRIDE (Modifié pour gérer la performance) ---
+    // Note: Le client doit envoyer un sous-ensemble aléatoire (ex: 3-5 images) via 'allReferenceImages'
+    // pour garantir la vitesse. Gemini traitera ces images comme le "Vibe" du moment.
     if (allReferenceImages && allReferenceImages.length > 0) {
         const styleParts: Part[] = [];
 
+        // On itère sur les images reçues (déjà filtrées par le client pour la perf)
         allReferenceImages.forEach((imgBase64) => {
             styleParts.push({
                 inlineData: {
@@ -84,14 +81,15 @@ export async function POST(req: Request) {
             });
         });
 
-        let instructionText = `[DIRECTIVE SYSTÈME : ANALYSE VISUELLE CROISÉE]
-Les images ci-dessus sont ta source de vérité visuelle (Vibe).
-1. IDENTIFICATION : Analyse les images et identifie quel archétype de la BIBLE DU DESIGN (Nav Type 1, Card Type 3, etc.) correspond le mieux.
-2. EXTRACTION : Copie les valeurs précises non documentées (teinte exacte du fond, arrondi spécifique).
-3. APPLICATION : Applique l'archétype identifié en utilisant les règles CSS brutes de la Bible.
+        let instructionText = `[DIRECTIVE SYSTÈME : ANALYSE VISUELLE CROISÉE & INSPIRATION]
+Les images ci-dessus sont ta source d'inspiration (Vibe Board).
+1. ANALYSE : Observe les patterns communs dans ces images (rondeur, palette, densité d'information).
+2. FUSION : Combine ces éléments visuels avec le concept aléatoire défini dans le prompt textuel.
+3. APPLICATION : Utilise ces références pour briser tes habitudes de design standard. Si tu vois du sombre, fais du sombre. Si tu vois du néon, fais du néon.
 
-Je t'envoie une image d'inspiration de design je veux que tu l'as reproduise à 100%, en réutilisant les mêmes sections, même texte, même forme de navbar, même forme et emplacement d'absolument chaque élément et même styles styles sans absolument rien oublier, même si c'est un petit tiret ou point textuelle. Tu vas réutiliser absolument les mêmes couleurs. Tout les styles, classes CSS dont tu feras appel dans le front devrons être absolument mentionné dans le fichier CSS. Je te pris d'observer bien la coloration de de chaque composant afin de vraiment détecté la background réel et de l'utiliser. N'invente rien, reproduit fidèlement point par point chaque élément et détails de l'image. Importe tes icônes depuis la librairie d'icones de Google font icons. Surtout regarde comment chaque élément est fait, analyse le bien que ce soit au niveau de la disposition de ces éléments à l'intérieur de lui, de l'arrondissement de ses bordures, de la couleur de ces bordures de l'effet créé par tel chose de son ton et reproduit tout cela parfaitement, tout en rendant le tout responsives pour téléphone mobile, portable 
-Identifie bien chaque composant sur chaque image en analyse ultra détaillé et leur background leur structuration les éléments qu'il possède, comment ses éléments qont placer organisé, la nature de chaque élément, la bordure arrondi ou non si oui a quel degré, et reproduit au pixel perfect absolument toutes l'image dans un détail absolue. Tu peux aussi utiliser des icônes de la bibliothèque iconsax react JS.
+RÈGLE D'OR : Ne copie pas bêtement une seule image. Crée une synthèse de ces images qui respecte le système de design Mobbin (grille parfaite, espacement) mais avec l'âme visuelle de ces références.
+
+Si l'utilisateur demande une reproduction spécifique, ignore la fusion et reproduis fidèlement (Pixel Perfect). Sinon, sois CRÉATIF.
 `;
 
         if (cssMasterUrl) {
@@ -101,7 +99,8 @@ Identifie bien chaque composant sur chaque image en analyse ultra détaillé et 
         styleParts.push({ text: instructionText });
 
         contents.push({ role: 'user', parts: styleParts });
-        contents.push({ role: 'model', parts: [{ text: "Compris. J'ai analysé les références visuelles. Je vais appliquer les archétypes correspondants de la Bible du Design No-Fail en utilisant des propriétés CSS brutes et précises." }] });
+        // On pré-conditionne le modèle pour qu'il accepte ce style
+        contents.push({ role: 'model', parts: [{ text: "Compris. J'ai intégré le Vibe Board visuel. Je vais fusionner ces esthétiques avec la logique structurelle demandée." }] });
     }
 
     // --- HISTORIQUE ---
@@ -141,44 +140,53 @@ Identifie bien chaque composant sur chaque image en analyse ultra détaillé et 
         FULL_PROMPT_INJECTION + 
         (systemContextParts.length > 0 ? "\n\n--- CONTEXTE PROJET ---\n" + systemContextParts.map(p => p.text).join('\n') : "")
     );
-    
 
-
-
-const response = await ai.models.generateContentStream({
-  model,
-  contents, 
-  tools: [{ functionDeclarations: [readFileDeclaration] }],
-  config: { systemInstruction: finalSystemInstruction }
-})
+    // Appel à l'API Gemini
+    const response = await ai.models.generateContentStream({
+      model,
+      contents, 
+      tools: [{ functionDeclarations: [readFileDeclaration] }],
+      config: { systemInstruction: finalSystemInstruction }
+    });
 
     const encoder = new TextEncoder();
     let batchBuffer = ""; 
+    
     const stream = new ReadableStream({
       async start(controller) {
         let functionCall = false; 
-        for await (const chunk of response) {
-            if (chunk.functionCalls && chunk.functionCalls.length > 0) {
-                functionCall = true; 
-                controller.enqueue(encoder.encode(JSON.stringify({ functionCall: chunk.functionCalls[0] })));
-                break; 
+        try {
+            for await (const chunk of response) {
+                if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+                    functionCall = true; 
+                    controller.enqueue(encoder.encode(JSON.stringify({ functionCall: chunk.functionCalls[0] })));
+                    break; 
+                }
+                if (chunk.text) {
+                  batchBuffer += chunk.text; 
+                  if (batchBuffer.length >= BATCH_SIZE) {
+                    controller.enqueue(encoder.encode(batchBuffer));
+                    batchBuffer = ""; 
+                  }
+                }
             }
-            if (chunk.text) {
-              batchBuffer += chunk.text; 
-              if (batchBuffer.length >= BATCH_SIZE) {
-                controller.enqueue(encoder.encode(batchBuffer));
-                batchBuffer = ""; 
-              }
-            }
+            if (!functionCall && batchBuffer.length > 0) controller.enqueue(encoder.encode(batchBuffer));
+            controller.close();
+        } catch (streamError: any) {
+            // GESTION D'ERREUR EN STREAM (Quota, Timeout, etc.)
+            // Au lieu de crasher, on envoie le message d'erreur directement dans le chat
+            const errorMessage = `\n\n[SYSTEM ERROR]: Une erreur est survenue pendant la génération (probablement Quota ou Filtre).\nDétail: ${streamError.message}`;
+            controller.enqueue(encoder.encode(errorMessage));
+            controller.close();
         }
-        if (!functionCall && batchBuffer.length > 0) controller.enqueue(encoder.encode(batchBuffer));
-        controller.close();
       },
+      // Le catch ici gère les erreurs d'initialisation du stream lui-même
       async catch(error) { console.error("Stream Error:", error); }
     })
 
     return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" } })
   } catch (err: any) {
+    // Fallback si l'initialisation complète échoue avant même le stream
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-}
+  }
