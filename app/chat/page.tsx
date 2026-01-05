@@ -18,7 +18,7 @@ import {
     replaceLastHistoryMessage 
 } from '@/utils/history'; // Ajustez le chemin si nécessaire
 import VercelDeployModal from '@/components/VercelDeployModal';
-
+import { getRandomVibes } from '@/lib/indexedDB';
 // Imports à ajouter dans votre liste d'imports existante
 import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
 
@@ -2971,7 +2971,7 @@ let shopImages: string[] = [];
 
 
 
-
+const randomVibes = await getRandomVibes(3);
   
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
@@ -3012,7 +3012,7 @@ let shopImages: string[] = [];
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            allReferenceImages: shopImages
+            allReferenceImages: randomVibes,
          
           }),
         });
