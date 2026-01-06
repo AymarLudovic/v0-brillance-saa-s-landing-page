@@ -83,6 +83,7 @@ Les icônes search ne s'affiche pas fait un bel icône Home réduit le padding d
 
   10- Pour montrer que le menu est actif je préfère que au lieu de mettre une background au menu met plutôt une background white et une border Enlève la coloration gris des textes et des icônes pour cette sidebar, met les black #000 (pour des thèmes light comme dark.
 
+  11- Améliore le footer bottom si tu dois mettre un account management pour la sidebar ça dois être dans le top toujours et lui aussi il doit être petit en terme de tailles, avoir des icônes en chevrons collapse j'espère que tu vois un peu de ce que je veux dire, disons 30px pour la account management et enlève la top bottom border de cette section Non ça doit toujours avoir sa couleur de différenciation il doit toujours avoir le logo avant la  section  account management, et aussi rajoute l'icône arrouw up aussi en parallèle de l'icône arrow down dans le profil management. et c'est dans ce lieu la que tu dois placé le account management.
   Où sont les autres sections ?! Tu dois construire les autres sections parfaites de la landing pages à partir initialement de cette hero section parfait que tu as fait .
 
   C'est gris putain la sidebar et la page c'est gris, utilise des variations comme #fafafa ou bref  charge bien la police Plus Jakarta Sans depuis next/font/google , 
