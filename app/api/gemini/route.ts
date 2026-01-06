@@ -148,10 +148,18 @@ Si l'utilisateur demande une reproduction spécifique, ignore la fusion et repro
       tools: [{ functionDeclarations: [readFileDeclaration] }],
       config: { systemInstruction: finalSystemInstruction },
       generationConfig: {
-      temperature: 1.2, // Monte à 1.0 pour plus de créativité visuelle
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: 8192,
+      // 1.5 est le "Sweet Spot" pour le design : assez haut pour être créatif, 
+      // pas assez pour casser la syntaxe TypeScript.
+      temperature: 1.6, 
+      
+      // On augmente Top-P pour donner accès à un vocabulaire de propriétés CSS plus vaste.
+      topP: 0.98, 
+      
+      // On augmente Top-K pour qu'il considère plus de variantes de tokens avant de choisir.
+      topK: 60, 
+      
+      // Crucial pour les Landing Pages riches (évite les coupures nettes).
+      maxOutputTokens: 8192, 
       }
     });
 
