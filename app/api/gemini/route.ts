@@ -146,7 +146,13 @@ Si l'utilisateur demande une reproduction spécifique, ignore la fusion et repro
       model,
       contents, 
       tools: [{ functionDeclarations: [readFileDeclaration] }],
-      config: { systemInstruction: finalSystemInstruction }
+      config: { systemInstruction: finalSystemInstruction },
+      generationConfig: {
+      temperature: 1.2, // Monte à 1.0 pour plus de créativité visuelle
+      topP: 0.95,
+      topK: 40,
+      maxOutputTokens: 8192,
+      }
     });
 
     const encoder = new TextEncoder();
