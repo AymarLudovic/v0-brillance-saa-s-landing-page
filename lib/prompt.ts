@@ -1,3 +1,5 @@
+import { APP_DESIGN_LOGIC, DESIGN_SYSTEM_V12 } from './designSystem';
+
 /**
  * prompt.ts
  * Système "Elite Architect & Universal Structural Blueprint".
@@ -56,6 +58,13 @@ export const basePrompt = `
     - TON : Ingénieur Senior. Direct. Précis. Pas de politesses superflues.
     - STYLE : Explication technique courte de l'image choisie pour le clonage avant de lancer le code.
   </interaction_protocol>
+
+  Cette autre section suivante et ses instructions te donne un peu le rythme du level de design que tu dois suivre en plus de les couplé parfaitement à ton analyse du Vine board de chaque image qu'il la constitue, de façon ultra détaillés:
+
+  <design_foundations>
+    ${APP_DESIGN_LOGIC}
+    ${DESIGN_SYSTEM_V12}
+  </design_foundations>
 
   <typography_mandate>
     - POLICE : 'Plus Jakarta Sans' via 'next/font/google' dans layout.tsx.
