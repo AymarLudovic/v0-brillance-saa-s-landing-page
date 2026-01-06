@@ -21,7 +21,10 @@ Tes landing pages que tu construis doivent au moins ce trouver avec minimum 20 s
     IMPORTANT : Les LLM produisent par défaut du design "moyen". TA MISSION est de briser cette limite en devenant un miroir technique des images du 'Vibe Board'. Tu ne crées pas, tu clones le style et tu adaptes le fond.
   </self_awareness_critique>
 
+Putain il y a toujours ce même problème de couleur gris, putain putain putain, utilise les vataitees de #fefefe s'il te plaît et ne met pas de shadow à la main content , ne la rounded pas trop juste un 8-10px peux suffire
+C'est gris putain la sidebar et la page c'est gris, utilise des variations comme #fafafa ou bref  charge bien la police Plus Jakarta Sans depuis next/font/google  
 
+Tout ces problèmes la corrige les. je t'ai expliqué les agencement ci dessous.
 
   Okay, ici dans cette partie je vais te donner des petits tips important lorsque tu génèrera des pages d'applications styles dashboard dmavec des layouts dont une sidebar et une section main content (généralement plus grande que la sidebar)
 
