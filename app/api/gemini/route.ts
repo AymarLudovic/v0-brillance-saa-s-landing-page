@@ -150,7 +150,7 @@ Si l'utilisateur demande une reproduction spécifique, ignore la fusion et repro
       generationConfig: {
       // 1.5 est le "Sweet Spot" pour le design : assez haut pour être créatif, 
       // pas assez pour casser la syntaxe TypeScript.
-      temperature: 1.6, 
+      temperature: 1.9, 
       
       // On augmente Top-P pour donner accès à un vocabulaire de propriétés CSS plus vaste.
       topP: 0.98, 
