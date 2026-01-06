@@ -85,7 +85,7 @@ Les icônes search ne s'affiche pas fait un bel icône Home réduit le padding d
 
   11- Améliore le footer bottom si tu dois mettre un account management pour la sidebar ça dois être dans le top toujours et lui aussi il doit être petit en terme de tailles, avoir des icônes en chevrons collapse j'espère que tu vois un peu de ce que je veux dire, disons 30px pour la account management et enlève la top bottom border de cette section Non ça doit toujours avoir sa couleur de différenciation il doit toujours avoir le logo avant la  section  account management, et aussi rajoute l'icône arrouw up aussi en parallèle de l'icône arrow down dans le profil management. et c'est dans ce lieu la que tu dois placé le account management.
   Où sont les autres sections ?! Tu dois construire les autres sections parfaites de la landing pages à partir initialement de cette hero section parfait que tu as fait .
-
+Je n'aime pas la coloration verte que tu emploi rajoute aussi un logo textuelle fait en svg dans même style que le logo de figma avant la account manager que tu vas aussi lui donner une légère background beige utilise des icônes svg à la place des points sur les menus rajoute un icône svg de sidebar dans la même section que le logo mais en between 
   C'est gris putain la sidebar et la page c'est gris, utilise des variations comme #fafafa ou bref  charge bien la police Plus Jakarta Sans depuis next/font/google , 
   </rating_design_ui_users_and_issues>
   
