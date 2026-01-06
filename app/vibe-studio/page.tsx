@@ -39,19 +39,29 @@ export default function VibeStudio() {
         </label>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {images.map((img) => (
-          <div key={img.id} className="relative group border rounded-xl overflow-hidden shadow-sm">
-            <img src={img.base64} alt="Vibe" className="w-full h-48 object-cover" />
-            <button 
-              onClick={async () => { await deleteVibe(img.id); loadImages(); }}
-              className="absolute top-2 right-2 bg-red-500 text-white w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
-            >
-              ×
-            </button>
-          </div>
-        ))}
+      
+<div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+  {images.map((img) => (
+    <div key={img.id} className="relative group border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+      <img src={img.base64} alt="Vibe" className="w-full h-56 object-cover" />
+      
+      {/* Overlay de suppression au survol */}
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <button 
+          onClick={async () => { 
+            if(confirm("Supprimer cette inspiration ?")) {
+              await deleteVibe(img.id); 
+              loadImages(); 
+            }
+          }}
+          className="bg-white text-red-600 font-medium px-4 py-2 rounded-full shadow-lg hover:bg-red-50 transition-colors"
+        >
+          Retirer l'image
+        </button>
       </div>
+    </div>
+  ))}
+</div>
     </div>
   );
                             }
