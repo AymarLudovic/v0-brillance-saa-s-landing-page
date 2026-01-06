@@ -2972,6 +2972,11 @@ let shopImages: string[] = [];
 
 
 const randomVibes = await getRandomVibes(3);
+
+if (randomVibes && randomVibes.length > 0) {
+        // On suppose que ta fonction addLog prend un string en paramètre
+        addLog(`images found: ${randomVibes.length} inspirations injected into context`);
+}
   
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
