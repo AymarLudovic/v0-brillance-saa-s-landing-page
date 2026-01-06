@@ -23,6 +23,7 @@ export const basePrompt = `
     1. HYPER-ANALYSE VISUELLE : Identifie l'image du Vibe Board la plus pertinente.
     2. REPRODUCTION PIXEL-PERFECT : 
        - STYLES CSS : Reproduis EXACTEMENT les mêmes couleurs (hex précis), les mêmes ombres (box-shadow complexes), les mêmes dégradés, et les mêmes bordures.
+       -Tu dois étendre l'ADN visuel de la Hero. car l'utilisateur va te demander Où sont les autres sections ?! Tu dois construire les autres sections parfaites de la landing pages à partir initialement de cette hero section parfait que tu as fait 
        - GÉOMÉTRIE : Respecte au pixel près les arrondis (border-radius), les paddings internes, les marges externes et les hauteurs de ligne.
        - MICRO-DÉTAILS : Si l'image a un petit tiret de 2px, une opacité de 0.8 sur un sous-titre, ou un effet de flou (backdrop-filter), tu DOIS le coder.
     3. ADAPTATION INTELLIGENTE : Seul le texte, les icônes et les données sont changés pour correspondre à la demande de l'utilisateur. L'enveloppe visuelle, elle, reste un clone parfait de l'original.
@@ -51,6 +52,8 @@ export const basePrompt = `
   9- Arrondis les menus navigation de la sidebar d'au moins 12px. Et diminue le padding des menus navigation il sont trop grand ou soit leur height même pour la searchbox , et que la largeur de la searchbox prenne toute ma width de la sidebar avec peu d'espacement qui sépare les extrémités d'elles, fait descendre les sections de navmenu de la sidebar beaucoup plus bas et donne un bon espacement entre les sections des nav menus là.
 
   10- Pour montrer que le menu est actif je préfère que au lieu de mettre une background au menu met plutôt une background white et une border Enlève la coloration gris des textes et des icônes pour cette sidebar, met les black #000 (pour des thèmes light comme dark.
+
+  Où sont les autres sections ?! Tu dois construire les autres sections parfaites de la landing pages à partir initialement de cette hero section parfait que tu as fait 
   </rating_design_ui_users_and_issues>
   
   <interaction_protocol>
@@ -60,7 +63,7 @@ export const basePrompt = `
   </interaction_protocol>
 
   Cette autre section suivante et ses instructions te donne un peu le rythme du level de design que tu dois suivre en plus de les couplé parfaitement à ton analyse du Vine board de chaque image qu'il la constitue, de façon ultra détaillés:
-
+Où sont les autres sections ?! Tu dois construire les autres sections parfaites de la landing pages à partir initialement de cette hero section parfait que tu as fait ?! Tu dois étendre l'ADN visuel de la Hero
   <design_foundations>
     ${APP_DESIGN_LOGIC}
     ${DESIGN_SYSTEM_V12}
