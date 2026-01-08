@@ -18,7 +18,7 @@ interface Message {
 const AGENT_SYSTEMS = {
   MANAGER: `Tu es l'Agent Manager. Analyse la demande. Si c'est une création d'app, de page ou de composant, réponds UNIQUEMENT par "ACTION_GENERATE". Sinon, aide l'utilisateur directement.`,
   PKG: `Agent PKG: Crée un blueprint technique détaillé (Routes, API, Structure DB).`,
-  BACKEND: `Agent Backend Builder: Génère UNIQUEMENT les fichiers app/api/**/route.ts basés sur le blueprint.`,
+  BACKEND: `Agent Backend Builder: Génère UNIQUEMENT le code des API (ex: app/api/**/route.ts) et la logique serveur.`,
   UI: `Agent UI Builder: Génère les pages et composants React en utilisant le backend fourni.`
 };
 
@@ -49,13 +49,7 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { 
-        history, 
-        uploadedImages,
-        uploadedFiles,
-        allReferenceImages,
-        cssMasterUrl 
-    } = body as { 
+    const { history, uploadedImages, uploadedFiles, allReferenceImages, cssMasterUrl } = body as { 
         history: Message[], 
         uploadedImages: string[],
         uploadedFiles: any[],
@@ -68,7 +62,6 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = "gemini-3-flash-preview"; 
     
-    // --- FONCTION DE PRÉPARATION DES CONTENTS (Réutilisable) ---
     const getPreparedContents = (extraContext: string = "") => {
         const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
         const lastUserIndex = history.length - 1;
@@ -85,7 +78,6 @@ export async function POST(req: Request) {
         for (let i = 0; i < history.length; i++) {
             const msg = history[i];
             if (msg.role === 'system') continue;
-            
             const parts: Part[] = [];
             let role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
             
@@ -104,45 +96,45 @@ export async function POST(req: Request) {
     };
 
     const encoder = new TextEncoder();
-    
     const stream = new ReadableStream({
       async start(controller) {
         const send = (txt: string) => controller.enqueue(encoder.encode(txt));
         let batchBuffer = "";
 
         try {
-            // 1. MANAGER DÉCIDE
+            // 1. MANAGER
             const managerRes = await ai.models.generateContent({
                 model,
                 contents: getPreparedContents("Analyse l'intention."),
                 config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + AGENT_SYSTEMS.MANAGER }
             });
-            const managerText = managerRes.response.text();
+            // Sécurité ici : on vérifie si la réponse contient du texte
+            const managerText = managerRes.response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
             if (!managerText.includes("ACTION_GENERATE")) {
-                send(managerText);
+                send(managerText || "Désolé, je ne peux pas traiter cette demande.");
             } else {
-                // 2. PKG AGENT
+                // 2. PKG
                 send("### 🏗️ Architecture\n");
                 const pkgRes = await ai.models.generateContent({
                     model,
                     contents: getPreparedContents("Génère le blueprint."),
                     config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + AGENT_SYSTEMS.PKG }
                 });
-                const blueprint = pkgRes.response.text();
+                const blueprint = pkgRes.response?.candidates?.[0]?.content?.parts?.[0]?.text || "Erreur lors de la génération du blueprint.";
                 send(blueprint + "\n\n---\n");
 
-                // 3. BACKEND AGENT
+                // 3. BACKEND
                 send("### ⚙️ Backend\n");
                 const backRes = await ai.models.generateContent({
                     model,
                     contents: getPreparedContents(`Blueprint: ${blueprint}`),
                     config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + AGENT_SYSTEMS.BACKEND }
                 });
-                const backendCode = backRes.response.text();
+                const backendCode = backRes.response?.candidates?.[0]?.content?.parts?.[0]?.text || "Erreur lors de la génération du backend.";
                 send(backendCode + "\n\n---\n");
 
-                // 4. UI AGENT (STREAMÉ)
+                // 4. UI (STREAMÉ)
                 send("### 🎨 Interface\n");
                 const uiResponse = await ai.models.generateContentStream({
                     model,
@@ -153,8 +145,10 @@ export async function POST(req: Request) {
                 });
 
                 for await (const chunk of uiResponse) {
-                    if (chunk.text) {
-                        batchBuffer += chunk.text;
+                    // chunk.text() est aussi risqué s'il n'y a pas de texte
+                    const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                    if (chunkText) {
+                        batchBuffer += chunkText;
                         if (batchBuffer.length >= BATCH_SIZE) {
                             send(batchBuffer);
                             batchBuffer = "";
@@ -177,4 +171,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 });
   }
-}
+  }
