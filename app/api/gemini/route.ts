@@ -46,7 +46,7 @@ export async function POST(req: Request) {
         history, 
         uploadedImages,
         uploadedFiles,
-        allReferenceImages, // C'est ici que tes images aléatoires (3 à 5 max) arrivent
+        allReferenceImages, // Ici, le CLIENT (Chat) aura déjà envoyé les images filtrées (Landing ou App)
         cssMasterUrl 
     } = body as { 
         history: Message[], 
@@ -59,19 +59,16 @@ export async function POST(req: Request) {
     if (!history || history.length === 0) return NextResponse.json({ error: "Historique manquant" }, { status: 400 });
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
-    const model = "gemini-3-flash-preview"; 
+    const model = "gemini-2.0-flash-exp"; // Modèle recommandé pour la rapidité/qualité
     
     const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
     const lastUserIndex = history.length - 1; 
     const systemContextParts: Part[] = []; 
 
-    // --- INJECTION VISUELLE HYBRIDE (Modifié pour gérer la performance) ---
-    // Note: Le client doit envoyer un sous-ensemble aléatoire (ex: 3-5 images) via 'allReferenceImages'
-    // pour garantir la vitesse. Gemini traitera ces images comme le "Vibe" du moment.
+    // --- INJECTION DU VIBE BOARD ---
     if (allReferenceImages && allReferenceImages.length > 0) {
         const styleParts: Part[] = [];
 
-        // On itère sur les images reçues (déjà filtrées par le client pour la perf)
         allReferenceImages.forEach((imgBase64) => {
             styleParts.push({
                 inlineData: {
@@ -81,26 +78,21 @@ export async function POST(req: Request) {
             });
         });
 
-        let instructionText = `[DIRECTIVE SYSTÈME : ANALYSE VISUELLE CROISÉE & INSPIRATION]
-Les images ci-dessus sont ta source d'inspiration (Vibe Board).
-1. ANALYSE : Observe les patterns communs dans ces images (rondeur, palette, densité d'information).
-2. FUSION : Combine ces éléments visuels avec le concept aléatoire défini dans le prompt textuel.
-3. APPLICATION : Utilise ces références pour briser tes habitudes de design standard. Si tu vois du sombre, fais du sombre. Si tu vois du néon, fais du néon.
-
-RÈGLE D'OR : Ne copie pas bêtement une seule image. Crée une synthèse de ces images qui respecte le système de design Mobbin (grille parfaite, espacement) mais avec l'âme visuelle de ces références.
-
-Si l'utilisateur demande une reproduction spécifique, ignore la fusion et reproduis fidèlement (Pixel Perfect). Sinon, sois CRÉATIF.
+        let instructionText = `[DIRECTIVE SYSTÈME - ANALYSE VISUELLE DU VIBE BOARD]
+Voici les images de référence sélectionnées pour cette tâche.
+1. Analyse le style (Landing ou App) de ces images.
+2. Fusionne ce style avec les instructions textuelles.
+3. Si l'image est une Landing, force la richesse des sections. Si c'est une App, force la rigueur UI (TopBar 28px).
 `;
 
         if (cssMasterUrl) {
-            instructionText += `\n\n4. SOURCE CSS MAÎTRE : L'utilisateur a fourni une URL (${cssMasterUrl}). Lance immédiatement l'outil 'inspirationUrl' pour récupérer son code CSS exact.`;
+            instructionText += `\n\n4. SOURCE CSS MAÎTRE : L'utilisateur a fourni une URL (${cssMasterUrl}). Récupère son CSS.`;
         }
 
         styleParts.push({ text: instructionText });
 
         contents.push({ role: 'user', parts: styleParts });
-        // On pré-conditionne le modèle pour qu'il accepte ce style
-        contents.push({ role: 'model', parts: [{ text: "Compris. J'ai intégré le Vibe Board visuel. Je vais fusionner ces esthétiques avec la logique structurelle demandée." }] });
+        contents.push({ role: 'model', parts: [{ text: "Bien reçu. J'active le mode Multi-Agents : Orchestrateur, UI Builder et Backend prêts à intervenir selon les images fournies." }] });
     }
 
     // --- HISTORIQUE ---
@@ -141,25 +133,16 @@ Si l'utilisateur demande une reproduction spécifique, ignore la fusion et repro
         (systemContextParts.length > 0 ? "\n\n--- CONTEXTE PROJET ---\n" + systemContextParts.map(p => p.text).join('\n') : "")
     );
 
-    // Appel à l'API Gemini
     const response = await ai.models.generateContentStream({
       model,
       contents, 
       tools: [{ functionDeclarations: [readFileDeclaration] }],
       config: { systemInstruction: finalSystemInstruction },
       generationConfig: {
-      // 1.5 est le "Sweet Spot" pour le design : assez haut pour être créatif, 
-      // pas assez pour casser la syntaxe TypeScript.
-      temperature: 1.5, 
-      
-      // On augmente Top-P pour donner accès à un vocabulaire de propriétés CSS plus vaste.
-      topP: 0.98, 
-      
-      // On augmente Top-K pour qu'il considère plus de variantes de tokens avant de choisir.
-      topK: 60, 
-      
-      // Crucial pour les Landing Pages riches (évite les coupures nettes).
-      maxOutputTokens: 8192, 
+        temperature: 1.0, // Ajusté pour équilibre créativité/rigueur
+        topP: 0.95, 
+        topK: 64, 
+        maxOutputTokens: 8192, 
       }
     });
 
@@ -187,20 +170,16 @@ Si l'utilisateur demande une reproduction spécifique, ignore la fusion et repro
             if (!functionCall && batchBuffer.length > 0) controller.enqueue(encoder.encode(batchBuffer));
             controller.close();
         } catch (streamError: any) {
-            // GESTION D'ERREUR EN STREAM (Quota, Timeout, etc.)
-            // Au lieu de crasher, on envoie le message d'erreur directement dans le chat
-            const errorMessage = `\n\n[SYSTEM ERROR]: Une erreur est survenue pendant la génération (probablement Quota ou Filtre).\nDétail: ${streamError.message}`;
+            const errorMessage = `\n\n[SYSTEM ERROR]: Une erreur est survenue pendant la génération.\nDétail: ${streamError.message}`;
             controller.enqueue(encoder.encode(errorMessage));
             controller.close();
         }
       },
-      // Le catch ici gère les erreurs d'initialisation du stream lui-même
       async catch(error) { console.error("Stream Error:", error); }
     })
 
     return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" } })
   } catch (err: any) {
-    // Fallback si l'initialisation complète échoue avant même le stream
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 })
   }
-  }
+      }
