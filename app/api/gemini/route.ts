@@ -14,7 +14,7 @@ interface Message {
     functionResponse?: { name: string; response: any; }
 }
 
-// --- UTILITAIRES DE PORTÉE GLOBALE ---
+// --- UTILITAIRES ---
 function getMimeTypeFromBase64(dataUrl: string): string {
     const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
     return match ? match[1] : 'application/octet-stream';
@@ -34,69 +34,56 @@ const readFileDeclaration: FunctionDeclaration = {
   }
 }
 
-// --- CONFIGURATION AGENTS (TONALITÉ UNIQUE & COHÉSION) ---
+// --- SYSTEM PROMPTS : SÉGRÉGATION STRICTE ---
 const AGENT_SYSTEMS = {
-  MANAGER: `Tu es l'Intelligence Principale. Analyse la demande. 
-  Si c'est une création d'application ou de page, réponds UNIQUEMENT par le mot-clé "ACTION_GENERATE". 
-  Sinon, aide l'utilisateur avec expertise.`,
+  MANAGER: `Tu es l'Intelligence de Pilotage. 
+  - Si c'est un nouveau projet ou une demande de création majeure : réponds "ACTION_GENERATE".
+  - Si c'est une demande de correction, de changement de couleur ou d'ajout d'une fonction précise sur un code existant : réponds "ACTION_FIX".
+  - Sinon, aide l'utilisateur normalement.`,
   
-  PKG: `Phase 1 : ARCHITECTURE. Établis le blueprint technique (Routes, API, Composants). 
-  Ne demande pas de validation. Ne te présente pas. Décide de la structure finale et livre-la immédiatement.`,
+  PKG: `Tu es l'ARCHITECTE. Ton rôle est de définir le plan de vol. 
+  INTERDICTION : Ne génère aucun code source de fichier.
+  MISSION : Liste uniquement les routes, la structure des dossiers et les noms des fichiers nécessaires (ex: app/api/auth, components/ui/Modal). Définis les props et les schémas de données. 
+  Ton blueprint sera la seule source de vérité pour les builders.`,
   
-  BACKEND: `Phase 2 : LOGIQUE SERVEUR. Génère l'intégralité des fichiers app/api/**/route.ts. 
-  Le code doit être prêt à l'emploi et parfaitement fonctionnel. Silence radio sur ton identité, livre juste le moteur.`,
+  BACKEND: `Tu es le BUILDER BACKEND. 
+  INTERDICTION : Ne génère JAMAIS de fichiers React (.tsx), de CSS ou de composants UI.
+  MISSION : Génère uniquement le contenu des fichiers dans "app/api/**/*.ts" basés sur le blueprint. Assure la logique métier et la sécurité.`,
   
-  UI: `Phase finale : ASSEMBLAGE & INTERFACE. Tu es l'agent qui finalise l'œuvre au nom de l'IA principale.
-  1. Génère TOUTES les pages, containers, et modales d'action définis dans l'architecture.
-  2. Assure-toi que TOUS les menus (sidebar, nav) pointent vers les routes réellement créées.
-  3. Intègre et consomme TOUT le code backend (fetch/API) généré juste avant toi.
-  4. Respecte scrupuleusement le Design System (Zéro Tailwind, CSS Modules, Zéro gris sale).
-  5. Parle comme l'agent principal qui livre un projet fini et fonctionnel.`
+  UI: `Tu es le BUILDER UI & INTÉGRATEUR. 
+  INTERDICTION : Ne génère jamais de routes API (/api/...).
+  MISSION : Génère TOUT le reste (.tsx, .css). Tu dois créer les pages, la sidebar, les modales d'action et les menus de navigation. 
+  NAVIGATION : Assure-toi que les liens (href) correspondent aux pages créées.
+  INTÉGRATION : Utilise fetch() pour appeler les API générées par le Backend. Livre une application où chaque clic fonctionne.`,
+
+  FIXER: `Tu es l'Agent de Maintenance. L'utilisateur veut modifier un point précis. Analyse le code existant (via l'historique) et ne génère QUE les modifications demandées pour les fichiers concernés. Sois rapide et précis.`
 };
 
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('x-gemini-api-key');
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
-
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages, cssMasterUrl } = body as { 
-        history: Message[], 
-        uploadedImages: string[],
-        uploadedFiles: any[],
-        allReferenceImages?: string[],
-        cssMasterUrl?: string
-    }
-
-    if (!history || history.length === 0) return NextResponse.json({ error: "Historique manquant" }, { status: 400 });
-
-    const ai = new GoogleGenAI({ apiKey: apiKey });
+    const { history, uploadedImages, uploadedFiles, allReferenceImages, cssMasterUrl } = body;
+    const ai = new GoogleGenAI({ apiKey });
     const model = "gemini-3-flash-preview"; 
 
-    // --- HELPER DE PRÉPARATION DES MESSAGES ---
-    const buildContents = (additionalContext: string = "") => {
+    const buildContents = (context: string = "") => {
         const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
-        const lastUserIndex = history.length - 1;
-
-        if (allReferenceImages && allReferenceImages.length > 0) {
-            const styleParts = allReferenceImages.map(img => ({
-                inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) }
-            }));
-            contents.push({ role: 'user', parts: [...styleParts as any, { text: "[SYSTEME VISUEL CHARGÉ]" }] });
-            contents.push({ role: 'model', parts: [{ text: "Esthétique assimilée. Prêt pour la synthèse." }] });
+        if (allReferenceImages?.length > 0) {
+            const styleParts = allReferenceImages.map(img => ({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } }));
+            contents.push({ role: 'user', parts: [...styleParts as any, { text: "[STYLE_REF]" }] });
+            contents.push({ role: 'model', parts: [{ text: "Vibe Board assimilé." }] });
         }
-
-        history.forEach((msg, i) => {
+        history.forEach((msg: Message, i: number) => {
             if (msg.role === 'system') return;
             const parts: Part[] = [];
             let role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
-
-            if (i === lastUserIndex && role === 'user') {
+            if (i === history.length - 1 && role === 'user') {
                 uploadedImages?.forEach(img => parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } }));
-                uploadedFiles?.forEach(f => parts.push({ inlineData: { data: f.base64Content, mimeType: 'text/plain' }, text: `\n[Fichier: ${f.fileName}]` } as any));
-                if (additionalContext) parts.push({ text: `\n\n[INSTRUCTION INTERNE]: ${additionalContext}` });
+                if (context) parts.push({ text: `\n\n[DIRECTIVE]: ${context}` });
             }
             parts.push({ text: msg.content || ' ' });
             contents.push({ role, parts });
@@ -110,69 +97,60 @@ export async function POST(req: Request) {
         const send = (txt: string) => controller.enqueue(encoder.encode(txt));
         let batchBuffer = "";
 
-        const runStreamedAgent = async (agentInstruction: string, context: string = "") => {
-            let fullText = "";
-            const response = await ai.models.generateContentStream({
+        const runAgent = async (instr: string, ctx: string, isFinal: boolean = false) => {
+            const res = await ai.models.generateContentStream({
                 model,
-                contents: buildContents(context),
-                tools: [{ functionDeclarations: [readFileDeclaration] }],
-                config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + agentInstruction },
-                generationConfig: { temperature: 1.5, topP: 0.98, topK: 60, maxOutputTokens: 8192 }
+                contents: buildContents(ctx),
+                config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + instr },
+                generationConfig: { temperature: isFinal ? 1.4 : 1.0, maxOutputTokens: 8192 }
             });
-
-            for await (const chunk of response) {
+            let fullText = "";
+            for await (const chunk of res) {
                 if (chunk.text) {
-                    const txt = chunk.text;
-                    fullText += txt;
-                    batchBuffer += txt;
-                    if (batchBuffer.length >= BATCH_SIZE) {
-                        send(batchBuffer);
-                        batchBuffer = "";
-                    }
+                    fullText += chunk.text;
+                    batchBuffer += chunk.text;
+                    if (batchBuffer.length >= BATCH_SIZE) { send(batchBuffer); batchBuffer = ""; }
                 }
             }
             return fullText;
         };
 
         try {
-            // 1. DÉCISION (Invisible pour l'utilisateur)
-            let managerOutput = "";
-            const managerStream = await ai.models.generateContentStream({
+            // 1. DÉCISION DU MANAGER
+            let decision = "";
+            const mStream = await ai.models.generateContentStream({
                 model,
-                contents: buildContents("Dois-je générer une application ?"),
+                contents: buildContents("Décide du mode : ACTION_GENERATE ou ACTION_FIX"),
                 config: { systemInstruction: AGENT_SYSTEMS.MANAGER }
             });
-            for await (const chunk of managerStream) { if (chunk.text) managerOutput += chunk.text; }
+            for await (const chunk of mStream) { if (chunk.text) decision += chunk.text; }
 
-            if (!managerOutput.includes("ACTION_GENERATE")) {
-                send(managerOutput);
+            if (decision.includes("ACTION_FIX")) {
+                send("### 🛠️ Correction en cours...\n");
+                await runAgent(AGENT_SYSTEMS.FIXER, "Applique la correction demandée immédiatement.");
+            } else if (decision.includes("ACTION_GENERATE")) {
+                // PIPELINE COMPLET
+                send("### 🏗️ Architecture\n");
+                const plan = await runAgent(AGENT_SYSTEMS.PKG, "Dresse le blueprint sans code.");
+                send("\n---\n### ⚙️ Logic (API)\n");
+                const back = await runAgent(AGENT_SYSTEMS.BACKEND, `Code les routes API selon ce plan : ${plan}`);
+                send("\n---\n### 🎨 Interface & Intégration\n");
+                await runAgent(AGENT_SYSTEMS.UI, `Livre l'UI complète. Connecte-toi à : ${back}. Assure la navigation et les modales.`, true);
             } else {
-                // CHAINE DE PRODUCTION UNIFIÉE
-                send("### 🏗️ Architecture du Projet\n");
-                const blueprint = await runStreamedAgent(AGENT_SYSTEMS.PKG, "Définis le blueprint.");
-                send("\n\n---\n");
-
-                send("### ⚙️ Développement du Moteur (Backend)\n");
-                const backend = await runStreamedAgent(AGENT_SYSTEMS.BACKEND, `Implémente les API : ${blueprint}`);
-                send("\n\n---\n");
-
-                send("### 🎨 Interface & Expérience Utilisateur\n");
-                await runStreamedAgent(AGENT_SYSTEMS.UI, `Finalise l'application. Blueprint: ${blueprint}. Backend: ${backend}. 
-                Assure la navigation complète et l'intégration des fonctionnalités.${cssMasterUrl ? `\nInspiration CSS : ${cssMasterUrl}` : ""}`);
+                send(decision);
             }
 
             if (batchBuffer.length > 0) send(batchBuffer);
             controller.close();
         } catch (e: any) {
-            send(`\n\n[SYSTEM ERROR]: ${e.message}`);
+            send(`\n\n[ERROR]: ${e.message}`);
             controller.close();
         }
       }
     });
 
     return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" } });
-
   } catch (err: any) {
-    return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+        }
