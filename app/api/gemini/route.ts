@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai"
 import { basePrompt } from "@/lib/prompt"
 
-const FULL_PROMPT_INJECTION = `${basePrompt}`;
-const BATCH_SIZE = 256;
+const FULL_PROMPT_INJECTION = `${basePrompt}`; 
+const BATCH_SIZE = 256; 
 
 interface Message { 
     role: "user" | "assistant" | "system"; 
@@ -14,7 +14,6 @@ interface Message {
     functionResponse?: { name: string; response: any; }
 }
 
-// --- HELPER FUNCTIONS (RESTAURÉES) ---
 function getMimeTypeFromBase64(dataUrl: string): string {
     const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
     return match ? match[1] : 'application/octet-stream';
@@ -34,139 +33,117 @@ const readFileDeclaration: FunctionDeclaration = {
   }
 }
 
-// --- SYSTEM PROMPTS ---
-const MANAGER_SYSTEM = `Tu es l'Agent Manager. Tu es l'unique interface avec l'utilisateur.
-DIRECTIVES:
-1. Analyse la demande : s'agit-il d'une création complète ou d'une simple discussion/fix rapide ?
-2. Si c'est une création : réponds obligatoirement par "ACTION_GENERATE: [ton plan]"
-3. Si c'est un fix ou une question : réponds directement à l'utilisateur.
-Tu es conscient des agents PKG, Backend et UI, mais c'est toi qui pilotes.`;
-
-const PKG_SYSTEM = `Agent PKG: Crée le blueprint (Routes, API, DB).`;
-const BACKEND_SYSTEM = `Agent Backend: Génère les fichiers app/api/**/route.ts.`;
-const UI_SYSTEM = `Agent UI: Génère les pages et composants React fonctionnels.`;
+// --- PROMPTS AGENTS ---
+const AGENT_SYSTEMS = {
+  MANAGER: `Tu es l'Agent Manager. Analyse la demande. Si c'est une création d'app, réponds obligatoirement par "ACTION_GENERATE". Sinon, aide l'utilisateur directement pour les corrections rapides.`,
+  PKG: `Agent PKG: Crée un blueprint détaillé (Routes, API, Structure DB).`,
+  BACKEND: `Agent Backend Builder: Génère UNIQUEMENT les fichiers app/api/**/route.ts basés sur le blueprint.`,
+  UI: `Agent UI Builder: Génère les pages (app/page.tsx) et composants fonctionnels en utilisant le backend fourni.`,
+};
 
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('x-gemini-api-key');
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
+
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages, cssMasterUrl } = body as { 
-        history: Message[], 
-        uploadedImages: string[],
-        uploadedFiles: any[],
-        allReferenceImages?: string[],
-        cssMasterUrl?: string
-    };
+    const { history, uploadedImages, uploadedFiles, allReferenceImages, cssMasterUrl } = body;
 
     const ai = new GoogleGenAI({ apiKey });
-    const modelName = "gemini-3-flash-preview"; // Flash pour la rapidité de l'orchestration
-    const encoder = new TextEncoder();
+    const modelId = "gemini-3-flash-preview"; // Utilisation du modèle flash pour l'orchestration
 
-    // --- FONCTION DE GÉNÉRATION AGENT (RESTAURE TES PARAMÈTRES) ---
-    const runAgent = async (systemInstruction: string, userText: string, isStream: boolean = false) => {
-        const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
-        
-        // Injection Vibe Board & Context
-        if (allReferenceImages && allReferenceImages.length > 0) {
-            const styleParts = allReferenceImages.map(img => ({
-                inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) }
-            }));
-            contents.push({ role: 'user', parts: [...styleParts as any, { text: "Analyse ce style." }] });
-            contents.push({ role: 'model', parts: [{ text: "Style intégré." }] });
-        }
-
-        // Historique & Uploads
-        const lastIdx = history.length - 1;
-        history.forEach((msg, i) => {
-            if (msg.role === 'system') return;
-            const parts: Part[] = [{ text: msg.content || " " }];
-            if (i === lastIdx && msg.role === 'user') {
-                if (uploadedImages) uploadedImages.forEach(img => parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } }));
-                if (uploadedFiles) uploadedFiles.forEach(f => {
-                    parts.push({ inlineData: { data: f.base64Content, mimeType: 'text/plain' } });
-                    parts.push({ text: `\n[Fichier: ${f.fileName}]` });
-                });
-            }
-            contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts });
-        });
-
-        const genModel = ai.getGenerativeModel({ 
-            model: modelName, 
-            systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + systemInstruction 
-        });
-
-        const config = {
-            temperature: 1.0,
-            topP: 0.95,
-            topK: 64,
-            maxOutputTokens: 8192,
-        };
-
-        if (isStream) {
-            return genModel.generateContentStream({ contents, generationConfig: config });
-        } else {
-            const res = await genModel.generateContent({ contents, generationConfig: config });
-            return res.response.text();
-        }
+    // --- LOGIQUE DE GÉNÉRATION ORIGINALE ENCAPSULÉE ---
+    const callAI = async (systemInstruction: string, customContents: any[], stream = false) => {
+      const config = {
+        model: modelId,
+        contents: customContents,
+        tools: [{ functionDeclarations: [readFileDeclaration] }],
+        config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + systemInstruction },
+        generationConfig: { temperature: 1.0, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
+      };
+      return stream ? ai.models.generateContentStream(config) : ai.models.generateContent(config);
     };
 
+    // --- PRÉPARATION DES CONTENTS (TON SYSTÈME) ---
+    const prepareContents = (additionalContext?: string) => {
+      const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
+      
+      // Vibe Board
+      if (allReferenceImages && allReferenceImages.length > 0) {
+        const styleParts = allReferenceImages.map(img => ({
+          inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) }
+        }));
+        contents.push({ role: 'user', parts: [...styleParts as any, { text: "Analyse visuelle requise." }] });
+        contents.push({ role: 'model', parts: [{ text: "Mode Multi-Agents activé avec style visuel." }] });
+      }
+
+      // Historique + Context additionnel
+      history.forEach((msg: Message, i: number) => {
+        if (msg.role === 'system') return;
+        const parts: Part[] = [{ text: (i === history.length - 1 && additionalContext) ? `${additionalContext}\n\n${msg.content}` : msg.content }];
+        
+        // Uploads sur le dernier message
+        if (i === history.length - 1 && msg.role === 'user') {
+          uploadedImages?.forEach(img => parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } }));
+          uploadedFiles?.forEach(f => parts.push({ inlineData: { data: f.base64Content, mimeType: 'text/plain' }, text: `\n[Fichier: ${f.fileName}]` } as any));
+        }
+        contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts });
+      });
+      return contents;
+    };
+
+    const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
-        const send = (chunk: string) => controller.enqueue(encoder.encode(chunk));
-        const lastRequest = history[history.length - 1].content;
+        const send = (txt: string) => controller.enqueue(encoder.encode(txt));
 
         try {
-            // 1. LE MANAGER DÉCIDE
-            const managerResponse = await runAgent(MANAGER_SYSTEM, lastRequest) as string;
+          // 1. MANAGER DECISION
+          const managerRes = await callAI(AGENT_SYSTEMS.MANAGER, prepareContents()) as any;
+          const managerText = managerRes.response.text();
 
-            if (!managerResponse.includes("ACTION_GENERATE")) {
-                // Fix rapide ou discussion : On renvoie juste la réponse du manager
-                send(managerResponse);
-            } else {
-                // 2. CHAÎNE MULTI-AGENTS
-                send("\n[Manager]: Lancement de la génération...\n");
-                
-                const blueprint = await runAgent(PKG_SYSTEM, `Planifie: ${lastRequest}`) as string;
-                send("\n[Architecte]: Blueprint terminé.\n");
+          if (!managerText.includes("ACTION_GENERATE")) {
+            send(managerText);
+          } else {
+            // 2. PKG AGENT
+            send("\n[1/3] Planification de l'architecture...\n");
+            const pkgRes = await callAI(AGENT_SYSTEMS.PKG, prepareContents("Génère le blueprint.")) as any;
+            const blueprint = pkgRes.response.text();
 
-                const backend = await runAgent(BACKEND_SYSTEM, `Blueprint: ${blueprint}`) as string;
-                send("\n[Backend]: API générée.\n");
+            // 3. BACKEND AGENT
+            send("\n[2/3] Construction du Backend API...\n");
+            const backRes = await callAI(AGENT_SYSTEMS.BACKEND, prepareContents(`Blueprint: ${blueprint}`)) as any;
+            const backendCode = backRes.response.text();
 
-                // L'UI Builder voit tout ce qui a été fait avant
-                const uiStream = await runAgent(
-                    UI_SYSTEM, 
-                    `Blueprint: ${blueprint}\n\nBackend: ${backend}\n\nRéalise l'UI maintenant.`, 
-                    true
-                ) as any;
+            // 4. UI AGENT (STREAMÉ)
+            send("\n[3/3] Création de l'Interface...\n\n");
+            const uiStream = await callAI(AGENT_SYSTEMS.UI, prepareContents(`Blueprint: ${blueprint}\n\nBackend Code: ${backendCode}`), true) as any;
 
-                let buffer = "";
-                for await (const chunk of uiStream.stream) {
-                    if (chunk.text()) {
-                        buffer += chunk.text();
-                        if (buffer.length >= BATCH_SIZE) {
-                            send(buffer);
-                            buffer = "";
-                        }
-                    }
+            let batchBuffer = "";
+            for await (const chunk of uiStream) {
+              if (chunk.text) {
+                batchBuffer += chunk.text;
+                if (batchBuffer.length >= BATCH_SIZE) {
+                  send(batchBuffer);
+                  batchBuffer = "";
                 }
-                send(buffer);
+              }
             }
-            controller.close();
-        } catch (err: any) {
-            send(`\n[SYSTEM ERROR]: ${err.message}`);
-            controller.close();
+            send(batchBuffer);
+          }
+          controller.close();
+        } catch (e: any) {
+          send(`\n\n[ERREUR AGENT]: ${e.message}`);
+          controller.close();
         }
       }
     });
 
-    return new Response(stream, { 
-        headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" } 
-    });
+    return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-    }
+}
