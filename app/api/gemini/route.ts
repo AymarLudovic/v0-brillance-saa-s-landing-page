@@ -33,11 +33,12 @@ const readFileDeclaration: FunctionDeclaration = {
   }
 }
 
+// --- CONFIGURATION AGENTS ---
 const AGENT_SYSTEMS = {
   MANAGER: `Tu es l'Agent Manager (Gemini 3). Analyse la demande. Si c'est une création d'app, réponds OBLIGATOIREMENT par "ACTION_GENERATE". Sinon, aide l'utilisateur directement.`,
   PKG: `Agent PKG: Crée un blueprint détaillé (Routes, API, Structure DB).`,
-  BACKEND: `Agent Backend: Génère les fichiers app/api/**/route.ts.`,
-  UI: `Agent UI: Génère les pages et composants React en utilisant le backend fourni.`
+  BACKEND: `Agent Backend Builder: Génère UNIQUEMENT les fichiers app/api/**/route.ts basés sur le blueprint.`,
+  UI: `Agent UI Builder: Génère les pages et composants React en utilisant le backend fourni.`
 };
 
 export async function POST(req: Request) {
@@ -53,40 +54,28 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey });
     const model = "gemini-3-flash-preview"; 
 
-    // --- HELPER DE GÉNÉRATION (TA LOGIQUE EXACTE) ---
-    const callAI = async (systemInstruction: string, additionalContext: string, stream = false) => {
+    // --- FONCTION DE PRÉPARATION (TON SYSTÈME) ---
+    const prepareContents = (additionalContext: string) => {
       const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
       
-      // Vibe Board Injection
       if (allReferenceImages && allReferenceImages.length > 0) {
         const styleParts = allReferenceImages.map(img => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) }
         }));
         contents.push({ role: 'user', parts: [...styleParts as any, { text: "Référence visuelle chargée." }] });
-        contents.push({ role: 'model', parts: [{ text: "Bien reçu, style visuel intégré." }] });
+        contents.push({ role: 'model', parts: [{ text: "Style visuel intégré." }] });
       }
 
-      // Re-construction des contents avec historique et fichiers
       history.forEach((msg: Message, i: number) => {
         if (msg.role === 'system') return;
         const parts: Part[] = [{ text: (i === history.length - 1) ? `${additionalContext}\n\n${msg.content}` : msg.content }];
-        
         if (i === history.length - 1 && msg.role === 'user') {
           uploadedImages?.forEach(img => parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } }));
           uploadedFiles?.forEach(f => parts.push({ inlineData: { data: f.base64Content, mimeType: 'text/plain' }, text: `\n[Fichier: ${f.fileName}]` } as any));
         }
         contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts });
       });
-
-      const config = {
-        model,
-        contents,
-        tools: [{ functionDeclarations: [readFileDeclaration] }],
-        config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + systemInstruction },
-        generationConfig: { temperature: 1.0, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
-      };
-
-      return stream ? ai.models.generateContentStream(config) : ai.models.generateContent(config);
+      return contents;
     };
 
     const encoder = new TextEncoder();
@@ -96,33 +85,52 @@ export async function POST(req: Request) {
 
         try {
           // 1. MANAGER DÉCIDE
-          const managerRes = await callAI(AGENT_SYSTEMS.MANAGER, "Analyse l'intention.") as any;
-          const managerText = managerRes.response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const managerRes = await ai.models.generateContent({
+            model,
+            contents: prepareContents("Analyse l'intention."),
+            config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + AGENT_SYSTEMS.MANAGER },
+            generationConfig: { temperature: 1.5, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
+          });
+
+          const managerText = managerRes.response.text();
 
           if (!managerText.includes("ACTION_GENERATE")) {
-            send(managerText);
+            send(managerText); // Réponse directe si pas de génération
           } else {
-            send("\n[Manager]: Plan de génération activé...\n");
-
             // 2. PKG AGENT
-            const pkgRes = await callAI(AGENT_SYSTEMS.PKG, "Génère le blueprint.") as any;
-            const blueprint = pkgRes.response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            send("\n[PKG]: Blueprint OK.\n");
+            send("### 🏗️ Architecture (PKG Agent)\n");
+            const pkgRes = await ai.models.generateContent({
+              model,
+              contents: prepareContents("Génère le blueprint."),
+              config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + AGENT_SYSTEMS.PKG },
+              generationConfig: { temperature: 1.0 }
+            });
+            const blueprint = pkgRes.response.text();
+            send(blueprint + "\n\n---\n");
 
             // 3. BACKEND AGENT
-            const backRes = await callAI(AGENT_SYSTEMS.BACKEND, `Blueprint: ${blueprint}`) as any;
-            const backendCode = backRes.response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            send("\n[Backend]: API OK.\n");
+            send("### ⚙️ Backend (Backend Agent)\n");
+            const backRes = await ai.models.generateContent({
+              model,
+              contents: prepareContents(`Blueprint: ${blueprint}`),
+              config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + AGENT_SYSTEMS.BACKEND },
+              generationConfig: { temperature: 1.0 }
+            });
+            const backendCode = backRes.response.text();
+            send(backendCode + "\n\n---\n");
 
-            // 4. UI AGENT (STREAMING FINAL)
-            send("\n[UI Builder]: Génération des composants...\n\n");
-            const uiStream = await callAI(AGENT_SYSTEMS.UI, `Blueprint: ${blueprint}\n\nBackend: ${backendCode}`, true) as any;
+            // 4. UI AGENT (STREAMÉ)
+            send("### 🎨 Interface (UI Agent)\n");
+            const uiStream = await ai.models.generateContentStream({
+              model,
+              contents: prepareContents(`Blueprint: ${blueprint}\n\nBackend: ${backendCode}${cssMasterUrl ? `\n\nCSS Master: ${cssMasterUrl}` : ""}`),
+              config: { systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + AGENT_SYSTEMS.UI },
+              generationConfig: { temperature: 1.0, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
+            });
 
             let batchBuffer = "";
             for await (const chunk of uiStream) {
-              // Sécurité : Vérifier si chunk.text est une fonction ou une propriété
-              const chunkText = typeof chunk.text === 'function' ? chunk.text() : (chunk.candidates?.[0]?.content?.parts?.[0]?.text || "");
-              
+              const chunkText = chunk.text();
               if (chunkText) {
                 batchBuffer += chunkText;
                 if (batchBuffer.length >= BATCH_SIZE) {
@@ -146,4 +154,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 });
   }
-}
+        }
