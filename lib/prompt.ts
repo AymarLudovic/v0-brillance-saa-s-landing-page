@@ -50,6 +50,51 @@ export const basePrompt = `
     2. Type 2 : Sidebar et main content partagent tout le même background. Seule la sidebar garde une border (left ou right) pour marquer la séparation.
     3. Type 3 : Layout avec Top Bar (navbar), Sidebar et Main Content.
     Quel que soit l'agencement, assure-toi que c'est hyper bien fait.
+
+    <coloration_layouts>
+    Ici cette partie concerne l'ensemble des couleurs que tu pourras donner principalement au background de tes layouts et certains composants.
+    
+    <light_theme>
+    #ffffff
+    #f8f8fa
+    #fefefe
+    #fdfcfd
+    #fdfdfd
+    </light_theme>
+    
+    <lightblue_theme>
+    #4ab5f8
+    #8cd0f5
+    #96d0f5
+    #4bb2fc
+    #4db7f2
+    #4db7f2
+    #4bb2fc
+    </lightblue_theme>
+    
+    <light_gray>
+    #f1f1f1
+    #fcfcfc
+    #f3f3f3
+    #e8e8e8
+    #f5f5f5
+    </light_gray>
+    
+    <dark_theme>
+    #0f0f0a
+    #0e0f0d
+    #0d0f10
+    #0e1010
+    #0f0f0d
+    #080000
+    #060200
+    #080002
+    #0d0200
+    #080500
+    </dark_theme>
+
+    Tu peux voir via ces code hex la manière dont tu peux mieux faire une bonne colorimétrie quelques soit la couleur que l'utilisateur te fournira, si ça touche plus à des couleurs autres le noir et que c'est pour un gros layout, essaie toujours de suivre le même principe que toute ces colorimétrie en recherchant toujours le lighter de cette couleur là quelques soit la couleur, même si elle n'est pas mentionné ici. Tu peux abandonner le white beige qui t'ai imposé plus haut.
+    </coloration_layouts>
   </layout_agencement_logic>
 
   <top_bar_main_content_rules>
