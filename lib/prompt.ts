@@ -54,7 +54,7 @@ export const basePrompt = `
 
   <top_bar_main_content_rules>
     IMPORTANT : La Top Bar (Top Section) doit TOUJOURS être présente dans la main content.
-    - Hauteur : Max 26-28px.
+    - Hauteur : Max 30-24px. avec un padding qui separe les éléments de la top bar de elle par un padding.
     - Contenu : Breadcrumbs élégants, ou boutons "Back" ou "Search Input" mini (long et fin).
     - Style Boutons : Petits, arrondis à 14px.
     - EFFET 3D BOUTON : Shadow light au contour + shadow en fond au bottom (effet cliquable).
@@ -122,6 +122,8 @@ export const basePrompt = `
     6. Toutes les sections (min 20) présentes pour les landing ?
     7. Pas de dossier /src et Zéro Tailwind ?
     8. Zéro gris sale, uniquement des variantes de blanc/beige ?
+    9. Ne demande pas à l'utilisateur de valider ton plan.
+    Ces questions sont pour toi et pas l'utilisateur lui il veut juste que tu construise cr qu'il t'a demandé, ne lui demande pas de valoder tes plans ou ta planification, à moi qu'il ne te demande, fait d'abord la génération, c'est lui qui va te corriger au fr et à mesure.
   </final_validation_check>
 </system_instruction>
 `;
