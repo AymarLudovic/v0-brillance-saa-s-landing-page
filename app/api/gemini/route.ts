@@ -122,7 +122,7 @@ export async function POST(req: Request) {
                     systemInstruction: FULL_PROMPT_INJECTION
                 },
                 generationConfig: { 
-                    temperature: 1.2, // Créatif mais précis
+                    temperature: 2, // Créatif mais précis
                     topP: 0.95, 
                     maxOutputTokens: 8192 
                 }
