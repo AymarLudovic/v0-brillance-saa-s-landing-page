@@ -2971,7 +2971,7 @@ let shopImages: string[] = [];
 
 
 
-const randomVibes = await getRandomVibes(8);
+const randomVibes = await getRandomVibes(2);
 
 if (randomVibes && randomVibes.length > 0) {
         // On suppose que ta fonction addLog prend un string en paramètre
