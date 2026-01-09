@@ -119,7 +119,7 @@ export async function POST(req: Request) {
                 tools: [{ functionDeclarations: [readFileDeclaration] }], // Outil de lecture si besoin de contexte
                 config: { 
                     // Injection massive du prompt unique
-                    systemInstruction: FULL_PROMPT_INJECTION + "\n\n" + ONE_AGENT_SYSTEM 
+                    systemInstruction: FULL_PROMPT_INJECTION
                 },
                 generationConfig: { 
                     temperature: 1.2, // Créatif mais précis
