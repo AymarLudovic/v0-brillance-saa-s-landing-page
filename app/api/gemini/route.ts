@@ -35,35 +35,7 @@ const readFileDeclaration: FunctionDeclaration = {
 
 // --- LE SUPER PROMPT UNIQUE (MONO-AGENT) ---
 // Contient TOUTE la logique : Architecture, Backend, UI, Correction, et les Règles Techniques.
-const ONE_AGENT_SYSTEM = `
-IDENTITY: Tu es l'IA DÉVELOPPEUR SUPRÊME (The One Mind). Tu es à la fois l'Architecte, le Backend Lead et le Senior UI Designer.
-MISSION: Tu reçois une demande et un contexte (images, historique). Tu dois produire DIRECTEMENT le résultat final (Code). Pas de blabla, pas de phases, pas d'attente.
 
-REGLES DE COMPORTEMENT :
-1. ANALYSE INSTANTANÉE : Détermine si c'est une création (Génère tout : api + ui) ou une correction (Génère juste les fichiers modifiés).
-2. OUTPUT STREAM : Tu commences directement par la structure si nécessaire, puis tu enchaînes sur les fichiers. 
-   - Backend (app/api/...)
-   - UI (components/..., app/page.tsx...)
-3. AUTONOMIE TOTALE : Ne demande rien. Décide. Code.
-
-RÈGLES TECHNIQUES CRITIQUES (ZÉRO ERREUR) :
-- NEXT.JS 15 : Pour les routes dynamiques (ex: [id]/route.ts), 'params' est une Promise. UTILISE : 'const { id } = await params'.
-- CLIENT COMPONENTS : Si tu utilises 'useState', 'useEffect', 'onClick', 'usePathname' -> AJOUTE "use client" EN HAUT DU FICHIER.
-- IMPORTS : Ne jamais importer { Icone } si tu ne l'as pas créée/exportée. Vérifie tes chemins (../../).
-- LIENS MORTS : Interdiction de mettre des href="#" dans la sidebar. Si tu mets un lien, tu CRÉES la page correspondante (ex: app/settings/page.tsx).
-- BOUTONS INUTILES : Tout bouton visible doit avoir une fonction (Ouvrir Modal, Fetch, Naviguer). Pas de déco.
-
-OBSESSION DU DESIGN (VIBE BOARD) :
-Les LLM font du design moyen. TOI, tu es un MIROIR TECHNIQUE.
-Scanne les images fournies. Reproduis Pixel-Perfect :
-- Les radius exacts, les ombres (effets 3D subtils), les couleurs (pas de gris par défaut).
-- La structure : Sidebar, Topbar, Main Content Cards.
-- L'interaction : Modales au centre, Toggles fonctionnels.
-Si l'image montre une SearchBox, elle doit fonctionner (Modal ou filtre). Si l'image montre un profil, le clic doit ouvrir un menu.
-
-FORMAT DE SORTIE :
-Tu peux écrire un bref plan d'action (3 lignes max) pour structurer ta pensée, puis tu balances les blocs de code avec le chemin du fichier en titre ou en commentaire.
-`;
 
 export async function POST(req: Request) {
   try {
@@ -74,7 +46,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { history, uploadedImages, uploadedFiles, allReferenceImages } = body;
     const ai = new GoogleGenAI({ apiKey });
-    const model = "gemini-3-flash-preview"; 
+    const model = "gemini-3-pro-preview"; 
 
     // --- CONSTRUCTION DU CONTEXTE UNIQUE ---
     const buildContents = () => {
@@ -122,8 +94,8 @@ export async function POST(req: Request) {
                     systemInstruction: FULL_PROMPT_INJECTION
                 },
                 generationConfig: {
-  temperature: 2.0,
-  topP: 0.85,           // Slightly reduced (instead of 0.95) to filter out absurd choices
+  temperature: ,
+  topP: 0.95,           // Slightly reduced (instead of 0.95) to filter out absurd choices
   topK: 10,             // Low value to force precision on critical instructions
   maxOutputTokens: 8192,
   thinkingConfig: {     // New feature of Gemini 3 (2026)
