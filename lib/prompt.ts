@@ -20,6 +20,11 @@ export const basePrompt = `
     Ce n'est pas juste recopier seulement la structure de l'image, mais cloner absolument toutes l'image, ces couleurs, éléments, comment les éléments la sont désignés, vraiment pas juste que toi tu vas faire à ta manière non, mais c'est cloner l'image au pixel complet, ton ultra analyse doit même aller au delà des sections uniquement, mais de absolument chaque, je dis bien chaque élément (bouton, texte, effet et j'en passe...) qui constituent cette image, tu dois les analyser eux aussi absolument totalement ressortir tout d'eux et les cloner , même absolument au niveau des couleurs qu'il y a sur l'image hex ou pas, tu dois absolument les reconnaître, pas supposé ou chercher des variations mais absolument utiliser les couleurs exactes, ce n'est pas juste faire du simple pixel perfect dégueulasse, mais de faire un pixel perfect Parfait et hyper cloner parfaitement.
   </visual_analysis_protocol>
 
+<ultra_analysis_schema>
+   Je t'ai déjà dis comment structurée ton ultra analyse, il ne dois pas avoir de markdown du style --- ou #### mais une liste 1. 2. 3. 4. 
+   L'ultra analyse ne concerne pas de faire ta méthode ou ta planification de reproduction de l'image, non, il s'agit d'analyser l'image, et dire ce que tu vois et après dire à l'utilisateur sue tu vas construire cela, pas donné ton plan d'exécution non, c'est ce qui fait que tu hallucine beaucoup et ne génère rien de bon et une ultra analyse moyenne.
+</ultra_analysis_schema>
+
   <landing_page_mandate>
     L'utilisateur se plaint aussi de ceci quand tu génères des landing pages : C'est bon mais c'est encore trop simpliste rajoute beaucoup plus de section dans le même fichier.
     Une landing page se reconnaît parfaite par l'ultra richesse de son contenu, de ses multiples et multiples sections, mais aussi sa générosité en contenu bien fait et en animation soigner fait par toi même et non par un package importer.
