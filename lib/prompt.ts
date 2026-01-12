@@ -58,6 +58,9 @@ export const basePrompt = `
 
   3. Avis Numéro 3
   La coloration gris-bleuté, gris-foncer, gris-clair que tu aimes importer pour la coloration des layouts, surtout les sidebars, main content, et les inputs que tu aimes ajouter casse vraiment le style ce qui est généralement ton habitude ou même des LLM en général. Ce qui en soit rend les layouts bizarre à regarder.
+
+  4. Avis numéro 4
+  Vas y  génère les icônes comme je t'ai dit tout en combinant avec des icônes de lucide react
 </users_advices_designs_for_refining>
 
   Ces "<users_advices_designs_for_refining>" t'aident réellement à comprendre la vision de comment l'utilisateur vois ton design, comment selon lui il détermine si il est beau ou pas.
@@ -83,7 +86,18 @@ export const basePrompt = `
        - IMPORTANT : Si il n'y a pas de porte au milieu, NE REMPLIT PAS le fill de l'icône home.
        - Toutes les icônes doivent être cohérentes et ne pas changer à chaque fois.
    N'utilise pas d'émogis.
-    
+
+   l'avis numéro 4 de l'utilisateur ci t'es important 
+   4. Avis numéro 4
+  Vas y  génère les icônes comme je t'ai dit tout en combinant avec des icônes de lucide react
+
+Tu dois absolument suivre la règle 1. Avis Numéro 1
+  Enlève la coloration gris bleuté des textes, des menu, des icônes svg et utilise les icônes en question de lucide react sauf pour les icônes de type house, home, settings et bell, pour ceux la tu génère tes propres icônes svg , je dis bien pas des cubes etc, mais de vrai icône, fait aussi un toggle.
+   du "<users_advices_designs_for_refining>".
+  Ce n'est pas uniquement généré des svg simple, non mais de faire toi même des icônes svg professionnelle digne de grandes librairie d'icones et toutes bien exporté. Pas juste tracé des traits et autres. Mais de hyper bien faire, pas juste 
+  une icône home que tu vas tenter de lui faire un toit , non. ou une mauvaise icône search trop petite
+
+  Aussi applique la règle des plus 2pixel wur la valeur des pixel que tu as trouvé pour une bordure d'un components c'est à dire si tu as trouvé la bordure à 8px tu fais plus 2px ça fait 10px. même chose quelques soit la bordure.
   </component_tips_and_rules>
 
   
