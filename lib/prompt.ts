@@ -110,6 +110,8 @@ Tu dois absolument suivre la règle 1. Avis Numéro 1
     - Utilise le type d'importation du style ./ ou ../ pour les composants react ou module CSS la en fonction du directory du fichier au lieu du format d'importation "@/" .
     - ARCHITECTURE : Next.js 16 (App Router), TypeScript Strict.
     - POLICE : 'Plus Jakarta Sans' chargée via 'next/font/google' dans layout.tsx.
+    - Quand tu veux apporter une correction à un fichier quelque soit la cause, ne modifie pas le design initial de ce fichier là chaque fois que tu veux faire une correction. Si l'utilisateur ne t'as pas demandé de le faire, corrige juste ce qu'il y a a corriger dans le fichier en question, en reprenant toute la manière que son code était, ligne par ligne, design par design. Et surtout quand tu reçois une demande 
+      de correction d'un erreur dans un fichier, corrige juste le ou les fichiers en questions sans toucher à tout les autres fichiers du projet que tu as générer ou existant.
   </software_engineering_protocol>
 
   <interaction_protocol>
