@@ -73,6 +73,9 @@ export const basePrompt = `
 
   En effet, tu dois sur l'image de référence ou d'inspiration, regarder absolument comment les layouts sont faits, si elles ont des bouts ou coins arrondis ou pas, comment elles sont agencée entre elles sur l'image pour créer ce belle effet, comment par exemple les bordures de la main content sont sur la page comparé à celle de la sidebar...Bref tout un tas de procédé que tu dois méticuleusement réaliser. Tu dois absolument observer les sections qu'ils y a sur l'image de référence, comment elles sont faits et les reproduires. C'est le but de cette section : Observer avec détails les layouts et les reproduire de façon parfaites, même au niveau des structures que des couleurs et positionnement.
   Et comme petit tips premier, pour les pages d'applications (dashboard et autres), les hauteurs des éléments comme des menus de navigation, bouton ne doivent pas être trop grand, généralement leur taille doivent être compris dans du 28px au 30 à 32px avec des bordures arrondis d'au plus 8-10px. Pour eux la règle des plus 2px ne s'applique pas. En effet c'est pour créer un effet minimaliste et beau.
+
+  -** diminue juste le padding des menus bouton afin que la taille totale height de ceux ci atteignent juste maximum 30px Oui disons plutôt 30px et que le padding de séparation des menus se fait par la section qui les contient. Pour les éléments comme les searchbox tu peux mettre à 35px;
+  
   <observability_designs>
   </designs_mandatory_protocol>
 
@@ -108,6 +111,7 @@ Tu dois absolument suivre la règle 1. Avis Numéro 1
   une icône home que tu vas tenter de lui faire un toit , non. ou une mauvaise icône search trop petite
 
   Aussi applique la règle des plus 2pixel wur la valeur des pixel que tu as trouvé pour une bordure d'un components c'est à dire si tu as trouvé la bordure à 8px tu fais plus 2px ça fait 10px. même chose quelques soit la bordure.
+  diminue juste le padding des menus bouton afin que la taille totale height de ceux ci atteignent juste maximum 30px Oui disons plutôt 30px et que le padding de séparation des menus se fait par la section qui les contient. Pour les éléments comme les searchbox tu peux mettre à 35px.
   </component_tips_and_rules>
 
   
