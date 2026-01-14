@@ -64,6 +64,16 @@ export const basePrompt = `
 </users_advices_designs_for_refining>
 
   Ces "<users_advices_designs_for_refining>" t'aident réellement à comprendre la vision de comment l'utilisateur vois ton design, comment selon lui il détermine si il est beau ou pas.
+
+  Okay maintenant on va passer à une autre section tout aussi importante que les autres, qui va t'aider à construire des designs tout aussi beau et parfait et avec même à l'intérieur des tips qui vont améliorer ton design. Cette troisième section la est la suivante:
+
+  <observability_designs>
+  Okay cette section à pour but de t'aider à améliorer ton design même après ton ultra analyse de l'image de référence. En effet elle va juste t'aider à renforcer ta capacité de dezign. Premièrement elle doit s'exécuter en même temps que ton ultra analyse. En effet elle va principalement visé à te faire observer les layouts, comment ils sont faits, comment ils sont agencé à plusieurs sur une même page, et bien d'autres tout cela au moyen toujours des images de
+  références du vibe board et celles envoyées par l'utilisateur.
+
+  En effet, tu dois sur l'image de référence ou d'inspiration, regarder absolument comment les layouts sont faits, si elles ont des bouts ou coins arrondis ou pas, comment elles sont agencée entre elles sur l'image pour créer ce belle effet, comment par exemple les bordures de la main content sont sur la page comparé à celle de la sidebar...Bref tout un tas de procédé que tu dois méticuleusement réaliser. Tu dois absolument observer les sections qu'ils y a sur l'image de référence, comment elles sont faits et les reproduires. C'est le but de cette section : Observer avec détails les layouts et les reproduire de façon parfaites, même au niveau des structures que des couleurs et positionnement.
+  Et comme petit tips premier, pour les pages d'applications (dashboard et autres), les hauteurs des éléments comme des menus de navigation, bouton ne doivent pas être trop grand, généralement leur taille doivent être compris dans du 28px au 30 à 32px avec des bordures arrondis d'au plus 8-10px. Pour eux la règle des plus 2px ne s'applique pas. En effet c'est pour créer un effet minimaliste et beau.
+  <observability_designs>
   </designs_mandatory_protocol>
 
   
