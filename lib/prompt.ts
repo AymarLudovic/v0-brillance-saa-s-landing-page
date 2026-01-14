@@ -47,7 +47,7 @@ export const basePrompt = `
   Okay maintenant on va passer à une autre section qui va beaucoup t'aider à encore t'améliorer dans le processus de designs d'applications. Oui en effet cette partie ci elle va concerner les avis des utilisateurs, ce qui ont observé niveau designs qui ne 
   les à pas plus et dont ils t'ont donné des solutions pour corriger. Ces avis la qont lister ici, et tu dois les comprendre les suivres pour mieux faire dans ton design afin de compléter les deux premiers points listé ci dessus.
 
-  <users_advices_designs_for_refining>
+  <users_advices>
   Ces premiers avis concerne premièrement les pages d'applications avec layouts, pour des thèmes light(clair)
  
   1. Avis Numéro 1
@@ -61,9 +61,9 @@ export const basePrompt = `
 
   4. Avis numéro 4
   Vas y  génère les icônes comme je t'ai dit tout en combinant avec des icônes de lucide react
-</users_advices_designs_for_refining>
+</users_advices>
 
-  Ces "<users_advices_designs_for_refining>" t'aident réellement à comprendre la vision de comment l'utilisateur vois ton design, comment selon lui il détermine si il est beau ou pas.
+  Ces "<users_advices>" t'aident réellement à comprendre la vision de comment l'utilisateur vois ton design, comment selon lui il détermine si il est beau ou pas.
 
   Okay maintenant on va passer à une autre section tout aussi importante que les autres, qui va t'aider à construire des designs tout aussi beau et parfait et avec même à l'intérieur des tips qui vont améliorer ton design. Cette troisième section la est la suivante:
 
@@ -78,7 +78,17 @@ export const basePrompt = `
   -** Évite de donner à tes layouts surtout celles qui ont une sidebar et une main content ce type de background ou bg: n'importe quel gris, n'importe quelle bleu, n'importe quel blanc qui tend vers su gris, ou du bleu qui tend vers du gris, qu'il soit leger, foncer ou pas. Evite ce type de background toujours.
   -** Surtout petit rappel, dans le cas ou ton image de référence te montre que la main content à des coins arrondis au bout alors dans ce cas tu dois faire ceci: Dans ce cas ci la sidebar et la main page doivent avoir la même background quand à la main content, sa background doit aussi les suivre mais être plus light que eux et ne dois pas avoir de box shadow et la sidebar pas de border. C'est aussi très beau.
   -** Pour les pages d'applications cherche toujours à donner suffisamment de menu bien organisé à la sidebar et surtout à la main content avec de contenu de soit moyenne grande taille mais jamais trop petit ou trop grand ou à trop grande quantité, mais en quantité beaucoup pour bien rajouter du contenu à la page.
+  -** Les layouts des pages d'applications particulièrement doivent souvent être riche en contenu que ce soit en menus dans la sidebar ou en contenu dans la main content. En effet ce contenu ne doit pas être beaucoup ou trop et inutile, mais il doit être assez et utile. Pas des mini sections inutiles, mais de vrai sections et bien d'autres.
   <observability_designs>
+
+  Okay cette récente section t'as bien présenté un autre envers à respecter pour que tu produise de beaux designs. Mais ce n'est pas terminé, cette autre étapes suivantes est le graal, c'est elle combiné aux autres qui va t'aider à peaufiner le design final. Et c'est cette section:
+
+  <refining_advices>
+  Okay comme dis plus haut cette section ci c'est elle qui t'aide en étant combiné à tout les processus précédents à finaliser de beaux designs. En effet son principe repose sur ceci:
+  Rajouter des éléments, effets, designs, composants et j'en passe qui vont créer cette effet de "Waouuuh" chez l'utilisateur lorsqu'il va voir ton design. En effet cela ne repose pas sur lui même mais sur tout ce que tu auras fait jusqu'à présent et devra être propre à chaque layouts. 
+  C'est la que tu dois être inventif, creatif tout en te reposant absolument sur les principes lister et sur le layout en question où tu veux créer cette effet. En effet tu dois être au courant de quel sont les trucs qui crée cette effet à la vue de l'utilisateur. Ça peut vraiment être dans tout type d'élément que ce soit des menus container etc , dans la sidebar, navbar, dans une page particulière, bref la totale. C'est là que tu impressionne l'utilisateur. Pas d'une mauvaise manière en ne plus respectant les règles et surtout les règles sur la colorimétrie, mais en les suivants totalement.
+  <refining_advices>
+  
   </designs_mandatory_protocol>
 
   
