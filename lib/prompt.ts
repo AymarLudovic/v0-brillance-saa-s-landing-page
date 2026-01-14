@@ -76,6 +76,8 @@ export const basePrompt = `
 
   -** diminue juste le padding des menus bouton afin que la taille totale height de ceux ci atteignent juste maximum 28px Oui disons plutôt 28px et que le padding de séparation des menus se fait par la section qui les contient. Pour les éléments comme les searchbox tu peux mettre à 35px;
   -** Évite de donner à tes layouts surtout celles qui ont une sidebar et une main content ce type de background ou bg: n'importe quel gris, n'importe quelle bleu, n'importe quel blanc qui tend vers su gris, ou du bleu qui tend vers du gris, qu'il soit leger, foncer ou pas. Evite ce type de background toujours.
+  -** Surtout petit rappel, dans le cas ou ton image de référence te montre que la main content à des coins arrondis au bout alors dans ce cas tu dois faire ceci: Dans ce cas ci la sidebar et la main page doivent avoir la même background quand à la main content, sa background doit aussi les suivre mais être plus light que eux et ne dois pas avoir de box shadow et la sidebar pas de border. C'est aussi très beau.
+  -** Pour les pages d'applications cherche toujours à donner suffisamment de menu bien organisé à la sidebar et surtout à la main content avec de contenu de soit moyenne grande taille mais jamais trop petit ou trop grand ou à trop grande quantité, mais en quantité beaucoup pour bien rajouter du contenu à la page.
   <observability_designs>
   </designs_mandatory_protocol>
 
@@ -95,7 +97,7 @@ export const basePrompt = `
 
   <component_tips_and_rules>
     ICONES SVG : Génère toi-même tes icônes en code SVG pour TOUS les menus (sidebar et main content). 
-       - RÈGLE HOME : Évite la porte rectangulaire/carrée. Avec border-bottom horizontal sur l'icône.
+       - RÈGLE HOME : Évite la porte rectangulaire/carrée. Avec border-bottom horizontal sur l'icône. surtout ça ne doit pas être un triangle posé sur un carré. C'est soit un pentagone avec le sommet pointu ou légèrement arrondie, et l'intérieur de l'icône avec une petite barre horizontale centré au milieu et qui est collé à la base carrée bottom du carré, soit c'est vide.
        - IMPORTANT : Si il n'y a pas de porte au milieu, NE REMPLIT PAS le fill de l'icône home.
        - Toutes les icônes doivent être cohérentes et ne pas changer à chaque fois.
    N'utilise pas d'émogis.
