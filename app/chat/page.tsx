@@ -3800,10 +3800,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     ${currentProject ? (viewMode === "chat" ? "w-full flex" : "hidden md:flex") : ""}
   `}
 >
-        <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
 
-{showProjectSelect && (
-    <div className="fixed z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] w-[200px] h-full overflow-y-auto flex flex-col p-1">
+        {showProjectSelect && (
+    <div className="sticky z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)]   w-[200px] h-full overflow-y-auto flex flex-col p-1">
       {projects.map((p) => (
         <div
           key={p.id}
@@ -3858,6 +3857,11 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </div>
     </div>
   )}
+        <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
+
+
+
+
 
   
 
@@ -3897,13 +3901,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <text
     x="500"
     y="150"
-    fontSize="500"
+    fontSize="100"
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight="400"
     fill="#000000"
     letterSpacing="-4"
   >
-    Studio
+    Studio.
   </text>
 </svg>
       
