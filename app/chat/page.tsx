@@ -3802,7 +3802,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 >
 
         {showProjectSelect && (
-    <div className="sticky z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)]   w-[200px] h-full overflow-y-auto flex flex-col p-1">
+    <div className="fixed z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)]   w-[200px] h-full overflow-y-auto flex flex-col p-1">
       {projects.map((p) => (
         <div
           key={p.id}
