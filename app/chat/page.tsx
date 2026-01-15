@@ -3805,7 +3805,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   
 <svg
-  width={1200}
+  width={500}
   height={240}
   viewBox="0 0 1200 240"
   xmlns="http://www.w3.org/2000/svg"
@@ -3820,7 +3820,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight={400}
     fill="#000000"
-    letterSpacing={-4}
+    
   >
     Studio
   </text>
@@ -3832,7 +3832,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     width={140}
     height={100}
     rx={4}
-    fill="#FFFFFF"
+    fill="transparent"
   />
 
   {/* Black tilted ellipse inside */}
