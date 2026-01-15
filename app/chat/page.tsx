@@ -3827,7 +3827,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     width={140}
     height={100}
     rx={4}
-    fill="#000000"
+    fill="transparent"
   />
 
   {/* White tilted ellipse inside */}
@@ -3836,7 +3836,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     cy={120}
     rx={58}
     ry={32}
-    fill="transparent"
+    fill="#000000"
     transform="rotate(-18 430 120)"
   />
 
