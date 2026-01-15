@@ -59,7 +59,9 @@ import {
   Loader,
   LogOut,
   Trash2,
-  ImagePlus
+  ImagePlus,
+  Search,
+  ChevronLeft
 } from "lucide-react"
 
 
@@ -3811,7 +3813,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <text
     x={120}
     y={150}
-    fontSize={100}
+    fontSize={150}
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight={400}
     fill="#000000"
@@ -3826,6 +3828,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     y={70}
     width={140}
     height={105}
+    className="relative -right-[2px]"
     rx={4}
     fill="transparent"
   />
@@ -3844,7 +3847,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <text
     x={520}
     y={150}
-    fontSize={100}
+    fontSize={150}
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight={400}
     fill="#000000"
@@ -3875,7 +3878,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   {/* Bouton AFFICHEUR */}
   <button
     onClick={() => setShowProjectSelect(!showProjectSelect)}
-    className="flex items-center w-[80%] gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium  text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
+    className="flex items-center w-auto gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium  text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
   >
     <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px] shrink-0">
         <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
