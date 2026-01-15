@@ -62,7 +62,7 @@ import {
   ImagePlus,
   Search,
   ChevronLeft,
-  ChevronRight
+  
 } from "lucide-react"
 
 
