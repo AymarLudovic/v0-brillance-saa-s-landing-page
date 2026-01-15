@@ -3783,13 +3783,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
   return (
-    <div className="flex h-screen bg-[#fffcf6] font-sans text-[#37322F]">
+    <div className="flex h-screen bg-[#fbfbf9] font-sans text-[#37322F]">
       
         
 
     <div 
   className={`
-    h-full flex flex-col bg-[#fffcf6] border-[rgba(55,50,47,0.12)] 
+    h-full flex flex-col shadow-lg bg-[#fbfbf9] border-[rgba(55,50,47,0.12)] 
     /* CONDITION DE LARGEUR : 100% si pas de projet, sinon 40% sur desktop */
     ${!currentProject ? "w-full flex" : "md:w-[40%] md:flex"}
     
@@ -4458,7 +4458,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
     <div 
   className={`
-    h-full flex flex-col bg-[#fffcf6] 
+    h-full flex flex-col bg-[#fbfbf9] 
     md:w-[60%] 
     /* Condition : Si pas de projet, on cache tout sauf si on veut afficher un état vide */
     ${!currentProject ? "hidden" : (viewMode === "preview" ? "flex" : "hidden md:flex")}
