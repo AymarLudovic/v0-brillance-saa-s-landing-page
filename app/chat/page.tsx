@@ -61,7 +61,8 @@ import {
   Trash2,
   ImagePlus,
   Search,
-  ChevronLeft
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react"
 
 
@@ -3812,7 +3813,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   fill="none"
   xmlns="http://www.w3.org/2000/svg"
 >
-  <rect width="100%" height="100%" fill="#FFFFFF" />
+  <rect width="100%" height="100%" fill="transparent" />
 
   {/* Text: Studi */}
   <text
@@ -3824,12 +3825,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     fill="#000000"
     letterSpacing="-4"
   >
-    Studi
+    Studio
   </text>
 
   {/* Black tilted ellipse replacing the "o" */}
   <ellipse
-    cx="430"
+    cx="440"
     cy="120"
     rx="58"
     ry="32"
@@ -3847,7 +3848,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     fill="#000000"
     letterSpacing="-4"
   >
-    code
+    
   </text>
 </svg>
       
@@ -3875,7 +3876,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {/* Conteneur du Menu Déroulant */}
   {showProjectSelect && (
-    <div className="absolute z-50 top-full mt-1 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] min-w-[300px] max-h-70 overflow-y-auto flex flex-col p-1">
+    <div className="w z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] min-w-[200px] h-full overflow-y-auto flex flex-col p-1">
       {projects.map((p) => (
         <div
           key={p.id}
