@@ -3802,81 +3802,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 >
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
 
-
-
-  
-
-<svg
-  width="300"
-  height="240"
-  viewBox="0 0 1200 240"
-  fill="none"
-  xmlns="http://www.w3.org/2000/svg"
->
-  <rect width="100%" height="100%" fill="transparent" />
-
-  {/* Text: Studi */}
-  <text
-    x="120"
-    y="150"
-    fontSize="100"
-    fontFamily="Inter, Helvetica, Arial, sans-serif"
-    fontWeight="400"
-    fill="#000000"
-    letterSpacing="-4"
-  >
-    Studio
-  </text>
-
-  {/* Black tilted ellipse replacing the "o" */}
-  <ellipse
-    cx="440"
-    cy="120"
-    rx="58"
-    ry="32"
-    fill="#000000"
-    transform="rotate(-18 430 120)"
-  />
-
-  {/* Text: code */}
-  <text
-    x="500"
-    y="150"
-    fontSize="100"
-    fontFamily="Inter, Helvetica, Arial, sans-serif"
-    fontWeight="400"
-    fill="#000000"
-    letterSpacing="-4"
-  >
-    
-  </text>
-</svg>
-      
-      
-      
-      
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3">
-{/* Import nécessaire en haut : import { Trash2, ChevronsUpDown } from 'lucide-react' */}
-
-<div className="relative  w-[250px]">
-  {/* Bouton AFFICHEUR */}
-  <button
-    onClick={() => setShowProjectSelect(!showProjectSelect)}
-    className="flex items-center w-auto gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium  text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
-  >
-    <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px] shrink-0">
-        <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
-    </div>
-    <span className=" w-full white-space-none">
-      {currentProject?.name || "Select a Project"}
-    </span>
-    <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
-  </button>
-
-  {/* Conteneur du Menu Déroulant */}
-  {showProjectSelect && (
-    <div className="w z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] min-w-[200px] h-full overflow-y-auto flex flex-col p-1">
+{showProjectSelect && (
+    <div className="fixed z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] w-[200px] h-full overflow-y-auto flex flex-col p-1">
       {projects.map((p) => (
         <div
           key={p.id}
@@ -3931,6 +3858,79 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </div>
     </div>
   )}
+
+  
+
+<svg
+  width="300"
+  height="240"
+  viewBox="0 0 1200 240"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <rect width="100%" height="100%" fill="transparent" />
+
+  {/* Text: Studi */}
+  <text
+    x="120"
+    y="150"
+    fontSize="100"
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fontWeight="400"
+    fill="#000000"
+    letterSpacing="-4"
+  >
+    
+  </text>
+
+  {/* Black tilted ellipse replacing the "o" */}
+  <ellipse
+    cx="440"
+    cy="120"
+    rx="58"
+    ry="32"
+    fill="#000000"
+    transform="rotate(-18 430 120)"
+  />
+
+  {/* Text: code */}
+  <text
+    x="500"
+    y="150"
+    fontSize="500"
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fontWeight="400"
+    fill="#000000"
+    letterSpacing="-4"
+  >
+    Studio
+  </text>
+</svg>
+      
+      
+      
+      
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
+{/* Import nécessaire en haut : import { Trash2, ChevronsUpDown } from 'lucide-react' */}
+
+<div className="relative  w-[250px]">
+  {/* Bouton AFFICHEUR */}
+  <button
+    onClick={() => setShowProjectSelect(!showProjectSelect)}
+    className="flex items-center w-auto gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium  text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
+  >
+    <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px] shrink-0">
+        <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
+    </div>
+    <span className=" w-full white-space-none">
+      {currentProject?.name || "Select a Project"}
+    </span>
+    <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
+  </button>
+
+  {/* Conteneur du Menu Déroulant */}
+  
 </div>
      </div>   
 
