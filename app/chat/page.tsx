@@ -3836,7 +3836,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     cy={120}
     rx={58}
     ry={32}
-    fill="#000000"
+    fill="transparent"
     transform="rotate(-18 430 120)"
   />
 
@@ -3847,7 +3847,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     fontSize={100}
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight={400}
-    fill="transparent"
+    fill="#000000"
     letterSpacing={-4}
   >
     code.
