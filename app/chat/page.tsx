@@ -3801,11 +3801,11 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
     <svg
   width={200}
-  height={140}
+  height={180}
   viewBox="0 0 1200 240"
   xmlns="http://www.w3.org/2000/svg"
 >
-  <rect width="100%" height="100%" fill="#FFFFFF" />
+  <rect width="100%" height="100%" fill="transparent" />
 
   {/* Text: orbit */}
   <text
@@ -3825,7 +3825,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     x={360}
     y={70}
     width={140}
-    height={100}
+    height={105}
     rx={4}
     fill="transparent"
   />
