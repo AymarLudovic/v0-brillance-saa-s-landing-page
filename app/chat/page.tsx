@@ -3800,8 +3800,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
 
     <svg
-  width={300}
-  height={240}
+  width={200}
+  height={140}
   viewBox="0 0 1200 240"
   xmlns="http://www.w3.org/2000/svg"
 >
@@ -3811,7 +3811,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <text
     x={120}
     y={150}
-    fontSize={120}
+    fontSize={70}
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight={400}
     fill="#000000"
@@ -3824,8 +3824,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <rect
     x={360}
     y={70}
-    width={140}
-    height={100}
+    width={120}
+    height={80}
     rx={4}
     fill="#000000"
   />
@@ -3844,7 +3844,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <text
     x={520}
     y={150}
-    fontSize={120}
+    fontSize={70}
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight={400}
     fill="#000000"
@@ -3853,7 +3853,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     studio
   </text>
 
-  {/* Trademark */}
+  {/* Trademark
   <text
     x={1005}
     y={88}
@@ -3863,6 +3863,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   >
     ™
   </text>
+*/}
 </svg>
       
       
