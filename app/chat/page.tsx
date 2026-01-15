@@ -3826,9 +3826,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <rect
     x={360}
     y={70}
-    width={140}
+    width={180}
     height={105}
-    className="relative -right-[2px]"
     rx={4}
     fill="transparent"
   />
