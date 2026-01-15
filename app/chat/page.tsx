@@ -3804,60 +3804,53 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
   
+
 <svg
-  width={500}
-  height={240}
+  width="300"
+  height="240"
   viewBox="0 0 1200 240"
+  fill="none"
   xmlns="http://www.w3.org/2000/svg"
 >
-  <rect width="100%" height="100%" fill="transparent" />
+  <rect width="100%" height="100%" fill="#FFFFFF" />
 
-  {/* Text: orbit */}
+  {/* Text: Studi */}
   <text
-    x={120}
-    y={150}
-    fontSize={120}
+    x="120"
+    y="150"
+    fontSize="100"
     fontFamily="Inter, Helvetica, Arial, sans-serif"
-    fontWeight={400}
+    fontWeight="400"
     fill="#000000"
-    
+    letterSpacing="-4"
   >
-    Studio
+    Studi
   </text>
 
-  {/* White square replacing the "o" */}
-  <rect
-    x={360}
-    y={70}
-    width={140}
-    height={100}
-    rx={4}
-    fill="transparent"
-  />
-
-  {/* Black tilted ellipse inside */}
+  {/* Black tilted ellipse replacing the "o" */}
   <ellipse
-    cx={430}
-    cy={120}
-    rx={58}
-    ry={32}
+    cx="430"
+    cy="120"
+    rx="58"
+    ry="32"
     fill="#000000"
     transform="rotate(-18 430 120)"
   />
 
-  {/* Text: studio */}
+  {/* Text: code */}
   <text
-    x={520}
-    y={150}
-    fontSize={120}
+    x="500"
+    y="150"
+    fontSize="100"
     fontFamily="Inter, Helvetica, Arial, sans-serif"
-    fontWeight={400}
+    fontWeight="400"
     fill="#000000"
-    letterSpacing={-4}
+    letterSpacing="-4"
   >
-    code.
+    code
   </text>
 </svg>
+      
       
       
       
