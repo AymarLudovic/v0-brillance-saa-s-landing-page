@@ -3811,7 +3811,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <text
     x={120}
     y={150}
-    fontSize={70}
+    fontSize={100}
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight={400}
     fill="#000000"
@@ -3824,8 +3824,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <rect
     x={360}
     y={70}
-    width={120}
-    height={80}
+    width={140}
+    height={100}
     rx={4}
     fill="#000000"
   />
@@ -3844,7 +3844,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <text
     x={520}
     y={150}
-    fontSize={70}
+    fontSize={100}
     fontFamily="Inter, Helvetica, Arial, sans-serif"
     fontWeight={400}
     fill="#000000"
