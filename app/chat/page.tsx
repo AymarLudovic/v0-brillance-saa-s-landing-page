@@ -3789,7 +3789,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
     <div 
   className={`
-    h-full flex flex-col shadow-lg bg-[#fbfbf9] border-[rgba(55,50,47,0.12)] 
+    h-full flex flex-col  bg-[#fbfbf9] border-[rgba(55,50,47,0.12)] 
     /* CONDITION DE LARGEUR : 100% si pas de projet, sinon 40% sur desktop */
     ${!currentProject ? "w-full flex" : "md:w-[40%] md:flex"}
     
@@ -3798,11 +3798,79 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   `}
 >
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
+
+    <svg
+  width={300}
+  height={240}
+  viewBox="0 0 1200 240"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <rect width="100%" height="100%" fill="#FFFFFF" />
+
+  {/* Text: orbit */}
+  <text
+    x={120}
+    y={150}
+    fontSize={120}
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fontWeight={400}
+    fill="#000000"
+    letterSpacing={-4}
+  >
+    orbit
+  </text>
+
+  {/* Black square replacing the "o" */}
+  <rect
+    x={360}
+    y={70}
+    width={140}
+    height={100}
+    rx={4}
+    fill="#000000"
+  />
+
+  {/* White tilted ellipse inside */}
+  <ellipse
+    cx={430}
+    cy={120}
+    rx={58}
+    ry={32}
+    fill="#FFFFFF"
+    transform="rotate(-18 430 120)"
+  />
+
+  {/* Text: studio */}
+  <text
+    x={520}
+    y={150}
+    fontSize={120}
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fontWeight={400}
+    fill="#000000"
+    letterSpacing={-4}
+  >
+    studio
+  </text>
+
+  {/* Trademark */}
+  <text
+    x={1005}
+    y={88}
+    fontSize={26}
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fill="#000000"
+  >
+    ™
+  </text>
+</svg>
+      
+      
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
 {/* Import nécessaire en haut : import { Trash2, ChevronsUpDown } from 'lucide-react' */}
 
-<div className="relative w-[250px]">
+<div className="relative  w-[250px]">
   {/* Bouton AFFICHEUR */}
   <button
     onClick={() => setShowProjectSelect(!showProjectSelect)}
@@ -3819,7 +3887,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {/* Conteneur du Menu Déroulant */}
   {showProjectSelect && (
-    <div className="absolute z-50 top-full mt-1 left-0 bg-[#E3DFDB] border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] min-w-[300px] max-h-70 overflow-y-auto flex flex-col p-1">
+    <div className="absolute z-50 top-full mt-1 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)] shadow-lg rounded-[12px] min-w-[300px] max-h-70 overflow-y-auto flex flex-col p-1">
       {projects.map((p) => (
         <div
           key={p.id}
