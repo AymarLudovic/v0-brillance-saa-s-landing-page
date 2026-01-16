@@ -3840,7 +3840,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <div className="w-full p-2 flex flex-col gap-2 h-auto mb-2">
         <div className="w-full bg-[#f6f6f4] h-[37px] border border-[rgba(55,50,47,0.08)]  rounded-[8px] p-[2px] flex justify-between items-center">
         <div className="flex items-center gap-1">
-            <div className="h-[30px]  bg-[#e5eef9] w-[30px] flex items-center justify-center text-sm font-semibold text-white rounded-[5px]">AM</div>
+            <div className="h-[30px]  bg-[#e5eef9] w-[30px] flex items-center justify-center text-sm font-semibold text-black rounded-[12px]">AM</div>
             <p className="font-semibold text-sm">Aymar Ludovic</p>
         </div>
         <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
@@ -3893,8 +3893,23 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 </div> 
 
       
-       <div className="w-full h-[40%] p-2 overflow-y-auto flex flex-col gap-1 mt-2">
-           <p className="font-semibold text-[18px] ">Projects</p>
+       <div className="w-full h-[40%] p-2  flex flex-col gap-1 mt-2">
+        <div className="w-full flex items-center justify-between">
+
+               <p className="font-semibold text-[16px] ">Projects</p>
+           <Button
+              variant="ghost"
+              size="icon"
+              onClick={createNewProject}
+              className="bg-[#37322F] gap-[2px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[35px] w-[100%] rounded-[25px] flex items-center justify-start p-1"
+              
+            >
+              <Plus className="h-4 w-4" />
+             New app
+            </Button>
+        
+        </div>
+           <div className="w-full h-[90%] overflow-y-auto flex flex-col gap-1">
       {projects.map((p) => (
         <div
           key={p.id}
@@ -3928,6 +3943,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </button>
         </div>
       ))}
+               </div>
       </div>
       {projects.length === 0 && (
         <div className="p-3 text-sm text-[rgba(55,50,47,0.6)] text-center">
@@ -3936,16 +3952,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       )}
        <div className="flex items-center">
             
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={createNewProject}
-              className="bg-[#37322F] gap-[2px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[100%] rounded-[8px] flex items-center justify-start p-1"
-              
-            >
-              <Plus className="h-4 w-4" />
-             Create new project
-            </Button>
+            
           </div>
     </div>
   )}
