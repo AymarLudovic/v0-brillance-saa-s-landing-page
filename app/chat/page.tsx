@@ -3806,52 +3806,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <div className="fixed z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)]   w-[200px] h-full overflow-y-auto flex flex-col p-1">
 
     
-<div className="w-full h-auto flex flex-col gap-2">
-  {/* Header: Logo + Bouton */}
-  <div className="flex items-center justify-between w-full h-auto">
-    <div>
-      <svg width="300" height="240" viewBox="0 0 1200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="100%" height="100%" fill="transparent" />
-        <ellipse cx="440" cy="120" rx="58" ry="32" fill="#000000" transform="rotate(-18 430 120)" />
-        <text x="120" y="150" fontSize="100" fontFamily="Inter, Helvetica, Arial, sans-serif" fill="#000000"></text>
-        <text x="500" y="150" fontSize="100" fontFamily="Inter, Helvetica, Arial, sans-serif" fill="#000000"></text>
-      </svg>
-    </div>
-    <div>
-      <Button>
-        <PanelLeftClose size={18} color="#000" />
-      </Button>
-    </div>
-  </div>
 
-  {/* Profil utilisateur */}
-  <div className="w-full h-[30px] border border-[rgba(55,50,47,0.6)] rounded-[10px] p-[2px] flex justify-between items-center">
-    <div className="flex items-center gap-1">
-      <div className="h-[28px] border border-[rgba(55,50,47,0.6)] w-[28px] rounded-[5px] flex items-center justify-center text-xs">AM</div>
-      <p className="font-semibold text-sm">Aymar Ludovic</p>
-    </div>
-    <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
-  </div>
-
-  {/* Navigation */}
-  <div className="w-full flex flex-col gap-1 h-auto">
-    {/* Item: Home */}
-    <div className="w-full h-[30px] rounded-[10px] p-[2px] flex justify-between items-center">
-      <div className="flex items-center gap-1">
-        <Birdhouse className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
-        <p className="font-semibold text-sm">Home</p>
-      </div>
-    </div>
-
-    {/* Item: Search - Sorti du bloc Home pour être aligné correctement */}
-    <div className="w-full h-[30px] rounded-[10px] p-[2px] flex justify-between items-center">
-      <div className="flex items-center gap-1">
-        <Search className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
-        <p className="font-semibold text-sm">Search</p>
-      </div>
-    </div>
-  </div> {/* Fermeture de la navigation */}
-</div> {/* Fermeture du conteneur principal */}
       
         
       {projects.map((p) => (
