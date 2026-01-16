@@ -63,7 +63,7 @@ import {
   Search,
   ChevronLeft,
   PanelLeftClose,
-    Birdhouse
+    Home
 } from "lucide-react"
 
 
@@ -3835,7 +3835,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         {/* Item Home */}
         <div className="w-full h-[30px] rounded-[10px] p-[2px] flex justify-between items-center">
             <div className="flex items-center gap-1">
-                <Birdhouse className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
+                <Home className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
                 <p className="font-semibold text-sm">Home</p>
             </div>
         </div> {/* <--- AJOUTÉ : Fermeture de l'item Home */}
