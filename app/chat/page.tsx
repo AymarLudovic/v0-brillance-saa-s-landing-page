@@ -3803,11 +3803,11 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 >
 
         {showProjectSelect && (
-    <div className="fixed z-50 top-0 left-0 bg-[#fbfbf9] shadow-lg border border-[rgba(55,50,47,0.08)]   w-[200px] h-full overflow-y-auto flex flex-col p-1">
+    <div className="fixed z-50 top-0 left-0 bg-[#fbfbf9]  border border-[rgba(55,50,47,0.08)]   w-[260px] h-full overflow-y-auto flex flex-col p-1">
 
     
 <div className="w-full h-auto flex flex-col gap-2">
-    <div className="flex items-center justify-between w-full h-auto">
+    <div className="flex items-center justify-between w-full">
         <div>
             <svg width="300" height="240" viewBox="0 0 1200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect width="100%" height="100%" fill="transparent" />
@@ -3818,7 +3818,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         </div>
         <div>
             <Button>
-                <PanelLeftClose size={18} color="#000" />
+                <PanelLeftClose size={16} />
             </Button>
         </div>
     </div>
@@ -3835,7 +3835,36 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         {/* Item Home */}
         <div className="w-full h-[30px] rounded-[10px] p-[2px] flex justify-between items-center">
             <div className="flex items-center gap-1">
-                <Home className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
+                  <svg 
+  stroke="#000" 
+  width="24" 
+  height="24" 
+ className="h-[18px] w-[18px]"
+  viewBox="0 0 24 24" 
+  strokeWidth="1.5" 
+  fill="none" 
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <path 
+    d="M10 16H14" 
+    stroke="#000" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  />
+  <path 
+    d="M2 8L11.7317 3.13416C11.9006 3.04971 12.0994 3.0497 12.2683 3.13416L22 8" 
+    stroke="#000" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  />
+  <path 
+    d="M20 11V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V11" 
+    stroke="#000" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  />
+</svg>
+                
                 <p className="font-semibold text-sm">Home</p>
             </div>
         </div> {/* <--- AJOUTÉ : Fermeture de l'item Home */}
