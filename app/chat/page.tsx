@@ -3794,13 +3794,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
     <div 
   className={`
-  flex flex-col bg-[#fbfbf9] border-[rgba(55,50,47,0.12)]
+  flex flex-col bg-[#fbfbf9] border-[rgba(55,50,47,0.12)] transition-all duration-300
   ${!currentProject 
-    ? "w-full max-w-3xl h-auto bg-transparent border-none" 
+    ? `h-auto bg-transparent border-none ${showProjectSelect ? "w-full pl-[270px] pr-6" : "w-full max-w-3xl"}`
     : "h-full md:w-[40%] md:flex border-r"
   }
   ${currentProject ? (viewMode === "chat" ? "w-full flex" : "hidden md:flex") : "flex"}
 `}
+        
                       
 >
         
@@ -3959,7 +3960,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
   )}
         
-        <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
+        <div className={`flex items-center justify-between px-6 h-12 flex-shrink-0 border-[rgba(55,50,47,0.12)] ${!currentProject ? "absolute top-0 left-0 w-full z-20" : ""}`}
+            >
 
 
 
