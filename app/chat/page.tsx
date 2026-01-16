@@ -3838,9 +3838,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     
 
     <div className="w-full p-2 flex flex-col gap-2 h-auto mb-2">
-        <div className="w-full bg-[#f6f6f4] h-[37px] border border-[rgba(55,50,47,0.08)]  rounded-[8px] p-[2px] flex justify-between items-center">
+        <div className="w-full bg-[#f6f6f4] h-[37px] p-1 border border-[rgba(55,50,47,0.08)]  rounded-[8px] p-[2px] flex justify-between items-center">
         <div className="flex items-center gap-1">
-            <div className="h-[30px]  bg-[#e5eef9] w-[30px] flex items-center justify-center text-sm font-semibold text-black rounded-[12px]">AM</div>
+            <div className="h-[30px]  bg-blue w-[30px] flex items-center justify-center text-sm font-semibold text-black rounded-[8px]">AM</div>
             <p className="font-semibold text-sm">Aymar Ludovic</p>
         </div>
         <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
@@ -3885,7 +3885,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         {/* Item Search */}
         <div className="w-full h-[30px] rounded-[10px] p-[2px] flex justify-between items-center">
             <div className="flex items-center gap-1">
-                <Search className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
+                <Search className="h-4 w-4 text-black shrink-0" />
                 <p className="font-semibold text-sm">Search</p>
             </div>
         </div>
@@ -3901,7 +3901,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               variant="ghost"
               size="icon"
               onClick={createNewProject}
-              className="bg-[#37322F] gap-[2px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[35px] w-[100%] rounded-[25px] flex items-center justify-start p-1"
+              className="bg-[#37322F] gap-[2px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[35px] w-auto rounded-[10px] flex items-center justify-center p-1"
               
             >
               <Plus className="h-4 w-4" />
