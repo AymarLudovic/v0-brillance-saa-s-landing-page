@@ -3809,8 +3809,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 <div className="w-full h-auto flex flex-col gap-2">
     <div className="flex items-center justify-between w-full">
         <div>
-            <svg className="w-[90px] h-[50px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <ellipse cx="80" cy="120" rx="58" ry="32" fill="#000000" transform="rotate(-18 430 120)" />
+            <svg className="w-[190px] h-[50px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="280" cy="120" rx="58" ry="32" fill="#000000" transform="rotate(-18 430 120)" />
                 
                          </svg>
         </div>
@@ -3879,6 +3879,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
       
        <div className="w-full h-[70%] overflow-y-auto flex flex-col gap-1 mt-2">
+           <p className="font-semibold text-lg mb-2">Projects</p>
       {projects.map((p) => (
         <div
           key={p.id}
