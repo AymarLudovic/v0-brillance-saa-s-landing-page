@@ -3837,10 +3837,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
     
 
-    <div className="w-full p-2 flex flex-col gap-2 h-auto mb-2">
-        <div className="w-full bg-[#f6f6f4] h-[37px] p-1 border border-[rgba(55,50,47,0.08)] mb-2 rounded-[8px] p-[2px] pl-2 flex justify-between items-center">
+    <div className="w-full p-2 pl-2 flex flex-col gap-2 h-auto mb-2">
+        <div className="w-full bg-[#f6f6f4] h-[32px] p-1 border border-[rgba(55,50,47,0.08)] mb-2 rounded-[8px] p-[2px] pl-2 flex justify-between items-center">
         <div className="flex items-center gap-1">
-                 <p className="font-semibold text-[16px]">Aymar Ludovic</p>
+                 <p className="font-semibold text-sm">Aymar Ludovic</p>
         </div>
         <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
     </div>
