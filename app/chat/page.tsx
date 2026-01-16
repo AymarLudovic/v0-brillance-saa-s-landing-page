@@ -3809,17 +3809,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 <div className="w-full h-auto flex flex-col gap-2">
     <div className="flex items-center justify-between w-full">
         <div>
-            <svg width="300" height="240" viewBox="0 0 1200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="100%" height="100%" fill="transparent" />
-                <text x="120" y="150" fontSize="100" fontFamily="Inter, Helvetica, Arial, sans-serif" fontWeight="400" fill="#000000" letterSpacing="-4"></text>
-                <ellipse cx="440" cy="120" rx="58" ry="32" fill="#000000" transform="rotate(-18 430 120)" />
-                <text x="500" y="150" fontSize="100" fontFamily="Inter, Helvetica, Arial, sans-serif" fontWeight="400" fill="#000000" letterSpacing="-4"></text>
-            </svg>
+            <svg className="w-[90px] h-[50px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="80" cy="120" rx="58" ry="32" fill="#000000" transform="rotate(-18 430 120)" />
+                
+                         </svg>
         </div>
         <div>
-            <Button>
+            <span>
                 <PanelLeftClose size={16} />
-            </Button>
+            </span>
         </div>
     </div>
 
@@ -3880,7 +3878,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 </div> 
 
       
-        
+       <div className="w-full h-[70%] overflow-y-auto flex flex-col gap-1 mt-2">
       {projects.map((p) => (
         <div
           key={p.id}
@@ -3935,6 +3933,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </div>
     </div>
   )}
+        </div>
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
 
 
