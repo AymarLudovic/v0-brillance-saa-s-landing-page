@@ -3808,29 +3808,26 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     
 <div className="w-full h-auto flex flex-col gap-2">
     <div className="flex items-center justify-between w-full">
-        <div className="overflow-hidden">
+        
+    <div className="flex items-center justify-center p-1">
   <svg 
-    width="80" 
-    height="20" 
-    viewBox="0 0 80 20" 
+    width="30" 
+    height="30" 
+    viewBox="0 0 30 30" 
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
   >
-    {/* Fond transparent (optionnel) */}
-    <rect width="100%" height="100%" fill="transparent" />
-
-    {/* L'ellipse centrée dans le nouveau cadre 90x40 */}
     <ellipse
-      cx="45"
-      cy="20"
-      rx="22"
-      ry="12"
+      cx="15"
+      cy="15"
+      rx="12"
+      ry="6"
       fill="#000000"
-      transform="rotate(-18 45 20)"
+      transform="rotate(-18 15 15)"
     />
   </svg>
 </div>
-    
+        
         <div>
             <span>
                 <PanelLeftClose size={16} />
@@ -3841,9 +3838,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     
 
     <div className="w-full flex flex-col gap-2 h-auto mb-2">
-        <div className="w-full bg-[#f6f6f4] h-[37px] border border-[rgba(55,50,47,0.6)] rounded-[8px] p-[2px] flex justify-between items-center">
+        <div className="w-full bg-[#f6f6f4] h-[37px] border border-[rgba(55,50,47,0.08)]  rounded-[8px] p-[2px] flex justify-between items-center">
         <div className="flex items-center gap-1">
-            <div className="h-[28px] border border-[rgba(55,50,47,0.6)] w-[28px] rounded-[5px]">AM</div>
+            <div className="h-[30px]  bg-[rgba(55,50,47,0.6)] w-[28px] rounded-[5px]">AM</div>
             <p className="font-semibold text-sm">Aymar Ludovic</p>
         </div>
         <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
