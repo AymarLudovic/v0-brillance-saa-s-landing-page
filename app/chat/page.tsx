@@ -3807,7 +3807,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
     
 <div className="w-full h-auto flex flex-col gap-2">
-    <div className="flex items-center justify-between w-full">
+    <div className="flex items-center p-2 justify-between w-full">
         
     <div className="flex items-center justify-center p-1">
   <svg 
@@ -3837,10 +3837,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
     
 
-    <div className="w-full flex flex-col gap-2 h-auto mb-2">
+    <div className="w-full p-2 flex flex-col gap-2 h-auto mb-2">
         <div className="w-full bg-[#f6f6f4] h-[37px] border border-[rgba(55,50,47,0.08)]  rounded-[8px] p-[2px] flex justify-between items-center">
         <div className="flex items-center gap-1">
-            <div className="h-[30px]  bg-[rgba(55,50,47,0.6)] w-[28px] rounded-[5px]">AM</div>
+            <div className="h-[30px]  bg-[#e5eef9] w-[30px] flex items-center justify-center text-sm font-semibold text-white rounded-[5px]">AM</div>
             <p className="font-semibold text-sm">Aymar Ludovic</p>
         </div>
         <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
@@ -3893,7 +3893,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 </div> 
 
       
-       <div className="w-full h-[70%] overflow-y-auto flex flex-col gap-1 mt-2">
+       <div className="w-full h-[40%] p-2 overflow-y-auto flex flex-col gap-1 mt-2">
            <p className="font-semibold text-[18px] ">Projects</p>
       {projects.map((p) => (
         <div
