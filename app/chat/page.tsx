@@ -3810,9 +3810,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <div className="flex items-center justify-between w-full">
         <div className="overflow-hidden">
   <svg 
-    width="90" 
+    width="70" 
     height="40" 
-    viewBox="0 0 90 40" 
+    viewBox="0 0 70 40" 
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
   >
@@ -3838,15 +3838,16 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         </div>
     </div>
 
-    <div className="w-full h-[30px] border border-[rgba(55,50,47,0.6)] rounded-[10px] p-[2px] flex justify-between items-center">
+    
+
+    <div className="w-full flex flex-col gap-2 h-auto mb-2">
+        <div className="w-full bg-[#f9f9f7] h-[30px] border border-[rgba(55,50,47,0.6)] rounded-[10px] p-[2px] flex justify-between items-center">
         <div className="flex items-center gap-1">
             <div className="h-[28px] border border-[rgba(55,50,47,0.6)] w-[28px] rounded-[5px]">AM</div>
             <p className="font-semibold text-sm">Aymar Ludovic</p>
         </div>
         <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
     </div>
-
-    <div className="w-full flex flex-col gap-1 h-auto">
         {/* Item Home */}
         <div className="w-full h-[30px] rounded-[10px] p-[2px] flex justify-between items-center">
             <div className="flex items-center gap-1">
@@ -3896,7 +3897,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
       
        <div className="w-full h-[70%] overflow-y-auto flex flex-col gap-1 mt-2">
-           <p className="font-semibold text-lg mb-2">Projects</p>
+           <p className="font-semibold text-[18px] ">Projects</p>
       {projects.map((p) => (
         <div
           key={p.id}
