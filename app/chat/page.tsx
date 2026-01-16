@@ -3912,7 +3912,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </button>
         </div>
       ))}
-      
+      </div>
       {projects.length === 0 && (
         <div className="p-3 text-sm text-[rgba(55,50,47,0.6)] text-center">
           No projects yet. Create one!
@@ -3933,7 +3933,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </div>
     </div>
   )}
-        </div>
+        
         <div className="flex items-center justify-between px-6 h-12 flex-shrink-0  border-[rgba(55,50,47,0.12)]">
 
 
