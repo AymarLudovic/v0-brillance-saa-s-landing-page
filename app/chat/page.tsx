@@ -3810,9 +3810,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <div className="flex items-center justify-between w-full">
         <div className="overflow-hidden">
   <svg 
-    width="40" 
-    height="40" 
-    viewBox="0 0 40 40" 
+    width="80" 
+    height="20" 
+    viewBox="0 0 80 20" 
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
   >
@@ -3841,7 +3841,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     
 
     <div className="w-full flex flex-col gap-2 h-auto mb-2">
-        <div className="w-full bg-[#fefbf2] h-[30px] border border-[rgba(55,50,47,0.6)] rounded-[10px] p-[2px] flex justify-between items-center">
+        <div className="w-full bg-[#f6f6f4] h-[37px] border border-[rgba(55,50,47,0.6)] rounded-[8px] p-[2px] flex justify-between items-center">
         <div className="flex items-center gap-1">
             <div className="h-[28px] border border-[rgba(55,50,47,0.6)] w-[28px] rounded-[5px]">AM</div>
             <p className="font-semibold text-sm">Aymar Ludovic</p>
