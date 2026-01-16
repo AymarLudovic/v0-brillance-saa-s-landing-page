@@ -3808,12 +3808,29 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     
 <div className="w-full h-auto flex flex-col gap-2">
     <div className="flex items-center justify-between w-full">
-        <div>
-            <svg className="w-[190px] h-[50px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <ellipse cx="280" cy="120" rx="58" ry="32" fill="#000000" transform="rotate(-18 430 120)" />
-                
-                         </svg>
-        </div>
+        <div className="overflow-hidden">
+  <svg 
+    width="90" 
+    height="40" 
+    viewBox="0 0 90 40" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Fond transparent (optionnel) */}
+    <rect width="100%" height="100%" fill="transparent" />
+
+    {/* L'ellipse centrée dans le nouveau cadre 90x40 */}
+    <ellipse
+      cx="45"
+      cy="20"
+      rx="22"
+      ry="12"
+      fill="#000000"
+      transform="rotate(-18 45 20)"
+    />
+  </svg>
+</div>
+    
         <div>
             <span>
                 <PanelLeftClose size={16} />
