@@ -3787,20 +3787,23 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
   return (
-    <div className="flex h-screen bg-[#fbfbf9] font-sans text-[#37322F]">
+    <div className={`flex h-screen bg-[#fbfbf9] font-sans text-[#37322F] ${!currentProject ? "flex-col-reverse justify-center items-center gap-6" : "flex-row"}`}
+        >
       
         
 
     <div 
   className={`
-    h-full flex flex-col  bg-[#fbfbf9] border-[rgba(55,50,47,0.12)] 
-    /* CONDITION DE LARGEUR : 100% si pas de projet, sinon 40% sur desktop */
-    ${!currentProject ? "w-full flex" : "md:w-[40%] md:flex"}
-    
-    /* GESTION DU MOBILE (viewMode) : Uniquement si un projet existe */
-    ${currentProject ? (viewMode === "chat" ? "w-full flex" : "hidden md:flex") : ""}
-  `}
+  flex flex-col bg-[#fbfbf9] border-[rgba(55,50,47,0.12)]
+  ${!currentProject 
+    ? "w-full max-w-3xl h-auto bg-transparent border-none" 
+    : "h-full md:w-[40%] md:flex border-r"
+  }
+  ${currentProject ? (viewMode === "chat" ? "w-full flex" : "hidden md:flex") : "flex"}
+`}
+                      
 >
+        
 
         {showProjectSelect && (
     <div className="fixed z-50 top-0 left-0 bg-[#fbfbf9]  border border-[rgba(55,50,47,0.08)]   w-[260px] h-full overflow-y-auto flex flex-col p-1">
@@ -4282,7 +4285,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-<div className="p-1 h-[120px] md:h-[170px] border-[rgba(55,50,47,0.12)] flex-shrink-0">
+<div className={`p-1 h-[120px] md:h-[170px] border-[rgba(55,50,47,0.12)] flex-shrink-0 ${!currentProject ? "shadow-xl rounded-[30px] bg-white border" : ""}`}
+    >
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
   <div className="relative p-2 flex flex-col h-[170px] md:h-[190px]">
     
