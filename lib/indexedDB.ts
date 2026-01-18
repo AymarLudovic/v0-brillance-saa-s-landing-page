@@ -1,12 +1,14 @@
 import { openDB, DBSchema } from 'idb';
 
+// --- CONFIGURATION ET TYPES ---
+
 interface VibeDB extends DBSchema {
   vibes: {
     key: string;
     value: {
       id: string;
       base64: string;
-      category: 'landing' | 'app' | 'login' | 'other' | 'anti-pattern'; // Ajout anti-pattern
+      category: 'landing' | 'app' | 'login' | 'other' | 'anti-pattern';
       createdAt: number;
     };
   };
@@ -15,7 +17,9 @@ interface VibeDB extends DBSchema {
 const DB_NAME = 'vibe-coding-db';
 const STORE_NAME = 'vibes';
 
-// Algorithme de Fisher-Yates pour un vrai mélange aléatoire
+// --- UTILITAIRES ---
+
+// Algorithme de mélange Fisher-Yates (plus performant que .sort())
 function shuffleArray<T>(array: T[]): T[] {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
@@ -25,8 +29,20 @@ function shuffleArray<T>(array: T[]): T[] {
   return newArr;
 }
 
+const toBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+  });
+};
+
+// --- FONCTIONS CORE ---
+
 export async function initDB() {
-  return openDB<VibeDB>(DB_NAME, 2, { // Version bumpée à 2
+  // On passe en version 2 pour supporter les nouvelles catégories si nécessaire
+  return openDB<VibeDB>(DB_NAME, 2, {
     upgrade(db) {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
@@ -59,55 +75,43 @@ export async function deleteVibe(id: string) {
   await db.delete(STORE_NAME, id);
 }
 
-// Récupère uniquement les Anti-Patterns (à bannir)
-export async function getAntiPatternVibes(count: number = 2) {
-  const all = await getAllVibes();
-  const anti = all.filter(v => v.category === 'anti-pattern');
-  const shuffled = shuffleArray(anti);
-  return shuffled.slice(0, count).map(v => v.base64);
-}
+// --- LOGIQUE IA (Inspirations + Anti-Patterns) ---
 
-// Récupère les inspirations (filtre intelligent + aléatoire strict)
-export async function getVibesByIntent(userMessage: string, count: number = 4) {
-  const all = await getAllVibes();
-  // On exclut les anti-patterns de la sélection d'inspiration
-  const validVibes = all.filter(v => v.category !== 'anti-pattern');
+/**
+ * Récupère le contexte complet pour l'IA :
+ * 1. Filtre les inspirations par intention (landing, app, etc.)
+ * 2. Récupère des anti-patterns au hasard pour dire à l'IA ce qu'il ne faut PAS faire.
+ */
+export async function getContextForAI(userMessage: string, count: number = 3) {
+  const allVibes = await getAllVibes();
   const msg = userMessage.toLowerCase();
-  
-  let filtered = validVibes;
 
-  if (msg.includes('landing')) {
-    filtered = validVibes.filter(v => v.category === 'landing');
-  } else if (msg.includes('app') || msg.includes('dashboard') || msg.includes('tableau')) {
-    filtered = validVibes.filter(v => v.category === 'app');
-  } else if (msg.includes('login') || msg.includes('connexion')) {
-    filtered = validVibes.filter(v => v.category === 'login');
+  // 1. Sélection des Anti-Patterns (Max 2)
+  const antiPatterns = allVibes.filter(v => v.category === 'anti-pattern');
+  const selectedAnti = shuffleArray(antiPatterns).slice(0, 2);
+
+  // 2. Sélection des Inspirations (Tout sauf anti-pattern)
+  let inspirations = allVibes.filter(v => v.category !== 'anti-pattern');
+
+  // Filtrage intelligent par mots-clés
+  if (msg.includes('landing') || msg.includes('site')) {
+    inspirations = inspirations.filter(v => v.category === 'landing');
+  } else if (msg.includes('app') || msg.includes('dashboard') || msg.includes('admin')) {
+    inspirations = inspirations.filter(v => v.category === 'app');
+  } else if (msg.includes('login') || msg.includes('auth') || msg.includes('connexion')) {
+    inspirations = inspirations.filter(v => v.category === 'login');
   }
-  
-  if (filtered.length === 0) filtered = validVibes;
 
-  // Utilisation du shuffle Fisher-Yates
-  const shuffled = shuffleArray(filtered);
-  return shuffled.slice(0, count).map(v => v.base64);
-}
+  // Fallback : si aucun match, on reprend toutes les inspirations
+  if (inspirations.length === 0) {
+    inspirations = allVibes.filter(v => v.category !== 'anti-pattern');
+  }
 
-// Fonction aléatoire générique (exclut toujours les anti-patterns)
-export async function getRandomVibes(count: number = 4) {
-  const all = await getAllVibes();
-  const validVibes = all.filter(v => v.category !== 'anti-pattern');
-  
-  if (validVibes.length <= count) return validVibes.map(v => v.base64);
-  
-  const shuffled = shuffleArray(validVibes);
-  return shuffled.slice(0, count).map(v => v.base64);
-}
+  const selectedInspirations = shuffleArray(inspirations).slice(0, count);
 
-const toBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-  });
-};
-    
+  return {
+    referenceImages: selectedInspirations.map(v => v.base64),
+    antiPatternImages: selectedAnti.map(v => v.base64)
+  };
+    }
+     
