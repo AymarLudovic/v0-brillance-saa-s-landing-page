@@ -5,8 +5,8 @@ import { saveImageToVibe, getAllVibes, deleteVibe } from '@/lib/indexedDB';
 
 export default function VibeStudio() {
   const [images, setImages] = useState<any[]>([]);
-  // État pour la catégorie sélectionnée lors de l'upload
-  const [selectedCategory, setSelectedCategory] = useState<'landing' | 'app' | 'login' | 'other'>('landing');
+  // Ajout de 'anti-pattern' dans le state
+  const [selectedCategory, setSelectedCategory] = useState<'landing' | 'app' | 'login' | 'other' | 'anti-pattern'>('landing');
 
   useEffect(() => {
     loadImages();
@@ -19,7 +19,6 @@ export default function VibeStudio() {
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      // On passe la catégorie sélectionnée
       await saveImageToVibe(e.target.files[0], selectedCategory);
       await loadImages();
     }
@@ -29,8 +28,7 @@ export default function VibeStudio() {
     <div className="p-10 max-w-5xl mx-auto font-sans">
       <h1 className="text-3xl font-bold mb-6">Vibe Coding Studio</h1>
       <p className="mb-8 text-gray-600">
-        Ajoutez ici des captures d'écran.
-        L'IA sélectionnera automatiquement les images correspondantes (Landing vs App) selon la demande.
+        Ajoutez des inspirations OU des styles à bannir (Anti-Patterns).
       </p>
 
       {/* ZONE D'UPLOAD AVEC SELECTEUR */}
@@ -46,11 +44,12 @@ export default function VibeStudio() {
             <option value="app">Application / Dashboard</option>
             <option value="login">Login / Signup</option>
             <option value="other">Autre</option>
+            <option value="anti-pattern">❌ A BANNIR (Anti-Pattern)</option>
           </select>
         </div>
 
-        <label className="bg-black text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-gray-800 transition shadow-lg">
-          + Uploader l'image
+        <label className={`text-white px-6 py-3 rounded-lg cursor-pointer transition shadow-lg ${selectedCategory === 'anti-pattern' ? 'bg-red-600 hover:bg-red-700' : 'bg-black hover:bg-gray-800'}`}>
+          {selectedCategory === 'anti-pattern' ? '+ Uploader Anti-Style' : '+ Uploader Inspiration'}
           <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
         </label>
       </div>
@@ -58,9 +57,9 @@ export default function VibeStudio() {
       {/* GRILLE D'IMAGES */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {images.map((img) => (
-          <div key={img.id} className="relative group border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-            {/* Badge de catégorie */}
-            <div className="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-1 text-[10px] font-bold uppercase rounded shadow-sm z-10">
+          <div key={img.id} className={`relative group border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow ${img.category === 'anti-pattern' ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200'}`}>
+            
+            <div className={`absolute top-2 left-2 px-2 py-1 text-[10px] font-bold uppercase rounded shadow-sm z-10 ${img.category === 'anti-pattern' ? 'bg-red-600 text-white' : 'bg-white/90'}`}>
               {img.category || 'other'}
             </div>
             
@@ -69,7 +68,7 @@ export default function VibeStudio() {
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <button 
                 onClick={async () => { 
-                  if(confirm("Supprimer cette inspiration ?")) {
+                  if(confirm("Supprimer cette image ?")) {
                     await deleteVibe(img.id); 
                     loadImages(); 
                   }
@@ -84,4 +83,5 @@ export default function VibeStudio() {
       </div>
     </div>
   );
-      }
+        }
+      
