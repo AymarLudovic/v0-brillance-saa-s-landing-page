@@ -2975,12 +2975,12 @@ let shopImages: string[] = [];
 
 
 
-const randomVibes = await getRandomVibes(2);
 
-if (randomVibes && randomVibes.length > 0) {
-        // On suppose que ta fonction addLog prend un string en paramètre
-        addLog(`images found: ${randomVibes.length} inspirations injected into context`);
-}
+    const { referenceImages, antiPatternImages } = await getContextForAI(userMessage, 2);
+
+// 2. Log pour vérifier
+if (referenceImages.length > 0) addLog(`✨ Inspirations injected: ${referenceImages.length}`);
+if (antiPatternImages.length > 0) addLog(`🚫 Anti-Patterns injected: ${antiPatternImages.length}`);
   
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
@@ -3021,7 +3021,8 @@ if (randomVibes && randomVibes.length > 0) {
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            allReferenceImages: randomVibes,
+            allReferenceImages: referenceImages, // Les VIBES
+  antiPatternImages: antiPatternImages, // Les ANTI-VIBES
          
           }),
         });
