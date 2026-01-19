@@ -49,17 +49,13 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, allReferenceImages } = body;
+    const { history, uploadedImages } = body;
     const ai = new GoogleGenAI({ apiKey });
     const model = "gemini-3-flash-preview"; // Note: Assurez-vous que ce modèle supporte thinkingConfig
 
     const buildContents = (context: string = "") => {
         const contents: { role: 'user' | 'model', parts: Part[] }[] = [];
-        if (allReferenceImages?.length > 0) {
-            const styleParts = allReferenceImages.map(img => ({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } }));
-            contents.push({ role: 'user', parts: [...styleParts as any, { text: "[STYLE_REF]" }] });
-            contents.push({ role: 'model', parts: [{ text: "Vibe Board assimilé." }] });
-        }
+        
         history.forEach((msg: Message, i: number) => {
             if (msg.role === 'system') return;
             let role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
