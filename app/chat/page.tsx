@@ -2975,13 +2975,6 @@ let shopImages: string[] = [];
 
 
 
-
-    const { referenceImages, antiPatternImages } = await getContextForAI(userMessage, 2);
-
-// 2. Log pour vérifier
-if (referenceImages.length > 0) addLog(`✨ Inspirations injected: ${referenceImages.length}`);
-if (antiPatternImages.length > 0) addLog(`🚫 Anti-Patterns injected: ${antiPatternImages.length}`);
-  
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
   try {
@@ -3020,8 +3013,7 @@ if (antiPatternImages.length > 0) addLog(`🚫 Anti-Patterns injected: ${antiPat
             history: historyForApi, 
             currentProjectFiles,
             uploadedImages,
-            uploadedFiles,
-             // Les ANTI-VIBES
+            uploadedFiles
          
           }),
         });
