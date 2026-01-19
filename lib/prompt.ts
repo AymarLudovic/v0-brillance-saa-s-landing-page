@@ -123,6 +123,7 @@ export const basePrompt = `
      </create_file>
 
      En fait ça te donne juste un exemple d'ordre d'idée sinon tu peux suivre ta prompre structure de fichier mais l'artifact XML de création de fichier sans markdown demeure le même quelques soit le fichier que tu veux créer.
+     Quand tu veux modifier ou corriger une erreur, corrige juste les fichiers concerné et pas recoder tout le projet entier et fichiers. Prévois les erreurs dur les types manquant, les types mal défini, les composants importer dans le mauvais directory d'où leur absence.
 </output_structure>
 
 <interaction_protocol>
