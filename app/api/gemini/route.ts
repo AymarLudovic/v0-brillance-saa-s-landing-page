@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles } = body;
     const ai = new GoogleGenAI({ apiKey });
-    const model = "gemini-2.5-pro"; 
+    const model = "gemini-3-flash-preview"; 
 
     // --- CONSTRUCTION DU CONTEXTE UNIQUE ---
     const buildContents = () => {
@@ -94,8 +94,8 @@ export async function POST(req: Request) {
                     systemInstruction: FULL_PROMPT_INJECTION
                 },
                 generationConfig: {
-  temperature: 1.5,             // Low value to force precision on critical instructions
-  maxOutputTokens: 8192,
+  temperature: 1.8,             // Low value to force precision on critical instructions
+  maxOutputTokens: 9192,
   thinkingConfig: {     // New feature of Gemini 3 (2026)
     includeThoughts: true,
     thinkingLevel: "high" // Forces internal reasoning before responding
