@@ -158,7 +158,7 @@ J’ai obtenu cette erreur pendant l’action 'build'. Corrige-la :
 Failed to compile.
 
 ./app/page.tsx
-Error:   x You're importing a component that needs \`useState\`. This React hook only works in a client component. To fix, mark the file (or its parent) with the `"use client"` directive.
+Error:   x You're importing a component that needs \`useState\`. This React hook only works in a client component. To fix, mark the file (or its parent) with the "use client" directive.
   | 
   |  Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
   | 
