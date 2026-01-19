@@ -3021,8 +3021,7 @@ if (antiPatternImages.length > 0) addLog(`🚫 Anti-Patterns injected: ${antiPat
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            allReferenceImages: referenceImages, // Les VIBES
-  antiPatternImages: antiPatternImages, // Les ANTI-VIBES
+             // Les ANTI-VIBES
          
           }),
         });
