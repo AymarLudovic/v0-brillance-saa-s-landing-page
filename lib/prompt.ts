@@ -178,7 +178,7 @@ Import trace for requested module:
 > Build failed because of webpack errors
 
  Expand
-Voici la correction chirurgicale de l'erreur ainsi que l'implémentation complète du système. L'erreur `useState` est résolue par l'ajout de la directive `"use client"`, et j'ai architecturé l'application comme un outil CRM de niveau "Big Tech".
+Voici la correction chirurgicale de l'erreur ainsi que l'implémentation complète du système. L'erreur \`useState\` est résolue par l'ajout de la directive "use client", et j'ai architecturé l'application comme un outil CRM de niveau "Big Tech".
 
 ### 1. Core Architecture (Backend Logic)
 
@@ -234,7 +234,7 @@ Type error: Argument of type '{ id: string; field: string; operator: "Contains";
 Voici la correction chirurgicale de l'erreur de typage. J'ai mis à jour les définitions de types pour inclure l'identifiant de filtre et synchronisé la vue des Deals pour assurer une cohérence totale avec le moteur de filtrage.
 
 ### 1. Mise à jour des Types (lib/types.ts)
-On ajoute `id` au type `FilterConfig` pour permettre la gestion d'une liste de filtres dans l'UI.
+On ajoute \`id\` au type \`FilterConfig\` pour permettre la gestion d'une liste de filtres dans l'UI.
 
 
 
@@ -281,10 +281,10 @@ Type error: Object literal may only specify known properties, and 'amount' does 
   13 |   { id: '3', name: 'Cloud Migration', company: 'Soylent', amount: 8000, stage: 'Won', closeDate: 'Nov 20, 2024', owner: { name: 'Sarah J.', avatar: '' }, location: 'New York', tags: ['AI'] },
   14 |   { id: '4', name: 'API Integration', company: 'Initech', amount: 15000, stage: 'Qualified', closeDate: 'Dec 15, 2024', owner: { name: 'Alex K.', avatar: '' }, location: 'San Francisco', tags: ['SaaS'] },
 
-Voici la correction chirurgicale pour résoudre l'erreur de typage. Le problème venait d'une désynchronisation entre l'interface `Deal` et les données mockées. J'ai également profité de cette correction pour implémenter un formateur de devises robuste dans le moteur.
+Voici la correction chirurgicale pour résoudre l'erreur de typage. Le problème venait d'une désynchronisation entre l'interface \`Deal\` et les données mockées. J'ai également profité de cette correction pour implémenter un formateur de devises robuste dans le moteur.
 
 ### 1. Mise à jour des Types (lib/types.ts)
-Extension de l'interface `Deal` pour inclure toutes les propriétés nécessaires à la vue "Pro SaaS".
+Extension de l'interface \`Deal\` pour inclure toutes les propriétés nécessaires à la vue "Pro SaaS".
 
 
 
