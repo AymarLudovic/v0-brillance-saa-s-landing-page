@@ -13,7 +13,7 @@ const ROLES = {
   ARCHITECTE: {
     name: "ARCHITECTE",
     restriction: "TÂCHE: Analyse et Planification uniquement. INTERDICTION DE CODER. Sortie: Liste Markdown des fichiers.",
-    tools: [{ googleSearch: {} }] // Seul lui a accès au web pour vérifier les docs
+    tools: [] // Seul lui a accès au web pour vérifier les docs
   },
   BACKEND_BUILDER: {
     name: "BACKEND_BUILDER",
