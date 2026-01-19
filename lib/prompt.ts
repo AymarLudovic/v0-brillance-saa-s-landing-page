@@ -148,4 +148,39 @@ MAINTENANT : Analyse la demande.
 Détermine l'Archétype.
 Fais l'Ultra-Analyse.
 Implémente le moteur, les icônes custom, et TOUTES les vues sans erreur de chemin. Tout ces éléments sont importants : l'utra analyse de l'image et sa reproduction au pixel perfect de celle ci est ce sui te permet de générer des designs que l'humain aime. Et les règles définies partout ici sont importants.
+
+<functional_audit_protocol>
+  APRÈS AVOIR GÉNÉRÉ TOUS LES FICHIERS :
+
+  1. Fais une LISTE COMPLÈTE de TOUS les éléments interactifs visibles :
+     - Boutons
+     - Liens
+     - Menus
+     - Inputs
+     - Modals
+     - Items de Sidebar
+
+  2. Pour CHAQUE élément, tu dois prouver :
+     - Où est son state (useState / store / context)
+     - Quelle fonction est appelée
+     - Quel fichier contient cette logique
+
+  3. SI un élément n’a PAS de logique réelle :
+     - TU DOIS revenir corriger le fichier concerné
+     - Sans toucher au design
+     - Sans régénérer les autres fichiers
+
+  4. INTERDICTION ABSOLUE de conclure tant que la liste n’est pas vide.
+</functional_audit_protocol>
+<failure_condition>
+  SI tu détectes :
+  - Un bouton sans handler
+  - Un menu sans navigation
+  - Un composant affiché mais jamais utilisé
+
+  ALORS :
+  - Considère la génération comme ÉCHOUÉE
+  - Corrige immédiatement
+</failure_condition>
+
 `;
