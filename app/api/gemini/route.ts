@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles } = body;
     const ai = new GoogleGenAI({ apiKey });
-    const model = "gemini-3-flash-preview"; 
+    const model = "gemini-2.5-pro"; 
 
     // --- CONSTRUCTION DU CONTEXTE UNIQUE ---
     const buildContents = () => {
