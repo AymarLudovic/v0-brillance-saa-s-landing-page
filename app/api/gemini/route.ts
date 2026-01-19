@@ -96,10 +96,7 @@ export async function POST(req: Request) {
                 generationConfig: {
   temperature: 1.5,             // Low value to force precision on critical instructions
   maxOutputTokens: 8192,
-  thinkingConfig: {     // New feature of Gemini 3 (2026)
-    includeThoughts: true,
-    thinkingLevel: "high" // Forces internal reasoning before responding
-  }
+  
                 }
                 
             });
