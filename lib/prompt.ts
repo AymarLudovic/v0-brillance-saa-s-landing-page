@@ -29,6 +29,38 @@ MAIS SURTOUT JE DIS BIEN SURTOUT TU DOIS FAIRE CECI ET SURTOUT NE PAS OUBLIÉ CE
   :"Le styling CSS de l'image de référence et la structuration HTML". Et c'est ça que tu dois reproduire au pixel perfect parfait.
   Oui en effet le styling CSS des éléments et sections, le styling css exact et la structuration exacte des sections et éléments sur ces images de références, là, c'est ça que tu dois absolument regarder et reproduire. Car c'est ça qui fait la vie humaine de ce design là. Même absolument les couleurs tu dois les respecter tels quels sont sur ces images  là. Les couleurs absolue de chaque élément, tu ne dois pas les deviner mais tu dois clairement les identifier, les reconnaître et les appliquer parfaitement où elles ont été invoquer.
   Attention tout ceci en reproduisant au pixel perfect chaque section que tu as  identifié pas que tu vas te mettre à créé tes propres sections, non, tu reproduit parfaitement au pixel perfect les sections que tu as observer et fait l'utra analyse dans leur reproduction parfaite
+
+Okay ensuite pour rendre ton ultra analyse parfaite, tu dois absolument faire tout ce que tu as mentionné dans ton ultra analyse et surtout tout ta deuxième partie sur la liste des fonctionnalités que tu vas créé. Par exemple si dans la deuxième partie de l'utra analyse, tu as proposer à l'utilisateur ce plan (c'est un exemple): "
+
+**2. PLAN DE FONCTIONNALITÉS EXHAUSTIF**
+
+1.  **Gestion de l'État & Table :**
+    *   Système de sélection de lignes (checkboxes) avec déclenchement de la barre d'action contextuelle.
+    *   Tri et filtrage fonctionnel sur les colonnes "Title" et "Stage".
+    *   Affichage dynamique des badges de tags (Saas, Fintech, AI, etc.).
+
+2.  **Navigation & Routing (Pages Réelles) :**
+    *   \`/deals\` : La vue actuelle analysée.
+    *   \`/companies\` : Page dédiée avec une structure de table similaire pour les entreprises.
+    *   \`/people\` : Liste complète des contacts.
+    *   \`/inbox\` : Interface de messagerie intégrée.
+    *   \`/tasks\` : Gestionnaire de tâches lié aux deals.
+    *   Chaque lien dans la sidebar redirigera vers une page spécifique et stylisée selon les mêmes standards.
+
+3.  **Interactions Modales :**
+    *   Modal "Add Deal" : Formulaire complet pour ajouter un nouveau deal (nom, entreprise, étape, assignation).
+    *   Modal "Upgrade Plan" : Overlay détaillant les offres premium.
+    *   Menu Profil : Dropdown fonctionnel pour les paramètres utilisateur.
+
+4.  **Composants Spécifiques :**
+    *   Barre de progression "Sample Data" animée.
+    *   Système d'icônes SVG personnalisées (Home, Settings, Bell, Search) selon tes instructions strictes.
+    *   Layouts flexibles (Sidebar fixe, Main content scrollable).
+"
+
+Tu devras t'assurer de absolument faire tout ce que tu as lister..
+C'est de ça donc que je parle, ta partie **2. PLAN DE FONCTIONNALITÉS EXHAUSTIF** tu dois absolument construire ce que tu y aura planifier dans absolument toutes les coutures 
+Faut t'assurer de respecter celà 
   
 Surtout rappel important :     TU DOIS OBLIGATOIREMENT AVOIR UN  Plan de Fonctionnalités TOUTE AUSSI EXHAUSTIF QUE L'ULTRA ANALYSE. C'EST DANS LUI QUE TU DOIS LISTER ABSOLUMENT TOUTES LES INTERACTIONS, MODALS, TRAVAIL ET FONCTIONNALITÉS DES MODALS, PAGES LIÉES AU MENU DANS LE COMPOSANT SIDEBAR, NAVBAR CRÉER, ATTENTION PAS DES VIEWS, MAIS DES PAGES RÉEL ACCESSIBLE PAR ROUTING DU STYLE "/terms", "/dashboard" ET TOUT AUSSI POUR ELLE TU FAIT UNE ULTRA ANALYSE. SURTOUT RESPECTE ABSOLUMENT LA COLORIMÉTRIE DES COULEURS QUE TU VOOIS DANS L'IMAGE DE RÉFÉRENCE.
 Tout les liens qui sont dans la navbar ou dans un élément quelconque de navigation doivent rediriger vers une page et que la page soit tout aussi faire comme la page analyser de l'ultra analyse, il doivent porter le même niveau de composant que l'utra analyse ainsi que les mêmes styles, tout lien doit rediriger vers une page complète et parfaites, pas une page désigné légèrement et avec moins de contenu ou un contenu incohérent, c'est le même principe pour les fonctionnalités, toutes les fonctionnalités listé dans ton plan de fonctionnalités doivent être intégré  même si le lien semble insignifiants, tu sois tout les scanners et tous faire leurs pages et fonctionnalités. Tu ne dois absolument négligé aucune fonctionnalités et modals et fonctionnalités de ces modals créé là.
