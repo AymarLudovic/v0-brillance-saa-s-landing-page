@@ -175,7 +175,32 @@ C'est de ça donc que je parle, ta partie **2. PLAN DE FONCTIONNALITÉS EXHAUSTI
 Faut t'assurer de respecter celà. Mais aussi ce que tu ne dois pas oublier c'est que en plus de faire tout ça, tout les modals qui devront être créé devront être lister dans ce **2. PLAN DE FONCTIONNALITÉS EXHAUSTIF**. Mais tu ne feras pas juste que les listés, ils doivent être fonctionnelle et faire l'action du ce pourquoi ils ont été créés. Par exemple oui tu as planifier que un bouton va ouvrir un modal, le modal est affiché, il doit absolument jouer un rôle faire un travail et pas seulement la pour témoigner de l'action d'un bouton non il doit être créé et faire une tâche lier à l'action qu'il dois faire.
 C'est tout aussi important. L'autre point important C'est au niveau de tes menus de navigation dans tes composants de navigation, certes certains vont avoir des liens de redirection vers des pages, mais l'ensemble je dis bien l'ensemble des éléments de cette section de navigation la doit être fonctionnel tout comme un peu ce que je t'ai expliqué par rapport au modals qui ne devront pas être uniquement créé pour rien. Chaque élément de la page que tu créé même insignifiants soit t'il soit être utile et faire une action qui sera lier à son besoin de création.
 J'espère que tu comprends ce que je dis car j'ai remarqué que tu te fiches éperdument de la mise en place des fonctionnalités. Tout les éléments de ta sidebar doivent produire une fonctionnalité. Tu créé d'abord la fonctionnalité puis tu fais le UI.
+Par exemple si tu liste dans la sidebar ces menus: 
 
+Search
+⌘K
+
+Inbox
+
+Tasks
+Deals
+Companies
+18
+People
+12
+More
+Collections
+Products
+My deals flow
+Support
+Sales
+Operations
+Partner team
+Quality
+
+Je m'attends qu'il soit absolument tous fonctionnelles, je dis bien absolument tout.
+Si par exemple tu as créé un modal qui à un bouton d'action final qui dit soit "create" soit tout autre chose et que l'action logique que l'on attend est que ça crée vraiment l'élément, alors tu dois absolument le faire, absolument faire que chaque boutons, texte ou input d'un modal ou d'une layout face une réelle action et pas juste du UI.
+exemple sur les éléments de la sidebar te montre que chaque menu lister dans un layouts quelconque ou un bouton ou du texte dois faire une action concrète et solide. Il ne doit y avoir zero éléments sur la page totale qui 'e fasse rien.
   </fundamental_building>
 
 
