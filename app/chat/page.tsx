@@ -1404,7 +1404,7 @@ const toggleViewMode = (mode) => {
   
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   
-
+const [currentPlan, setCurrentPlan] = useState("");
 const [showProjectSelect, setShowProjectSelect] = useState(false) // <-- AJOUTEZ CET ÉTAT
          
   const [showSidebar, setShowSidebar] = useState(false)
@@ -2799,13 +2799,13 @@ const handleFetchFileAction = async (
      // ---------------------- DÉFINITIONS GLOBALES (VÉRIFIEZ BASE_DELAY_MS) ----------------------
 // Définir ces constantes au début du composant, en dehors de sendChat
 const MAX_RETRIES = 10;
-// 🔥 CORRECTION DE LA BASE DE DÉLAI: Utilisable pour le backoff exponentiel
 const BASE_DELAY_MS = 500; 
-// Limite stricte de 6000 caractères pour inclure le contenu complet
 const CONTENT_SNAPSHOT_LIMIT = 50000; 
 
-// Définitions de Regex rendues accessibles globalement pour la fonction
 const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?\}/;
+const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
+
+// Définitions
 // Assurez-vous que FETCH_FILE_REGEX est aussi définie ici si elle n'est pas globale
 // const FETCH_FILE_REGEX = /<fetch_file path=["']([^"']+)["'][^>]*\/>/g; 
 
@@ -2823,7 +2823,10 @@ const inspirationUrlRegex = /```json\s*\{[\s\S]*?"type"\s*:\s*"inspirationUrl"[\
 // ---------------------- SEND CHAT (AVEC CONTEXTE ET FILTRAGE) ----------------------
 
 
-const sendChat = async (promptOverride?: string) => {
+  
+  
+
+        const sendChat = async (promptOverride?: string) => {
   const userPrompt = promptOverride || chatInput;
 
   if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
@@ -2919,19 +2922,14 @@ const sendChat = async (promptOverride?: string) => {
   setLoading(true);
   addLog(`Sending prompt to Gemini...`);
 
-      
-
-
 // 1. ON RÉCUPÈRE L'IMAGE DU SHOP (SILENCIEUSEMENT)
 
 let shopImages: string[] = [];
   
   try {
-      // On récupère uniquement les images du Shop
       shopImages = await getAllShopImages();
 
       if (shopImages.length > 0) {
-          // Log simple pour confirmer le chargement visuel
           addLog(`[Design] ${shopImages.length} références visuelles chargées.`);
       }
 
@@ -2944,11 +2942,10 @@ let shopImages: string[] = [];
   let inspirationCSS = "";
   
   try {
-      addLog("🎨 Gathering design resources..."); // 1. On voit ça
+      addLog("🎨 Gathering design resources..."); 
 
-      // On sépare les promesses pour voir laquelle échoue si besoin
       const images = await getAllShopImages();
-      addLog(`🔍 Debug: Found ${images.length} images in DB.`); // 2. On DOIT voir ça
+      addLog(`🔍 Debug: Found ${images.length} images in DB.`);
 
       const cssUrl = await getShopCssUrl();
       if (cssUrl) addLog(`🔍 Debug: CSS URL found: ${cssUrl}`);
@@ -2972,8 +2969,6 @@ let shopImages: string[] = [];
       addLog(`❌ DESIGN ERROR: ${e.message}`);
       console.error("Design load error", e); 
   }
-
-
 
   // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
@@ -3007,14 +3002,14 @@ let shopImages: string[] = [];
           method: "POST",
           headers: { 
               "Content-Type": "application/json",
-              "x-gemini-api-key": apiKey // 🔥 Envoi de la clé dans les headers
+              "x-gemini-api-key": apiKey 
           },
           body: JSON.stringify({ 
             history: historyForApi, 
             currentProjectFiles,
             uploadedImages,
-            uploadedFiles
-         
+            uploadedFiles,
+            currentPlan
           }),
         });
 
@@ -3083,6 +3078,16 @@ let shopImages: string[] = [];
         } catch (e) { console.error("Failed to parse URL JSON:", e); }
       }
 
+       // ----------------- PLAN DETECTION -----------------
+       const planMatch = text.match(PLAN_REGEX);
+       if (planMatch) {
+           const extractedPlan = planMatch[1].trim();
+           if (extractedPlan && extractedPlan !== currentPlan) {
+               setCurrentPlan(extractedPlan);
+               addLog("📋 Plan updated by AI");
+           }
+       }
+
       // ----------------- FILE ARTIFACTS -----------------
       const fileArtifacts = extractFileArtifacts(text);
 
@@ -3123,7 +3128,8 @@ let shopImages: string[] = [];
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
         .replace(FETCH_FILE_REGEX, '') 
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
+        .replace(PLAN_REGEX, '');
 
       setMessages((prev) => {
         const updatedMessages = [...prev];
@@ -3145,7 +3151,8 @@ let shopImages: string[] = [];
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
         .replace(FETCH_FILE_REGEX, '') 
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, ''); 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
+        .replace(PLAN_REGEX, '');
 
     const finalArtifacts = extractFileArtifacts(text);
     let artifactData: any;
@@ -3208,7 +3215,9 @@ let shopImages: string[] = [];
     setLoading(false);
   }
 };
-      
+
+
+
              
 
          
@@ -4063,7 +4072,20 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-                {messages.map((msg, index) => {
+                
+          
+          
+
+
+              
+
+              
+
+                
+
+          
+          
+{messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
   const isCopied = copiedMessageIndex === index;
@@ -4077,7 +4099,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {msg.role === "assistant" && (
         <div className="flex items-center gap-3">
           <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
-            <svg className="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="h-[18px] w-[18px]" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="12" cy="12" r="10" />
             </svg>
           </div>
@@ -4086,7 +4108,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           {loading && index === messages.length - 1 && (
           <div className="flex items-center gap-[3px]">
             <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
-            <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
+            <svg className="h-[17px] w-[17px]" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
           </div>
           )}
         </div>
@@ -4113,6 +4135,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
               .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
               .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
+              .replace(/<plan>[\s\S]*?<\/plan>/g, '')
               .replace(/---[\s\S]*?---/g, '')
               .trim();
           
@@ -4188,7 +4211,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                               
                               return (
                                   <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
-                                      <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
+                                      <span><svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
                                       <p className="font-semibold">{statusText}</p>
                                       <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
                                   </li>
@@ -4197,7 +4220,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                           {isBuilding ? (
                               <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1">
                                 <span className="animate-spin">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
+                                  <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
                                 </span>
                                 <span className="font-semibold">{currentStatusText}...</span>
                               </li>
@@ -4256,15 +4279,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   );
 })}
 
-              
-
-              
-
-                
-
-          
-          
-
+            
           
                 
                   {/* --- DEBUT DU BLOC messages.map (Ligne ~580) --- */}                
