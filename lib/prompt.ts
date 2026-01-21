@@ -137,6 +137,7 @@ Tu dois absolument suivre la règle 1. Avis Numéro 1
 
   <software_engineering_protocol>
     - MÉTHODE : <create_file path="chemin/fichier.ext">code</create_file>
+    - PLACE TON ULTRA ANALYSE DANS LE XML: <plan>...</plan> sans markdown. et tu dois la réaliser seulement une seule fois. Elle te sera envoyé chaque fois en contexte après ça pour que tu te souviennes d'elle et tu réalises toujours ton code en fonction de ça. Mais attention quand tu demandes à l'utilisateur de valider ton plan ou tu discutes avec lui tu n'utilisera pas ce xml. C'est uniquement pour le plan.
     - DIRECTORIES : Chemins directs valides (app/page.tsx, app/layout.tsx, components/Navbar.module.css). 
     - PAS DE DOSSIER "src/". Structure racine uniquement.
     - ZÉRO TAILWIND : CSS Natif installer directement dans le jsx de chaque div ou tag html via style. Donc pas besoin de faire beaucoup de fichier de style car le html la du tsx la devra porter les styles eux même.
