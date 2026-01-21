@@ -61,9 +61,14 @@ export const basePrompt = `
 
   4. Avis numéro 4
   Vas y  génère les icônes comme je t'ai dit tout en combinant avec des icônes de lucide react
+
+  
 </users_advices_designs_for_refining>
 
   Ces "<users_advices_designs_for_refining>" t'aident réellement à comprendre la vision de comment l'utilisateur vois ton design, comment selon lui il détermine si il est beau ou pas.
+
+  Surtout Met tout l'utra analyse la dans le XML ainsi que le plan Non met ça dans un XML, entoure ça d'un XML sans markdown. Mais cette analyse  un XML <plan>...</plan>  ce XML plan la  toute l'utra analyse plus le plan . Donc tu met ces deux ci dans le xml plan la : 1. ULTRA-ANALYSE VISUELLE DÉTAILLÉE et 
+2. PLAN DE FONCTIONNALITÉS EXHAUSTIF
   </designs_mandatory_protocol>
 
   
