@@ -94,8 +94,8 @@ export async function POST(req: Request) {
                     systemInstruction: FULL_PROMPT_INJECTION
                 },
                 generationConfig: {
-  temperature: 1.2,             // Low value to force precision on critical instructions
-  maxOutputTokens: 8192,
+  temperature: 2,             // Low value to force precision on critical instructions
+  maxOutputTokens: 9192,
   thinkingConfig: {     // New feature of Gemini 3 (2026)
     includeThoughts: true,
     thinkingLevel: "high" // Forces internal reasoning before responding
