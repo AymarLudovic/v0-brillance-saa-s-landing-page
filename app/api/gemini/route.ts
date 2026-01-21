@@ -37,14 +37,16 @@ const readFileDeclaration: FunctionDeclaration = {
 // Contient TOUTE la logique : Architecture, Backend, UI, Correction, et les Règles Techniques.
 
 
-export async function POST(req: Request) {
+
+
+    export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('x-gemini-api-key');
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles } = body;
+    const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
     const ai = new GoogleGenAI({ apiKey });
     const model = "gemini-3-flash-preview"; 
 
@@ -59,7 +61,19 @@ export async function POST(req: Request) {
             contents.push({ role: 'model', parts: [{ text: "Bien reçu. Je reproduirai ce style au pixel près." }] });
         }
 
-        // 2. Historique de conversation
+        // 2. Injection du Plan Actuel (Contexte Mémoire)
+        if (currentPlan) {
+            contents.push({ 
+                role: 'user', 
+                parts: [{ text: `[MEMORY / CURRENT PLAN]\nHere is the active plan you established previously. Follow it or update it if necessary using <plan>...</plan>:\n\n${currentPlan}` }] 
+            });
+            contents.push({ 
+                role: 'model', 
+                parts: [{ text: "Understood. I will keep this plan in mind and update it if my strategy changes." }] 
+            });
+        }
+
+        // 3. Historique de conversation
         history.forEach((msg: Message, i: number) => {
             if (msg.role === 'system') return;
             const parts: Part[] = [];
@@ -132,4 +146,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 });
   }
-}
+                }
