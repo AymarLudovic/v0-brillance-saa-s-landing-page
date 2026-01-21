@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles } = body;
     const ai = new GoogleGenAI({ apiKey });
-    const model = "gemini-3-flash-preview"; 
+    const model = "gemini-2.5-flash"; 
 
     // --- CONSTRUCTION DU CONTEXTE UNIQUE ---
     const buildContents = () => {
@@ -89,7 +89,10 @@ export async function POST(req: Request) {
                 model,
                 contents: buildContents(),
                 tools: [{ functionDeclarations: [readFileDeclaration] }], // Outil de lecture si besoin de contexte
-                
+                config: { 
+                    // Injection massive du prompt unique
+                    systemInstruction: FULL_PROMPT_INJECTION
+                },
                 generationConfig: {
   temperature: 1.2,             // Low value to force precision on critical instructions
   maxOutputTokens: 8192,
