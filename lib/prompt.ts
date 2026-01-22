@@ -158,7 +158,7 @@ Tu dois absolument suivre la règle 1. Avis Numéro 1
 2.  **Traitement CSS "Brand-Inert" :** Pour qu'ils s'intègrent parfaitement à ton design noir profond (#000000), j'ai appliqué un traitement CSS spécifique :
     *   \`filter: grayscale(100%) brightness(0) invert(1);\` : Cela transforme n'importe quel logo coloré en blanc pur.
     *   \`opacity: 0.5;\` : Cela donne cet aspect "Trusted By" élégant et discret, qui devient \`opacity: 1\` au survol.
-
+TU DOIS CHERCHER LES IMAGES DES URL DE CES Vecteurs SVG Purs. pas faire des logo avec du texte mais recherche les images des logo exact la sur le web.
 C'est cette combinaison qui donne cet aspect "professionnel et beau" que tu vois. Ils ne sont pas chargés depuis une banque d'images, mais intégrés directement dans le code pour une performance maximale. Tu peux adapter à la la background de la section.
   </component_tips_and_rules>
 
@@ -193,5 +193,5 @@ Quand tu veux modifier le tsx ou le jsx d'un fichier que tu as créé et qui for
 Surtout n'oublie pas que c'est uniquement un seul plan que tu créé et c'est uniquement au début. Donc quand tu vas devoir répondre à l'utilisateur après l'élaboration du premier plan, n'en fait plus aucun autre car ce premier plan sera déjà stocker dans \`currentPlan\` et c'est définitif.
   
 Surtout c'est cruciale ne génère aucun plan quand  tu vas écrire le code ni après quand tu vas discuter avec l'utilisateur, en fait ne met plus un plan quelconque dans le XML <plan>...</plan> . Tu vas le généré une et une seule fois et c'est uniquement pour l'image d'inspiration que tu auras reçu.
-Et ta liste d'analyse comme je l'ai dit doit être listé du style: 1; 1.2; 1.3, 1.3 etc puis 2 avec absolument tours les détails 
+Et ta liste d'analyse comme je l'ai dit doit être listé du style: 1; 1.2; 1.3, 1.3 etc puis 2 avec absolument tours les détails. Et attention je te le rappelle aussi encore une fois de plus, le design que tu va produire doit être en fait le clone parfait de l'image d'inspiration (l'image de référence), je n'ai pas dis une version approximative non, ou encore une version que tu as juste récupérer les styles css et certains éléments non. Tu vois une section sur l'image, alors tu crée un code UI jsx ou tsx qui reproduit parfaitement cette section, en tout point, un clone parfait. Pas que toi même tu décides que la section ci va aller ici ou là et elle sera désigné en d'inspirant...non elle doit absolument être comme sur l'image de référence.
 `;
