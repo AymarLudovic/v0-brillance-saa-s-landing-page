@@ -4294,13 +4294,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-<div className={`p-1 h-[120px] md:h-[170px] border-[rgba(55,50,47,0.12)] flex-shrink-0 ${!currentProject ? "shadow-xl rounded-[30px] bg-white border" : ""}`}
+<div className={`p-1 h-[120px] md:h-[150px] border-[rgba(55,50,47,0.12)] flex-shrink-0 ${!currentProject ? "" : ""}`}
     >
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
-  <div className="relative p-2 flex flex-col h-[170px] md:h-[190px]">
+  <div className="relative p-2 flex flex-col h-[150px] md:h-[150px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#FFFAF0] w-full">
+    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#f7f4ed] w-full">
         
      <div className="w-full h-full flex items-center justify-center">
          {(uploadedImages.length > 0 || uploadedFiles.length > 0 || mentionedFiles.length > 0) && (
@@ -4439,7 +4439,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full  bg-[#FFFAF0] h-[60%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)]  ">
+    <div className="w-full  bg-[#f7f4ed] h-[60%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)]  ">
       <textarea
   placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
   className="h-full w-full pl-3 text-[18px] font-semibold border-none outline-none resize-none bg-none"
