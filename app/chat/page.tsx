@@ -4004,7 +4004,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         
         </div>
            <div className="w-full h-[90%] overflow-y-auto flex flex-col gap-1">
-      {projects.map((p) => (
+  {Object.entries(groupedProjects).map(([date, groupProjects]) => (
+    <div key={date} className="flex flex-col gap-1 mb-2">
+      {/* SÉPARATEUR DE DATE */}
+      <h3 className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm py-2 px-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+        {date}
+      </h3>
+
+      {/* LISTE DES PROJETS DE CETTE DATE */}
+      {groupProjects.map((p) => (
         <div
           key={p.id}
           className={`group w-full p-2 text-sm hover:bg-[#F7F5F3] rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
@@ -4013,18 +4021,22 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           // LOGIQUE CLÉ : Click sur le conteneur pour charger
           onClick={async () => {
             if (currentProject) {
-              await saveProject() // On attend la sauvegarde IDB
+              await saveProject(); // On attend la sauvegarde IDB
             }
-            loadProject(p.id)
-            setShowProjectSelect(false)
+            loadProject(p.id);
+            setShowProjectSelect(false);
           }}
         >
           {/* Partie Gauche : Icone + Nom */}
           <div className="flex w-[90%] items-center gap-2 flex-1 overflow-hidden">
-              <div className="w-5 h-5 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
-                <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
-              </div>
-              <span className="">{p.name}</span>
+            <div className="w-5 h-5 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
+              <img
+                src="/horizon-icon.svg"
+                alt="Horizon"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <span className="">{p.name}</span>
           </div>
 
           {/* Partie Droite : Bouton Supprimer (Visible au survol uniquement) */}
@@ -4037,7 +4049,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </button>
         </div>
       ))}
-               </div>
+    </div>
+  ))}
+</div>
+    
       </div>
       {projects.length === 0 && (
         <div className="p-3 text-sm text-[rgba(55,50,47,0.6)] text-center">
