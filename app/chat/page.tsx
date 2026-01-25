@@ -4294,7 +4294,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
 
-<div className={`p-1 h-[120px] md:h-[150px] border-[rgba(55,50,47,0.12)] flex-shrink-0 ${!currentProject ? "" : ""}`}
+<div className={`p-1 h-[120px] md:h-[150px] border-[#f6f3ec] flex-shrink-0 ${!currentProject ? "" : ""}`}
     >
   {analysisStatus && <p className="text-sm text-[rgba(55,50,47,0.60)] mb-3 animate-pulse">{analysisStatus}</p>}
   <div className="relative p-2 flex flex-col h-[150px] md:h-[150px]">
@@ -4354,7 +4354,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
 )}
            
-        <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[rgba(55,50,47,0.12)] gap-1">
+        <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[#f6f3ec] gap-1">
         
         {/* BOUTON/INPUT CLONE WEBSITE */}
         {!isCloning ? (
@@ -4439,7 +4439,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full  bg-[#f7f4ed] h-[60%] border-b-none  border-l border-r border-[rgba(55,50,47,0.12)]  ">
+    <div className="w-full  bg-[#f7f4ed] h-[60%] border-b-none  border-l border-r border-[#f6f3ec]  ">
       <textarea
   placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
   className="h-full w-full pl-3 text-[18px] font-semibold border-none outline-none resize-none bg-none"
@@ -4459,7 +4459,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
-    <div className="w-full p-4 bg-[#FFFAF0] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[rgba(55,50,47,0.12)] p-[2px] flex items-center justify-between gap-1">
+    <div className="w-full p-4 bg-[#f7f4ed] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[#f6f3ec] p-[2px] flex items-center justify-between gap-1">
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
