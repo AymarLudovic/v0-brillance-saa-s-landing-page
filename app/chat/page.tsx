@@ -1144,6 +1144,13 @@ useEffect(() => {
 
   const [showDeploymentStatus, setShowDeploymentStatus] = useState(false);
 
+
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+const [searchQuery, setSearchQuery] = useState("");
+
+
+    
+
 // Fonction placeholder (à adapter si vous avez une modale dédiée pour l'entrée du jeton)
 const setShowTokenModal = (platform) => { 
     alert(`Veuillez d'abord enregistrer votre jeton d'accès Vercel.`);
@@ -1883,7 +1890,38 @@ const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
   
 
 
+const handleSelectProject = async (projectId: string) => {
+  if (currentProject) {
+    await saveProject();
+  }
+  loadProject(projectId);
+  setIsSearchOpen(false);
+  if (typeof setShowSidebar === 'function') setShowSidebar(false);
+  if (typeof setShowProjectSelect === 'function') setShowProjectSelect(false);
+};
 
+const groupedProjects = useMemo(() => {
+  const sorted = [...projects].sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  const groups: Record<string, typeof projects> = {};
+
+  sorted.forEach((project) => {
+    const date = new Date(project.createdAt);
+    const dateKey = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
+    }
+    groups[dateKey].push(project);
+  });
+
+  return groups;
+}, [projects]);
+
+const filteredProjects = projects.filter(p => 
+  p.name.toLowerCase().includes(searchQuery.toLowerCase())
+);
 
 
 const applyAndSetFiles = (responses: any[]) => {
@@ -3892,6 +3930,58 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 <Search className="h-4 w-4 text-black shrink-0" />
                 <p className="font-semibold text-sm">Search</p>
             </div>
+
+
+
+            <div className="flex flex-col h-full">
+    <div className="mb-4 px-2">
+        <div 
+            onClick={() => setIsSearchOpen(true)}
+            className="flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors bg-[#f6f3ec] hover:bg-[#ebe8e0] text-gray-600"
+        >
+            <Search className="h-4 w-4 text-black shrink-0" />
+            <p className="font-semibold text-sm text-black">Search</p>
+        </div>
+    </div>
+
+    <div className="flex-1 overflow-y-auto px-2 space-y-6">
+      {Object.entries(groupedProjects).map(([date, projectList]) => (
+        <div key={date}>
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 pl-2">
+            {date}
+          </h3>
+          
+          <div className="space-y-1">
+            {projectList.map((p) => (
+              <div
+                key={p.id}
+                className={`group w-full p-2 text-sm hover:bg-[#F7F5F3] rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
+                  currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : ""
+                }`}
+                onClick={() => handleSelectProject(p.id)}
+              >
+                <div className="flex w-[90%] items-center gap-2 flex-1 overflow-hidden">
+                    <div className="w-5 h-5 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
+                      <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
+                    </div>
+                    <span className="truncate">{p.name}</span>
+                </div>
+
+                <button
+                  onClick={(e) => handleDeleteProject(e, p.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-100 text-gray-400 hover:text-red-600 rounded-md transition-all"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+</div>
+              
+        
         </div>
     </div>
 </div> 
@@ -5122,7 +5212,55 @@ ll
     </div>
   </aside>
 </div>
-        
+
+
+
+{isSearchOpen && (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/40 backdrop-blur-sm transition-all"
+            onClick={() => setIsSearchOpen(false)}
+    >
+        <div 
+            className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[60vh]"
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="flex items-center border-b border-gray-100 p-4 gap-3">
+                <Search className="w-5 h-5 text-gray-400" />
+                <input 
+                    autoFocus
+                    type="text"
+                    placeholder="Search for projects..."
+                    className="flex-1 outline-none text-lg placeholder:text-gray-300"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
+
+            <div className="overflow-y-auto p-2">
+                {filteredProjects.map(p => (
+                    <div
+                        key={p.id}
+                        onClick={() => handleSelectProject(p.id)}
+                        className="flex items-center gap-3 p-3 hover:bg-[#F7F5F3] rounded-lg cursor-pointer group transition-colors"
+                    >
+                        <div className="w-8 h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
+                            <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="font-medium text-gray-800">{p.name}</span>
+                            <span className="text-xs text-gray-400">
+                                {new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(p.createdAt))}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+)}
+                        
+
+
+            
     </div>
   )
 }
