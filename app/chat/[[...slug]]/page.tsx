@@ -1402,7 +1402,7 @@ const MAX_FILES = 5; // Limite générale pour les fichiers et images
   
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newProjectName, setNewProjectName] = useState("")
-
+ const [pendingAutoSend, setPendingAutoSend] = useState(false)
 
 const [viewMode, setViewMode] = useState("chat"); // 'chat' ou 'preview'
 
@@ -3878,17 +3878,30 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   }
 };
             
+  useEffect(() => {
+    if (pendingAutoSend && currentProject) {
+      sendChat()
+      setPendingAutoSend(false) // On baisse le drapeau pour ne pas boucler
+    }
+  }, [pendingAutoSend, currentProject])
+  
 
-
-  const handleSmartSend = async () => {
+   const handleSmartSend = async () => {
     if (!chatInput.trim()) return
 
     if (!currentProject) {
-      // 1. Définir le nom logique (5 premiers mots)
-      const generatedName = chatInput.split(' ').slice(0, 5).join(' ') || "New Project"
+      // Logique d'embellissement du nom
+      // 1. Enlève les caractères spéciaux, 2. Prend les 4 premiers mots, 3. Met des majuscules
+      const generatedName = chatInput
+        .replace(/[^\w\sÀ-ÿ]/gi, '') 
+        .split(' ')
+        .filter(w => w.length > 2) // Ignore les petits mots de liaison si tu veux (optionnel)
+        .slice(0, 4)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ') || "New Project"
+
       const newId = crypto.randomUUID()
       
-      // 2. Créer l'objet projet (sans messages initiaux car sendChat va s'en occuper)
       const newProject = { 
         id: newId,
         name: generatedName,
@@ -3898,33 +3911,32 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       }
 
       try {
-        // 3. Sauvegarde DB et State
         await saveProjectToIDB(newProject)
         const updatedProjects = [...projects, newProject]
         setProjects(updatedProjects)
         
-        // 4. Charger le projet manuellement pour aller vite
+        // On charge le projet
         setCurrentProject(newProject)
         setFiles(newProject.files)
         setMessages(newProject.messages)
         
-        // 5. Mettre à jour l'URL
+        // URL
         const slug = `${generatedName.replace(/\s+/g, '-').toLowerCase()}+${newId}`
         window.history.pushState({}, '', `/chat/${slug}`)
         
-        // 6. Appeler ta fonction sendChat maintenant que le contexte existe
-        // Note: sendChat utilisera le chatInput actuel
-        await sendChat()
+        // C'EST ICI LE CHANGEMENT : On ne lance pas sendChat tout de suite,
+        // on lève le drapeau pour que le useEffect le fasse une fois le state à jour.
+        setPendingAutoSend(true)
 
       } catch (err) {
         console.error(err)
         addLog("Error auto-creating project.")
       }
     } else {
-      // Si le projet existe déjà, on envoie juste
       sendChat()
     }
-  }
+            }
+          
     
   
   
