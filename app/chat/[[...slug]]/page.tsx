@@ -4708,7 +4708,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   `}
 >
         <div className="flex items-center gap-1 justify-between p-4 flex-shrink-0 h-12  border-[rgba(55,50,47,0.12)]">
-          <div className="bg-transparent rounded-xl h-8 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
+          <div className="bg-transparent rounded-[8px] h-8 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
               variant={activeTab === "preview" ? "secondary" : "ghost"}
               size="icon"
@@ -4730,21 +4730,24 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 <div 
   // La div est masquée si activeTab n'est PAS "preview"
   className={`
-    items-center rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1 
-    w-[80%] bg-[#f7f4ed]
+    items-center gap-2 w-[80%] bg-[#f7f4ed]
     ${activeTab === "preview" ? "flex" : "hidden"}
   `}
 >
-    <input
+    <div className="w-[60%] h-full rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
+            <input
       type="text"
       value={iframeRoute}
       onChange={(e) => setIframeRoute(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === "Enter") handleNavigate()
       }}
-      className="flex-grow bg-transparent w-[70%] outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
+      className="flex-grow bg-transparent w-full outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
       placeholder="/"
     />
+    </div>
+   
+
     <div className="w-auto flex items-center gap-[2px]">
       <Button
       variant="ghost"
@@ -4892,13 +4895,63 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
               {/* SECTION PRÉVISUALISATION (IFRAME) */}
-              <div className="flex-grow bg-[#fffcf6] w-full border rounded-[20px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
+              <div className="flex-grow bg-[#f6f4ec] w-full border rounded-[20px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
                    style={{ height: `calc(100% - ${logsHeight}%)` }}>
                 {previewUrl ? (
                   <iframe ref={iframeRef} src={previewUrl} className="w-full h-full border-0" title="Sandbox Preview" />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-[rgba(55,50,47,0.60)]">
-                    <p>Create a sandbox and start the server.</p>
+                  <div className="flex items-center justify-center h-full text-[#212121]">
+                    <p className="flex flex-col gap-1">
+                     <div className="h-6 w-6 rounded-lg border-dotted border-[#f6f4ec]">
+                         <Eye className="h-4 w-4" />
+                     </div>
+                        <svg
+  width="300"
+  height="240"
+  viewBox="0 0 1200 240"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+    className="hidden"
+>
+  <rect width="100%" height="100%" fill="transparent" />
+
+  {/* Text: Studi */}
+  <text
+    x="120"
+    y="150"
+    fontSize="100"
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fontWeight="400"
+    fill="#000000"
+    letterSpacing="-4"
+  >
+    
+  </text>
+
+  {/* Black tilted ellipse replacing the "o" */}
+  <ellipse
+    cx="440"
+    cy="120"
+    rx="58"
+    ry="32"
+    fill="#000000"
+    transform="rotate(-18 430 120)"
+  />
+
+  {/* Text: code */}
+  <text
+    x="500"
+    y="150"
+    fontSize="100"
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fontWeight="400"
+    fill="#000000"
+    letterSpacing="-4"
+  >
+    Studio.
+  </text>
+</svg>
+                    </p>
                   </div>
                 )}
               </div>
