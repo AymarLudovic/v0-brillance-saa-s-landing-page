@@ -1400,6 +1400,8 @@ const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
 const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
 const MAX_FILES = 5; // Limite générale pour les fichiers et images
   
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [newProjectName, setNewProjectName] = useState("")
 
 
 const [viewMode, setViewMode] = useState("chat"); // 'chat' ou 'preview'
@@ -1784,10 +1786,10 @@ const parseMessageContent = (content: string) => {
 
   // 3. CRÉATION DE PROJET
   const createNewProject = async () => {
-    const projectName = prompt("Enter project name:", `Project ${projects.length + 1}`)
+    const projectNamje = prompt("Enter project name:", `Project ${projects.length + 1}`)
     if (!projectName) return
     
-    const newProject = { 
+    const newPrpoject = { 
       id: crypto.randomUUID(),
       name: projectName,
       createdAt: new Date().toISOString(),
@@ -1811,12 +1813,39 @@ const parseMessageContent = (content: string) => {
         addLog("Error creating project in DB.")
     }
   }
-  
+
+
+
+  const confirmCreateProject = async () => {
+    if (!newProjectName.trim()) return
+    
+    const newProject = { 
+      id: crypto.randomUUID(),
+      name: newProjectName,
+      createdAt: new Date().toISOString(),
+      files: [],
+      messages: [{ role: "assistant", content: `Project "${newProjectName}" is ready. What should we build?` }],
+    }
+
+    try {
+        await saveProjectToIDB(newProject)
+        const updatedProjects = [...projects, newProject]
+        setProjects(updatedProjects)
+        loadProject(newProject.id)
+        
+        setIsModalOpen(false)
+        setNewProjectName("")
+        addLog(`Project "${newProjectName}" created.`)
+    } catch (err) {
+        addLog("Error creating project in DB.")
+    }
+        }
+    
 
   // 4. CHARGEMENT D'UN PROJET
   // Note : loadProject reste synchrone ici car on lit depuis l'état 'projects' 
   // qui a été peuplé par le useEffect au démarrage.
-  const loadProject = (projectId: string) => {
+    const loadProject = (projectId: string) => {
     const projectToLoad = projects.find((p) => p.id === projectId)
     if (!projectToLoad) return
 
@@ -1829,9 +1858,24 @@ const parseMessageContent = (content: string) => {
     setMessages(projectToLoad.messages)
     setActiveFile(0)
 
-    addLog(`Project "${projectToLoad.name}" loaded.`)
-  }
+    // Mise à jour de l'URL : nom-du-projet+ID
+    const slug = `${projectToLoad.name.replace(/\s+/g, '-').toLowerCase()}+${projectToLoad.id}`
+    window.history.pushState({}, '', `/chat/${slug}`)
 
+    addLog(`Project "${projectToLoad.name}" loaded.`)
+    }
+    
+  const goToDashboard = () => {
+    setCurrentProject(null)
+    setFiles([])
+    setMessages([])
+    setSandboxId(null)
+    setChatInput("")
+    window.history.pushState({}, '', '/chat')
+  }
+    
+
+    
 
   // 5. CHANGEMENT DE PROJET (CLICK)
   const handleProjectClick = async (projectId: string) => {
@@ -1887,7 +1931,23 @@ const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
     }
   }
   }
-  
+
+
+
+      useEffect(() => {
+    const path = window.location.pathname
+    if (path.includes('/chat/')) {
+      const slug = path.split('/chat/')[1]
+      if (slug && slug.includes('+')) {
+        const projectId = slug.split('+').pop()
+        // On vérifie que projects est chargé avant de tenter le load
+        if (projectId && projects.length > 0) {
+          loadProject(projectId)
+        }
+      }
+    }
+  }, [projects])
+    
 
 
 const handleSelectProject = async (projectId: string) => {
@@ -3818,7 +3878,54 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   }
 };
             
-                               
+
+
+  const handleSmartSend = async () => {
+    if (!chatInput.trim()) return
+
+    if (!currentProject) {
+      // 1. Définir le nom logique (5 premiers mots)
+      const generatedName = chatInput.split(' ').slice(0, 5).join(' ') || "New Project"
+      const newId = crypto.randomUUID()
+      
+      // 2. Créer l'objet projet (sans messages initiaux car sendChat va s'en occuper)
+      const newProject = { 
+        id: newId,
+        name: generatedName,
+        createdAt: new Date().toISOString(),
+        files: [],
+        messages: [], 
+      }
+
+      try {
+        // 3. Sauvegarde DB et State
+        await saveProjectToIDB(newProject)
+        const updatedProjects = [...projects, newProject]
+        setProjects(updatedProjects)
+        
+        // 4. Charger le projet manuellement pour aller vite
+        setCurrentProject(newProject)
+        setFiles(newProject.files)
+        setMessages(newProject.messages)
+        
+        // 5. Mettre à jour l'URL
+        const slug = `${generatedName.replace(/\s+/g, '-').toLowerCase()}+${newId}`
+        window.history.pushState({}, '', `/chat/${slug}`)
+        
+        // 6. Appeler ta fonction sendChat maintenant que le contexte existe
+        // Note: sendChat utilisera le chatInput actuel
+        await sendChat()
+
+      } catch (err) {
+        console.error(err)
+        addLog("Error auto-creating project.")
+      }
+    } else {
+      // Si le projet existe déjà, on envoie juste
+      sendChat()
+    }
+  }
+    
   
   
         
@@ -3991,16 +4098,16 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         <div className="w-full flex items-center justify-between">
 
                <p className="font-semibold text-[16px] ">Projects</p>
-           <Button
+                       <Button
               variant="ghost"
               size="icon"
-              onClick={createNewProject}
+              onClick={() => setIsModalOpen(true)}
               className=" gap-[2px] hover:bg-[rgba(55,50,47,0.90)] text-[#888] underline-dashed h-[35px] w-auto rounded-[10px] flex items-center justify-center p-1"
-              
             >
               <Plus className="h-4 w-4" />
              Add new app
             </Button>
+            
         
         </div>
            <div className="w-full h-[90%] overflow-y-auto flex flex-col gap-1">
@@ -4059,6 +4166,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           No projects yet. Create one!
         </div>
       )}
+
+                    <Button
+              variant="ghost"
+              onClick={goToDashboard}
+              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] text-[#888] h-[35px] w-auto rounded-[10px] flex items-center justify-center p-1 px-2"
+            >
+             Go to Dashboard
+            </Button>
+        
        <div className="flex items-center">
             
             
@@ -4545,21 +4661,21 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     
     {/* ZONE DE SAISIE DE CHAT */}
     <div className="w-full  bg-[#f7f4ed] h-[60%] border-b-none  border-l border-r border-[#f6f3ec]  ">
-      <textarea
-  placeholder={currentProject ? "Describe what to build..." : "Please create or select a project first."}
+
+  <textarea
+  placeholder={currentProject ? "Describe what to build..." : "Describe a new project to start..."}
   className="h-full w-full pl-3 text-[18px] font-semibold border-none outline-none resize-none bg-none"
   value={chatInput}
   onChange={(e) => setChatInput(e.target.value)}
   onKeyDown={(e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      sendChat()
+      handleSmartSend()
     }
   }}
-  
-  disabled={!currentProject || loading || isCloning}
+  disabled={loading || isCloning}
 />
-  
+        
 
     </div>
     
@@ -4671,11 +4787,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 </button>
         <Button
       className=" bg-[#37322F] mb-1 -ml-[8px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[30px] rounded-full flex items-center justify-center p-1"
-      onClick={() => sendChat()}
-      disabled={loading || !chatInput || !currentProject}
+      onClick={() => handleSmartSend()}
+      disabled={loading || !chatInput}
     >
       <ArrowUp size={18} /> 
-    </Button>
+</Button>
+          
       </div>
     </div>
   </div>
@@ -5274,6 +5391,39 @@ ll
 )}
                         
 
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
+          <div className="w-[400px] bg-[#191919] border border-[#333] rounded-xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-4">Create New Project</h3>
+            <input 
+              autoFocus
+              type="text" 
+              placeholder="Project Name" 
+              className="w-full bg-[#252525] border border-[#333] rounded-lg p-3 text-white outline-none focus:border-[#555] mb-6"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmCreateProject()}
+            />
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-[#888] hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmCreateProject}
+                disabled={!newProjectName.trim()}
+                className="px-4 py-2 bg-white text-black font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create Project
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+                    
 
             
     </div>
