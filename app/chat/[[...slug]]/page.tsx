@@ -4320,7 +4320,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
           <div className="flex gap-1 mt-1">
               {msg.images.map((base64Src, imgIndex) => (
-                  <div key={imgIndex} className="w-[25px] h-[25px] rounded-[8px] overflow-hidden" title="Image utilisateur">
+                  <div key={imgIndex} className="w-[45px] h-[45px] rounded-[8px] overflow-hidden" title="Image utilisateur">
                       <img src={base64Src} alt="User input" className="w-full h-full object-cover" />
                   </div>
               ))}
