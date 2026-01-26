@@ -4708,7 +4708,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   `}
 >
         <div className="flex items-center gap-1 justify-between p-4 flex-shrink-0 h-12  border-[rgba(55,50,47,0.12)]">
-          <div className="bg-transparent rounded-[8px] h-8 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
+          <div className="bg-transparent rounded-[10px] h-8 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
               variant={activeTab === "preview" ? "secondary" : "ghost"}
               size="icon"
@@ -4730,11 +4730,11 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 <div 
   // La div est masquée si activeTab n'est PAS "preview"
   className={`
-    items-center gap-2 w-[80%] bg-[#f7f4ed]
+    items-center gap-2 w-[80%] bg-transparent
     ${activeTab === "preview" ? "flex" : "hidden"}
   `}
 >
-    <div className="w-[60%] h-full rounded-[15px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
+    <div className="w-[60%] h-full rounded-[10px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
             <input
       type="text"
       value={iframeRoute}
@@ -4752,7 +4752,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       <Button
       variant="ghost"
       size="icon"
-      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      className="h-7 w-auto flex-shrink-0 text-[#212121] hover:text-[#37322F]"
       onClick={handleNavigate}
     >
       <ArrowRight size={17} className="h-4 w-4" />
@@ -4760,7 +4760,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <Button
       variant="ghost"
       size="icon"
-      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      className="h-7 w-auto flex-shrink-0 text-[#212121] hover:text-[#37322F]"
       onClick={handleReload}
     >
       <RefreshCw size={17} className="h-4 w-4" />
@@ -4768,7 +4768,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <Button
       variant="ghost"
       size="icon"
-      className="h-7 w-auto flex-shrink-0 text-[rgba(55,50,47,0.60)] hover:text-[#37322F]"
+      className="h-7 w-auto flex-shrink-0 text-[#212121] hover:text-[#37322F]"
       disabled={!previewUrl}
       onClick={() => window.open(previewUrl, "_blank")}
     >
@@ -4789,7 +4789,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     if (!currentProject) return alert("Select a project first");
     setIsGitHubOpen(true);
   }}
-                className="flex items-center justify-center rounded-[8px] border border-[rgba(55,50,47,0.12)] bg-[#f7f4ed] p-2  transition-colors h-8 w-8"
+                className="flex items-center justify-center rounded-[8px] border border-[rgba(55,50,47,0.12)] bg-[#ffffff] p-2  transition-colors h-8 w-8"
                 aria-label="GitHub"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#37322F" className="h-[18px] w-[18px]" viewBox="0 0 16 16">
@@ -4911,7 +4911,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   viewBox="0 0 1200 240"
   fill="none"
   xmlns="http://www.w3.org/2000/svg"
-    className="hidden"
+    
 >
   <rect width="100%" height="100%" fill="transparent" />
 
