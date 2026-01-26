@@ -4209,6 +4209,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   viewBox="0 0 1200 240"
   fill="none"
   xmlns="http://www.w3.org/2000/svg"
+    className="hidden"
 >
   <rect width="100%" height="100%" fill="transparent" />
 
@@ -4249,16 +4250,27 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   </text>
 </svg>
       
-      
-      
-      
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3">
-{/* Import nécessaire en haut : import { Trash2, ChevronsUpDown } from 'lucide-react' */}
 
-<div className="relative  w-[250px]">
-  {/* Bouton AFFICHEUR */}
-  <button
+
+      <svg 
+    width="30" 
+    height="30" 
+    viewBox="0 0 30 30" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <ellipse
+      cx="15"
+      cy="15"
+      rx="12"
+      ry="6"
+      fill="#000000"
+      transform="rotate(-18 15 15)"
+    />
+  </svg>
+      
+      
+         <button
     onClick={() => setShowProjectSelect(!showProjectSelect)}
     className="flex items-center w-auto gap-1 text-sm bg-transparent border-none focus:ring-0 font-medium  text-[#37322F] hover:bg-[#F7F5F3] p-1 rounded-md transition-colors"
   >
@@ -4269,19 +4281,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {currentProject?.name || "Select a Project"}
     </span>
     <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
-  </button>
-
-  {/* Conteneur du Menu Déroulant */}
-  
-</div>
-     </div>   
-
-            
-            
-          </div>
+  </button> 
        
           <div className="flex items-center gap-2">
-            
+            bo
           </div>
         </div>
 
