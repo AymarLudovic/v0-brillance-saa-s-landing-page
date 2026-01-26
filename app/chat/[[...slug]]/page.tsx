@@ -2924,18 +2924,23 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
   
   
 
-        const sendChat = async (promptOverride?: string) => {
+       
+  
+  const sendChat = async (promptOverride?: string, projectContext?: any) => {
   const userPrompt = promptOverride || chatInput;
+  // Utilise le projet passé en argument (si création) ou le projet actuel
+  const activeProject = projectContext || currentProject;
 
   if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
-  if (!currentProject && !promptOverride) {
+  if (!activeProject) {
     addLog("Please create or load a project before starting a conversation.");
     return;
   }
 
-  // 1. Préparation du message utilisateur
+  const assistantMsgId = crypto.randomUUID(); // Identifiant unique pour la bulle assistant
+
   let contextForPrompt = "";
-  if (mentionedFiles.length > 0 && currentProject) {
+  if (mentionedFiles.length > 0 && activeProject) {
     contextForPrompt = "\n[MENTIONED PROJECT FILES: " + mentionedFiles.join(', ') + "]";
   }
   const finalUserPrompt = userPrompt + contextForPrompt;
@@ -2949,31 +2954,27 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
     mentionedFiles
   };
 
-  // 2. Préparation du placeholder
   const assistantPlaceholder: Message = {
+    id: assistantMsgId,
     role: "assistant",
     content: "",
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
   
-  // 3. Logique de mise à jour de l'état
-  let currentHistory = [...messages, userMsg];
-  let assistantMessageIndex = -1;
+  // Utilise les messages du projet si on vient de le créer, sinon le state actuel
+  const baseHistory = projectContext ? [] : messages;
+  let currentHistory = [...baseHistory, userMsg];
   
   setMessages((prev) => {
-    assistantMessageIndex = prev.length + 1; 
-    if (!promptOverride) {
-      setChatInput("");
-    }
+    if (!promptOverride) setChatInput("");
     return [...prev, userMsg, assistantPlaceholder];
   });
   
-  const currentProjectFiles = currentProject
-    ? currentProject.files.map((f: any) => ({ filePath: f.filePath, content: f.content }))
-    : [];
+  const currentProjectFiles = activeProject.files.map((f: any) => ({ 
+    filePath: f.filePath, 
+    content: f.content 
+  }));
 
-  // ---------------- INJECTION DU CONTEXTE SYSTÈME ----------------
-  
   const filesList: string[] = [];
   const filesContentSnapshots: string[] = [];
   let filesExcludedCount = 0; 
@@ -2981,37 +2982,26 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
   currentProjectFiles.forEach(file => {
       const content = file.content || "";
       const size = content.length;
-      let fileStatus = '';
-
       if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
           const lines = content.split('\n');
           const contentWithLineNumbers = lines.map((line, index) => `${index + 1}: ${line}`).join('\n');
-          
-          filesContentSnapshots.push(
-              `<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n` +
-              contentWithLineNumbers + 
-              `\n</file_content_snapshot>`
-          );
-          fileStatus = `(Content snapshot INCLUDED: ${size} chars)`;
-
+          filesContentSnapshots.push(`<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n${contentWithLineNumbers}\n</file_content_snapshot>`);
+          filesList.push(`<project_file path="${file.filePath}" (Content snapshot INCLUDED: ${size} chars)/>`);
       } else if (size > CONTENT_SNAPSHOT_LIMIT) {
           filesExcludedCount++;
-          fileStatus = `(Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)`;
+          filesList.push(`<project_file path="${file.filePath}" (Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)/>`);
       } else {
-          fileStatus = `(EMPTY file)`;
+          filesList.push(`<project_file path="${file.filePath}" (EMPTY file)/>`);
       }
-      filesList.push(`<project_file path="${file.filePath}" ${fileStatus.trim()}/>`);
   });
 
   const systemFileContext: Message = {
     role: "system",
-    content: (
-        `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
-        `[Use the <fetch_file path="..."/> artifact to read content for files excluded or not included below.]\n` +
-        (filesExcludedCount > 0 ? `⚠️ ${filesExcludedCount} files were EXCLUDED from initial context injection.\n` : '') +
-        filesList.join("\n") +
-        (filesContentSnapshots.length > 0 ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS\n` + filesContentSnapshots.join("\n\n") : "")
-    )
+    content: `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
+             `[Use the <fetch_file path="..."/> artifact to read content for files excluded.]\n` +
+             (filesExcludedCount > 0 ? `⚠️ ${filesExcludedCount} files were EXCLUDED.\n` : '') +
+             filesList.join("\n") +
+             (filesContentSnapshots.length > 0 ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS\n` + filesContentSnapshots.join("\n\n") : "")
   };
 
   let historyForApi = [systemFileContext, ...currentHistory];
@@ -3020,63 +3010,26 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
   setLoading(true);
   addLog(`Sending prompt to Gemini...`);
 
-// 1. ON RÉCUPÈRE L'IMAGE DU SHOP (SILENCIEUSEMENT)
-
-let shopImages: string[] = [];
-  
-  try {
-      shopImages = await getAllShopImages();
-
-      if (shopImages.length > 0) {
-          addLog(`[Design] ${shopImages.length} références visuelles chargées.`);
-      }
-
-  } catch (e) { 
-      console.error("Erreur chargement design", e); 
-      }
-  
-  // --- LOGIQUE DEBUG DESIGN ---
-  
+  let shopImages: string[] = [];
   let inspirationCSS = "";
   
   try {
       addLog("🎨 Gathering design resources..."); 
-
       const images = await getAllShopImages();
-      addLog(`🔍 Debug: Found ${images.length} images in DB.`);
-
       const cssUrl = await getShopCssUrl();
-      if (cssUrl) addLog(`🔍 Debug: CSS URL found: ${cssUrl}`);
-
       shopImages = images;
-
-      if (cssUrl) {
-          addLog(`🔗 Fetching CSS...`);
-          inspirationCSS = await fetchInspirationCSS(cssUrl);
-      }
-
-      if (shopImages.length > 0) {
-          addLog(`✅ SUCCESS: Loaded ${shopImages.length} visual refs.`);
-      } else {
-          addLog(`⚠️ WARNING: 0 images loaded. Is Shop empty?`);
-      }
-      
-      if (inspirationCSS) addLog(`✅ SUCCESS: Loaded CSS System.`);
-
+      if (cssUrl) inspirationCSS = await fetchInspirationCSS(cssUrl);
+      if (shopImages.length > 0) addLog(`✅ Loaded ${shopImages.length} visual refs.`);
+      if (inspirationCSS) addLog(`✅ Loaded CSS System.`);
   } catch (e: any) { 
-      addLog(`❌ DESIGN ERROR: ${e.message}`);
       console.error("Design load error", e); 
   }
 
-  // 🔥 AJOUT CLÉ API : Récupération depuis IndexedDB
   let apiKey = "";
   try {
       const dbKey = await getApiKeyFromIDB();
       if (dbKey) apiKey = dbKey;
-      else console.warn("Aucune clé API trouvée dans la base de données.");
-  } catch (e) {
-      console.warn("Erreur lecture clé API:", e);
-  }
+  } catch (e) { console.warn("Erreur API Key:", e); }
   
   let urlArtifact: any = null;
   let text = "";
@@ -3087,21 +3040,16 @@ let shopImages: string[] = [];
     let res: Response | null = null;
     let apiCallSuccessful = false;
 
-    // ---------------- BOUCLE DE RETRY ----------------
     while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
       try {
         if (retryCount > 0) {
           const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000); 
-          addLog(`[RETRY] Tentative ${retryCount + 1}/${MAX_RETRIES}... Attente ${delay}ms.`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
         res = await fetch("/api/gemini", {
           method: "POST",
-          headers: { 
-              "Content-Type": "application/json",
-              "x-gemini-api-key": apiKey 
-          },
+          headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
           body: JSON.stringify({ 
             history: historyForApi, 
             currentProjectFiles,
@@ -3111,25 +3059,18 @@ let shopImages: string[] = [];
           }),
         });
 
-        if (!res.ok || !res.body) {
-          throw new Error(`Gemini API request failed: ${res.statusText}`);
-        }
+        if (!res.ok || !res.body) throw new Error(`API failed: ${res.statusText}`);
         apiCallSuccessful = true;
-        retryCount = 0;
       } catch (e: any) {
-        console.error(`API Call failed on attempt ${retryCount + 1}:`, e.message);
         retryCount++;
-        if (retryCount >= MAX_RETRIES) throw new Error(`Gemini API failed after ${MAX_RETRIES} retries.`);
-        res = null; 
+        if (retryCount >= MAX_RETRIES) throw e;
       }
     }
 
     if (!res || !res.body) return;
-
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     
-    // -------- STREAMING LOOP ---------- 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -3137,183 +3078,94 @@ let shopImages: string[] = [];
       const chunk = decoder.decode(value, { stream: true });
       text += chunk;
 
-      // ---------------- FETCH FILE ----------------
       const fetchFileMatch = text.match(FETCH_FILE_REGEX);
-      if (fetchFileMatch) {
+      if (fetchFileMatch && !isFetchInProgress) {
         const filePath = fetchFileMatch[1].trim();
-        addLog(`[ACTION] Gemini requested file: ${filePath}`);
-
-        const isContentPreInjected = currentProjectFiles.some(
-            f => f.filePath === filePath && (f.content || "").length <= CONTENT_SNAPSHOT_LIMIT
-        );
-        
-        if (!isFetchInProgress && !readFilesCache.has(filePath) && !isContentPreInjected) {
+        if (!readFilesCache.has(filePath)) {
           const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
           if (fileContent) {
             text += `\n${fileContent}\n`; 
-            readFilesCache.add(filePath); 
-            
-            setMessages((prev) => {
-              const updated = [...prev];
-              if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
-                  updated[assistantMessageIndex].content = text;
-              }
-              return updated;
-            });
+            readFilesCache.add(filePath);
           }
         }
       }
 
-      // ----------------- URL ARTIFACT -----------------
       const urlMatch = text.match(inspirationUrlRegex);
       if (urlMatch) {
         try {
           const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
           const parsedUrlData = JSON.parse(jsonString);
-          if (parsedUrlData.type === 'inspirationUrl' && parsedUrlData.url) {
-            urlArtifact = { url: parsedUrlData.url };
-          }
-        } catch (e) { console.error("Failed to parse URL JSON:", e); }
+          if (parsedUrlData.type === 'inspirationUrl') urlArtifact = { url: parsedUrlData.url };
+        } catch (e) {}
       }
 
-       // ----------------- PLAN DETECTION -----------------
        const planMatch = text.match(PLAN_REGEX);
        if (planMatch) {
            const extractedPlan = planMatch[1].trim();
-           if (extractedPlan && extractedPlan !== currentPlan) {
-               setCurrentPlan(extractedPlan);
-               addLog("📋 Plan updated by AI");
-           }
+           if (extractedPlan && extractedPlan !== currentPlan) setCurrentPlan(extractedPlan);
        }
 
-      // ----------------- FILE ARTIFACTS -----------------
       const fileArtifacts = extractFileArtifacts(text);
-
-      fileArtifacts.forEach((artifact: any) => {
-        if (artifact.type === "changes" && artifact.content && !artifact.content.trim().endsWith("</file_changes>")) {
-          artifact.content += "\n</file_changes>";
-        }
-        if (artifact.type === "create" && artifact.content && !artifact.content.trim().endsWith("</create_file>")) {
-          artifact.content += "\n</create_file>";
-        }
-      });
-
-      const incompleteRegex = /<(create_file|file_changes)\s+path=["']([^"']+)["'][^>]*>(?![\s\S]*<\/(?:create_file|file_changes)>)/g;
-      let incompleteMatches = [...text.matchAll(incompleteRegex)];
-
-      const isGeneratingCode = fileArtifacts.length > 0 || incompleteMatches.length > 0;
       let newArtifactData = undefined;
-      const artifactList: { path: string, type: 'create' | 'changes' }[] = [];
+      const artifactList: any[] = [];
 
-      if (isGeneratingCode) {
+      if (fileArtifacts.length > 0) {
         fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
-        incompleteMatches.forEach(match => {
-          const path = match[2];
-          const type = match[1] === 'create_file' ? 'create' : 'changes';
-          if (!artifactList.some(a => a.path === path)) artifactList.push({ path, type });
-        });
-
-        if (currentProject) {
-          addFilesIfNew(artifactList, currentProject.files, activeFile, setActiveFile, setCurrentProject);
+        if (activeProject) {
+            addFilesIfNew(artifactList, activeProject.files, activeFile, setActiveFile, setCurrentProject);
         }
-
         newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
       }
 
-      // Nettoyage texte pour affichage
       let textWithoutArtifacts = text
-        .replace(inspirationUrlRegex, '')
-        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, '') 
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
-        .replace(PLAN_REGEX, '');
+        .replace(inspirationUrlRegex, '').replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '').replace(FETCH_FILE_REGEX, '') 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '').replace(PLAN_REGEX, '');
 
-      setMessages((prev) => {
-        const updatedMessages = [...prev];
-        if (assistantMessageIndex >= 0 && assistantMessageIndex < updatedMessages.length) {
-          const lastMsg = updatedMessages[assistantMessageIndex];
-          if (lastMsg?.role === "assistant") {
-            if (newArtifactData) lastMsg.artifactData = { ...lastMsg.artifactData, ...newArtifactData } as any;
-            lastMsg.content = textWithoutArtifacts;
-          }
-        }
-        return updatedMessages;
-      });
-    } // FIN STREAMING
-
-    addLog("[STREAMING] Fin du streaming.");
-    
-    let finalCleanText = text
-        .replace(inspirationUrlRegex, '')
-        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, '') 
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
-        .replace(PLAN_REGEX, '');
-
-    const finalArtifacts = extractFileArtifacts(text);
-    let artifactData: any;
-    if (finalArtifacts.length > 0) {
-        artifactData = { 
-            type: 'files', 
-            parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })),
-            rawJson: text 
-        };
-    } else if (urlArtifact) {
-        artifactData = { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] };
-    } else {
-        artifactData = { type: null, rawJson: "", parsedList: [] };
+      setMessages((prev) => prev.map(msg => 
+        msg.id === assistantMsgId 
+          ? { ...msg, content: textWithoutArtifacts, artifactData: newArtifactData || msg.artifactData } 
+          : msg
+      ));
     }
 
+    let finalCleanText = text.replace(inspirationUrlRegex, '').replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '').replace(FETCH_FILE_REGEX, '') 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '').replace(PLAN_REGEX, '');
+
+    const finalArtifacts = extractFileArtifacts(text);
     finalAssistantMessage = {
         role: "assistant",
         content: finalCleanText,
-        artifactData: artifactData
+        artifactData: finalArtifacts.length > 0 
+            ? { type: 'files', parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })), rawJson: text }
+            : (urlArtifact ? { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] } : { type: null, rawJson: "", parsedList: [] })
     };
 
     if (urlArtifact) {
-      addLog(`✅ Gemini suggests inspiration URL: ${urlArtifact.url}`);
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
       return; 
     }
           
     if (finalArtifacts.length > 0) {
-      addLog(`Applying ${finalArtifacts.length} changes.`);
       applyArtifactsToProject(finalArtifacts);
-      setTimeout(() => {
-        finalArtifacts.forEach(async (artifact) => {
-          const updatedFile = currentProject?.files.find(f => f.filePath === artifact.filePath);
-          if (updatedFile) await reindexFile(updatedFile);
-        });
-      }, 100);
-    } else {
-      addLog("✅ Response received. No code artifacts.");
     }
   } catch (err: any) {
-    addLog(`CLIENT-SIDE ERROR: ${err.message}`);
-    setMessages((prev) => {
-        const updated = [...prev];
-        if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length) {
-             return updated.filter((_, index) => index !== assistantMessageIndex);
-        }
-        return prev;
-    }); 
-    setMessages((prev) => [...prev, { role: "system", content: `Error: ${err.message}` }]);
+    addLog(`ERROR: ${err.message}`);
+    setMessages((prev) => prev.filter(m => m.id !== assistantMsgId));
   } finally {
     if (finalAssistantMessage) {
-        setMessages((prev) => {
-            const updated = [...prev];
-            if (assistantMessageIndex >= 0 && assistantMessageIndex < updated.length && updated[assistantMessageIndex].role === "assistant") {
-                 updated[assistantMessageIndex] = finalAssistantMessage as Message; 
-            }
-            return updated;
-        });
+        setMessages((prev) => prev.map(msg => msg.id === assistantMsgId ? { ...finalAssistantMessage, id: assistantMsgId } : msg));
     }
     setLoading(false);
   }
 };
 
+
+  
+        
+        
+    
 
 
              
@@ -3878,66 +3730,50 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   }
 };
             
-  useEffect(() => {
-    if (pendingAutoSend && currentProject) {
-      sendChat()
-      setPendingAutoSend(false) // On baisse le drapeau pour ne pas boucler
-    }
-  }, [pendingAutoSend, currentProject])
   
 
-   const handleSmartSend = async () => {
-    if (!chatInput.trim()) return
+    const handleSmartSend = async () => {
+  if (!chatInput.trim()) return;
 
-    if (!currentProject) {
-      // Logique d'embellissement du nom
-      // 1. Enlève les caractères spéciaux, 2. Prend les 4 premiers mots, 3. Met des majuscules
-      const generatedName = chatInput
-        .replace(/[^\w\sÀ-ÿ]/gi, '') 
-        .split(' ')
-        .filter(w => w.length > 2) // Ignore les petits mots de liaison si tu veux (optionnel)
-        .slice(0, 4)
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-        .join(' ') || "New Project"
+  if (!currentProject) {
+    const generatedName = chatInput
+      .replace(/[^\w\sÀ-ÿ]/gi, '') 
+      .split(' ')
+      .filter(w => w.length > 2)
+      .slice(0, 4)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ') || "New Project";
 
-      const newId = crypto.randomUUID()
+    const newId = crypto.randomUUID();
+    const newProject = { 
+      id: newId,
+      name: generatedName,
+      createdAt: new Date().toISOString(),
+      files: [],
+      messages: [], 
+    };
+
+    try {
+      await saveProjectToIDB(newProject);
+      setProjects(prev => [...prev, newProject]);
       
-      const newProject = { 
-        id: newId,
-        name: generatedName,
-        createdAt: new Date().toISOString(),
-        files: [],
-        messages: [], 
-      }
-
-      try {
-        await saveProjectToIDB(newProject)
-        const updatedProjects = [...projects, newProject]
-        setProjects(updatedProjects)
-        
-        // On charge le projet
-        setCurrentProject(newProject)
-        setFiles(newProject.files)
-        setMessages(newProject.messages)
-        
-        // URL
-        const slug = `${generatedName.replace(/\s+/g, '-').toLowerCase()}+${newId}`
-        window.history.pushState({}, '', `/chat/${slug}`)
-        
-        // C'EST ICI LE CHANGEMENT : On ne lance pas sendChat tout de suite,
-        // on lève le drapeau pour que le useEffect le fasse une fois le state à jour.
-        setPendingAutoSend(true)
-
-      } catch (err) {
-        console.error(err)
-        addLog("Error auto-creating project.")
-      }
-    } else {
-      sendChat()
+      setCurrentProject(newProject);
+      setFiles([]);
+      setMessages([]);
+      
+      const slug = `${generatedName.replace(/\s+/g, '-').toLowerCase()}+${newId}`;
+      window.history.pushState({}, '', `/chat/${slug}`);
+      
+      // On passe explicitement le nouveau projet à sendChat
+      await sendChat(chatInput, newProject);
+    } catch (err) {
+      console.error("Error creating project:", err);
     }
-            }
-          
-    
+  } else {
+    sendChat();
+  }
+};
+        
   
   
         
