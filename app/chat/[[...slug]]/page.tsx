@@ -1760,28 +1760,24 @@ const parseMessageContent = (content: string) => {
   // 2. FONCTION DE SAUVEGARDE GLOBALE
   // Remplace ton ancienne fonction saveProjectsToLocalStorage par celle-ci
   const saveProject = async () => {
-    if (!currentProject) return;
-    
-    // On crée l'objet à jour
-    const updatedProject = {
-        ...currentProject,
-        files: files,      // État actuel des fichiers
-        messages: messages // État actuel du chat
-    };
+  if (!currentProject) return;
 
-    try {
-        // 1. Sauvegarde dans la DB (Persistance réelle)
-        await saveProjectToIDB(updatedProject);
-        
-        // 2. Mise à jour de la liste locale (UI)
-        setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-        
-        // (Optionnel) addLog("Project saved.");
-    } catch (error) {
-        addLog("Error saving project!");
-        console.error(error);
-    }
+  // On récupère les données les plus fraîches directement
+  const updatedProject = {
+      ...currentProject,
+      files: files,      
+      messages: messages 
+  };
+
+  try {
+      await saveProjectToIDB(updatedProject);
+      
+      // Mise à jour de la liste latérale sans recharger tout le projet
+      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+  } catch (error) {
+      console.error("Save error:", error);
   }
+};
 
 
   // 3. CRÉATION DE PROJET
@@ -1933,20 +1929,28 @@ const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
   }
 
 
-
-      useEffect(() => {
-    const path = window.location.pathname
-    if (path.includes('/chat/')) {
-      const slug = path.split('/chat/')[1]
-      if (slug && slug.includes('+')) {
-        const projectId = slug.split('+').pop()
-        // On vérifie que projects est chargé avant de tenter le load
-        if (projectId && projects.length > 0) {
-          loadProject(projectId)
-        }
+useEffect(() => {
+  const path = window.location.pathname;
+  if (path.includes('/chat/')) {
+    const slug = path.split('/chat/')[1];
+    if (slug && slug.includes('+')) {
+      const projectId = slug.split('+').pop();
+      
+      // On cherche dans l'IDB directement au lieu d'attendre l'état 'projects'
+      if (projectId) {
+        getAllProjectsFromIDB().then(all => {
+          const toLoad = all.find(p => p.id === projectId);
+          if (toLoad) {
+            setCurrentProject(toLoad);
+            setFiles(toLoad.files);
+            setMessages(toLoad.messages);
+          }
+        });
       }
     }
-  }, [projects])
+  }
+}, []); // 👈 VIDE ! Ne pas mettre [projects] ici.
+      
     
 
 
@@ -1984,54 +1988,47 @@ const filteredProjects = projects.filter(p =>
 );
 
 
-const applyAndSetFiles = (responses: any[]) => {
-  if (!currentProject) {
-    addLog(`❌ Impossible d'appliquer les changements : aucun projet chargé.`)
-    return
-  }
 
-  const newFiles = [...currentProject.files]
-  let filesUpdated = false
-
-  responses.forEach((res) => {
-    if (res.type === "inspirationUrl") return // ignore les URL
-
-    if (res.type === "fileChanges" && res.filePath && res.changes) {
-      const idx = newFiles.findIndex(f => f.filePath === res.filePath)
-      if (idx !== -1) {
-        newFiles[idx].content = applyChanges(newFiles[idx].content, res.changes)
-        filesUpdated = true
-        addLog(`Applied ${res.changes.length} changes to ${res.filePath}`)
-      }
-    } else if (res.filePath && typeof res.content === "string") {
-      const cleanContent = res.content
-        .replace(/```[\s\S]*?```/g, "")
-        .replace(/^diff\s*/gm, "")
-        .trim()
-      const idx = newFiles.findIndex(f => f.filePath === res.filePath)
-      if (idx !== -1) {
-        newFiles[idx].content = cleanContent
-      } else {
-        newFiles.push({ filePath: res.filePath, content: cleanContent })
-      }
-      filesUpdated = true
-    }
-  })
-
-  if (filesUpdated) {
-    // 🔑 Synchronisation avec projet et éditeur
-    setCurrentProject({ ...currentProject, files: newFiles })
-    setFiles(newFiles)
-    addLog(`✅ Fichiers du projet mis à jour.`)
-    setActiveTab("code")
-    saveProject()
-  } else {
-    addLog(`❌ Pas de fichiers modifiés/ajoutés.`)
-  }
-}
 
           
+const applyAndSetFiles = (responses: any[]) => {
+  if (!currentProject) return;
 
+  // UTILISE l'état 'files' actuel, pas celui de 'currentProject'
+  setFiles(prevFiles => {
+    const newFiles = [...prevFiles];
+    let filesUpdated = false;
+
+    responses.forEach((res) => {
+      if (res.type === "inspirationUrl") return;
+
+      if (res.type === "fileChanges" && res.filePath && res.changes) {
+        const idx = newFiles.findIndex(f => f.filePath === res.filePath);
+        if (idx !== -1) {
+          newFiles[idx].content = applyChanges(newFiles[idx].content, res.changes);
+          filesUpdated = true;
+        }
+      } else if (res.filePath && typeof res.content === "string") {
+        const cleanContent = res.content.replace(/```[\s\S]*?```/g, "").replace(/^diff\s*/gm, "").trim();
+        const idx = newFiles.findIndex(f => f.filePath === res.filePath);
+        if (idx !== -1) {
+          newFiles[idx].content = cleanContent;
+        } else {
+          newFiles.push({ filePath: res.filePath, content: cleanContent });
+        }
+        filesUpdated = true;
+      }
+    });
+
+    if (filesUpdated) {
+        // On met à jour le projet global avec ces nouveaux fichiers
+        const updatedProject = { ...currentProject, files: newFiles, messages: messages };
+        saveProjectToIDB(updatedProject); 
+        setActiveTab("code");
+    }
+    return newFiles;
+  });
+};
 
 
   // NOTE: Cette fonction doit être définie dans le même scope que sendChat.
