@@ -4708,7 +4708,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   `}
 >
         <div className="flex items-center gap-1 justify-between p-4 flex-shrink-0 h-12  border-[rgba(55,50,47,0.12)]">
-          <div className="bg-transparent rounded-[10px] h-8 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
+          <div className="bg-transparent rounded-[12px] h-8 flex items-center p-1 border border-[rgba(55,50,47,0.12)]">
             <Button
               variant={activeTab === "preview" ? "secondary" : "ghost"}
               size="icon"
@@ -4734,7 +4734,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     ${activeTab === "preview" ? "flex" : "hidden"}
   `}
 >
-    <div className="w-[60%] h-12 rounded-[10px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
+    <div className="w-[60%] h-[95%] rounded-[12px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
             <input
       type="text"
       value={iframeRoute}
@@ -4895,7 +4895,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
               {/* SECTION PRÉVISUALISATION (IFRAME) */}
-              <div className="flex-grow bg-[#f6f4ec] w-full  rounded-[20px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
+              <div className="flex-grow bg-[#f6f4ec] w-full  rounded-[14px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
                    style={{ height: `calc(100% - ${logsHeight}%)` }}>
                 {previewUrl ? (
                   <iframe ref={iframeRef} src={previewUrl} className="w-full h-full border-0" title="Sandbox Preview" />
