@@ -4088,7 +4088,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       
 
 
-      <svg 
+      <div className="flex items-center gap-1">
+        <svg 
     width="30" 
     height="30" 
     viewBox="0 0 30 30" 
@@ -4119,8 +4120,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
   </button> 
        
-          <div className="flex items-center gap-2">
-            
+      </div>
+          <div className=" border border-[rgba(55,50,47,0.6)] rounded-[6px] p-1 ">
+            <Tally1 className="h-1 w-1" />
           </div>
         </div>
 
@@ -4278,14 +4280,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                           {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i) => {
                               const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
                               const statusText = item.type === 'create' 
-                                  ? (isCurrentlyStreaming ? 'Creating' : 'created')
+                                  ? (isCurrentlyStreaming ? 'Editing' : 'Edited')
                                   : (isCurrentlyStreaming ? 'Editing' : 'edited');
                               
                               return (
                                   <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
                                       <span><svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
                                       <p className="font-semibold">{statusText}</p>
-                                      <span className="bg-[#FFFAF0] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
+                                      <span className="bg-[#f6f4ec] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
                                   </li>
                               );
                           })}
