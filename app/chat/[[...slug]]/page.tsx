@@ -4030,7 +4030,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
   )}
         
-        <div className={`flex items-center justify-between px-6 h-12 flex-shrink-0 border-[rgba(55,50,47,0.12)] ${!currentProject ? "absolute top-0 left-0 w-full z-20" : ""}`}
+        <div className={`flex items-center gap-1 px-6 h-12 flex-shrink-0 border-[rgba(55,50,47,0.12)] ${!currentProject ? "absolute top-0 left-0 w-full z-20" : ""}`}
             >
 
 
@@ -4120,7 +4120,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   </button> 
        
           <div className="flex items-center gap-2">
-            bo
+            
           </div>
         </div>
 
@@ -4738,7 +4738,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   `}
 >
     <div className="w-[60%] h-[93%] rounded-[12px] flex items-center gap-1 bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
-        <Tally1 className="h-4 w-4 rotate-30" />
+        
             <input
       type="text"
       value={iframeRoute}
@@ -4746,7 +4746,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       onKeyDown={(e) => {
         if (e.key === "Enter") handleNavigate()
       }}
-      className="flex-grow bg-transparent w-full outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
+      className="flex-grow bg-transparent w-full outline-none px-3 text-sm text-[#37322F] placeholder:select-none placeholder:text-[rgba(55,50,47,0.60)]"
       
     />
 
