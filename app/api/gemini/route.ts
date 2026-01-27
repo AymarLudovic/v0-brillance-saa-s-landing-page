@@ -40,35 +40,38 @@ const AGENTS = {
   ARCHITECT: {
     name: "ARCHITECTE",
     icon: "🧠",
-    // Le prompt force l'Architecte à catégoriser la demande
     prompt: `Tu es l'Architecte Technique Principal.
-    TON OBJECTIF : Analyser la demande utilisateur et décider de la stratégie.
+    TON OBJECTIF : Analyser la demande et décider de la stratégie.
     
-    IMPORTANT : Tu dois commencer ta réponse par une ligne de "CLASSIFICATION" stricte :
-    - Si l'utilisateur veut juste discuter, poser une question ou demande une explication : Écris "CLASSIFICATION: CHAT_ONLY" puis réponds-lui.
-    - Si l'utilisateur veut une modification de code, une nouvelle feature ou une correction : Écris "CLASSIFICATION: CODE_ACTION" puis décris le plan technique (fichiers à créer/modifier backend et frontend).
+    IMPORTANT : Commence ta réponse par une ligne de "CLASSIFICATION" :
+    - Si c'est juste une discussion/explication : "CLASSIFICATION: CHAT_ONLY".
+    - Si c'est un petit fix/correction d'erreur précise : "CLASSIFICATION: FIX_ACTION".
+    - Si c'est une modification lourde ou nouvelle feature : "CLASSIFICATION: CODE_ACTION".
     
-    Ne génère PAS de code toi-même. Donne juste le plan ou la réponse conversationnelle.`,
+    RÈGLE : Ne répète JAMAIS la demande de l'utilisateur. Va droit au but.`,
+  },
+  FIXER: {
+    name: "FIXER",
+    icon: "🛠️",
+    prompt: `Tu es l'Expert en Correction Rapide.
+    TON RÔLE : Appliquer la correction demandée immédiatement.
+    RÈGLE : Ne ré-explique pas le plan. Génère uniquement le code corrigé.`,
   },
   BACKEND: {
     name: "BACKEND_DEV",
     icon: "⚙️",
-    prompt: `Tu es l'Expert Backend (Node.js/Next.js API/DB).
-    TON RÔLE : Implémenter la logique serveur définie par l'Architecte.
+    prompt: `Tu es l'Expert Backend (Node.js/Next.js).
     RÈGLES : 
-    - Si le plan de l'Architecte ne mentionne AUCUN changement backend, réponds simplement "NO_BACKEND_CHANGES".
-    - Sinon, génère EXCLUSIVEMENT le code serveur (API, DB).
-    - Ne touche PAS au Frontend.`,
+    - Si aucun changement backend n'est nécessaire, réponds UNIQUEMENT "NO_BACKEND_CHANGES".
+    - Ne répète pas ce que l'Architecte a dit. Génère uniquement le code.`,
   },
   FRONTEND: {
     name: "FRONTEND_DEV",
     icon: "🎨",
     prompt: `Tu es l'Expert Frontend.
-    TON RÔLE : Implémenter l'interface utilisateur.
     RÈGLES :
-    - Connecte-toi aux APIs créées par l'agent Backend (si applicable).
-    - Si le Backend a dit "NO_BACKEND_CHANGES", utilise les APIs existantes ou mockées.
-    - Génère le code  complet.`,
+    - Génère le code complet.
+    - Ne fais pas de résumé du travail déjà effectué par les autres agents.`,
   },
 };
 
@@ -84,64 +87,48 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey });
     const encoder = new TextEncoder();
 
-    // --- CONSTRUCTION DU CONTEXTE ---
     const buildBaseContents = (extraContext: string = "") => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
-
-      // 1. Vibe Board
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
-        contents.push({
-          role: "user",
-          parts: [...(styleParts as any), { text: "[SYSTEME VISUEL : VIBE BOARD]" }],
-        });
+        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[SYSTEME VISUEL : VIBE BOARD]" }] });
       }
-
-      // 2. Contexte dynamique (Mémoire de travail des agents)
       if (extraContext) {
-        contents.push({
-          role: "user",
-          parts: [{ text: `[HISTORIQUE INTERNE DES AGENTS] :\n${extraContext}` }],
-        });
+        contents.push({ role: "user", parts: [{ text: `[CONTEXTE INTERNE] :\n${extraContext}` }] });
       }
-
-      // 3. Historique conversation
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
         const parts: Part[] = [];
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
-
         if (i === history.length - 1 && role === "user") {
           uploadedImages?.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
           );
           uploadedFiles?.forEach((f: any) =>
-            parts.push({
-              inlineData: { data: f.base64Content, mimeType: "text/plain" },
-              text: `\n[Fichier existant: ${f.fileName}]`,
-            } as any)
+            parts.push({ inlineData: { data: f.base64Content, mimeType: "text/plain" }, text: `\n[Fichier: ${f.fileName}]` } as any)
           );
         }
         parts.push({ text: msg.content || " " });
         contents.push({ role, parts });
       });
-
       return contents;
     };
 
     const stream = new ReadableStream({
       async start(controller) {
-        const send = (txt: string) => controller.enqueue(encoder.encode(txt));
+        // --- AMÉLIORATION : FONCTION SEND AVEC MASQUAGE ---
+        const send = (txt: string) => {
+          // On retire les balises de classification pour l'utilisateur
+          const maskedTxt = txt.replace(/CLASSIFICATION:\s*[A-Z_]+|NO_BACKEND_CHANGES/gi, "");
+          if (maskedTxt) controller.enqueue(encoder.encode(maskedTxt));
+        };
         
-        // Mémoire globale de la session de génération
         let globalContextAccumulator = ""; 
 
-        // Fonction d'exécution d'un agent
         async function runAgent(agentKey: keyof typeof AGENTS, contextOverride: string = "") {
           const agent = AGENTS[agentKey];
-          
           send(`\n\n--- ${agent.icon} [PHASE: ${agent.name}] ---\n\n`);
 
           let batchBuffer = "";
@@ -149,8 +136,6 @@ export async function POST(req: Request) {
 
           try {
             const contents = buildBaseContents(globalContextAccumulator + "\n" + contextOverride);
-            
-            // Injection du System Prompt spécifique + Base Prompt
             const systemInstruction = `${basePrompt}\n\n=== MODE AGENT ACTIF ===\nTU ES: ${agent.name}\n${agent.prompt}`;
 
             const response = await ai.models.generateContentStream({
@@ -159,7 +144,7 @@ export async function POST(req: Request) {
               tools: [{ functionDeclarations: [readFileDeclaration] }],
               config: { systemInstruction },
               generationConfig: {
-                temperature: 0.5, // Plus bas pour respecter les classifications
+                temperature: 0.7, // Changé à 0.7 comme demandé
                 maxOutputTokens: 65536,
                 thinkingConfig: { includeThoughts: true, thinkingLevel: "high" },
               },
@@ -177,54 +162,38 @@ export async function POST(req: Request) {
               }
             }
             if (batchBuffer.length > 0) send(batchBuffer);
-            
             return fullAgentOutput;
-
           } catch (e: any) {
             send(`\n[ERROR ${agent.name}]: ${e.message}`);
-            return `Error in ${agent.name}`; // Fallback
+            return "";
           }
         }
-
-        // --- ORCHESTRATION INTELLIGENTE ---
 
         try {
           // 1. L'ARCHITECTE ANALYSE
           const architectOutput = await runAgent("ARCHITECT");
           globalContextAccumulator += `\n[ARCHITECT DECISION]:\n${architectOutput}\n`;
 
-          // 2. DÉCISION DE ROUTAGE
-          // On cherche le mot clé défini dans le prompt de l'architecte
+          // 2. ROUTAGE INTELLIGENT
           const isChatOnly = architectOutput.includes("CLASSIFICATION: CHAT_ONLY");
+          const isFixAction = architectOutput.includes("CLASSIFICATION: FIX_ACTION");
 
           if (isChatOnly) {
-            // FIN DU PROCESSUS : Pas besoin de Backend ni Frontend
-            // On peut optionnellement envoyer un message de fin propre
-            // send("\n\n[FIN DE LA CONVERSATION - AUCUN CODE GÉNÉRÉ]");
+            // Fin directe
+          } else if (isFixAction) {
+            // --- AMÉLIORATION : FIX RAPIDE ---
+            await runAgent("FIXER", "Applique uniquement le correctif technique sans refaire d'analyse.");
           } else {
-            // PROCESSUS DE GÉNÉRATION DE CODE ACTIVÉ
-            
-            // 3. BACKEND (Conditionnel)
-            // On lance le backend en lui demandant de vérifier s'il a du travail
-            const backendOutput = await runAgent("BACKEND", "Analyse le plan de l'Architecte. Si rien à faire côté serveur, dis-le.");
+            // PROCESSUS COMPLET
+            const backendOutput = await runAgent("BACKEND", "Ne répète pas le plan. Produis le code.");
             globalContextAccumulator += `\n[BACKEND RESULT]:\n${backendOutput}\n`;
 
-            // Si le backend dit explicitement qu'il n'a rien fait, on le note pour le frontend
             const noBackendWork = backendOutput.includes("NO_BACKEND_CHANGES");
-
-            // 4. FRONTEND
-            // Le frontend doit toujours s'exécuter si on est en mode CODE_ACTION, car même sans backend, il y a de l'UI
-            await runAgent("FRONTEND", 
-              noBackendWork 
-                ? "Le Backend n'a pas changé. Concentre-toi sur l'UI/UX pure."
-                : "Intègre les nouvelles routes API créées par le Backend ci-dessus."
-            );
+            await runAgent("FRONTEND", noBackendWork ? "Concentre-toi sur l'UI pure." : "Intègre le code backend ci-dessus.");
           }
 
           controller.close();
-
         } catch (globalError: any) {
-          send(`\n\n[SYSTEM CRITICAL ERROR]: ${globalError.message}`);
           controller.close();
         }
       },
@@ -236,4 +205,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 });
   }
-}
+  }
