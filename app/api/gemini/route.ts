@@ -108,8 +108,8 @@ const readFileDeclaration: FunctionDeclaration = {
                     systemInstruction: FULL_PROMPT_INJECTION
                 },
                 generationConfig: {
-  temperature: 1.3, 
-  topK: 15,// Low value to force precision on critical instructions
+  temperature: 1.2, 
+  topK: 10,// Low value to force precision on critical instructions
   maxOutputTokens: 65536,
   thinkingConfig: {     // New feature of Gemini 3 (2026)
     includeThoughts: true,
