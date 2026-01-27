@@ -4734,7 +4734,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     ${activeTab === "preview" ? "flex" : "hidden"}
   `}
 >
-    <div className="w-[60%] h-[95%] rounded-[12px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
+    <div className="w-[60%] h-[93%] rounded-[12px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
             <input
       type="text"
       value={iframeRoute}
@@ -4789,7 +4789,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     if (!currentProject) return alert("Select a project first");
     setIsGitHubOpen(true);
   }}
-                className="flex items-center justify-center rounded-[8px] border border-[rgba(55,50,47,0.12)] bg-[#ffffff] p-2  transition-colors h-10 w-10"
+                className="flex items-center justify-center rounded-[12px] border border-[rgba(55,50,47,0.12)] bg-[#ffffff] p-2  transition-colors h-9 w-9"
                 aria-label="GitHub"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#37322F" className="h-[18px] w-[18px]" viewBox="0 0 16 16">
@@ -4928,7 +4928,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {/* Black tilted ellipse replacing the "o" */}
   <ellipse
-    cx="440"
+    cx="420"
     cy="120"
     rx="58"
     ry="32"
