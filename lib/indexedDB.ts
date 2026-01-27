@@ -1,74 +1,57 @@
 import { openDB, DBSchema } from 'idb';
 
-// On définit deux stores séparés
 interface VibeDB extends DBSchema {
-  'good_vibes': {
+  vibes: {
     key: string;
-    value: { id: string; base64: string; createdAt: number; };
-  };
-  'bad_vibes': {
-    key: string;
-    value: { id: string; base64: string; createdAt: number; };
+    value: {
+      id: string;
+      base64: string; // Image compressée/optimisée
+      createdAt: number;
+    };
   };
 }
 
-const DB_NAME = 'vibe-coding-db-v2'; // J'ai changé le nom pour repartir sur une base propre
-
-export type VibeType = 'good' | 'bad';
+const DB_NAME = 'vibe-coding-db';
+const STORE_NAME = 'vibes';
 
 export async function initDB() {
   return openDB<VibeDB>(DB_NAME, 1, {
     upgrade(db) {
-      if (!db.objectStoreNames.contains('good_vibes')) {
-        db.createObjectStore('good_vibes', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('bad_vibes')) {
-        db.createObjectStore('bad_vibes', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
       }
     },
   });
 }
 
-// Fonction générique pour sauvegarder selon le type
-export async function saveImageToVibe(file: File, type: VibeType): Promise<void> {
+export async function saveImageToVibe(file: File): Promise<void> {
   const db = await initDB();
   const base64 = await toBase64(file);
-  const storeName = type === 'good' ? 'good_vibes' : 'bad_vibes';
-  
-  await db.put(storeName, {
+  await db.put(STORE_NAME, {
     id: crypto.randomUUID(),
     base64,
     createdAt: Date.now(),
   });
 }
 
-// Récupérer toutes les images d'un type
-export async function getAllVibes(type: VibeType) {
+export async function getAllVibes() {
   const db = await initDB();
-  const storeName = type === 'good' ? 'good_vibes' : 'bad_vibes';
-  return await db.getAll(storeName);
+  return await db.getAll(STORE_NAME);
 }
 
-// Supprimer une image spécifique
-export async function deleteVibe(id: string, type: VibeType) {
+export async function deleteVibe(id: string) {
   const db = await initDB();
-  const storeName = type === 'good' ? 'good_vibes' : 'bad_vibes';
-  await db.delete(storeName, id);
+  await db.delete(STORE_NAME, id);
 }
 
-// L'ALGO DE CRÉATIVITÉ (Uniquement pour les GOOD vibes généralement)
-export async function getRandomGoodVibes(count: number = 4) {
-  const all = await getAllVibes('good');
+// L'Algorithme de Créativité : Sélectionne X images au hasard
+export async function getRandomVibes(count: number = 4) {
+  const all = await getAllVibes();
   if (all.length <= count) return all.map(v => v.base64);
   
+  // Mélange de Fisher-Yates pour le chaos créatif
   const shuffled = all.sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count).map(v => v.base64);
-}
-
-// Pour récupérer TOUS les BAD examples (pour dire à l'IA ce qu'il ne faut pas faire)
-export async function getAllBadVibes() {
-  const all = await getAllVibes('bad');
-  return all.map(v => v.base64);
 }
 
 const toBase64 = (file: File): Promise<string> => {
@@ -79,4 +62,3 @@ const toBase64 = (file: File): Promise<string> => {
     reader.onerror = reject;
   });
 };
-          
