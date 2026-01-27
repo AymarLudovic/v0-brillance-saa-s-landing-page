@@ -2,72 +2,82 @@
 
 import { useState } from "react";
 
-export default function Home() {
-  const [template, setTemplate] = useState(
-`export default function Page() {
-  return (
-    <div style={{ padding: 40, fontSize: 32 }}>
-      🚀 Hello from E2B Next.js Sandbox
-    </div>
-  );
-}`
-  );
+const DB_NAME = "VibeCodingDB";
+const STORE_BAD = "bad_examples";
+const STORE_GOOD = "good_examples";
 
-  const [logs, setLogs] = useState<string[]>([]);
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = (event: any) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_BAD)) db.createObjectStore(STORE_BAD, { keyPath: "id", autoIncrement: true });
+      if (!db.objectStoreNames.contains(STORE_GOOD)) db.createObjectStore(STORE_GOOD, { keyPath: "id", autoIncrement: true });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = (e) => reject(e);
+  });
+};
 
-  const addLog = (msg: string) => {
-    console.log(msg);
-    setLogs((prev) => [...prev, msg]);
+const storeImage = async (storeName: string, file: File) => {
+  const db = await openDB();
+  const reader = new FileReader();
+  return new Promise<void>((resolve, reject) => {
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      const tx = db.transaction(storeName, "readwrite");
+      tx.objectStore(storeName).add({ content: base64, name: file.name, date: new Date() });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
+const clearStore = async (storeName: string) => {
+  const db = await openDB();
+  const tx = db.transaction(storeName, "readwrite");
+  tx.objectStore(storeName).clear();
+  return new Promise<void>((resolve) => { tx.oncomplete = () => resolve(); });
+};
+
+export default function VibeStudioPage() {
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, storeName: string) => {
+    if (!e.target.files) return;
+    setUploading(true);
+    await clearStore(storeName);
+    
+    for (let i = 0; i < e.target.files.length; i++) {
+      await storeImage(storeName, e.target.files[i]);
+    }
+    setUploading(false);
+    alert("Images sauvegardées");
   };
 
-  const runBuild = async () => {
-    setLogs([]);
-
-    const res = await fetch("/api/run", {
-      method: "POST",
-      body: JSON.stringify({ template }),
-    });
-
-    if (!res.body) {
-      addLog("❌ No response body");
-      return;
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const text = decoder.decode(value);
-      addLog(text);
-    }
-  };
-
   return (
-    <main className="p-10 max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4">Next.js Builder (E2B Sandbox)</h1>
+    <div className="p-10 space-y-10 bg-black text-white min-h-screen">
+      <div className="grid grid-cols-2 gap-10">
+        <div className="border border-red-500 p-5 rounded-xl">
+          <h2 className="text-xl font-bold text-red-500 mb-4">Mauvais Designs (Anti-Patterns)</h2>
+          <input 
+            type="file" multiple accept="image/*" 
+            onChange={(e) => handleUpload(e, STORE_BAD)} 
+            className="block w-full text-sm text-gray-500"
+          />
+        </div>
 
-      <textarea
-        className="w-full h-64 border p-3 rounded"
-        value={template}
-        onChange={(e) => setTemplate(e.target.value)}
-      />
-
-      <button
-        onClick={runBuild}
-        className="mt-4 px-5 py-2 bg-black text-white rounded"
-      >
-        🚀 Build & Run
-      </button>
-
-      <div className="mt-6 border rounded p-3 h-80 overflow-auto bg-black text-green-300 font-mono text-sm whitespace-pre-wrap">
-        {logs.map((l, i) => (
-          <div key={i}>{l}</div>
-        ))}
+        <div className="border border-green-500 p-5 rounded-xl">
+          <h2 className="text-xl font-bold text-green-500 mb-4">Vibe Board (Référence Absolue)</h2>
+          <input 
+            type="file" multiple accept="image/*" 
+            onChange={(e) => handleUpload(e, STORE_GOOD)}
+            className="block w-full text-sm text-gray-500"
+          />
+        </div>
       </div>
-    </main>
+    </div>
   );
       }
     
