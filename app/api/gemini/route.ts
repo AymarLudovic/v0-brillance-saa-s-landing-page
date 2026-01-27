@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI, Part, FunctionDeclaration, Type } from "@google/genai";
 import { basePrompt } from "@/lib/prompt"; 
 
+// --- CONFIGURATION ---
 const BATCH_SIZE = 128;
 const MODEL_ID = "gemini-3-flash-preview";
 
@@ -13,12 +14,13 @@ interface Message {
   mentionedFiles?: string[];
 }
 
-function getMimeTypeFromBase64(dataUrl: string) {
+// --- UTILITAIRES ---
+function getMimeTypeFromBase64(dataUrl: string): string {
   const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
   return match ? match[1] : "application/octet-stream";
 }
 
-function cleanBase64Data(dataUrl: string) {
+function cleanBase64Data(dataUrl: string): string {
   return dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
 }
 
@@ -32,35 +34,55 @@ const readFileDeclaration: FunctionDeclaration = {
   },
 };
 
+// --- DÉFINITION DES AGENTS (PERSONAS) ---
+
 const AGENTS = {
   ARCHITECT: {
     name: "ARCHITECTE",
     icon: "🧠",
-    prompt: `Tu es l'Architecte Décideur. Ton rôle est de CLASSER et de PLANIFIER.
+    // Le prompt force l'Architecte à catégoriser la demande
+    prompt: `Tu es l'Architecte Technique Principal.
+    TON OBJECTIF : Analyser la demande utilisateur et décider de la stratégie.
     
-    RÈGLES ABSOLUES :
-    1. Tu ne poses JAMAIS de questions à l'utilisateur (pas de "Valides-tu ?", pas de "Qu'en penses-tu ?").
-    2. Tu ne demandes JAMAIS de validation. Tu es le chef, tu décides.
-    3. Si tu as déjà fait une analyse dans l'historique, ne la répète pas : passe directement à la CLASSIFICATION.
+    IMPORTANT : Tu dois commencer ta réponse par une ligne de "CLASSIFICATION" stricte :
+    - Si l'utilisateur veut juste discuter, poser une question ou demande une explication : Écris "CLASSIFICATION: CHAT_ONLY" puis réponds-lui.
+    - Si l'utilisateur a une petite erreur ou une correction rapide sans créer de fichiers : Écris "CLASSIFICATION: FIX_ACTION" puis cible l'erreur.
+    - Si l'utilisateur veut une modification de code, une nouvelle feature : Écris "CLASSIFICATION: CODE_ACTION" puis décris le plan technique.
+    - si tu reçois une erreur et que tu as vu que quelqu'un avant toi as déjà corrigé l'erreur ou fait la modification requise, tu peux juste répondre normalement sans générer du code et couper ton stream.
     
-    FORMAT DE RÉPONSE :
-    - Commencer par "CLASSIFICATION: CHAT_ONLY", "CLASSIFICATION: FIX_ACTION" ou "CLASSIFICATION: CODE_ACTION".
-    - Si CODE_ACTION : Donne le plan technique et arrête-toi là. L'équipe technique prendra le relais automatiquement après toi.`,
+    MINI-INSTRUCTION : Ne répète JAMAIS la demande de l'utilisateur. Ne reformule pas l'historique. Sois direct.`,
   },
-  FIXER: {
+  FIXER: { // Nouvel agent ajouté pour le Fast Fix
     name: "FIXER",
     icon: "🛠️",
-    prompt: `Expert Correcteur. Applique la modif sur les fichiers existants. Pas de blabla, juste le code corrigé. Ne répète pas l'analyse du manager.`,
+    prompt: `Tu es l'Expert Correcteur Rapide.
+    TON RÔLE : Appliquer uniquement la correction demandée par l'Architecte.
+    MINI-INSTRUCTION : Ne fais aucune analyse. Ne répète pas le problème. Génère directement le code corrigé.`
   },
   BACKEND: {
     name: "BACKEND_DEV",
     icon: "⚙️",
-    prompt: `Expert Backend. Si rien à faire : "NO_BACKEND_CHANGES". Sinon, code serveur uniquement. Ne répète rien, produis du code.`,
+    prompt: `Tu es l'Expert Backend (Node.js/Next.js API/DB).
+    TON RÔLE : Implémenter la logique serveur définie par l'Architecte.
+    RÈGLES : 
+    - Si le plan de l'Architecte ne mentionne AUCUN changement backend, réponds simplement "NO_BACKEND_CHANGES".
+    - Sinon, génère EXCLUSIVEMENT le code serveur (API, DB).
+    - Ne touche PAS au Frontend.
+    - si tu reçois une erreur et que tu as vu que quelqu'un avant toi as déjà corrigé l'erreur ou fait la modification requise, tu peux juste répondre normalement sans générer du code et couper ton stream.
+    MINI-INSTRUCTION : Ne répète pas le plan de l'Architecte. Commence directement par le code ou le commentaire.`,
   },
   FRONTEND: {
     name: "FRONTEND_DEV",
     icon: "🎨",
-    prompt: `Expert Frontend. Produis l'UI. Ne répète pas le travail du backend ou de l'architecte.`,
+    prompt: `Tu es l'Expert Frontend.
+    TON RÔLE : Implémenter l'interface utilisateur.
+    RÈGLES :
+    - Connecte-toi aux APIs créées par l'agent Backend (si applicable).
+    - Si le Backend a dit "NO_BACKEND_CHANGES", utilise les APIs existantes ou mockées.
+    - Génère le code  complet.
+    - si tu reçois une erreur et que tu as vu que quelqu'un avant toi as déjà corrigé l'erreur ou fait la modification requise, tu peux juste répondre normalement sans générer du code et couper ton stream.
+    
+    MINI-INSTRUCTION : Ne résume pas ce que les autres agents ont fait. Code l'UI directement.`,
   },
 };
 
@@ -76,58 +98,94 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey });
     const encoder = new TextEncoder();
 
+    // --- CONSTRUCTION DU CONTEXTE ---
     const buildBaseContents = (extraContext: string = "") => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
+
+      // 1. Vibe Board
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
-        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[STYLE REFERENCE]" }] });
+        contents.push({
+          role: "user",
+          parts: [...(styleParts as any), { text: "[SYSTEME VISUEL : VIBE BOARD]" }],
+        });
       }
+
+      // 2. Contexte dynamique (Mémoire de travail des agents)
       if (extraContext) {
-        contents.push({ role: "user", parts: [{ text: `[SYSTEM CONTEXT]:\n${extraContext}` }] });
+        contents.push({
+          role: "user",
+          parts: [{ text: `[HISTORIQUE INTERNE DES AGENTS] :\n${extraContext}` }],
+        });
       }
+
+      // 3. Historique conversation
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
+        const parts: Part[] = [];
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
-        const parts: Part[] = [{ text: msg.content || " " }];
+
         if (i === history.length - 1 && role === "user") {
           uploadedImages?.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
           );
+          uploadedFiles?.forEach((f: any) =>
+            parts.push({
+              inlineData: { data: f.base64Content, mimeType: "text/plain" },
+              text: `\n[Fichier existant: ${f.fileName}]`,
+            } as any)
+          );
         }
+        parts.push({ text: msg.content || " " });
         contents.push({ role, parts });
       });
+
       return contents;
     };
 
     const stream = new ReadableStream({
       async start(controller) {
+        // --- MODIFICATION ICI POUR LE MASQUAGE ---
         const send = (txt: string) => {
-          const sanitized = txt
+          // On retire les tags techniques pour l'utilisateur via une Regex
+          const sanitizedTxt = txt
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
             .replace(/NO_BACKEND_CHANGES/gi, "");
-          if (sanitized) controller.enqueue(encoder.encode(sanitized));
+            
+          // On n'envoie que s'il reste du texte
+          if (sanitizedTxt) controller.enqueue(encoder.encode(sanitizedTxt));
         };
         
+        // Mémoire globale de la session de génération
         let globalContextAccumulator = ""; 
 
+        // Fonction d'exécution d'un agent
         async function runAgent(agentKey: keyof typeof AGENTS, contextOverride: string = "") {
           const agent = AGENTS[agentKey];
-          send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
-          let fullAgentOutput = "";
+          
+          send(`\n\n--- ${agent.icon} [PHASE: ${agent.name}] ---\n\n`);
+
           let batchBuffer = "";
+          let fullAgentOutput = "";
 
           try {
             const contents = buildBaseContents(globalContextAccumulator + "\n" + contextOverride);
-            const systemInstruction = `${basePrompt}\n\nTU ES: ${agent.name}\n${agent.prompt}`;
+            
+            // Injection du System Prompt spécifique + Base Prompt
+            const systemInstruction = `${basePrompt}\n\n=== MODE AGENT ACTIF ===\nTU ES: ${agent.name}\n${agent.prompt}`;
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
               contents: contents,
               tools: [{ functionDeclarations: [readFileDeclaration] }],
               config: { systemInstruction },
-              generationConfig: { temperature: 0.7, maxOutputTokens: 65536 },
+              generationConfig: {
+                temperature: 0.7, // Changé à 0.7 selon ta demande
+                maxOutputTokens: 65536,
+                thinkingConfig: { includeThoughts: true, thinkingLevel: "high" },
+              },
             });
 
             for await (const chunk of response) {
@@ -142,37 +200,53 @@ export async function POST(req: Request) {
               }
             }
             if (batchBuffer.length > 0) send(batchBuffer);
+            
             return fullAgentOutput;
+
           } catch (e: any) {
-            return "";
+            send(`\n[ERROR ${agent.name}]: ${e.message}`);
+            return `Error in ${agent.name}`; // Fallback
           }
         }
 
+        // --- ORCHESTRATION INTELLIGENTE ---
+
         try {
-          // 1. L'Architecte lance le bal
+          // 1. L'ARCHITECTE ANALYSE
           const architectOutput = await runAgent("ARCHITECT");
-          globalContextAccumulator += `\n[ARCHITECT_DECIDED]: ${architectOutput}\n`;
+          globalContextAccumulator += `\n[ARCHITECT DECISION]:\n${architectOutput}\n`;
 
-          // 2. Analyse de la décision (on passe en majuscule pour être sûr)
-          const decision = architectOutput.toUpperCase();
-          
-          if (decision.includes("CLASSIFICATION: CHAT_ONLY")) {
-            // Fin du flux
-          } 
-          else if (decision.includes("CLASSIFICATION: FIX_ACTION")) {
-            await runAgent("FIXER", "Applique le fix maintenant sans discuter.");
-          } 
-          else {
-            // MODE CODE_ACTION : On force la suite sans demander d'avis
-            const backendOutput = await runAgent("BACKEND", "Le manager a validé le plan. Produis le code API maintenant.");
-            globalContextAccumulator += `\n[BACKEND_CODE]: ${backendOutput}\n`;
+          // 2. DÉCISION DE ROUTAGE
+          const isChatOnly = architectOutput.includes("CLASSIFICATION: CHAT_ONLY");
+          const isFixAction = architectOutput.includes("CLASSIFICATION: FIX_ACTION"); // Détection du Fix rapide
 
-            const noBackend = backendOutput.includes("NO_BACKEND_CHANGES");
-            await runAgent("FRONTEND", noBackend ? "Code l'UI uniquement." : "Intègre le backend fourni ci-dessus.");
+          if (isChatOnly) {
+            // FIN DU PROCESSUS
+          } else if (isFixAction) {
+             // --- NOUVEAU BRANCHEMENT POUR FIX RAPIDE ---
+             // On lance uniquement l'agent FIXER, on saute Backend et Frontend
+             await runAgent("FIXER", "Applique la correction technique demandée immédiatement.");
+          } else {
+            // PROCESSUS COMPLET (CODE_ACTION)
+            
+            // 3. BACKEND (Conditionnel)
+            const backendOutput = await runAgent("BACKEND", "Analyse le plan de l'Architecte. Si rien à faire côté serveur, dis-le.");
+            globalContextAccumulator += `\n[BACKEND RESULT]:\n${backendOutput}\n`;
+
+            const noBackendWork = backendOutput.includes("NO_BACKEND_CHANGES");
+
+            // 4. FRONTEND
+            await runAgent("FRONTEND", 
+              noBackendWork 
+                ? "Le Backend n'a pas changé. Concentre-toi sur l'UI/UX pure."
+                : "Intègre les nouvelles routes API créées par le Backend ci-dessus."
+            );
           }
 
           controller.close();
-        } catch (err) {
+
+        } catch (globalError: any) {
+          send(`\n\n[SYSTEM CRITICAL ERROR]: ${globalError.message}`);
           controller.close();
         }
       },
@@ -182,6 +256,6 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" },
     });
   } catch (err: any) {
-    return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
+    return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 });
   }
-                                          }
+}
