@@ -19,7 +19,7 @@ import {
 } from '@/utils/history'; // Ajustez le chemin si nécessaire
 import VercelDeployModal from '@/components/VercelDeployModal';
 
-import { getRandomGoodVibes, getAllBadVibes } from '@/lib/indexedDB';
+import { getRandomVibes } from '@/lib/indexedDB';
 // Imports à ajouter dans votre liste d'imports existante
 import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
 
@@ -3045,6 +3045,13 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
       console.error("Design load error", e); 
   }
 
+const randomVibes = await getRandomVibes(8);
+
+if (randomVibes && randomVibes.length > 0) {
+        // On suppose que ta fonction addLog prend un string en paramètre
+        addLog(`images found: ${randomVibes.length} inspirations injected into context`);
+  }
+
   let apiKey = "";
   try {
       const dbKey = await getApiKeyFromIDB();
@@ -3070,13 +3077,7 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
 
         
             
-const vibeBoardImages = await getRandomGoodVibes(4);
-const antiPatternImages = await getAllBadVibes();
 
-if (typeof addLog === "function") {
-    if (vibeBoardImages.length > 0) addLog(`✨ Vibe Check: ${vibeBoardImages.length} inspirations injected.`);
-    if (antiPatternImages.length > 0) addLog(`⛔ Safety Check: ${antiPatternImages.length} anti-patterns loaded.`);
-}
 
 res = await fetch("/api/gemini", {
     method: "POST",
@@ -3087,8 +3088,7 @@ res = await fetch("/api/gemini", {
         uploadedImages,
         uploadedFiles,
         currentPlan,
-        antiPatternImages,
-        vibeBoardImages
+        allReferenceImages: randomVibes,
     }),
 });
 
