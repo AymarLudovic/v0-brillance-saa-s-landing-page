@@ -60,7 +60,7 @@ const AGENTS = {
   FRONTEND: {
     name: "FRONTEND_DEV",
     icon: "🎨",
-    prompt: `Tu es l'Expert Frontend (React/Tailwind/Shadcn).
+    prompt: `Tu es l'Expert Frontend .
     TON RÔLE : Générer l'interface utilisateur qui se connecte au Backend créé précédemment.
     RÈGLES :
     - Respecte le "Vibe Board" (images de référence) au pixel près.
