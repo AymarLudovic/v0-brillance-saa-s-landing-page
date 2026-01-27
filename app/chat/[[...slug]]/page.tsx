@@ -18,7 +18,8 @@ import {
     replaceLastHistoryMessage 
 } from '@/utils/history'; // Ajustez le chemin si nécessaire
 import VercelDeployModal from '@/components/VercelDeployModal';
-import { getRandomVibes } from '@/lib/indexedDB';
+
+import { getRandomGoodVibes, getAllBadVibes } from '@/lib/indexedDB';
 // Imports à ajouter dans votre liste d'imports existante
 import { IndexedChunk, indexFileContent, updateProjectEmbeddings } from '@/lib/rag-utils';
 
@@ -3067,32 +3068,29 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
         }
 
 
-        // Récupération et Logging
-    const allBad = await getImagesFromStore("bad_examples");
-    const allGood = await getImagesFromStore("good_examples");
-    
-    const antiPatternImages = getRandomImages(allBad, 4);
-    const vibeBoardImages = getRandomImages(allGood, 4);
-
-    // addLog est ta fonction pour logger dans l'UI
-    if (typeof addLog === "function") {
-        addLog(`Images récupérées: ${antiPatternImages.length} Toxiques, ${vibeBoardImages.length} Divines. Total envoyé: 8.`);
-    }
-
-    res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-        body: JSON.stringify({ 
-            history: historyForApi, 
-            currentProjectFiles,
-            uploadedImages,
-            uploadedFiles,
-            currentPlan,
-            antiPatternImages,
-            vibeBoardImages
-        }),
-    });
+        
             
+const vibeBoardImages = await getRandomGoodVibes(4);
+const antiPatternImages = await getAllBadVibes();
+
+if (typeof addLog === "function") {
+    if (vibeBoardImages.length > 0) addLog(`✨ Vibe Check: ${vibeBoardImages.length} inspirations injected.`);
+    if (antiPatternImages.length > 0) addLog(`⛔ Safety Check: ${antiPatternImages.length} anti-patterns loaded.`);
+}
+
+res = await fetch("/api/gemini", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
+    body: JSON.stringify({ 
+        history: historyForApi, 
+        currentProjectFiles,
+        uploadedImages,
+        uploadedFiles,
+        currentPlan,
+        antiPatternImages,
+        vibeBoardImages
+    }),
+});
 
 
 
