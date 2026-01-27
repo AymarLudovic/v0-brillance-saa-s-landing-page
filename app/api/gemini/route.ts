@@ -3,6 +3,7 @@ import { GoogleGenAI, Type, FunctionDeclaration, Part } from "@google/genai";
 import { basePrompt } from "@/lib/prompt"; 
 
 const BATCH_SIZE = 128;
+// Modèle spécifié par l'utilisateur
 const MODEL_ID = "gemini-3-flash-preview"; 
 
 interface Message {
@@ -37,33 +38,35 @@ const AGENTS = {
   ARCHITECT: {
     name: "ARCHITECTE",
     icon: "🧠",
-    // Prompt durci pour bien séparer FIX et CODE
+    // Prompt durci : On lui interdit techniquement de produire du code exécutable
     prompt: `Tu es le CHEF DE PROJET TECHNIQUE (Architecte).
     
-    TA MISSION : Analyser la demande et choisir la BONNE voie d'exécution.
+    TA MISSION UNIQUE : Analyser la demande et déléguer le travail aux développeurs (Backend et Frontend).
     
-    RÈGLES DE DÉCISION STRICTES :
-    1. Si l'utilisateur veut juste DISCUTER ou une explication -> "CLASSIFICATION: CHAT_ONLY"
-    2. Si l'utilisateur signale une ERREUR, un BUG ou demande une CORRECTION sur un fichier précis -> "CLASSIFICATION: FIX_ACTION" (Ceci est prioritaire sur le code action).
-    3. Si l'utilisateur veut CRÉER une nouvelle fonctionnalité, une page ou MODIFIER une structure -> "CLASSIFICATION: CODE_ACTION"
+    ⛔ INTERDICTIONS FORMELLES (Si tu ne respectes pas, le processus échoue) :
+    1. TU NE DOIS PAS ÉCRIRE DE CODE (PAS de HTML, PAS de CSS, PAS de JS, PAS de Python).
+    2. Tu ne fais PAS le travail toi-même. Tu donnes des ORDRES.
+    3. Tu ne poses pas de questions à l'utilisateur.
     
-    ⛔ INTERDICTIONS :
-    - TU NE DOIS PAS ÉCRIRE DE CODE.
-    - Tu ne poses pas de questions.
+    FORMAT DE RÉPONSE OBLIGATOIRE :
+    Tu dois commencer ta réponse par une ligne de classification, suivie d'un plan textuel.
     
-    FORMAT DE RÉPONSE OBLIGATOIRE (Commence par ceci) :
-    CLASSIFICATION: [TON_CHOIX]
+    Choix de classification :
+    - "CLASSIFICATION: CHAT_ONLY" -> Pour une discussion générale.
+    - "CLASSIFICATION: FIX_ACTION" -> Pour une petite correction sur un fichier existant.
+    - "CLASSIFICATION: CODE_ACTION" -> Pour créer une fonctionnalité, une page, ou modifier le code.
+    
+    Exemple de réponse attendue (Respecte ce format) :
+    CLASSIFICATION: CODE_ACTION
     
     Plan d'exécution :
-    [Ton explication textuelle ici]`,
+    1. Backend : Créer une route API pour gérer les utilisateurs.
+    2. Frontend : Créer une interface avec un tableau et un bouton.`,
   },
   FIXER: {
     name: "FIXER",
     icon: "🛠️",
-    prompt: `Expert Correcteur. Tu reçois un fichier et une instruction d'erreur.
-    Ta mission : Renvoyer UNIQUEMENT le code complet corrigé du fichier.
-    - Pas d'explication textuelle avant ou après (ou très peu).
-    - Pas de markdown inutile si possible, juste le bloc de code.`,
+    prompt: `Expert Correcteur. Tu reçois un fichier et une instruction. Renvoie uniquement le code corrigé complet. Pas de markdown inutile, pas d'explications.`,
   },
   BACKEND: {
     name: "BACKEND_DEV",
@@ -98,6 +101,7 @@ export async function POST(req: Request) {
     const buildBaseContents = (extraContext: string = "") => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
+      // Images de référence (Style)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -105,10 +109,12 @@ export async function POST(req: Request) {
         contents.push({ role: "user", parts: [...(styleParts as any), { text: "[STYLE REFERENCE]" }] });
       }
       
+      // Contexte Système (Accumulateur de résultats d'agents)
       if (extraContext) {
         contents.push({ role: "user", parts: [{ text: `[CONTEXTE SYSTEME INTERNE]:\n${extraContext}` }] });
       }
       
+      // Historique
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
@@ -126,6 +132,7 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         const send = (txt: string) => {
+          // On nettoie les tags de contrôle pour ne pas polluer l'affichage utilisateur
           const sanitized = txt
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
             .replace(/NO_BACKEND_CHANGES/gi, "");
@@ -145,6 +152,7 @@ export async function POST(req: Request) {
             const contents = buildBaseContents(globalContextAccumulator + "\n" + contextOverride);
             const systemInstruction = `${basePrompt}\n\n=== RÔLE ACTUEL: ${agent.name} ===\n${agent.prompt}`;
 
+            // Réglage de la température : L'Architecte doit être froid (0.3) pour respecter les règles
             const temperature = agentKey === "ARCHITECT" ? 0.3 : 0.7;
 
             const response = await ai.models.generateContentStream({
@@ -167,43 +175,42 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
             return fullAgentOutput;
-
           } catch (e: any) {
-            // CORRECTION PRINCIPALE ICI : On capture l'erreur et on l'envoie au client
+            // --- MODIFICATION ICI : Envoi de l'erreur au client ---
             const errorMsg = `\n\n⚠️ [ERREUR ${agent.name}]: ${e.message || "Erreur inconnue"}\n`;
             console.error(errorMsg, e);
-            send(errorMsg); // Affiche l'erreur dans le chat
-            return errorMsg; // Retourne l'erreur pour que le flux continue proprement ou s'arrête
+            send(errorMsg); // On l'affiche dans le chat
+            return errorMsg; // On le retourne pour qu'il soit dans l'historique interne (évite crash en chaîne)
           }
         }
 
         try {
-          // 1. L'Architecte PLANIFIE
+          // 1. L'Architecte PLANIFIE (avec température basse pour obéir)
           const architectOutput = await runAgent("ARCHITECT");
           globalContextAccumulator += `\n[ARCHITECT_PLAN]: ${architectOutput}\n`;
 
-          // 2. Détection de la classification
+          // 2. Détection robuste de la classification
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
-          const decision = match ? match[1].toUpperCase() : "CHAT_ONLY";
+          const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; // Par défaut si échec
           
-          // DEBUG : On peut décommenter ceci si tu veux voir la décision dans la console serveur
-          // console.log("DECISION ARCHITECTE:", decision);
-
           if (decision === "CHAT_ONLY") {
-            // Fin normale
+            // Fin
           } 
           else if (decision === "FIX_ACTION") {
-            // MODE FIX : Uniquement le Fixer. Le Backend ne DOIT PAS s'exécuter après.
+            // ICI: On lance UNIQUEMENT le Fixer. Le code s'arrêtera après ce bloc car c'est un "else if".
+            // Le Backend/Frontend ne peuvent PAS s'exécuter ici.
             await runAgent("FIXER", "Instruction: Applique le correctif technique sur le fichier concerné.");
           } 
           else if (decision === "CODE_ACTION") {
-            // MODE CODE : Backend -> Frontend
+            // MODE CODE : On force l'exécution séquentielle
             
+            // Backend
             const backendOutput = await runAgent("BACKEND", "Instruction: Implémente le code serveur basé sur le plan ci-dessus. Si pas de back, réponds NO_BACKEND_CHANGES.");
             globalContextAccumulator += `\n[BACKEND_CODE]: ${backendOutput}\n`;
             
             const noBackend = backendOutput.includes("NO_BACKEND_CHANGES");
             
+            // Frontend (Reçoit le contexte global incluant le code backend)
             await runAgent("FRONTEND", noBackend 
               ? "Instruction: Le backend n'a pas changé. Génère l'UI (React/Tailwind) selon le plan." 
               : "Instruction: Intègre le code Backend fourni juste au-dessus et génère l'UI complète."
@@ -212,10 +219,9 @@ export async function POST(req: Request) {
 
           controller.close();
         } catch (err: any) {
-          // Erreur globale du stream (hors agents)
-          const criticalError = `\n\n🚨 [SYSTEM ERROR]: ${err.message}`;
-          console.error(criticalError);
-          send(criticalError);
+          // --- MODIFICATION ICI AUSSI : Erreur globale ---
+          console.error("Stream error:", err);
+          send(`\n\n🚨 [SYSTEM ERROR]: ${err.message}`);
           controller.close();
         }
       },
@@ -227,4 +233,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-    }
+      }
