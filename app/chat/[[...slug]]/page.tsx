@@ -4121,8 +4121,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   </button> 
        
       </div>
-          <div className=" border cursor-pointer border-[#212122] rounded-[5px] p-1 ">
-            <Tally1 color="#212121" className="h-3 w-1" />
+          <div className="cursor-pointer">
+            <svg className="h-[20px] w-[20px] fill-[#212121]" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 7.25C2 5.45507 3.45507 4 5.25 4H18.75C20.5449 4 22 5.45507 22 7.25V16.75C22 18.5449 20.5449 20 18.75 20H5.25C3.45508 20 2 18.5449 2 16.75V7.25ZM9.5 5.5V18.5H18.75C19.7165 18.5 20.5 17.7165 20.5 16.75V7.25C20.5 6.2835 19.7165 5.5 18.75 5.5H9.5ZM8 5.5H5.25C4.2835 5.5 3.5 6.2835 3.5 7.25V16.75C3.5 17.7165 4.2835 18.5 5.25 18.5H8V5.5Z" fill="#ffffff"/>
+</svg>
           </div>
         </div>
 
@@ -4773,15 +4775,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     >
       <RotateCw size={17} className="h-4 w-4" />
     </Button>
-    <Button
+    <button
       variant="ghost"
       size="icon"
       className="h-7 w-7 flex-shrink-0 text-[#212121] "
       disabled={!previewUrl}
       onClick={() => window.open(previewUrl, "_blank")}
     >
-        <ArrowUpRight size={22} className="fill-[#212121]" />
-    </Button>
+        <ArrowUpRight size={23}  />
+    </button>
     </div>
 </div>
 
