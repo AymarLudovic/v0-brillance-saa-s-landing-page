@@ -4113,7 +4113,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <div className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-7 md:w-7 md:h-7 lg:w-8 lg:h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[12px] shrink-0">
         <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full hidden object-contain" />
     </div>
-    <span className=" w-full white-space-none leading-22">
+    <span className="white-space-none w-[22ch] truncate">
       {currentProject?.name || "Select a Project"}
     </span>
     <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
@@ -4170,7 +4170,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {/* Affichage de l'icône de l'assistant */}
       {msg.role === "assistant" && (
         <div className="flex items-center gap-3">
-          <div className="h-3 w-3 bg-[#37322F] rounded-full flex items-center justify-center">
+          <div className="h-3 w-3 bg-[#37322F] rounded-full hidden items-center justify-center">
             <svg className="h-[18px] w-[18px] hidden" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="12" cy="12" r="10" />
             </svg>
@@ -4738,7 +4738,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   `}
 >
     <div className="w-[60%] h-[93%] rounded-[12px] flex items-center gap-1 bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
-        <Tally1 className="h-4 w-4 rotate-90" />
+        <Tally1 className="h-4 w-4 rotate-30" />
             <input
       type="text"
       value={iframeRoute}
@@ -4747,7 +4747,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         if (e.key === "Enter") handleNavigate()
       }}
       className="flex-grow bg-transparent w-full outline-none px-3 text-sm text-[#37322F] placeholder:text-[rgba(55,50,47,0.60)]"
-      placeholder=""
+      
     />
 
         <Button
