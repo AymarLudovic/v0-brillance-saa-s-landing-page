@@ -46,7 +46,7 @@ const readFileDeclaration: FunctionDeclaration = {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
+    const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan, antiPatternImages, vibeBoardImages } = body;
     const ai = new GoogleGenAI({ apiKey });
     const model = "gemini-3-flash-preview"; 
 
