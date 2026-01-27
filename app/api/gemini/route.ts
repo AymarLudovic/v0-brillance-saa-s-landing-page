@@ -41,37 +41,43 @@ const AGENTS = {
     name: "ARCHITECTE",
     icon: "🧠",
     prompt: `Tu es l'Architecte Technique Principal.
-    TON OBJECTIF : Analyser la demande et décider de la stratégie.
+    TON OBJECTIF : Analyser la demande utilisateur et décider de la stratégie.
     
-    IMPORTANT : Commence ta réponse par une ligne de "CLASSIFICATION" :
-    - Si c'est juste une discussion/explication : "CLASSIFICATION: CHAT_ONLY".
-    - Si c'est un petit fix/correction d'erreur précise : "CLASSIFICATION: FIX_ACTION".
-    - Si c'est une modification lourde ou nouvelle feature : "CLASSIFICATION: CODE_ACTION".
+    IMPORTANT : Tu dois commencer ta réponse par une ligne de "CLASSIFICATION" stricte :
+    - Si l'utilisateur veut juste discuter, poser une question ou demande une explication : Écris "CLASSIFICATION: CHAT_ONLY" puis réponds-lui.
+    - Si l'utilisateur a une erreur précise à corriger rapidement : Écris "CLASSIFICATION: FIX_ACTION" puis identifie l'erreur.
+    - Si l'utilisateur veut une modification de code, une nouvelle feature : Écris "CLASSIFICATION: CODE_ACTION" puis décris le plan technique.
     
-    RÈGLE : Ne répète JAMAIS la demande de l'utilisateur. Va droit au but.`,
+    MINI-INSTRUCTION : Ne répète JAMAIS la demande de l'utilisateur et ne reformule pas ce qui a déjà été dit dans l'historique. Ne génère PAS de code.`,
   },
   FIXER: {
     name: "FIXER",
     icon: "🛠️",
-    prompt: `Tu es l'Expert en Correction Rapide.
-    TON RÔLE : Appliquer la correction demandée immédiatement.
-    RÈGLE : Ne ré-explique pas le plan. Génère uniquement le code corrigé.`,
+    prompt: `Tu es l'Expert en correctifs rapides.
+    TON RÔLE : Appliquer la correction demandée sans passer par une analyse complexe.
+    MINI-INSTRUCTION : Ne répète pas l'analyse de l'Architecte. Génère UNIQUEMENT le code corrigé immédiatement.`,
   },
   BACKEND: {
     name: "BACKEND_DEV",
     icon: "⚙️",
-    prompt: `Tu es l'Expert Backend (Node.js/Next.js).
+    prompt: `Tu es l'Expert Backend (Node.js/Next.js API/DB).
+    TON RÔLE : Implémenter la logique serveur définie par l'Architecte.
     RÈGLES : 
-    - Si aucun changement backend n'est nécessaire, réponds UNIQUEMENT "NO_BACKEND_CHANGES".
-    - Ne répète pas ce que l'Architecte a dit. Génère uniquement le code.`,
+    - Si le plan de l'Architecte ne mentionne AUCUN changement backend, réponds simplement "NO_BACKEND_CHANGES".
+    - Sinon, génère EXCLUSIVEMENT le code serveur (API, DB).
+    - Ne touche PAS au Frontend.
+    MINI-INSTRUCTION : Ne répète JAMAIS le plan de l'Architecte, passe directement à l'écriture du code.`,
   },
   FRONTEND: {
     name: "FRONTEND_DEV",
     icon: "🎨",
     prompt: `Tu es l'Expert Frontend.
+    TON RÔLE : Implémenter l'interface utilisateur.
     RÈGLES :
+    - Connecte-toi aux APIs créées par l'agent Backend (si applicable).
+    - Si le Backend a dit "NO_BACKEND_CHANGES", utilise les APIs existantes ou mockées.
     - Génère le code complet.
-    - Ne fais pas de résumé du travail déjà effectué par les autres agents.`,
+    MINI-INSTRUCTION : Ne résume pas le travail des agents précédents, produis uniquement le code UI final.`,
   },
 };
 
@@ -87,42 +93,56 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey });
     const encoder = new TextEncoder();
 
+    // --- CONSTRUCTION DU CONTEXTE ---
     const buildBaseContents = (extraContext: string = "") => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
+
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
-        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[SYSTEME VISUEL : VIBE BOARD]" }] });
+        contents.push({
+          role: "user",
+          parts: [...(styleParts as any), { text: "[SYSTEME VISUEL : VIBE BOARD]" }],
+        });
       }
+
       if (extraContext) {
-        contents.push({ role: "user", parts: [{ text: `[CONTEXTE INTERNE] :\n${extraContext}` }] });
+        contents.push({
+          role: "user",
+          parts: [{ text: `[HISTORIQUE INTERNE DES AGENTS] :\n${extraContext}` }],
+        });
       }
+
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
         const parts: Part[] = [];
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
+
         if (i === history.length - 1 && role === "user") {
           uploadedImages?.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
           );
           uploadedFiles?.forEach((f: any) =>
-            parts.push({ inlineData: { data: f.base64Content, mimeType: "text/plain" }, text: `\n[Fichier: ${f.fileName}]` } as any)
+            parts.push({
+              inlineData: { data: f.base64Content, mimeType: "text/plain" },
+              text: `\n[Fichier existant: ${f.fileName}]`,
+            } as any)
           );
         }
         parts.push({ text: msg.content || " " });
         contents.push({ role, parts });
       });
+
       return contents;
     };
 
     const stream = new ReadableStream({
       async start(controller) {
-        // --- AMÉLIORATION : FONCTION SEND AVEC MASQUAGE ---
+        // --- AMÉLIORATION : FILTRAGE DES TAGS POUR L'UTILISATEUR ---
         const send = (txt: string) => {
-          // On retire les balises de classification pour l'utilisateur
-          const maskedTxt = txt.replace(/CLASSIFICATION:\s*[A-Z_]+|NO_BACKEND_CHANGES/gi, "");
-          if (maskedTxt) controller.enqueue(encoder.encode(maskedTxt));
+          const sanitized = txt.replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)|NO_BACKEND_CHANGES/gi, "");
+          if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
         let globalContextAccumulator = ""; 
@@ -162,38 +182,42 @@ export async function POST(req: Request) {
               }
             }
             if (batchBuffer.length > 0) send(batchBuffer);
+            
             return fullAgentOutput;
+
           } catch (e: any) {
             send(`\n[ERROR ${agent.name}]: ${e.message}`);
-            return "";
+            return `Error in ${agent.name}`;
           }
         }
 
         try {
-          // 1. L'ARCHITECTE ANALYSE
           const architectOutput = await runAgent("ARCHITECT");
           globalContextAccumulator += `\n[ARCHITECT DECISION]:\n${architectOutput}\n`;
 
-          // 2. ROUTAGE INTELLIGENT
           const isChatOnly = architectOutput.includes("CLASSIFICATION: CHAT_ONLY");
           const isFixAction = architectOutput.includes("CLASSIFICATION: FIX_ACTION");
 
           if (isChatOnly) {
-            // Fin directe
+            // Fin de la conversation
           } else if (isFixAction) {
             // --- AMÉLIORATION : FIX RAPIDE ---
-            await runAgent("FIXER", "Applique uniquement le correctif technique sans refaire d'analyse.");
+            await runAgent("FIXER", "Effectue le correctif demandé sans délai.");
           } else {
-            // PROCESSUS COMPLET
-            const backendOutput = await runAgent("BACKEND", "Ne répète pas le plan. Produis le code.");
+            const backendOutput = await runAgent("BACKEND", "Analyse le plan. Si rien, dis NO_BACKEND_CHANGES.");
             globalContextAccumulator += `\n[BACKEND RESULT]:\n${backendOutput}\n`;
 
             const noBackendWork = backendOutput.includes("NO_BACKEND_CHANGES");
-            await runAgent("FRONTEND", noBackendWork ? "Concentre-toi sur l'UI pure." : "Intègre le code backend ci-dessus.");
+            await runAgent("FRONTEND", 
+              noBackendWork 
+                ? "Le Backend n'a pas changé. Concentre-toi sur l'UI/UX."
+                : "Intègre le code backend ci-dessus."
+            );
           }
 
           controller.close();
         } catch (globalError: any) {
+          send(`\n\n[SYSTEM CRITICAL ERROR]: ${globalError.message}`);
           controller.close();
         }
       },
@@ -205,4 +229,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Gemini Error: " + err.message }, { status: 500 });
   }
-  }
+    }
