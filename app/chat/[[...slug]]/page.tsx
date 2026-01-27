@@ -4734,7 +4734,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     ${activeTab === "preview" ? "flex" : "hidden"}
   `}
 >
-    <div className="w-[60%] h-full rounded-[10px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
+    <div className="w-[60%] h-12 rounded-[10px] justify-center bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
             <input
       type="text"
       value={iframeRoute}
@@ -4772,7 +4772,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       disabled={!previewUrl}
       onClick={() => window.open(previewUrl, "_blank")}
     >
-      <svg className="h-[16px] w-[16px] flex-shrink-0 mx-1"  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M838-65 720-183v89h-80v-226h226v80h-90l118 118-56 57ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 20-2 40t-6 40h-82q5-20 7.5-40t2.5-40q0-20-2.5-40t-7.5-40H654q3 20 4.5 40t1.5 40q0 20-1.5 40t-4.5 40h-80q3-20 4.5-40t1.5-40q0-20-1.5-40t-4.5-40H386q-3 20-4.5 40t-1.5 40q0 20 1.5 40t4.5 40h134v80H404q12 43 31 82.5t45 75.5q20 0 40-2.5t40-4.5v82q-20 2-40 4.5T480-80ZM170-400h136q-3-20-4.5-40t-1.5-40q0-20 1.5-40t4.5-40H170q-5 20-7.5 40t-2.5 40q0 20 2.5 40t7.5 40Zm34-240h118q9-37 22.5-72.5T376-782q-55 18-99 54.5T204-640Zm172 462q-18-34-31.5-69.5T322-320H204q29 51 73 87.5t99 54.5Zm28-462h152q-12-43-31-82.5T480-798q-26 36-45 75.5T404-640Zm234 0h118q-29-51-73-87.5T584-782q18 34 31.5 69.5T638-640Z"/></svg>
+      <svg className="h-[16px] w-[16px] flex-shrink-0 mx-1"  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#212121"><path d="M838-65 720-183v89h-80v-226h226v80h-90l118 118-56 57ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 20-2 40t-6 40h-82q5-20 7.5-40t2.5-40q0-20-2.5-40t-7.5-40H654q3 20 4.5 40t1.5 40q0 20-1.5 40t-4.5 40h-80q3-20 4.5-40t1.5-40q0-20-1.5-40t-4.5-40H386q-3 20-4.5 40t-1.5 40q0 20 1.5 40t4.5 40h134v80H404q12 43 31 82.5t45 75.5q20 0 40-2.5t40-4.5v82q-20 2-40 4.5T480-80ZM170-400h136q-3-20-4.5-40t-1.5-40q0-20 1.5-40t4.5-40H170q-5 20-7.5 40t-2.5 40q0 20 2.5 40t7.5 40Zm34-240h118q9-37 22.5-72.5T376-782q-55 18-99 54.5T204-640Zm172 462q-18-34-31.5-69.5T322-320H204q29 51 73 87.5t99 54.5Zm28-462h152q-12-43-31-82.5T480-798q-26 36-45 75.5T404-640Zm234 0h118q-29-51-73-87.5T584-782q18 34 31.5 69.5T638-640Z"/></svg>
     </Button>
     </div>
 </div>
@@ -4789,7 +4789,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     if (!currentProject) return alert("Select a project first");
     setIsGitHubOpen(true);
   }}
-                className="flex items-center justify-center rounded-[8px] border border-[rgba(55,50,47,0.12)] bg-[#ffffff] p-2  transition-colors h-8 w-8"
+                className="flex items-center justify-center rounded-[8px] border border-[rgba(55,50,47,0.12)] bg-[#ffffff] p-2  transition-colors h-10 w-10"
                 aria-label="GitHub"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#37322F" className="h-[18px] w-[18px]" viewBox="0 0 16 16">
@@ -4895,16 +4895,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
               {/* SECTION PRÉVISUALISATION (IFRAME) */}
-              <div className="flex-grow bg-[#f6f4ec] w-full border rounded-[20px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
+              <div className="flex-grow bg-[#f6f4ec] w-full  rounded-[20px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full  overflow-hidden"
                    style={{ height: `calc(100% - ${logsHeight}%)` }}>
                 {previewUrl ? (
                   <iframe ref={iframeRef} src={previewUrl} className="w-full h-full border-0" title="Sandbox Preview" />
                 ) : (
                   <div className="flex items-center justify-center h-full text-[#212121]">
                     <p className="flex flex-col gap-1">
-                     <div className="h-6 w-6 rounded-lg border-dotted border-[#f6f4ec]">
-                         <Eye className="h-4 w-4" />
-                     </div>
+                     
                         <svg
   width="300"
   height="240"
