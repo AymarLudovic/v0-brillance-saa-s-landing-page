@@ -4030,7 +4030,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
   )}
         
-        <div className={`flex items-center gap-1 px-6 h-12 flex-shrink-0 border-[rgba(55,50,47,0.12)] ${!currentProject ? "absolute top-0 left-0 w-full z-20" : ""}`}
+        <div className={`flex items-center gap-1 justify-between px-6 h-12 flex-shrink-0 border-[rgba(55,50,47,0.12)] ${!currentProject ? "absolute top-0 left-0 w-full z-20" : ""}`}
             >
 
 
@@ -4121,8 +4121,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   </button> 
        
       </div>
-          <div className=" border border-[rgba(55,50,47,0.6)] rounded-[6px] p-1 ">
-            <Tally1 className="h-1 w-1" />
+          <div className=" border cursor-pointer border-[#212122] rounded-[3px] p-1 ">
+            <Tally1 color="#212121" className="h-1 w-1" />
           </div>
         </div>
 
@@ -4758,7 +4758,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       className="h-7 w-auto flex-shrink-0 text-[#212121] hover:text-[#37322F]"
       onClick={handleNavigate}
     >
-      <ArrowRight size={17} className="h-4 w-4" />
+      <ArrowRight  className="h-4 w-6" />
     </Button>
     </div>
    
