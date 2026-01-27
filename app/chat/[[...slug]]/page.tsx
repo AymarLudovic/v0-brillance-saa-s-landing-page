@@ -566,6 +566,25 @@ const saveProjectToIDB = async (project: any) => {
   });
 };
 
+const getRandomImages = (images: string[], count: number) => {
+  return images.sort(() => 0.5 - Math.random()).slice(0, count);
+};
+
+const getImagesFromStore = async (storeName: string): Promise<string[]> => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open("VibeCodingDB", 1);
+    request.onsuccess = (e: any) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(storeName)) return resolve([]);
+      const tx = db.transaction(storeName, "readonly");
+      const req = tx.objectStore(storeName).getAll();
+      req.onsuccess = () => resolve(req.result.map((item: any) => item.content));
+    };
+    request.onerror = () => resolve([]);
+  });
+};
+
+
 const getAllProjectsFromIDB = async (): Promise<any[]> => {
   const db = await initDB();
   return new Promise((resolve, reject) => {
@@ -3047,17 +3066,35 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-        res = await fetch("/api/gemini", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-          body: JSON.stringify({ 
+
+        // Récupération et Logging
+    const allBad = await getImagesFromStore("bad_examples");
+    const allGood = await getImagesFromStore("good_examples");
+    
+    const antiPatternImages = getRandomImages(allBad, 4);
+    const vibeBoardImages = getRandomImages(allGood, 4);
+
+    // addLog est ta fonction pour logger dans l'UI
+    if (typeof addLog === "function") {
+        addLog(`Images récupérées: ${antiPatternImages.length} Toxiques, ${vibeBoardImages.length} Divines. Total envoyé: 8.`);
+    }
+
+    res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
+        body: JSON.stringify({ 
             history: historyForApi, 
             currentProjectFiles,
             uploadedImages,
             uploadedFiles,
-            currentPlan
-          }),
-        });
+            currentPlan,
+            antiPatternImages,
+            vibeBoardImages
+        }),
+    });
+            
+
+
 
         if (!res.ok || !res.body) throw new Error(`API failed: ${res.statusText}`);
         apiCallSuccessful = true;
