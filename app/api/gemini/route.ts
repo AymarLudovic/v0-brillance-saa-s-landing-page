@@ -82,7 +82,9 @@ const AGENTS = {
     prompt: `Expert Frontend (React / Tailwind).
     Ta tâche : Implémenter l'interface utilisateur selon le plan de l'Architecte.
     - Si le Backend a fourni du code, utilise-le.
-    - Concentre-toi sur le code JSX/TSX.`,
+    - Concentre-toi sur le code JSX/TSX.
+    -Ne génère plus aucun plan car l'architecte à déjà fait sortir un plan integral, ton rôle est juste d'implementer tout le UI, page et éléments UI UX lister selon le plan de l'architecte`,
+  
   },
 };
 
