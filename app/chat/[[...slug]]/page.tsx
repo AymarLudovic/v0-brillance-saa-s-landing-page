@@ -3948,7 +3948,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {Object.entries(groupedProjects).map(([date, projectList]) => (
         <div key={date}>
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 pl-2">
-            {date}
+            
           </h3>
           
           <div className="space-y-1">
