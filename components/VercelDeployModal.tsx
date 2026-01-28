@@ -227,7 +227,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     {/* Formulaire */}
                     <div className="space-y-4 mb-6 shrink-0">
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-[#666] ml-1">Vercel access token</label>
+                            <label className="text-[18px] font-bold text-[#212121] ml-1">Publish your app</label>
                             <div className="h-8 bg-[#f7f4ed] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
                                 <input 
                                     type="password"
@@ -279,13 +279,13 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     <div className="flex items-center w-full gap-1">
                       <button 
                         onClick={onClose}
-                        className="h-[32px] w-[50%] rounded-[10px] bg-[#f7f4ed]">
+                        className="h-[30px] w-[50%] rounded-[8px] bg-[#f7f4ed]">
                         cancel
                       </button>
                        <button 
                         onClick={handleDeploy}
                         disabled={isDeploying || !token}
-                        className={`h-[32px] w-[50%] shrink-0 rounded-[12px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
+                        className={`h-[30px] w-[50%] shrink-0 rounded-[8px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
                             isDeploying 
                             ? 'bg-[#1a1a1a] text-[#444] cursor-not-allowed' 
                             : 'bg-[#1e52f1] text-black hover:bg-gray-200 shadow-white/5'
