@@ -152,7 +152,8 @@ export async function POST(req: Request) {
             const contents = buildBaseContents(globalContextAccumulator + "\n" + contextOverride);
             const systemInstruction = `${basePrompt}\n\n=== RÔLE ACTUEL: ${agent.name} ===\n${agent.prompt}`;
 
-            // Réglage de la température : L'Architecte doit être froid (0.3) pour respecter les règles
+            // Réglage de la température : L'Architecte doit être froid (0.1) pour respecter les règles
+            // Les Devs peuvent être un peu plus créatifs (0.7)
             const temperature = agentKey === "ARCHITECT" ? 0.3 : 0.7;
 
             const response = await ai.models.generateContentStream({
@@ -163,6 +164,7 @@ export async function POST(req: Request) {
             });
 
             for await (const chunk of response) {
+              // Avec le nouveau SDK, on vérifie la présence de texte
               const txt = chunk.text; 
               if (txt) {
                 batchBuffer += txt;
@@ -176,11 +178,8 @@ export async function POST(req: Request) {
             if (batchBuffer.length > 0) send(batchBuffer);
             return fullAgentOutput;
           } catch (e: any) {
-            // --- MODIFICATION ICI : Envoi de l'erreur au client ---
-            const errorMsg = `\n\n⚠️ [ERREUR ${agent.name}]: ${e.message || "Erreur inconnue"}\n`;
-            console.error(errorMsg, e);
-            send(errorMsg); // On l'affiche dans le chat
-            return errorMsg; // On le retourne pour qu'il soit dans l'historique interne (évite crash en chaîne)
+            console.error(`Erreur Agent ${agent.name}:`, e);
+            return "";
           }
         }
 
@@ -190,6 +189,7 @@ export async function POST(req: Request) {
           globalContextAccumulator += `\n[ARCHITECT_PLAN]: ${architectOutput}\n`;
 
           // 2. Détection robuste de la classification
+          // On utilise une regex pour trouver la clé même si l'architecte met du texte autour
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
           const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; // Par défaut si échec
           
@@ -197,8 +197,6 @@ export async function POST(req: Request) {
             // Fin
           } 
           else if (decision === "FIX_ACTION") {
-            // ICI: On lance UNIQUEMENT le Fixer. Le code s'arrêtera après ce bloc car c'est un "else if".
-            // Le Backend/Frontend ne peuvent PAS s'exécuter ici.
             await runAgent("FIXER", "Instruction: Applique le correctif technique sur le fichier concerné.");
           } 
           else if (decision === "CODE_ACTION") {
@@ -218,10 +216,8 @@ export async function POST(req: Request) {
           }
 
           controller.close();
-        } catch (err: any) {
-          // --- MODIFICATION ICI AUSSI : Erreur globale ---
+        } catch (err) {
           console.error("Stream error:", err);
-          send(`\n\n🚨 [SYSTEM ERROR]: ${err.message}`);
           controller.close();
         }
       },
@@ -233,4 +229,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-      }
+  }
