@@ -3869,14 +3869,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
 
     
-                    <Button
-              variant="ghost"
-              onClick={goToDashboard}
-              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] bg-[#1e52f1] text-[#fff] h-[32px] w-auto rounded-[10px] flex items-center justify-center p-1 px-2"
-            >
-                        <Plus size={18} />
-             New chat
-            </Button>
+                    
 
     <div className="w-full p-2 pl-2 flex flex-col gap-2 h-auto mb-4 mt-3">
         <div className="w-full bg-[#f6f6f4] h-[32px] p-1 border border-[rgba(55,50,47,0.08)] mb-2 rounded-[8px] p-[2px] pl-2 hidden justify-between items-center">
@@ -3930,7 +3923,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 <Search className="h-4 w-4 text-black shrink-0" />
                 <p className="font-semibold text-sm">Search</p>
             </div>
-
+<Button
+              variant="ghost"
+              onClick={goToDashboard}
+              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] bg-[#1e52f1] text-[#fff] h-[32px] w-auto rounded-[10px] flex items-center justify-center p-1 px-2"
+            >
+                        <Plus size={18} />
+             New chat
+            </Button>
 
 
             <div className="flex flex-col h-full">
@@ -3944,7 +3944,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         </div>
     </div>
 
-    <div className="flex-1 overflow-y-auto px-2 space-y-6">
+    <div className="hidden overflow-y-auto px-2 space-y-6">
       {Object.entries(groupedProjects).map(([date, projectList]) => (
         <div key={date}>
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 pl-2">
@@ -4028,7 +4028,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           }}
         >
           {/* Partie Gauche : Icone + Nom */}
-          <div className="flex w-[90%] items-center gap-2 flex-1 overflow-hidden">
+          <div className="flex w-full h-[32px] mb-1 items-center gap-2 flex-1 overflow-hidden">
             <div className="w-5 h-5 hidden shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
               <img
                 src="/horizon-icon.svg"
