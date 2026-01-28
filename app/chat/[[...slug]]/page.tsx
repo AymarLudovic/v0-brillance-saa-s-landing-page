@@ -3872,12 +3872,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     <Button
               variant="ghost"
               onClick={goToDashboard}
-              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] bg-[#1e52f1] text-[#fff] h-[35px] w-auto rounded-[12px] flex items-center justify-center p-1 px-2"
+              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] bg-[#1e52f1] text-[#fff] h-[32px] w-auto rounded-[10px] flex items-center justify-center p-1 px-2"
             >
-             Go to Dashboard
+                        <Plus size={18} />
+             New chat
             </Button>
 
-    <div className="w-full p-2 pl-2 flex flex-col gap-2 h-auto mb-2">
+    <div className="w-full p-2 pl-2 flex flex-col gap-2 h-auto mb-4 mt-3">
         <div className="w-full bg-[#f6f6f4] h-[32px] p-1 border border-[rgba(55,50,47,0.08)] mb-2 rounded-[8px] p-[2px] pl-2 hidden justify-between items-center">
         <div className="flex items-center gap-1">
                  <p className="font-semibold text-sm">Aymar Ludovic</p>
@@ -3885,7 +3886,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         <ChevronsUpDown className="h-4 w-4 text-[rgba(55,50,47,0.6)] shrink-0" />
     </div>
         {/* Item Home */}
-        <div className="w-full h-[30px] bg-[#f6f6f4] rounded-[10px] p-[2px] flex justify-between items-center">
+        <div className="w-full h-[32px] bg-[#f6f6f4] rounded-[10px] p-[2px] flex justify-between items-center">
             <div className="flex items-center gap-1">
                   <svg 
   stroke="#000" 
@@ -3922,7 +3923,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         </div> {/* <--- AJOUTÉ : Fermeture de l'item Home */}
 
         {/* Item Search */}
-        <div className="w-full h-[30px] rounded-[10px] p-[2px] flex justify-between items-center">
+        <div
+        onClick={() => setIsSearchOpen(true)}
+        className="w-full h-[32px] rounded-[10px] p-[2px] flex justify-between items-center">
             <div className="flex items-center gap-1">
                 <Search className="h-4 w-4 text-black shrink-0" />
                 <p className="font-semibold text-sm">Search</p>
@@ -3934,7 +3937,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     <div className="mb-4 px-2">
         <div 
             onClick={() => setIsSearchOpen(true)}
-            className="flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors bg-[#f6f3ec] hover:bg-[#ebe8e0] text-gray-600"
+            className="hidden items-center gap-2 p-2 rounded-md cursor-pointer transition-colors bg-[#f6f3ec] hover:bg-[#ebe8e0] text-gray-600"
         >
             <Search className="h-4 w-4 text-black shrink-0" />
             <p className="font-semibold text-sm text-black">Search</p>
@@ -4026,14 +4029,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         >
           {/* Partie Gauche : Icone + Nom */}
           <div className="flex w-[90%] items-center gap-2 flex-1 overflow-hidden">
-            <div className="w-5 h-5 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
+            <div className="w-5 h-5 hidden shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
               <img
                 src="/horizon-icon.svg"
                 alt="Horizon"
                 className="w-full h-full hidden object-contain"
               />
             </div>
-            <span className="text-lg text-[#212121]">{p.name}</span>
+            <span className="text-sm text-[#212121]">{p.name}</span>
           </div>
 
           {/* Partie Droite : Bouton Supprimer (Visible au survol uniquement) */}
