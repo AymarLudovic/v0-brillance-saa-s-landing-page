@@ -3863,15 +3863,22 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         
         <div>
             <span>
-                <PanelLeftClose size={16} />
+                
             </span>
         </div>
     </div>
 
     
+                    <Button
+              variant="ghost"
+              onClick={goToDashboard}
+              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] bg-[#1e52f1] text-[#fff] h-[35px] w-auto rounded-[12px] flex items-center justify-center p-1 px-2"
+            >
+             Go to Dashboard
+            </Button>
 
     <div className="w-full p-2 pl-2 flex flex-col gap-2 h-auto mb-2">
-        <div className="w-full bg-[#f6f6f4] h-[32px] p-1 border border-[rgba(55,50,47,0.08)] mb-2 rounded-[8px] p-[2px] pl-2 flex justify-between items-center">
+        <div className="w-full bg-[#f6f6f4] h-[32px] p-1 border border-[rgba(55,50,47,0.08)] mb-2 rounded-[8px] p-[2px] pl-2 hidden justify-between items-center">
         <div className="flex items-center gap-1">
                  <p className="font-semibold text-sm">Aymar Ludovic</p>
         </div>
@@ -3997,7 +4004,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   {Object.entries(groupedProjects).map(([date, groupProjects]) => (
     <div key={date} className="flex flex-col gap-1 mb-2">
       {/* SÉPARATEUR DE DATE */}
-      <h3 className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm py-2 px-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+      <h3 className="sticky top-0 z-10  backdrop-blur-sm py-2 px-2 text-sm font-semibold text-[#111] tracking-wider">
         {date}
       </h3>
 
@@ -4023,10 +4030,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               <img
                 src="/horizon-icon.svg"
                 alt="Horizon"
-                className="w-full h-full object-contain"
+                className="w-full h-full hidden object-contain"
               />
             </div>
-            <span className="">{p.name}</span>
+            <span className="text-lg text-[#212121]">{p.name}</span>
           </div>
 
           {/* Partie Droite : Bouton Supprimer (Visible au survol uniquement) */}
@@ -4050,13 +4057,6 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         </div>
       )}
 
-                    <Button
-              variant="ghost"
-              onClick={goToDashboard}
-              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] text-[#888] h-[35px] w-auto rounded-[10px] flex items-center justify-center p-1 px-2"
-            >
-             Go to Dashboard
-            </Button>
         
        <div className="flex items-center">
             
