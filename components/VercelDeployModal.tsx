@@ -207,7 +207,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                 <div className="flex-1 p-6 flex flex-col overflow-y-auto custom-scrollbar">
                     
                     {/* Header */}
-                    <div className="flex justify-between items-start bg-[#111] rounded-[12px] mb-6 p-4 border border-white/5 shrink-0">
+                    <div className="hidden justify-between items-start bg-[#111] rounded-[12px] mb-6 p-4 border border-white/5 shrink-0">
                         <div>
                             <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#000] border border-white/10 text-[10px] font-medium text-[#e4e4e4] mb-2 tracking-wider">
                                 Vercel SDK
