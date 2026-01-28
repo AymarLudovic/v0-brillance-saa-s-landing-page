@@ -3923,14 +3923,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 <Search className="h-4 w-4 text-black shrink-0" />
                 <p className="font-semibold text-sm">Search</p>
             </div>
-<Button
-              variant="ghost"
-              onClick={goToDashboard}
-              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] bg-[#1e52f1] text-[#fff] h-[32px] w-auto rounded-[10px] flex items-center justify-center p-1 px-2"
-            >
-                        <Plus size={18} />
-             New chat
-            </Button>
+
 
 
             <div className="flex flex-col h-full">
@@ -3986,7 +3979,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
 </div> 
 
-      
+      <Button
+              variant="ghost"
+              onClick={goToDashboard}
+              className="ml-2 hover:bg-[rgba(55,50,47,0.90)] bg-[#1e52f1] text-[#fff] h-[32px] w-auto rounded-[10px] flex items-center justify-center p-1 px-2"
+            >
+                        <Plus size={18} />
+             New chat
+            </Button>
        <div className="w-full h-[40%] p-2  flex flex-col gap-1 mt-2">
         <div className="w-full flex items-center justify-between">
 
@@ -4015,7 +4015,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {groupProjects.map((p) => (
         <div
           key={p.id}
-          className={`group w-full p-2 text-sm hover:bg-[#F7F5F3] rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
+          className={`group w-full p-1 h-[32px] text-sm hover:bg-[#F7F5F3] rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
             currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : ""
           }`}
           // LOGIQUE CLÉ : Click sur le conteneur pour charger
