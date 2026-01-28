@@ -3871,7 +3871,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     
                     
 
-    <div className="w-full p-2 pl-2 flex flex-col gap-2 h-auto mb-4 mt-3">
+    <div className="w-full p-2 pl-2 flex flex-col gap-2 h-auto mb-2 mt-3">
         <div className="w-full bg-[#f6f6f4] h-[32px] p-1 border border-[rgba(55,50,47,0.08)] mb-2 rounded-[8px] p-[2px] pl-2 hidden justify-between items-center">
         <div className="flex items-center gap-1">
                  <p className="font-semibold text-sm">Aymar Ludovic</p>
@@ -3987,7 +3987,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                         <Plus size={18} />
              New chat
             </Button>
-       <div className="w-full h-[40%] p-2  flex flex-col gap-1 mt-2">
+       <div className="w-full h-[40%] p-2  flex flex-col gap-1 mt-4">
         <div className="w-full flex items-center justify-between">
 
                <p className="font-semibold text-[16px] ">Projects</p>
@@ -3995,7 +3995,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               variant="ghost"
               size="icon"
               onClick={() => setIsModalOpen(true)}
-              className=" gap-[2px] hover:bg-[rgba(55,50,47,0.90)] text-[#888] underline-dashed h-[35px] w-auto rounded-[10px] flex items-center justify-center p-1"
+              className=" gap-[2px] hover:bg-[rgba(55,50,47,0.90)] text-[#888] underline-dashed h-[35px] w-auto rounded-[10px] hidden items-center justify-center p-1"
             >
               <Plus className="h-4 w-4" />
              Add new app
@@ -4015,7 +4015,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       {groupProjects.map((p) => (
         <div
           key={p.id}
-          className={`group w-full p-1 h-[32px] text-sm hover:bg-[#F7F5F3] rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
+          className={`group w-full p-1 h-[32px] text-sm hover:bg-[#F7F5F3] rounded-[10px] flex items-center justify-between cursor-pointer transition-colors ${
             currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : ""
           }`}
           // LOGIQUE CLÉ : Click sur le conteneur pour charger
@@ -4036,7 +4036,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 className="w-full h-full hidden object-contain"
               />
             </div>
-            <span className="text-sm text-[#212121]">{p.name}</span>
+            <span className="text-sm w-[19] truncate text-[#212121]">{p.name}</span>
           </div>
 
           {/* Partie Droite : Bouton Supprimer (Visible au survol uniquement) */}
