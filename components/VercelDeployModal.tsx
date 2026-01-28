@@ -254,7 +254,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     </div>
 
                     {/* Console Output (Hauteur fixée) */}
-                    <div className="h-[90px] shrink-0 bg-[#f7f4ed] rounded-[10px] border border-white/5 p-3 font-mono text-[10px] overflow-y-auto mb-6 custom-scrollbar">
+                    <div className="h-[90px] shrink-0 bg-[#f7f4ed] rounded-[10px] border border-white/5 p-3  text-[10px] overflow-y-auto mb-6 custom-scrollbar">
                         
                         <div className="space-y-1">
                             {logs.length === 0 && (
@@ -276,10 +276,16 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     </div>
 
                     {/* Bouton Action */}
-                    <button 
+                    <div className="flex items-center w-full gap-1">
+                      <button 
+                        onClick={onClose}
+                        className="h-[32px] w-[50%] rounded-[10px] bg-[#f7f4ed]">
+                        cancel
+                      </button>
+                       <button 
                         onClick={handleDeploy}
                         disabled={isDeploying || !token}
-                        className={`w-full h-11 shrink-0 rounded-[12px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
+                        className={`h-[32px] w-[50%] shrink-0 rounded-[12px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
                             isDeploying 
                             ? 'bg-[#1a1a1a] text-[#444] cursor-not-allowed' 
                             : 'bg-[#1e52f1] text-black hover:bg-gray-200 shadow-white/5'
@@ -291,6 +297,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                             <>Start Deployment <Zap size={16} fill="currentColor" /></>
                         )}
                     </button>
+                    </div>
 
                     {/* Footer Links */}
                     <div className="mt-4 flex flex-col items-center gap-1 shrink-0 pb-2">
