@@ -195,7 +195,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
     return (
         
             
-            <div className="fixed top-5 right-12 z-[9999] w-[420px] max-h-[95vh] bg-[#fff] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="fixed top-5 right-12 z-[9999] w-[420px] max-h-[45vh] bg-[#fff] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
                 
                 <button 
                     onClick={onClose}
