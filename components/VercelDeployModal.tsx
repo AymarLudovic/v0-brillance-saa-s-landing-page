@@ -228,19 +228,19 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     <div className="space-y-4 mb-6 shrink-0">
                         <div className="space-y-1.5">
                             <label className="text-[24px] font-bold text-[#212121] ml-1">Publish your app</label>
-                            <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
+                            <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
                                 <input 
                                     type="password"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
-                                    placeholder="your Vercel token...."
-                                    className="bg-transparent border-none outline-none text-xs text-white w-full placeholder:text-[#444]"
+                                    placeholder="Your vercel token...."
+                                    className="bg-transparent border border-[rgba(55,50,47,0.08)]  outline-none text-xs text-[#212121] w-full placeholder:text-[#444]"
                                 />
-                                {token && <Check size={14} className="text-green-500" />}
+                                {token && <Check size={18} className="text-black" />}
                             </div>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 hidden">
                             <label className="text-[10px] font-bold text-[#212121] ml-1">Project name</label>
                             <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3">
                                 <input 
