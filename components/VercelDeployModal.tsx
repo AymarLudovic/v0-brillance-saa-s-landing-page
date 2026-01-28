@@ -228,7 +228,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     <div className="space-y-4 mb-6 shrink-0">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-[#666] ml-1">Vercel access token</label>
-                            <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
+                            <div className="h-8 bg-[#f7f4ed] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
                                 <input 
                                     type="password"
                                     value={token}
@@ -254,10 +254,8 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     </div>
 
                     {/* Console Output (Hauteur fixée) */}
-                    <div className="h-[140px] shrink-0 bg-[#050505] rounded-xl border border-white/5 p-3 font-mono text-[10px] overflow-y-auto mb-6 custom-scrollbar">
-                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 text-[#444] tracking-tighter font-bold">
-                            <Terminal size={10} /> SDK Log Stream
-                        </div>
+                    <div className="h-[90px] shrink-0 bg-[#f7f4ed] rounded-[10px] border border-white/5 p-3 font-mono text-[10px] overflow-y-auto mb-6 custom-scrollbar">
+                        
                         <div className="space-y-1">
                             {logs.length === 0 && (
                                 <p className="text-[#333] italic">Ready to deploy...</p>
