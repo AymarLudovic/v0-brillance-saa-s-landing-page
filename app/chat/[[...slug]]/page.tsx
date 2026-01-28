@@ -4779,7 +4779,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     ${activeTab === "preview" ? "flex" : "hidden"}
   `}
 >
-    <div className="w-[60%] h-[82%] rounded-[12px] flex items-center gap-1 bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
+    <div className="w-[60%] h-[60%] rounded-[12px] flex items-center gap-1 bg-transparent gap-2 border border-[rgba(55,50,47,0.12)] p-1">
         
             <input
       type="text"
@@ -4788,7 +4788,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       onKeyDown={(e) => {
         if (e.key === "Enter") handleNavigate()
       }}
-      className="flex-grow bg-transparent w-full outline-none px-3 text-sm text-[#37322F] placeholder:select-none placeholder:text-[rgba(55,50,47,0.60)]"
+      className="flex-grow bg-transparent w-full h-full outline-none px-3 text-sm text-[#37322F] placeholder:select-none placeholder:text-[rgba(55,50,47,0.60)]"
       
     />
 
@@ -4811,7 +4811,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       className="h-7 w-7 flex-shrink-0 text-[#212121] hover:text-[#37322F]"
       onClick={handleReload}
     >
-      <RotateCw size={17} className="h-4 w-4" />
+      <RotateCw size={23} className="h-4 w-4" />
     </Button>
     <button
       variant="ghost"
