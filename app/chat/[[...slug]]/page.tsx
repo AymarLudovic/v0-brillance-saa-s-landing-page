@@ -4028,7 +4028,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           }}
         >
           {/* Partie Gauche : Icone + Nom */}
-          <div className="flex w-full h-[32px] mb-1 items-center gap-2 flex-1 overflow-hidden">
+          <div className="flex w-full h-[32px] pl-1 mb-1 items-center gap-1 justify-start overflow-hidden">
             <div className="w-5 h-5 hidden shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
               <img
                 src="/horizon-icon.svg"
@@ -4036,7 +4036,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 className="w-full h-full hidden object-contain"
               />
             </div>
-            <span className="text-sm w-[19] truncate text-[#212121]">{p.name}</span>
+            <span className="text-sm w-[19ch] truncate text-[#212121]">{p.name}</span>
           </div>
 
           {/* Partie Droite : Bouton Supprimer (Visible au survol uniquement) */}
