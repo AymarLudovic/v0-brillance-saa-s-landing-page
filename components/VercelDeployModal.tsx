@@ -195,7 +195,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
     return (
         
             
-            <div className="fixed top-5 right-12 z-[9999] w-[420px] max-h-[45vh] bg-[#fbfbf9] rounded-1xl border border-white/10 overflow-hidden  flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="fixed top-5 right-12 z-[9999] w-[420px] max-h-[45vh] bg-[#fbfbf9] rounded-[12px] border border-[rgba(55,50,47,0.08)]  overflow-hidden  flex flex-col animate-in zoom-in-95 duration-300">
                 
                 <button 
                     onClick={onClose}
@@ -228,7 +228,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     <div className="space-y-4 mb-6 shrink-0">
                         <div className="space-y-1.5">
                             <label className="text-[24px] font-bold text-[#212121] ml-1">Publish your app</label>
-                            <div className="h-8 bg-[#f7f4ed] rounded-[10px] border border-white/10 flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
+                            <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-white/30 transition-colors">
                                 <input 
                                     type="password"
                                     value={token}
@@ -241,8 +241,8 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-[#666] ml-1">Project name</label>
-                            <div className="h-10 bg-[#111] rounded-[10px] border border-white/10 flex items-center px-3">
+                            <label className="text-[10px] font-bold text-[#212121] ml-1">Project name</label>
+                            <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3">
                                 <input 
                                     type="text"
                                     readOnly
