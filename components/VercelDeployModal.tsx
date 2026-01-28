@@ -193,9 +193,9 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="absolute top-[200%] right-[40px] inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             
-            <div className="relative w-[420px] max-h-[95vh] bg-[#0a0a0a] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="relative w-[420px] max-h-[95vh] bg-[#fff] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
                 
                 <button 
                     onClick={onClose}
@@ -284,7 +284,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                         className={`w-full h-11 shrink-0 rounded-[12px] text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
                             isDeploying 
                             ? 'bg-[#1a1a1a] text-[#444] cursor-not-allowed' 
-                            : 'bg-white text-black hover:bg-gray-200 shadow-white/5'
+                            : 'bg-[#1e52f1] text-black hover:bg-gray-200 shadow-white/5'
                         }`}
                     >
                         {isDeploying ? (
