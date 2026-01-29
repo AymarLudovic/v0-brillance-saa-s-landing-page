@@ -227,7 +227,21 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     {/* Formulaire */}
                     <div className="space-y-4 mb-1 shrink-0">
                         <div className="space-y-1.5 w-full flex flex-col gap-1">
-                            <label className="text-[24px] font-bold text-[#212121] ml-1">Publish your app</label>
+                            <div className="w-full border-b border-[rgba(55,50,47,0.08)] py-[3px]">
+                              <p className="text-sm font-semibold text-[#212121] ml-1">Publish your app</p>
+                            </div>
+                          <div className="w-full border-b border-[rgba(55,50,47,0.08)] py-[3px]">
+                          <div className="h-7 bg-transparent w-full rounded-[8px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
+                                <input 
+                                    type="text"
+                                    value={token}
+                                    onChange={(e) => handleSaveToken(e.target.value)}
+                                    placeholder="Your vercel token...."
+                                    className="bg-transparent  border-[rgba(55,50,47,0.08)]  outline-none text-sm text-[#212121] w-full placeholder:text-[#444]"
+                                />
+                                {token && <Check size={18} className="text-black" />}
+                            </div>
+                        </div>
                           <div className="flex items-center w-full gap-1">
                       <button 
                         onClick={onClose}
@@ -250,16 +264,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                         )}
                     </button>
                     </div>
-                            <div className="h-8 bg-transparent rounded-[8px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
-                                <input 
-                                    type="password"
-                                    value={token}
-                                    onChange={(e) => handleSaveToken(e.target.value)}
-                                    placeholder="Your vercel token...."
-                                    className="bg-transparent  border-[rgba(55,50,47,0.08)]  outline-none text-xs text-[#212121] w-full placeholder:text-[#444]"
-                                />
-                                {token && <Check size={18} className="text-black" />}
-                            </div>
+                            
                         </div>
                        
                         <div className="space-y-1.5 hidden">
