@@ -230,14 +230,14 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                             <div className="w-full border-b border-[rgba(55,50,47,0.08)] py-[3px]">
                               <p className="text-sm font-semibold text-[#212121] ml-1">Publish your app</p>
                             </div>
-                          <div className="w-full border-b border-[rgba(55,50,47,0.08)] py-[3px]">
-                          <div className="h-7 bg-transparent w-full rounded-[8px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
+                          <div className="w-full h-6 border-b border-[rgba(55,50,47,0.08)] flex items-center justify-center">
+                          <div className="h-full bg-transparent w-full rounded-[8px] border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
                                 <input 
                                     type="text"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
                                     placeholder="Your vercel token...."
-                                    className="bg-transparent  border-[rgba(55,50,47,0.08)]  outline-none text-sm text-[#212121] w-full placeholder:text-[#444]"
+                                    className="bg-transparent h-full border-[rgba(55,50,47,0.08)]  outline-none text-sm text-[#212121] w-full placeholder:text-[#444]"
                                 />
                                 {token && <Check size={18} className="text-black" />}
                             </div>
