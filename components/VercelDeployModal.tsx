@@ -195,7 +195,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
     return (
         
             
-            <div className="fixed top-5 right-12 z-[9999] w-[320px] h-auto bg-[#fbfbf9] rounded-[16px] border border-[rgba(55,50,47,0.08)]  overflow-hidden  flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="fixed top-5 right-12 z-[9999] w-[390px] h-auto bg-[#fbfbf9] rounded-[16px] border border-[rgba(55,50,47,0.08)]  overflow-hidden  flex flex-col animate-in zoom-in-95 duration-300">
                 
                 <button 
                     onClick={onClose}
@@ -204,7 +204,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     <X size={14} />
                 </button>
 
-                <div className="flex-1 p-6 flex flex-col overflow-y-auto custom-scrollbar">
+                <div className="flex-1 p-1 flex flex-col overflow-y-auto custom-scrollbar">
                     
                     {/* Header */}
                     <div className="hidden justify-between items-start bg-[#111] rounded-[12px] mb-6 p-4 border border-white/5 shrink-0">
@@ -225,7 +225,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     </div>
 
                     {/* Formulaire */}
-                    <div className="space-y-4 mb-6 shrink-0">
+                    <div className="space-y-4 mb-1 shrink-0">
                         <div className="space-y-1.5 w-full flex flex-col gap-1">
                             <label className="text-[24px] font-bold text-[#212121] ml-1">Publish your app</label>
                           <div className="flex items-center w-full gap-1">
@@ -276,7 +276,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     </div>
 
                     {/* Console Output (Hauteur fixée) */}
-                    <div className="h-[90px] shrink-0 bg-[#f7f4ed] rounded-[10px] border border-white/5 p-3  text-[10px] overflow-y-auto mb-6 custom-scrollbar">
+                    <div className="h-[70px] shrink-0 bg-[#f7f4ed] w-[50%] rounded-[10px] border border-white/5 p-3  text-[10px] overflow-y-auto mb-1 custom-scrollbar">
                         
                         <div className="space-y-1">
                             {logs.length === 0 && (
