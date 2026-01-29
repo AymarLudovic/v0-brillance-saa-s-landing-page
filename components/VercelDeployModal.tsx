@@ -230,8 +230,8 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                             <div className="w-full border-b border-[rgba(55,50,47,0.08)] py-[3px]">
                               <p className="text-sm font-semibold text-[#212121] ml-1">Publish your app</p>
                             </div>
-                          <div className="w-full h-6 border-b border-[rgba(55,50,47,0.08)] flex items-center justify-center">
-                          <div className="h-full bg-transparent w-full rounded-[8px] border-[rgba(55,50,47,0.08)]  flex items-center justify-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
+                        
+                          <div className="h-full bg-transparent border-b w-full rounded-[8px] border-[rgba(55,50,47,0.08)]  flex items-center justify-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
                                 <input 
                                     type="password"
                                     value={token}
@@ -241,7 +241,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                                 />
                                 {token && <Check size={18} className="text-black" />}
                             </div>
-                        </div>
+                        
                           
                             
                         </div>
@@ -260,11 +260,11 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     </div>
 
                     {/* Console Output (Hauteur fixée) */}
-                    <div className="h-[70px] shrink-0 bg-transparent w-full  border border-[rgba(55,50,47,0.08)]  text-[10px] overflow-y-auto mb-1 custom-scrollbar">
+                    <div className="h-[70px] shrink-0 bg-transparent w-full   border-[rgba(55,50,47,0.08)]  text-[10px] overflow-y-auto mb-1 custom-scrollbar">
                         
-                        <div className="space-y-1">
+                        <div className="space-y-1 p-2">
                             {logs.length === 0 && (
-                                <p className="text-[#212121] text-sm font-semibold">Deployment logs...</p>
+                                <p className="text-[#888] text-xs font-semibold">Deployment logs...</p>
                             )}
                             {logs.map((log) => (
                                 <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-left-1">
@@ -316,7 +316,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                                 Open website <ArrowUp size={10} className="rotate-45" />
                             </a>
                         ) : (
-                            <div className="flex w-full justify-between border-t border-[rgba(55,50,47,0.08)] items-center gap-1">
+                            <div className="flex w-full pt-2 justify-between border-t border-[rgba(55,50,47,0.08)] items-center gap-1">
                                 <p className="text-[10px] text-[#444]">
                                     Use a <span className="text-[#666] font-bold">Personal Access Token</span>.
                                 </p>
