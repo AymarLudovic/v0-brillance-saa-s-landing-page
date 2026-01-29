@@ -195,13 +195,13 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
     return (
         
             
-            <div className="fixed top-5 right-12 z-[9999] w-[420px] max-h-[45vh] bg-[#fbfbf9] rounded-[12px] border border-[rgba(55,50,47,0.08)]  overflow-hidden  flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="fixed top-5 right-12 z-[9999] w-[320px] h-auto bg-[#fbfbf9] rounded-[16px] border border-[rgba(55,50,47,0.08)]  overflow-hidden  flex flex-col animate-in zoom-in-95 duration-300">
                 
                 <button 
                     onClick={onClose}
-                    className="absolute top-4 right-4 p-1.5 rounded-full bg-black/20 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-20"
+                    className="hidden top-4 right-4 p-1.5 rounded-full bg-black/20 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-20"
                 >
-                    <X size={18} />
+                    <X size={14} />
                 </button>
 
                 <div className="flex-1 p-6 flex flex-col overflow-y-auto custom-scrollbar">
