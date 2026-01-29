@@ -231,9 +231,9 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                               <p className="text-sm font-semibold text-[#212121] ml-1">Publish your app</p>
                             </div>
                           <div className="w-full h-6 border-b border-[rgba(55,50,47,0.08)] flex items-center justify-center">
-                          <div className="h-full bg-transparent w-full rounded-[8px] border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
+                          <div className="h-full bg-transparent w-full rounded-[8px] border-[rgba(55,50,47,0.08)]  flex items-center justify-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
                                 <input 
-                                    type="text"
+                                    type="password"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
                                     placeholder="Your vercel token...."
@@ -242,7 +242,47 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                                 {token && <Check size={18} className="text-black" />}
                             </div>
                         </div>
-                          <div className="flex items-center w-full gap-1">
+                          
+                            
+                        </div>
+                       
+                        <div className="space-y-1.5 hidden">
+                            <label className="text-[10px] font-bold text-[#212121] ml-1">Project name</label>
+                            <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3">
+                                <input 
+                                    type="text"
+                                    readOnly
+                                    value={currentProject?.name?.toLowerCase().replace(/\s+/g, '-')}
+                                    className="bg-transparent border-none outline-none text-xs text-[#666] w-full"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Console Output (Hauteur fixée) */}
+                    <div className="h-[70px] shrink-0 bg-transparent w-full  border border-[rgba(55,50,47,0.08)]  text-[10px] overflow-y-auto mb-1 custom-scrollbar">
+                        
+                        <div className="space-y-1">
+                            {logs.length === 0 && (
+                                <p className="text-[#212121] text-sm font-semibold">Deployment logs...</p>
+                            )}
+                            {logs.map((log) => (
+                                <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-left-1">
+                                    <span className={`shrink-0 ${
+                                        log.type === 'stderr' ? 'text-red-500' :
+                                        log.type === 'system' ? 'text-blue-500' : 'text-[#212121]'
+                                    }`}>•</span>
+                                    <span className={log.type === 'stderr' ? 'text-orange-400' : 'text-[#212121]'}>
+                                        {log.message}
+                                    </span>
+                                </div>
+                            ))}
+                            <div ref={logsEndRef} />
+                        </div>
+                    </div>
+
+                    {/* Bouton Action */}
+                    <div className="flex items-center w-full gap-1">
                       <button 
                         onClick={onClose}
                         className="h-[30px] w-[50%] rounded-[8px] bg-[#f7f4ed]">
@@ -264,46 +304,6 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                         )}
                     </button>
                     </div>
-                            
-                        </div>
-                       
-                        <div className="space-y-1.5 hidden">
-                            <label className="text-[10px] font-bold text-[#212121] ml-1">Project name</label>
-                            <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3">
-                                <input 
-                                    type="text"
-                                    readOnly
-                                    value={currentProject?.name?.toLowerCase().replace(/\s+/g, '-')}
-                                    className="bg-transparent border-none outline-none text-xs text-[#666] w-full"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Console Output (Hauteur fixée) */}
-                    <div className="h-[70px] shrink-0 bg-[#f7f4ed] w-[50%] rounded-[10px] border border-white/5 p-3  text-[10px] overflow-y-auto mb-1 custom-scrollbar">
-                        
-                        <div className="space-y-1">
-                            {logs.length === 0 && (
-                                <p className="text-[#333] italic">Ready to deploy...</p>
-                            )}
-                            {logs.map((log) => (
-                                <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-left-1">
-                                    <span className={`shrink-0 ${
-                                        log.type === 'stderr' ? 'text-red-500' :
-                                        log.type === 'system' ? 'text-blue-500' : 'text-[#666]'
-                                    }`}>•</span>
-                                    <span className={log.type === 'stderr' ? 'text-red-400' : 'text-gray-400'}>
-                                        {log.message}
-                                    </span>
-                                </div>
-                            ))}
-                            <div ref={logsEndRef} />
-                        </div>
-                    </div>
-
-                    {/* Bouton Action */}
-                    
 
                     {/* Footer Links */}
                     <div className="mt-4 flex flex-col items-center gap-1 shrink-0 pb-2">
@@ -316,7 +316,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                                 Open website <ArrowUp size={10} className="rotate-45" />
                             </a>
                         ) : (
-                            <div className="flex flex-col items-center gap-1">
+                            <div className="flex w-full justify-between border-t border-[rgba(55,50,47,0.08)] items-center gap-1">
                                 <p className="text-[10px] text-[#444]">
                                     Use a <span className="text-[#666] font-bold">Personal Access Token</span>.
                                 </p>
