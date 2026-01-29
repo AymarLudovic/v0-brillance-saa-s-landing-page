@@ -231,13 +231,13 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                               <p className="text-sm font-semibold text-[#212121] ml-1">Publish your app</p>
                             </div>
                         
-                          <div className="h-full bg-transparent border-b w-full rounded-[8px] border-[rgba(55,50,47,0.08)]  flex items-center justify-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
+                          <div className="py-2 bg-transparent border-b w-full rounded-[8px] border-[rgba(55,50,47,0.08)]  flex items-center justify-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
                                 <input 
                                     type="password"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
                                     placeholder="Your vercel token...."
-                                    className="bg-transparent h-full border-[rgba(55,50,47,0.08)]  outline-none text-sm text-[#212121] w-full placeholder:text-[#444]"
+                                    className="bg-transparent  border-[rgba(55,50,47,0.08)]  outline-none text-sm text-[#212121] w-full placeholder:text-[#444]"
                                 />
                                 {token && <Check size={18} className="text-black" />}
                             </div>
@@ -316,15 +316,15 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                                 Open website <ArrowUp size={10} className="rotate-45" />
                             </a>
                         ) : (
-                            <div className="flex w-full pt-2 justify-between border-t border-[rgba(55,50,47,0.08)] items-center gap-1">
-                                <p className="text-[10px] text-[#444]">
-                                    Use a <span className="text-[#666] font-bold">Personal Access Token</span>.
+                            <div className="flex w-full pl-2 pr-2 pt-2 justify-between border-t border-[rgba(55,50,47,0.08)] items-center gap-1">
+                                <p className="text-[12px] text-[#212121]">
+                                    Use a <span className="text-[#212121] font-bold">Personal Access Token</span>.
                                 </p>
                                 <a 
                                     href="https://vercel.com/account/tokens" 
                                     target="_blank" 
                                     rel="noopener noreferrer"
-                                    className="text-[10px] text-[#888] hover:text-white transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-4"
+                                    className="text-[12px] text-[#888] hover:text-white transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-4"
                                 >
                                     Get your Vercel token here
                                     <ArrowUp size={10} className="rotate-45" />
