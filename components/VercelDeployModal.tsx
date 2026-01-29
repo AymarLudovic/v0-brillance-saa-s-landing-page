@@ -226,8 +226,30 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
 
                     {/* Formulaire */}
                     <div className="space-y-4 mb-6 shrink-0">
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 w-full flex flex-col gap-1">
                             <label className="text-[24px] font-bold text-[#212121] ml-1">Publish your app</label>
+                          <div className="flex items-center w-full gap-1">
+                      <button 
+                        onClick={onClose}
+                        className="h-[30px] w-[50%] rounded-[8px] bg-[#f7f4ed]">
+                        cancel
+                      </button>
+                       <button 
+                        onClick={handleDeploy}
+                        disabled={isDeploying || !token}
+                        className={`h-[30px] w-[50%] shrink-0 rounded-[8px] text-sm font-bold transition-all  flex items-center justify-center gap-2 ${
+                            isDeploying 
+                            ? 'bg-[#1e52f1] text-[#fff] cursor-not-allowed' 
+                            : 'bg-[#1e52f1] text-white'
+                        }`}
+                    >
+                        {isDeploying ? (
+                            <><Loader size={16} className="animate-spin" /> Deploying...</>
+                        ) : (
+                            <>Deploy</>
+                        )}
+                    </button>
+                    </div>
                             <div className="h-8 bg-transparent rounded-[8px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
                                 <input 
                                     type="password"
@@ -239,7 +261,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                                 {token && <Check size={18} className="text-black" />}
                             </div>
                         </div>
-
+                       
                         <div className="space-y-1.5 hidden">
                             <label className="text-[10px] font-bold text-[#212121] ml-1">Project name</label>
                             <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3">
@@ -276,28 +298,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                     </div>
 
                     {/* Bouton Action */}
-                    <div className="flex items-center w-full gap-1">
-                      <button 
-                        onClick={onClose}
-                        className="h-[30px] w-[50%] rounded-[8px] bg-[#f7f4ed]">
-                        cancel
-                      </button>
-                       <button 
-                        onClick={handleDeploy}
-                        disabled={isDeploying || !token}
-                        className={`h-[30px] w-[50%] shrink-0 rounded-[8px] text-sm font-bold transition-all  flex items-center justify-center gap-2 ${
-                            isDeploying 
-                            ? 'bg-[#1e52f1] text-[#fff] cursor-not-allowed' 
-                            : 'bg-[#1e52f1] text-white'
-                        }`}
-                    >
-                        {isDeploying ? (
-                            <><Loader size={16} className="animate-spin" /> Deploying...</>
-                        ) : (
-                            <>Deploy</>
-                        )}
-                    </button>
-                    </div>
+                    
 
                     {/* Footer Links */}
                     <div className="mt-4 flex flex-col items-center gap-1 shrink-0 pb-2">
