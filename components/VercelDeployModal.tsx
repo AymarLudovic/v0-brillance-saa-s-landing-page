@@ -1,9 +1,19 @@
-"use client"
+"use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Zap, Loader, Check, Terminal, ArrowRight, ArrowUp } from 'lucide-react'; 
+import { 
+  X, 
+  Loader2, 
+  Check, 
+  Info, 
+  ChevronRight, 
+  Globe, 
+  ShieldCheck, 
+  Terminal,
+  ExternalLink
+} from 'lucide-react'; 
 
-// --- UTILITAIRES INDEXEDDB ---
+// --- UTILITAIRES INDEXEDDB (Tes utilitaires inchangés) ---
 const DB_NAME = 'StudioCodeDB';
 const DB_VERSION = 2; 
 
@@ -41,6 +51,7 @@ const getVercelTokenFromIDB = async (): Promise<string | null> => {
   });
 };
 
+// --- TYPES ---
 interface VercelDeployModalProps {
     currentProject: any;
     isOpen: boolean;
@@ -55,15 +66,21 @@ interface LogEntry {
 }
 
 export default function VercelDeployModal({ currentProject, isOpen, onClose }: VercelDeployModalProps) {
+    // États
     const [token, setToken] = useState('');
     const [isDeploying, setIsDeploying] = useState(false);
+    const [deployStatus, setDeployStatus] = useState<'idle' | 'deploying' | 'success' | 'error'>('idle');
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [deployUrl, setDeployUrl] = useState<string | null>(null);
-    const logsEndRef = useRef<HTMLDivElement>(null);
+    const [subdomain, setSubdomain] = useState('');
+    const [showLogs, setShowLogs] = useState(false); // Pour toggle l'affichage des logs
     
+    // Refs
+    const logsEndRef = useRef<HTMLDivElement>(null);
     const processedLogIds = useRef<Set<string>>(new Set());
     const pollingInterval = useRef<NodeJS.Timeout | null>(null);
 
+    // Initialisation
     useEffect(() => {
         const loadToken = async () => {
             try {
@@ -71,13 +88,26 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                 if (savedToken) setToken(savedToken);
             } catch (e) { console.error(e); }
         };
-        if (isOpen) loadToken();
+        
+        if (isOpen) {
+            loadToken();
+            // Nettoyer le nom du projet pour le sous-domaine par défaut
+            const cleanName = currentProject?.name?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'my-app';
+            setSubdomain(cleanName);
+            setDeployStatus('idle');
+            setLogs([]);
+            setDeployUrl(null);
+        }
+        
         return () => stopPolling();
-    }, [isOpen]);
+    }, [isOpen, currentProject]);
 
+    // Scroll logs
     useEffect(() => {
-        logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [logs]);
+        if (showLogs) {
+            logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [logs, showLogs]);
 
     const handleSaveToken = async (val: string) => {
         setToken(val);
@@ -97,6 +127,7 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
         setLogs(prev => [...prev, { id, timestamp, message, type }]);
     };
 
+    // --- LOGIQUE API (Identique à ton code mais adaptée au nouveau flow) ---
     const fetchLogsViaSDK = async (deploymentId: string) => {
         try {
             const res = await fetch('/api/deploy/logs', {
@@ -123,11 +154,13 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                             if (state === 'READY') {
                                 stopPolling();
                                 setIsDeploying(false);
+                                setDeployStatus('success');
                                 checkFinalStatus(deploymentId); 
                             }
-                            if (state === 'ERROR') {
+                            if (state === 'ERROR' || state === 'CANCELED') {
                                 stopPolling();
                                 setIsDeploying(false);
+                                setDeployStatus('error');
                                 addLog('❌ deployment failed', 'stderr');
                             }
                         }
@@ -154,10 +187,14 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = await res.json();
+            
+            // Construction de l'URL de production propre
+            // Vercel mappe automatiquement <project-name>.vercel.app à la dernière prod
             if (data.url) {
-                setDeployUrl(`https://${data.url}`);
-                addLog(`🚀 code successfully deployed to vercel!`, 'system');
-                setIsDeploying(false);
+                 // On préfère l'URL basée sur le nom du projet pour faire "pro"
+                 const prodUrl = `https://${subdomain}.vercel.app`;
+                 setDeployUrl(prodUrl);
+                 addLog(`🚀 code successfully deployed to: ${prodUrl}`, 'system');
             }
         } catch(e) {}
     };
@@ -165,8 +202,10 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
     const handleDeploy = async () => {
         if (!token) return;
         setIsDeploying(true);
+        setDeployStatus('deploying');
         setLogs([]);
         setDeployUrl(null);
+        setShowLogs(true); // On montre les logs au début
         processedLogIds.current.clear();
         addLog('starting deployment via SDK...', 'system');
 
@@ -175,165 +214,176 @@ export default function VercelDeployModal({ currentProject, isOpen, onClose }: V
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    projectName: currentProject.name,
+                    projectName: subdomain, // On utilise le nom édité par l'utilisateur
                     files: currentProject.files,
                     token: token
                 })
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed');
+            
             addLog(`project uploaded (id: ${data.deploymentId}). fetching logs...`, 'system');
             pollingInterval.current = setInterval(() => fetchLogsViaSDK(data.deploymentId), 1500);
         } catch (error: any) {
             addLog(`error: ${error.message}`, 'stderr');
             setIsDeploying(false);
+            setDeployStatus('error');
         }
     };
 
     if (!isOpen) return null;
 
     return (
-        
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-[10vh] bg-black/20 backdrop-blur-sm animate-in fade-in duration-200">
             
-            <div className="fixed top-5 right-12 z-[9999] w-[390px] h-auto bg-[#fbfbf9] rounded-[16px] border border-[rgba(55,50,47,0.08)]  overflow-hidden  flex flex-col animate-in zoom-in-95 duration-300">
+            {/* Main Modal Container - Style "Lovable" */}
+            <div className="w-[480px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col font-sans animate-in zoom-in-95 duration-200">
                 
-                <button 
-                    onClick={onClose}
-                    className="hidden top-4 right-4 p-1.5 rounded-full bg-black/20 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-20"
-                >
-                    <X size={14} />
-                </button>
+                {/* Close Button (Hidden but usable if needed) */}
+                <div className="absolute top-2 right-2 opacity-0 hover:opacity-100 transition-opacity">
+                    <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
+                        <X size={14} className="text-gray-600"/>
+                    </button>
+                </div>
 
-                <div className="flex-1 p-1 flex flex-col overflow-y-auto custom-scrollbar">
-                    
-                    {/* Header */}
-                    <div className="hidden justify-between items-start bg-[#111] rounded-[12px] mb-6 p-4 border border-white/5 shrink-0">
-                        <div>
-                            <div className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#000] border border-white/10 text-[10px] font-medium text-[#e4e4e4] mb-2 tracking-wider">
-                                Vercel SDK
-                            </div>
-                            <h2 className="text-xl font-bold text-white leading-tight">
-                                Vercel Deploy
-                            </h2>
-                            <p className="text-[11px] text-[#888] mt-1">
-                                Go live with the Vercel cloud.
-                            </p>
-                        </div>
-                        <div className="bg-[#0a0a0a] p-1 rounded-2xl border border-white/5 shadow-inner">
-                            <img className="h-[70px] w-[70px] object-contain" src="/3dicons-locker-dynamic-premium.png" alt="Icon" />
-                        </div>
-                    </div>
+                {/* --- CONTENT START --- */}
+                <div className="p-6 pb-4">
+                    <h2 className="text-xl font-bold text-gray-900 mb-6">Publish your app</h2>
 
-                    {/* Formulaire */}
-                    <div className="space-y-4 mb-1 shrink-0">
-                        <div className="space-y-1.5 w-full flex flex-col gap-1">
-                            <div className="w-full border-b border-[rgba(55,50,47,0.08)] py-[3px]">
-                              <p className="text-sm font-semibold text-[#212121] ml-1">Publish your app</p>
-                            </div>
+                    {/* Published URL Section */}
+                    <div className="mb-5">
+                        <div className="flex items-center gap-1.5 mb-2">
+                            <label className="text-[13px] font-semibold text-gray-900">Published URL</label>
+                            <Info size={13} className="text-gray-400" />
+                        </div>
                         
-                          <div className="py-2 bg-transparent border-b w-full rounded-[8px] border-[rgba(55,50,47,0.08)]  flex items-center justify-center px-3 gap-2 focus-within:border-[rgba(55,50,47,0.08)]  transition-colors">
+                        <p className="text-[13px] text-gray-500 mb-2.5">
+                            Enter your URL, or leave empty to auto-generate.
+                        </p>
+
+                        <div className="flex items-center w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
+                            {/* Editable Subdomain */}
+                            <input 
+                                type="text" 
+                                value={subdomain}
+                                onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                placeholder="project-name"
+                                disabled={isDeploying || deployStatus === 'success'}
+                                className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder:text-gray-300 min-w-0"
+                            />
+                            {/* Fixed Suffix */}
+                            <span className="text-sm text-gray-400 font-medium select-none truncate">
+                                .vercel.app
+                            </span>
+                        </div>
+
+                        {/* Token Input (Only if needed) - Intégré subtilement */}
+                        {!token && (
+                            <div className="mt-2 animate-in fade-in slide-in-from-top-1">
                                 <input 
                                     type="password"
                                     value={token}
                                     onChange={(e) => handleSaveToken(e.target.value)}
-                                    placeholder="Your vercel token...."
-                                    className="bg-transparent  border-[rgba(55,50,47,0.08)]  outline-none text-sm text-[#212121] w-full placeholder:text-[#444]"
+                                    placeholder="Paste your Vercel Token here..."
+                                    className="w-full h-9 px-3 bg-red-50 border border-red-200 rounded-lg text-xs text-gray-700 focus:outline-none focus:border-red-400 placeholder:text-red-300"
                                 />
-                                {token && <Check size={18} className="text-black" />}
+                                <p className="text-[10px] text-red-400 mt-1 ml-1">Token required to publish.</p>
                             </div>
-                        
-                          
-                            
+                        )}
+
+                        <button className="mt-3 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-medium rounded-md border border-gray-200 transition-colors">
+                            Add custom domain
+                        </button>
+                    </div>
+
+                    {/* Visibility Section */}
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[13px] font-semibold text-gray-900">Who can visit the URL?</span>
+                            <Info size={13} className="text-gray-400" />
                         </div>
-                       
-                        <div className="space-y-1.5 hidden">
-                            <label className="text-[10px] font-bold text-[#212121] ml-1">Project name</label>
-                            <div className="h-8 bg-transparent rounded-[10px] border border-[rgba(55,50,47,0.08)]  flex items-center px-3">
-                                <input 
-                                    type="text"
-                                    readOnly
-                                    value={currentProject?.name?.toLowerCase().replace(/\s+/g, '-')}
-                                    className="bg-transparent border-none outline-none text-xs text-[#666] w-full"
-                                />
+                        <div className="relative">
+                            <select disabled className="appearance-none bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium py-1.5 pl-3 pr-8 rounded-lg cursor-pointer focus:outline-none">
+                                <option>Anyone</option>
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                <ChevronRight size={14} className="rotate-90" />
                             </div>
                         </div>
                     </div>
 
-                    {/* Console Output (Hauteur fixée) */}
-                    <div className="h-[70px] shrink-0 bg-transparent w-full   border-[rgba(55,50,47,0.08)]  text-[10px] overflow-y-auto mb-1 custom-scrollbar">
-                        
-                        <div className="space-y-1 p-2">
+                    {/* Website Info Collapsible */}
+                    <button 
+                        onClick={() => setShowLogs(!showLogs)}
+                        className="w-full flex items-center justify-between py-3 border-t border-gray-100 group"
+                    >
+                        <span className="text-[13px] font-semibold text-gray-900">
+                            {isDeploying ? 'Deployment Logs' : 'Website info'}
+                        </span>
+                        <ChevronRight 
+                            size={16} 
+                            className={`text-gray-400 transition-transform duration-200 ${showLogs ? 'rotate-90' : ''}`} 
+                        />
+                    </button>
+
+                    {/* LOGS VIEW (Inside Website Info) */}
+                    {showLogs && (
+                        <div className="bg-[#111] rounded-lg p-3 mb-4 h-[150px] overflow-y-auto custom-scrollbar border border-gray-200 shadow-inner">
                             {logs.length === 0 && (
-                                <p className="text-[#888] text-xs font-semibold">Deployment logs...</p>
+                                <p className="text-gray-500 text-xs font-mono">Ready to deploy...</p>
                             )}
                             {logs.map((log) => (
-                                <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-left-1">
-                                    <span className={`shrink-0 ${
-                                        log.type === 'stderr' ? 'text-red-500' :
-                                        log.type === 'system' ? 'text-blue-500' : 'text-[#212121]'
-                                    }`}>•</span>
-                                    <span className={log.type === 'stderr' ? 'text-orange-400' : 'text-[#212121]'}>
-                                        {log.message}
+                                <div key={log.id} className="font-mono text-[10px] mb-1 flex items-start gap-2 break-all">
+                                    <span className="text-gray-600 shrink-0">{log.timestamp}</span>
+                                    <span className={`${
+                                        log.type === 'stderr' ? 'text-red-400' :
+                                        log.type === 'system' ? 'text-blue-400' : 'text-gray-300'
+                                    }`}>
+                                        {log.type === 'system' ? '> ' : ''}{log.message}
                                     </span>
                                 </div>
                             ))}
                             <div ref={logsEndRef} />
                         </div>
-                    </div>
+                    )}
+                </div>
 
-                    {/* Bouton Action */}
-                    <div className="flex items-center w-full gap-1">
-                      <button 
+                {/* Footer Actions */}
+                <div className="bg-gray-50/50 p-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                    <button 
                         onClick={onClose}
-                        className="h-[30px] w-[50%] rounded-[8px] bg-[#f7f4ed]">
-                        cancel
-                      </button>
-                       <button 
-                        onClick={handleDeploy}
-                        disabled={isDeploying || !token}
-                        className={`h-[30px] w-[50%] shrink-0 rounded-[8px] text-sm font-bold transition-all  flex items-center justify-center gap-2 ${
-                            isDeploying 
-                            ? 'bg-[#1e52f1] text-[#fff] cursor-not-allowed' 
-                            : 'bg-[#1e52f1] text-white'
-                        }`}
+                        className="px-4 py-2.5 text-[13px] font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-all shadow-sm flex-1 flex items-center justify-center gap-2"
                     >
-                        {isDeploying ? (
-                            <><Loader size={16} className="animate-spin" /> Deploying...</>
-                        ) : (
-                            <>Deploy</>
-                        )}
+                        {deployStatus === 'success' ? 'Close' : 'Review security'}
                     </button>
-                    </div>
 
-                    {/* Footer Links */}
-                    <div className="mt-4 flex flex-col items-center gap-1 shrink-0 pb-2">
-                        {deployUrl ? (
-                            <a 
-                                href={deployUrl} 
-                                target="_blank" 
-                                className="text-[10px] text-green-400 hover:text-green-300 transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-4"
-                            >
-                                Open website <ArrowUp size={10} className="rotate-45" />
-                            </a>
-                        ) : (
-                            <div className="flex w-full pl-2 pr-2 pt-2 justify-between border-t border-[rgba(55,50,47,0.08)] items-center gap-1">
-                                <p className="text-[12px] text-[#212121]">
-                                    Use a <span className="text-[#212121] font-bold">Personal Access Token</span>.
-                                </p>
-                                <a 
-                                    href="https://vercel.com/account/tokens" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-[12px] text-[#888] hover:text-white transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-4"
-                                >
-                                    Get your Vercel token here
-                                    <ArrowUp size={10} className="rotate-45" />
-                                </a>
-                            </div>
-                        )}
-                    </div>
+                    {deployStatus === 'success' ? (
+                         <a 
+                            href={deployUrl || '#'} 
+                            target="_blank"
+                            className="px-4 py-2.5 text-[13px] font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all shadow-sm flex-[2] flex items-center justify-center gap-2"
+                         >
+                            Visit Website <ExternalLink size={14} />
+                         </a>
+                    ) : (
+                        <button 
+                            onClick={handleDeploy}
+                            disabled={isDeploying || !token || !subdomain}
+                            className={`px-4 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all shadow-md flex-[2] flex items-center justify-center gap-2 ${
+                                isDeploying || !token 
+                                ? 'bg-blue-400 cursor-not-allowed' 
+                                : 'bg-[#2563eb] hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5'
+                            }`}
+                        >
+                            {isDeploying ? (
+                                <><Loader2 size={16} className="animate-spin" /> Deploying...</>
+                            ) : (
+                                'Publish'
+                            )}
+                        </button>
+                    )}
                 </div>
             </div>
-        
+        </div>
     );
-      }
+        }
