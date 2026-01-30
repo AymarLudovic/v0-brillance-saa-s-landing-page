@@ -97,7 +97,7 @@ const AGENTS = {
   FRONTEND: {
     name: "FRONTEND_DEV",
     icon: "🎨",
-    prompt: `Expert Frontend (React/Tailwind).
+    prompt: `Expert Frontend (React).
     Ta tâche : Créer l'UI de base selon le plan et le code Backend fourni.
     - Utilise le backend existant.
     - Structure les pages et composants.`,
@@ -109,8 +109,8 @@ const AGENTS = {
     prompt: `Expert UX/UI & Motion.
     Ta tâche : Sublimer l'interface précédente.
     - Améliore le design (Tailwind avancé).
-    - Ajoute des animations (Framer Motion / CSS).
-    - Ne casse pas la logique JS existante.`,
+    - Ajoute des animations (CSS).
+    - Ne casse pas la logique JSX/TSX existante.`,
   },
 
   FRONTEND_FINALIZER: {
