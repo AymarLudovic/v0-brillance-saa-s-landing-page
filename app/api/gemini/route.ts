@@ -37,7 +37,6 @@ const AGENTS = {
   ARCHITECT: {
     name: "ARCHITECTE",
     icon: "🧠",
-    // Prompt modifié pour être plus humain et planifier une seule fois
     prompt: `Tu es le CHEF DE PROJET TECHNIQUE (Architecte).
     
     TON RÔLE : Tu es un humain, un expert senior. Tu discutes avec l'utilisateur pour comprendre son besoin.
@@ -98,7 +97,7 @@ const AGENTS = {
   FRONTEND: {
     name: "FRONTEND_DEV",
     icon: "🎨",
-    prompt: `Expert Frontend ().
+    prompt: `Expert Frontend (React/Tailwind).
     Ta tâche : Créer l'UI de base selon le plan et le code Backend fourni.
     - Utilise le backend existant.
     - Structure les pages et composants.`,
@@ -109,9 +108,9 @@ const AGENTS = {
     icon: "✨",
     prompt: `Expert UX/UI & Motion.
     Ta tâche : Sublimer l'interface précédente.
-    - Améliore le design ( avancé).
-    - Ajoute des animations ( CSS).
-    - Ne casse pas la logique  existante.`,
+    - Améliore le design (Tailwind avancé).
+    - Ajoute des animations (Framer Motion / CSS).
+    - Ne casse pas la logique JS existante.`,
   },
 
   FRONTEND_FINALIZER: {
@@ -137,7 +136,7 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey });
     const encoder = new TextEncoder();
 
-    // Fonction de base pour l'historique pur (sans contexte interne injecté ici)
+    // Fonction de base pour l'historique pur
     const buildHistoryParts = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
@@ -175,10 +174,12 @@ export async function POST(req: Request) {
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
-        let globalContextAccumulator = ""; 
-
-        // --- C'EST ICI QUE LA MAGIE OPÈRE POUR ÉVITER LA BOUCLE ---
-        async function runAgent(agentKey: keyof typeof AGENTS, contextOverride: string = "") {
+        // --- MODIFICATION MAJEURE ICI : Gestion des contextes ---
+        async function runAgent(
+            agentKey: keyof typeof AGENTS, 
+            taskInput: string = "", 
+            useChatHistory: boolean = false // Nouveau paramètre crucial
+        ) {
           const agent = AGENTS[agentKey];
           send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
           
@@ -186,34 +187,34 @@ export async function POST(req: Request) {
           let batchBuffer = "";
 
           try {
-            // 1. On récupère l'historique de chat "pur"
-            const contents = buildHistoryParts();
+            let contents;
 
-            // 2. LOGIQUE CRUCIALE : Si ce n'est PAS l'architecte, on injecte le contexte APRES l'historique
-            // Cela force le modèle à agir sur le contexte immédiat et non sur le dernier message utilisateur
-            if (agentKey !== "ARCHITECT") {
-              const taskContext = `
-              [CONTEXTE TECHNIQUE INTERNE - NE PAS RÉPONDRE À L'UTILISATEUR MAIS À CETTE INSTRUCTION]
-              
-              HISTORIQUE DU PROJET JUSQU'À PRÉSENT :
-              ${globalContextAccumulator}
-              
-              ------------------------------------------
-              
-              TON INSTRUCTION IMMÉDIATE (${agent.name}) :
-              ${contextOverride}
-              
-              Agis UNIQUEMENT selon cette instruction. Ne salue pas l'utilisateur. Génère le code/contenu demandé.
-              `;
-              
-              // On ajoute cela comme un nouveau message "user" simulé à la fin
-              contents.push({ role: "user", parts: [{ text: taskContext }] });
+            if (useChatHistory) {
+                // 1. CAS ARCHITECTE : On charge tout l'historique de chat
+                contents = buildHistoryParts();
+                // On peut ajouter une instruction système finale si besoin, mais l'historique suffit souvent
+            } else {
+                // 2. CAS WORKERS (Backend, Frontend...) : ZERO Historique Chat
+                // On crée un tableau de contenu "frais". L'agent ne voit QUE sa tâche.
+                contents = [{ 
+                    role: "user", 
+                    parts: [{ text: `
+                    [INSTRUCTION TECHNIQUE STRICTE]
+                    Tu es un module d'exécution. Tu ne converses pas.
+                    
+                    DONNÉES D'ENTRÉE :
+                    ${taskInput}
+                    
+                    TA TÂCHE :
+                    Agis en tant que ${agent.name}. Exécute la tâche demandée sur les données d'entrée.
+                    `}] 
+                }];
             }
 
-            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ ACTUELLE: ${agent.name} ===\n${agent.prompt}`;
-
-            // Température : Basse pour Architecte/QA, Haute pour Créatifs
-            const temperature = (agentKey === "ARCHITECT" || agentKey.includes("FINALIZER") || agentKey.includes("AUDITOR")) ? 0.4 : 0.95;
+            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ: ${agent.name} ===\n${agent.prompt}`;
+            
+            // Température : 0.4 pour être précis si ce n'est pas du design créatif
+            const temperature = (agentKey === "FRONTEND_DESIGNER") ? 0.8 : 0.3;
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
@@ -243,9 +244,8 @@ export async function POST(req: Request) {
         }
 
         try {
-          // --- 1. ARCHITECTE (Seul à voir l'historique comme une conversation normale) ---
-          const architectOutput = await runAgent("ARCHITECT");
-          globalContextAccumulator += `\n[PLAN_ARCHITECTE]: ${architectOutput}\n`;
+          // --- 1. ARCHITECTE (C'est le seul qui a useChatHistory = true) ---
+          const architectOutput = await runAgent("ARCHITECT", "", true);
 
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
           const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; 
@@ -256,46 +256,46 @@ export async function POST(req: Request) {
           } 
           
           else if (decision === "FIX_ACTION") {
-            await runAgent("FIXER", "Instruction: Corrige le fichier fourni par l'utilisateur.");
+            // Le Fixer a besoin de contexte, on peut lui laisser l'historique ou lui passer le fichier
+            await runAgent("FIXER", "Corrige le fichier selon la demande.", true);
             controller.close();
             return;
           } 
           
           else if (decision === "CODE_ACTION") {
-            // --- SÉQUENCE STRICTE DE CODE ---
-            // À partir d'ici, runAgent injecte le contexte à la FIN, empêchant la boucle
+            // --- SÉQUENCE STRICTE DE CODE (WATERFALL) ---
+            // Tous les agents ci-dessous ont useChatHistory = false (par défaut)
+            // Ils ne voient PAS "Bonjour je veux..." de l'utilisateur.
 
-            // Backend 1
-            const backend1 = await runAgent("BACKEND", "Instruction: Basé sur le plan Architecte, génère le code serveur V1.");
+            // Backend 1 : Reçoit le Plan
+            const backend1 = await runAgent("BACKEND", `PLAN TECHNIQUE:\n${architectOutput}`);
             
-            // Backend 2 (Reviewer) - Reçoit le code V1
+            // Backend 2 : Reçoit Code V1
             const backend2 = await runAgent("BACKEND_REVIEWER", 
-              `Code V1 : ${backend1}\n\nInstruction: Analyse, complète et corrige le code V1 pour qu'il colle parfaitement au plan.`
+              `CONTEXTE:\nPlan Architecte: ${architectOutput}\n\nCODE A REVOIR:\n${backend1}`
             );
             
-            // Backend 3 (Auditor) - Reçoit le code V2
+            // Backend 3 : Reçoit Code V2
             const backend3 = await runAgent("BACKEND_AUDITOR", 
-              `Code V2 : ${backend2}\n\nInstruction: Validation finale technique. Nettoie le code pour le front.`
+               `CODE A VALIDER:\n${backend2}`
             );
-            
-            globalContextAccumulator += `\n[BACKEND_FINAL]: ${backend3}\n`;
             
             const noBackend = backend3.includes("NO_BACKEND_CHANGES");
+            const finalBackendCode = noBackend ? "Aucun changement Backend." : backend3;
 
-            // Frontend 1
-            const frontend1 = await runAgent("FRONTEND", noBackend
-              ? "Instruction: Backend inchangé. Génère l'UI V1 selon le plan."
-              : "Instruction: Utilise le [BACKEND_FINAL] ci-dessus. Génère l'UI V1 (Structure)."
+            // Frontend 1 : Reçoit Backend Final + Plan
+            const frontend1 = await runAgent("FRONTEND", 
+               `PLAN:\n${architectOutput}\n\nBACKEND DISPONIBLE:\n${finalBackendCode}`
             );
 
-            // Frontend 2 (Designer) - Reçoit UI V1
+            // Frontend 2 : Reçoit UI V1
             const frontend2 = await runAgent("FRONTEND_DESIGNER", 
-              `UI V1 : ${frontend1}\n\nInstruction: Transforme cette UI V1 en UI Premium (Design, Animations). Ne change pas la logique.`
+               `CODE UI BRUT:\n${frontend1}`
             );
 
-            // Frontend 3 (Finalizer) - Reçoit UI V2
+            // Frontend 3 : Reçoit UI V2
             await runAgent("FRONTEND_FINALIZER", 
-              `UI Designée : ${frontend2}\n\nInstruction: Vérifie les liens, les types et finalise le code pour production.`
+               `CODE UI DESIGNÉ:\n${frontend2}`
             );
 
             controller.close();
@@ -314,4 +314,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-}
+      }
