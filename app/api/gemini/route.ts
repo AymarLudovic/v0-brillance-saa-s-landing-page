@@ -32,95 +32,115 @@ const readFileDeclaration: FunctionDeclaration = {
   },
 };
 
-// --- DEFINITION DES AGENTS ---
+// --- DEFINITION DES AGENTS AVEC INSTRUCTIONS RENFORCÉES ---
 const AGENTS = {
   ARCHITECT: {
     name: "ARCHITECTE",
     icon: "🧠",
     prompt: `Tu es le CHEF DE PROJET TECHNIQUE (Architecte).
     
-    TON RÔLE : Tu es un humain, un expert senior. Tu discutes avec l'utilisateur pour comprendre son besoin.
-    
     RÈGLES D'OR :
-    1. ⛔ TU NE CODES JAMAIS. C'est interdit. Pas de balises de code.
-    2. Ton ton est professionnel, empathique et direct.
-    3. Si l'utilisateur veut créer quelque chose, tu dois sortir un PLAN.
+    1. Commence ta réponse par : "En tant que ARCHITECTE..."
+    2. ⛔ TU NE CODES JAMAIS.
+    3. Si demande de création -> PLAN D'ACTION PRÉCIS.
     
-    FORMAT DE SORTIE (Si demande de création) :
+    FORMAT DE SORTIE :
     CLASSIFICATION: CODE_ACTION
-    
     Plan d'exécution :
-    1. Backend : [Détails techniques précis]
-    2. Frontend : [Détails UI/UX précis]
+    1. Backend : [Détails API/DB]
+    2. Frontend : [Détails UX/UI]
     
-    Si l'utilisateur dit juste "Bonjour" ou pose une question simple :
-    CLASSIFICATION: CHAT_ONLY
-    [Ta réponse normale]`,
+    Sinon : CLASSIFICATION: CHAT_ONLY`,
   },
   
   FIXER: {
     name: "FIXER",
     icon: "🛠️",
-    prompt: `Expert Correcteur. Tu reçois un fichier et une instruction. Renvoie uniquement le code corrigé complet. Pas de markdown inutile.`,
+    prompt: `Expert Correcteur. 
+    1. Commence par "En tant que FIXER..."
+    2. Renvoie uniquement le code corrigé.`,
   },
 
-  // --- CHAINE BACKEND ---
+  // --- CHAINE BACKEND (STRICTE) ---
   BACKEND: {
     name: "BACKEND_DEV",
     icon: "⚙️",
     prompt: `Expert Backend (Next.js / Node).
-    Ta tâche : Lire le plan et implémenter le SERVEUR.
-    - Si le plan ne demande que du visuel, réponds : "NO_BACKEND_CHANGES".
-    - Sinon, fournis le code API/Server Actions.`,
+    
+    INSTRUCTION OBLIGATOIRE : Commence par "En tant que BACKEND_DEV..."
+    
+    PERIMÈTRE STRICT :
+    ✅ Fichiers autorisés : /app/api/*, Server Actions, /lib/*, /db/*, /context/* (Logique).
+    ⛔ INTERDIT : Ne touche JAMAIS aux composants UI, pages.tsx (rendu), ou CSS.
+    
+    Ta tâche : Lire le plan et implémenter la logique serveur pure.
+    Si le plan est purement visuel, réponds : "NO_BACKEND_CHANGES".`,
   },
 
   BACKEND_REVIEWER: {
     name: "BACKEND_REVIEWER",
     icon: "🔍",
-    prompt: `Expert Backend Senior (Review).
-    Ta tâche : Analyser le code précédent et le comparer au Plan de l'Architecte.
-    - COMPLÈTE le code manquant.
-    - CORRIGE les erreurs.
-    - Renvoie TOUT le code backend (l'ancien corrigé + le nouveau).`,
+    prompt: `Expert Backend Senior.
+    
+    INSTRUCTION OBLIGATOIRE : Commence par "En tant que BACKEND_REVIEWER..."
+    
+    Ta tâche : Optimiser le code Backend fourni.
+    - Vérifie la sécurité et les performances.
+    - NE TOUCHE PAS AU FRONTEND.
+    - Renvoie tout le code backend complet.`,
   },
 
   BACKEND_AUDITOR: {
     name: "BACKEND_AUDITOR",
     icon: "🛡️",
-    prompt: `Validateur Final Backend.
-    Ta tâche : Validation finale avant envoi au front.
-    - Vérifie types, imports, sécurité.
+    prompt: `Validateur Backend.
+    
+    INSTRUCTION OBLIGATOIRE : Commence par "En tant que BACKEND_AUDITOR..."
+    
+    Ta tâche : Validation finale avant envoi à l'équipe Front.
+    - Vérifie qu'aucun code UI (React Components) n'a fuité ici.
     - Renvoie le code final propre.`,
   },
 
-  // --- CHAINE FRONTEND ---
+  // --- CHAINE FRONTEND (CRÉATIVE & PURE CSS) ---
   FRONTEND: {
     name: "FRONTEND_DEV",
     icon: "🎨",
     prompt: `Expert Frontend (React).
-    Ta tâche : Créer l'UI de base selon le plan et le code Backend fourni.
-    - Utilise le backend existant.
-    - Structure les pages et composants.`,
+    
+    INSTRUCTION OBLIGATOIRE : Commence par "En tant que FRONTEND_DEV..."
+    
+    RÈGLES CRITIQUES :
+    1. ⛔ INTERDICTION FORMELLE D'UTILISER TAILWIND CSS.
+    2. Utilise du CSS Classique (styles.css) ou CSS Modules.
+    3. Tu es un EXÉCUTANT. Ne fais pas de nouveau plan. Suis le plan de l'Architecte.
+    4. Intègre le code Backend fourni (Server Actions/API).`,
   },
 
   FRONTEND_DESIGNER: {
     name: "FRONTEND_UX",
     icon: "✨",
-    prompt: `Expert UX/UI & Motion.
-    Ta tâche : Sublimer l'interface précédente.
-    - Améliore le design (Tailwind avancé).
-    - Ajoute des animations (CSS).
-    - Ne casse pas la logique JSX/TSX existante.`,
+    prompt: `Directeur Artistique & Motion Designer.
+    
+    INSTRUCTION OBLIGATOIRE : Commence par "En tant que FRONTEND_UX..."
+    
+    TON OBJECTIF : L'EFFET "WOW".
+    - Sois EXTRÊMEMENT CRÉATIF. Prends des risques visuels.
+    - ⛔ PAS DE TAILWIND. Utilise du CSS Pur avancé (Gradients, Glassmorphism, Animations keyframes).
+    - Ne casse pas la logique JS, mais sublime le rendu visuel.`,
   },
 
   FRONTEND_FINALIZER: {
     name: "FRONTEND_QA",
     icon: "✅",
     prompt: `Intégrateur Final.
-    Ta tâche : Vérification finale et mise en production.
-    - Vérifie que tous les liens et boutons fonctionnent.
-    - Vérifie qu'il ne manque aucune page du plan.
-    - Renvoie le code UI FINAL complet.`,
+    
+    INSTRUCTION OBLIGATOIRE : Commence par "En tant que FRONTEND_QA..."
+    
+    Ta tâche :
+    - Vérifie que tout est fonctionnel.
+    - Assemble le CSS et le JSX.
+    - Renvoie le code UI FINAL complet prêt pour la production.`,
   },
 };
 
@@ -131,7 +151,7 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages } = body;
+    const { history, uploadedImages, allReferenceImages } = body;
 
     const ai = new GoogleGenAI({ apiKey });
     const encoder = new TextEncoder();
@@ -140,7 +160,6 @@ export async function POST(req: Request) {
     const buildHistoryParts = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // Images de référence
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -148,13 +167,11 @@ export async function POST(req: Request) {
         contents.push({ role: "user", parts: [...(styleParts as any), { text: "[STYLE REFERENCE]" }] });
       }
       
-      // Historique de conversation
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
         
-        // Ajout des images uniquement au dernier message utilisateur réel
         if (i === history.length - 1 && role === "user") {
           uploadedImages?.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
@@ -174,11 +191,11 @@ export async function POST(req: Request) {
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
-        // --- MODIFICATION MAJEURE ICI : Gestion des contextes ---
+        // --- LOGIQUE D'EXÉCUTION DES AGENTS ---
         async function runAgent(
             agentKey: keyof typeof AGENTS, 
             taskInput: string = "", 
-            useChatHistory: boolean = false // Nouveau paramètre crucial
+            useChatHistory: boolean = false 
         ) {
           const agent = AGENTS[agentKey];
           send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
@@ -190,31 +207,34 @@ export async function POST(req: Request) {
             let contents;
 
             if (useChatHistory) {
-                // 1. CAS ARCHITECTE : On charge tout l'historique de chat
+                // ARCHITECTE : Historique complet
                 contents = buildHistoryParts();
-                // On peut ajouter une instruction système finale si besoin, mais l'historique suffit souvent
             } else {
-                // 2. CAS WORKERS (Backend, Frontend...) : ZERO Historique Chat
-                // On crée un tableau de contenu "frais". L'agent ne voit QUE sa tâche.
+                // WORKERS : Contexte Isolé (Pas de pollution)
                 contents = [{ 
                     role: "user", 
                     parts: [{ text: `
                     [INSTRUCTION TECHNIQUE STRICTE]
-                    Tu es un module d'exécution. Tu ne converses pas.
-                    
-                    DONNÉES D'ENTRÉE :
+                    CONTEXTE ENTRANT :
                     ${taskInput}
                     
-                    TA TÂCHE :
-                    Agis en tant que ${agent.name}. Exécute la tâche demandée sur les données d'entrée.
+                    TA MISSION :
+                    Agis en tant que ${agent.name}.
+                    Respecte scrupuleusement tes contraintes (Backend vs Frontend).
+                    Présente-toi ("En tant que...") et exécute.
                     `}] 
                 }];
             }
 
             const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ: ${agent.name} ===\n${agent.prompt}`;
             
-            // Température : 0.4 pour être précis si ce n'est pas du design créatif
-            const temperature = (agentKey === "FRONTEND_DESIGNER") ? 0.8 : 0.3;
+            // --- GESTION FINE DE LA TEMPÉRATURE ---
+            let temperature = 0.5; // Défaut
+            
+            if (agentKey.includes("BACKEND")) temperature = 0.2; // Très rigoureux, pas d'hallucination
+            if (agentKey === "ARCHITECT") temperature = 0.3; // Stable pour le plan
+            if (agentKey === "FRONTEND_DEV") temperature = 0.5; // Équilibré pour la structure
+            if (agentKey === "FRONTEND_DESIGNER") temperature = 0.95; // MAX CRÉATIVITÉ pour le CSS/Anim
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
@@ -244,7 +264,7 @@ export async function POST(req: Request) {
         }
 
         try {
-          // --- 1. ARCHITECTE (C'est le seul qui a useChatHistory = true) ---
+          // --- 1. ARCHITECTE ---
           const architectOutput = await runAgent("ARCHITECT", "", true);
 
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
@@ -256,44 +276,41 @@ export async function POST(req: Request) {
           } 
           
           else if (decision === "FIX_ACTION") {
-            // Le Fixer a besoin de contexte, on peut lui laisser l'historique ou lui passer le fichier
             await runAgent("FIXER", "Corrige le fichier selon la demande.", true);
             controller.close();
             return;
           } 
           
           else if (decision === "CODE_ACTION") {
-            // --- SÉQUENCE STRICTE DE CODE (WATERFALL) ---
-            // Tous les agents ci-dessous ont useChatHistory = false (par défaut)
-            // Ils ne voient PAS "Bonjour je veux..." de l'utilisateur.
+            // --- WATERFALL STRICTE ---
 
-            // Backend 1 : Reçoit le Plan
-            const backend1 = await runAgent("BACKEND", `PLAN TECHNIQUE:\n${architectOutput}`);
+            // Backend 1
+            const backend1 = await runAgent("BACKEND", `PLAN TECHNIQUE VALIDÉ:\n${architectOutput}`);
             
-            // Backend 2 : Reçoit Code V1
+            // Backend 2
             const backend2 = await runAgent("BACKEND_REVIEWER", 
-              `CONTEXTE:\nPlan Architecte: ${architectOutput}\n\nCODE A REVOIR:\n${backend1}`
+              `PLAN:\n${architectOutput}\n\nCODE BACKEND V1:\n${backend1}`
             );
             
-            // Backend 3 : Reçoit Code V2
+            // Backend 3
             const backend3 = await runAgent("BACKEND_AUDITOR", 
-               `CODE A VALIDER:\n${backend2}`
+               `CODE BACKEND V2:\n${backend2}`
             );
             
             const noBackend = backend3.includes("NO_BACKEND_CHANGES");
-            const finalBackendCode = noBackend ? "Aucun changement Backend." : backend3;
+            const finalBackendCode = noBackend ? "Aucun changement Backend requis." : backend3;
 
-            // Frontend 1 : Reçoit Backend Final + Plan
+            // Frontend 1 (Structure)
             const frontend1 = await runAgent("FRONTEND", 
-               `PLAN:\n${architectOutput}\n\nBACKEND DISPONIBLE:\n${finalBackendCode}`
+               `PLAN:\n${architectOutput}\n\nBACKEND FINALISÉ (API/ACTIONS):\n${finalBackendCode}`
             );
 
-            // Frontend 2 : Reçoit UI V1
+            // Frontend 2 (Design & Wow Effect)
             const frontend2 = await runAgent("FRONTEND_DESIGNER", 
-               `CODE UI BRUT:\n${frontend1}`
+               `CODE UI STRUCTUREL:\n${frontend1}`
             );
 
-            // Frontend 3 : Reçoit UI V2
+            // Frontend 3 (QA & Finalisation)
             await runAgent("FRONTEND_FINALIZER", 
                `CODE UI DESIGNÉ:\n${frontend2}`
             );
