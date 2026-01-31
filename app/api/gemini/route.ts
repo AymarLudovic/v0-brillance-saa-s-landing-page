@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, Type, FunctionDeclaration, Part } from "@google/genai";
-import { basePrompt } from "@/lib/prompt"; 
+import { basePrompt } from "@/lib/prompt";
+// Assure-toi d'avoir installé ce package: npm install package-json
+import packageJson from 'package-json';
 
 const BATCH_SIZE = 128;
 const MODEL_ID = "gemini-3-flash-preview"; 
@@ -13,6 +15,8 @@ interface Message {
   mentionedFiles?: string[];
 }
 
+// --- UTILITAIRES ---
+
 function getMimeTypeFromBase64(dataUrl: string) {
   const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
   return match ? match[1] : "application/octet-stream";
@@ -20,6 +24,24 @@ function getMimeTypeFromBase64(dataUrl: string) {
 
 function cleanBase64Data(dataUrl: string) {
   return dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+}
+
+// Fonction pour extraire les imports du code généré
+function extractImports(code: string): string[] {
+  const regex = /from\s+['"]([^'"]+)['"]/g;
+  const imports = new Set<string>();
+  let match;
+  while ((match = regex.exec(code)) !== null) {
+    const lib = match[1];
+    // On exclut les imports relatifs (./, ../, @/) et les modules node natifs
+    if (!lib.startsWith(".") && !lib.startsWith("/") && !lib.startsWith("@/") && 
+        !['fs', 'path', 'os', 'util', 'crypto', 'stream', 'http', 'https', 'zlib'].includes(lib)) {
+       // Cas spécial pour les sous-modules (ex: lucide-react/icons) -> on garde juste le package
+       const pkgName = lib.startsWith("@") ? lib.split("/").slice(0, 2).join("/") : lib.split("/")[0];
+       imports.add(pkgName);
+    }
+  }
+  return Array.from(imports);
 }
 
 const readFileDeclaration: FunctionDeclaration = {
@@ -52,10 +74,8 @@ const AGENTS = {
     
     Sinon : CLASSIFICATION: CHAT_ONLY
     Pour de simple correction d'erreurs ou des demandes spécifiques de l'utilisateur sur son projet
-    utilise le format de sortie CLASSIFICATION: FIX_ACTION l'agent fixer va s'occuper de faire la modif. Oui en effet il y a plusieurs agents après toi qui se charge de coder ce que tu planifies ce sont les 
-    builders car en effet tu es l'architecte, celui qui fait le plan, et ce n'est pas à toi de rédiger un code quelconque ni créé aucun fichier les autres agents vont s'en occuper.
-    `,
-    
+    utilise le format de sortie CLASSIFICATION: FIX_ACTION l'agent fixer va s'occuper de faire la modif. 
+    Tu es l'architecte, celui qui fait le plan, et ce n'est pas à toi de rédiger un code quelconque ni créer aucun fichier, les autres agents (Builders) vont s'en occuper.`,
   },
   
   FIXER: {
@@ -64,10 +84,9 @@ const AGENTS = {
     prompt: `Expert Correcteur. 
     1. Commence par "En tant que FIXER..."
     2. Renvoie uniquement le code corrigé.
-    Ne simplifie pas le fichier que tu dois corriger car en effet il y a plusieurs agents qui ont travaillé sur ce code, tu dois le reprendre exactement comme tel ligne par ligne juste en corrigeant les erreurs reçus ou en implementant la requête de l'utilisateur. 
-    Il y a plusieurs agents coordonnées.
-    `,
-    
+    Ne simplifie pas le fichier que tu dois corriger car en effet il y a plusieurs agents qui ont travaillé sur ce code.
+    Tu dois le reprendre exactement comme tel ligne par ligne juste en corrigeant les erreurs reçues ou en implémentant la requête de l'utilisateur.
+    Attention : Ne détruis pas le travail des autres agents.`,
   },
 
   // --- CHAINE BACKEND (STRICTE) ---
@@ -82,7 +101,7 @@ const AGENTS = {
     ✅ Fichiers autorisés : /app/api/*, Server Actions, /lib/*, /db/*, /context/* (Logique).
     ⛔ INTERDIT : Ne touche JAMAIS aux composants UI, pages.tsx (rendu), ou CSS.
     
-    Ta tâche : Lire le plan et implémenter la logique serveur pure.
+    Ta tâche : Lire le plan + les contraintes utilisateur et implémenter la logique serveur pure.
     Si le plan est purement visuel, réponds : "NO_BACKEND_CHANGES".`,
   },
 
@@ -108,7 +127,7 @@ const AGENTS = {
     
     Ta tâche : Validation finale avant envoi à l'équipe Front.
     - Vérifie qu'aucun code UI (React Components) n'a fuité ici.
-    - Tu te concentres sur le backend uniquement 
+    - Tu te concentres sur le backend uniquement.
     - Renvoie le code final propre.`,
   },
 
@@ -122,7 +141,7 @@ const AGENTS = {
     
     RÈGLES CRITIQUES :
     1. ⛔ INTERDICTION FORMELLE D'UTILISER TAILWIND CSS.
-       concentre toi uniquement sur le frontend
+       Concentre toi uniquement sur le frontend.
     2. Utilise du CSS Classique (styles.css) ou CSS Modules.
     3. Tu es un EXÉCUTANT. Ne fais pas de nouveau plan. Suis le plan de l'Architecte.
     4. Intègre le code Backend fourni (Server Actions/API).`,
@@ -138,7 +157,7 @@ const AGENTS = {
     TON OBJECTIF : L'EFFET "WOW".
     - Sois EXTRÊMEMENT CRÉATIF. Prends des risques visuels.
     - ⛔ PAS DE TAILWIND. Utilise du CSS Pur avancé (Gradients, Glassmorphism, Animations keyframes).
-    - Ne casse pas la logique et les codes reçu mais rajoute des éléments composans pages creatives pour absolument sublimer, mais sublime le rendu visuel.`,
+    - Ne casse pas la logique et les codes reçus mais rajoute des éléments, composants, pages créatives pour absolument sublimer le rendu visuel.`,
   },
 
   FRONTEND_FINALIZER: {
@@ -156,6 +175,10 @@ const AGENTS = {
 };
 
 export async function POST(req: Request) {
+  const encoder = new TextEncoder();
+  // On définit 'send' ici pour qu'il soit accessible dans le catch global
+  let send: (txt: string) => void = () => {};
+
   try {
     const authHeader = req.headers.get("x-gemini-api-key");
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
@@ -164,8 +187,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { history, uploadedImages, allReferenceImages } = body;
 
+    // Récupération de la dernière demande utilisateur pour l'injecter aux agents
+    const lastUserMessage = history.filter((m: Message) => m.role === "user").pop()?.content || "";
+
     const ai = new GoogleGenAI({ apiKey });
-    const encoder = new TextEncoder();
 
     // Fonction de base pour l'historique pur
     const buildHistoryParts = () => {
@@ -195,7 +220,7 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const send = (txt: string) => {
+        send = (txt: string) => {
           const sanitized = txt
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
             .replace(/NO_BACKEND_CHANGES/gi, "");
@@ -218,15 +243,20 @@ export async function POST(req: Request) {
             let contents;
 
             if (useChatHistory) {
-                // ARCHITECTE : Historique complet
+                // ARCHITECTE & FIXER (Parfois) : Historique complet
                 contents = buildHistoryParts();
             } else {
-                // WORKERS : Contexte Isolé (Pas de pollution)
+                // WORKERS : Contexte Isolé + Injection de la demande Utilisateur
+                // C'est ici qu'on résout le problème "Zod" : on force l'agent à voir la contrainte utilisateur brute
                 contents = [{ 
                     role: "user", 
                     parts: [{ text: `
                     [INSTRUCTION TECHNIQUE STRICTE]
-                    CONTEXTE ENTRANT :
+                    
+                    1. CONTRAINTES UTILISATEUR DIRECTES (CRITIQUE : Tu dois respecter ceci par dessus tout) :
+                    "${lastUserMessage}"
+                    
+                    2. CONTEXTE TECHNIQUE PROVENANT DES AUTRES AGENTS :
                     ${taskInput}
                     
                     TA MISSION :
@@ -240,12 +270,11 @@ export async function POST(req: Request) {
             const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ: ${agent.name} ===\n${agent.prompt}`;
             
             // --- GESTION FINE DE LA TEMPÉRATURE ---
-            let temperature = 0.5; // Défaut
-            
-            if (agentKey.includes("BACKEND")) temperature = 0.2; // Très rigoureux, pas d'hallucination
-            if (agentKey === "ARCHITECT") temperature = 0.3; // Stable pour le plan
-            if (agentKey === "FRONTEND_DEV") temperature = 0.5; // Équilibré pour la structure
-            if (agentKey === "FRONTEND_DESIGNER") temperature = 0.95; // MAX CRÉATIVITÉ pour le CSS/Anim
+            let temperature = 0.5; 
+            if (agentKey.includes("BACKEND")) temperature = 0.2; 
+            if (agentKey === "ARCHITECT") temperature = 0.3; 
+            if (agentKey === "FRONTEND_DEV") temperature = 0.4;
+            if (agentKey === "FRONTEND_DESIGNER") temperature = 0.95; 
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
@@ -269,7 +298,9 @@ export async function POST(req: Request) {
             return fullAgentOutput;
 
           } catch (e: any) {
-            console.error(`Erreur Agent ${agent.name}:`, e);
+            const errorMsg = `\n[Erreur interne Agent ${agent.name}]: ${e.message}\n`;
+            console.error(errorMsg);
+            send(errorMsg);
             return "";
           }
         }
@@ -287,7 +318,8 @@ export async function POST(req: Request) {
           } 
           
           else if (decision === "FIX_ACTION") {
-            await runAgent("FIXER", "Corrige le fichier selon la demande.", true);
+            // Le Fixer a besoin de contexte pour ne pas tout casser
+            await runAgent("FIXER", `Instruction Utilisateur: ${lastUserMessage}`, true);
             controller.close();
             return;
           } 
@@ -322,15 +354,88 @@ export async function POST(req: Request) {
             );
 
             // Frontend 3 (QA & Finalisation)
-            await runAgent("FRONTEND_FINALIZER", 
+            const frontendFinal = await runAgent("FRONTEND_FINALIZER", 
                `CODE UI DESIGNÉ:\n${frontend2}`
             );
+
+            // --- GESTION INTELLIGENTE DES DÉPENDANCES (package.json) ---
+            // On analyse uniquement si du code a été produit
+            if (frontendFinal || finalBackendCode) {
+              const allGeneratedCode = finalBackendCode + "\n" + frontendFinal;
+              const detectedImports = extractImports(allGeneratedCode);
+
+              // Dépendances de base requises
+              const baseDeps: Record<string, string> = {
+                next: "15.1.0",
+                react: "19.0.0",
+                "react-dom": "19.0.0",
+                "iconsax-reactjs": "0.0.8",
+                "iconoir-react": "7.11.0",
+                "lucide-react": "0.561.0"
+              };
+
+              const newDeps: Record<string, string> = {};
+              
+              // On vérifie les versions sur NPM pour les nouvelles dépendances trouvées
+              if (detectedImports.length > 0) {
+                 send("\n\n--- 📦 [SYSTEM] Vérification des dépendances... ---\n");
+                 
+                 // On utilise Promise.all pour faire les requêtes en parallèle (rapide)
+                 await Promise.all(detectedImports.map(async (pkg) => {
+                    if (!baseDeps[pkg]) { // Si pas déjà dans la base
+                        try {
+                            const data = await packageJson(pkg);
+                            newDeps[pkg] = data.version as string;
+                        } catch (err) {
+                            console.warn(`Package introuvable: ${pkg}`);
+                            // Fallback version si erreur
+                            newDeps[pkg] = "latest"; 
+                        }
+                    }
+                 }));
+              }
+
+              // Fusion des dépendances
+              const allDependencies = { ...baseDeps, ...newDeps };
+              
+              // Si de nouvelles dépendances ont été ajoutées par rapport à la base, on génère le fichier
+              const hasNewDeps = Object.keys(newDeps).length > 0;
+
+              // NOTE : On régénère le package.json si on est en mode création (CODE_ACTION) 
+              // pour s'assurer que l'utilisateur a tout ce qu'il faut.
+              
+              const packageJsonContent = {
+                  name: "nextjs-app",
+                  private: true,
+                  scripts: {
+                    dev: "next dev -p 3000 -H 0.0.0.0",
+                    build: "next build",
+                    start: "next start -p 3000 -H 0.0.0.0",
+                  },
+                  dependencies: allDependencies,
+                  devDependencies: {
+                    typescript: "5.7.2",
+                    "@types/node": "22.10.1",
+                    "@types/react": "19.0.1",
+                    "@types/react-dom": "19.0.1",
+                  },
+              };
+
+              const xmlOutput = `
+<create_file path="package.json">
+${JSON.stringify(packageJsonContent, null, 2)}
+</create_file>
+              `;
+              
+              send(xmlOutput);
+            }
 
             controller.close();
           }
 
-        } catch (err) {
-          console.error("Stream error:", err);
+        } catch (err: any) {
+          console.error("Stream workflow error:", err);
+          send(`\n\n⛔ ERREUR CRITIQUE DU FLUX : ${err.message}`);
           controller.close();
         }
       },
@@ -342,4 +447,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-      }
+    }
