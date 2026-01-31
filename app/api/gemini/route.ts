@@ -128,7 +128,7 @@ const AGENTS = {
     IMPORTANT - GESTION DES PAQUETS :
     À la toute fin de ta réponse, tu DOIS lister les paquets NPM que tu as utilisés (zod, mongoose, bcrypt, etc.) sous ce format JSON strict :
     DEPENDENCIES: ["nom-paquet-1", "nom-paquet-2"]
-    C'est important que tu retournes ces DEPENDENCIES, qui sont obligés d'être installé.
+    C'est important que tu retournes ces DEPENDENCIES, qui sont obligés d'être installé. Mais tu n'as pas à le faire chaque fois. si tu l'as déjà mentionné ne le fait plus 
     N'inclus pas les paquets natifs (fs, path).`,
   },
 
@@ -172,7 +172,7 @@ const AGENTS = {
     IMPORTANT - GESTION DES PAQUETS :
     À la toute fin de ta réponse, tu DOIS lister les paquets NPM externes nécessaires pour le front (framer-motion, lucide-react, axios, etc.) sous ce format JSON strict :
     DEPENDENCIES: ["nom-paquet-1", "nom-paquet-2"]
-        C'est important que tu retournes ces DEPENDENCIES, qui sont obligés d'être installé.
+        C'est important que tu retournes ces DEPENDENCIES, qui sont obligés d'être installé. Mais tu n'as pas à le faire chaque fois. si tu l'as déjà mentionné ne le fait plus
     `,
 
   },
