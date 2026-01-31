@@ -171,8 +171,10 @@ const AGENTS = {
     ⛔ 
     IMPORTANT - GESTION DES PAQUETS :
     À la toute fin de ta réponse, tu DOIS lister les paquets NPM externes nécessaires pour le front (framer-motion, lucide-react, axios, etc.) sous ce format JSON strict :
-    DEPENDENCIES: ["nom-paquet-1", "nom-paquet-2"]`,
-    C'est important que tu retournes ces DEPENDENCIES, qui sont obligés d'être installé.
+    DEPENDENCIES: ["nom-paquet-1", "nom-paquet-2"]
+        C'est important que tu retournes ces DEPENDENCIES, qui sont obligés d'être installé.
+    `,
+
   },
 };
 
