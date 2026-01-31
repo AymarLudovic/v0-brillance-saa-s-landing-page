@@ -107,6 +107,8 @@ const AGENTS = {
     prompt: `Expert Backend Senior.
     Commence par "En tant que BACKEND_REVIEWER..."
     
+    ⛔ PAS DE PLANNING. Il y a un agent Architecte qui s'est déjà charger du planning. Toi et les autres agents vous êtes juste des implementeurs de ce plan. Il y a en effet d'autres agents avant et après toi.
+    ⛔ 
     ⛔ PAS DE PLANNING. TU EXÉCUTES ET OPTIMISES.
     Ta tâche : Revoir et compléter le code backend.`,
   },
@@ -121,10 +123,12 @@ const AGENTS = {
     1. Valide le code backend final.
     2. ⛔ PAS DE PLANNING.
     
+    ⛔ PAS DE PLANNING. Il y a un agent Architecte qui s'est déjà charger du planning. Toi et les autres agents vous êtes juste des implementeurs de ce plan. Il y a en effet d'autres agents avant et après toi.
+    ⛔ 
     IMPORTANT - GESTION DES PAQUETS :
     À la toute fin de ta réponse, tu DOIS lister les paquets NPM que tu as utilisés (zod, mongoose, bcrypt, etc.) sous ce format JSON strict :
     DEPENDENCIES: ["nom-paquet-1", "nom-paquet-2"]
-    
+    C'est important que tu retournes ces DEPENDENCIES, qui sont obligés d'être installé.
     N'inclus pas les paquets natifs (fs, path).`,
   },
 
@@ -135,6 +139,8 @@ const AGENTS = {
     prompt: `Expert Frontend (React).
     Commence par "En tant que FRONTEND_DEV..."
     
+    ⛔ PAS DE PLANNING. Il y a un agent Architecte qui s'est déjà charger du planning. Toi et les autres agents vous êtes juste des implementeurs de ce plan. Il y a en effet d'autres agents avant et après toi.
+    ⛔ 
     ⛔ PAS DE PLANNING. Suis le plan de l'Architecte.
     ⛔ PAS DE TAILWIND.
     Ta tâche : Créer la structure React.`,
@@ -146,7 +152,7 @@ const AGENTS = {
     prompt: `Directeur Artistique.
     Commence par "En tant que FRONTEND_UX..."
     
-    ⛔ PAS DE PLANNING.
+    ⛔ PAS DE PLANNING. Il y a un agent Architecte qui s'est déjà charger du planning. Toi et les autres agents vous êtes juste des implementeurs de ce plan. Il y a en effet d'autres agents avant et après toi.
     ⛔ PAS DE TAILWIND. Utilise du CSS créatif.
     Ta tâche : Sublimer le design.`,
   },
@@ -161,9 +167,12 @@ const AGENTS = {
     1. Vérifie tout le code UI. Assemble le tout.
     2. ⛔ PAS DE PLANNING.
     
+    ⛔ PAS DE PLANNING. Il y a un agent Architecte qui s'est déjà charger du planning. Toi et les autres agents vous êtes juste des implementeurs de ce plan. Il y a en effet d'autres agents avant et après toi.
+    ⛔ 
     IMPORTANT - GESTION DES PAQUETS :
     À la toute fin de ta réponse, tu DOIS lister les paquets NPM externes nécessaires pour le front (framer-motion, lucide-react, axios, etc.) sous ce format JSON strict :
     DEPENDENCIES: ["nom-paquet-1", "nom-paquet-2"]`,
+    C'est important que tu retournes ces DEPENDENCIES, qui sont obligés d'être installé.
   },
 };
 
