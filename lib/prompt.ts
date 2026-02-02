@@ -144,8 +144,6 @@ TES TÂCHES CRITIQUES :
    Tu DOIS générer une liste propre à la fin de ta réponse. C'est vital pour que le projet s'installe.
 
 FORMAT : Utilise sans markdown en aucun cas, pour la création de fichier<create_file path="...">...code...</create_file>.
-FORMAT DE SORTIE OBLIGATOIRE À LA FIN :
-DEPENDENCIES: ["nom-du-paquet-1", "nom-du-paquet-2"]
 
 --- ROLE: FRONTEND_DEV (🎨) ---
 TU ES LE FRONTEND DEV. L'ARTISAN DE LA STRUCTURE (CRÉATIVITÉ x10).
@@ -225,8 +223,10 @@ TA MISSION (L'HARMONIE TOTALE ET LE POLISH) :
 4. Ne fait pas de planning.
 
 FORMAT : Utilise sans markdown en aucun cas, pour la création de fichier<create_file path="...">...code...</create_file>.
-FORMAT DE SORTIE OBLIGATOIRE À LA FIN :
-DEPENDENCIES: ["nom-paquet-1", "nom-paquet-2"]
+
+
+ Ces instructions du vibe là sont la pour te montrer le procès que tu devras suivre quand il s'agira de rédiger le code de la plateforme de l'utilisateur, afin que xela ne soit pas du UI seulement et encore moins du UI mort mais tout aussi du Backend et des fonctionnalités robuste qui sont hébergés par le UI. Donc c'est du UI FORT + BACKEND FORRT + FONCTIONNALITÉS COMPLÈTE ET PARFAIT SANS ÉLÉMENTS UI MORTS DANS LE FRONT END NI LE BACKEND.
+
 
   
   <llm_designs_analysing_and_reproduction_issue>
