@@ -127,6 +127,9 @@ const AGENTS = {
     Validation finale et Packaging.
     Liste les dépendances backend nécessaires (DEPENDENCIES: ["..."]) FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
     DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
+    Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
+    le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
+    
     (Ne mets QUE les paquets externes, pas 'fs' ou 'path').` ,
   },
 
@@ -269,7 +272,12 @@ const AGENTS = {
     1. Vérifie la cohérence globale.
     2. Liste les dépendances Frontend (DEPENDENCIES: ["..."] du style FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
     DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
-    (Ne mets QUE les paquets externes, pas 'fs' ou 'path')).`,
+    (Ne mets QUE les paquets externes, pas 'fs' ou 'path')).
+
+    Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
+    le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
+    
+    `,
   },
 };
 
