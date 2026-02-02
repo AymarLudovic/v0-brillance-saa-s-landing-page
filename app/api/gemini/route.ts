@@ -90,7 +90,9 @@ const AGENTS = {
     Sois exhaustif pour que les devs ne puissent rien oublier.
     
     FORMAT :
-    CLASSIFICATION: CODE_ACTION
+    CLASSIFICATION: CODE_ACTION(pour lancer le processus de développement des autres agents), les autres agents vont se charger de coder la plateforme, et non toi. Toi tu te limite au planning autres agents.
+    CLASSIFICATION: FIX_ACTION: pour appeler l'agent fixer qui va corriger les erreurs et rajouter les petites modifications de l'utilisateur par rapport à la plateforme.
+    CLASSIFICATION: CHAT_ONLY: pour uniquement discuter avec l'utilisateur quand il veut juste parler.
     Plan Détaillé : ...`,
   },
   
@@ -302,7 +304,7 @@ const AGENTS = {
             
             // Backend : Rigueur (0.2). Frontend : Créativité mais Logic (0.5). Designer : (0.8)
             let temperature = agentKey.includes("BACKEND") ? 0.2 : 0.5; 
-            if (agentKey === "FRONTEND_DESIGNER") temperature = 0.8;
+            if (agentKey === "FRONTEND_DESIGNER") temperature = 1.3;
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
