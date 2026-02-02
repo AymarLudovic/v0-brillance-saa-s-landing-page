@@ -49,8 +49,7 @@ const readFileDeclaration: FunctionDeclaration = {
   },
 };
 
-// --- DEFINITION DES ROLES (APPROCHE "SENIOR STAFF") ---
-// Plus de checklist. Juste de la pure responsabilité.
+// --- DEFINITION DES ROLES ---
 
 const AGENTS = {
   // --- STRATÉGIE ---
@@ -131,67 +130,47 @@ const AGENTS = {
     (Ne mets QUE les paquets externes, pas 'fs' ou 'path').` ,
   },
 
-  // --- FRONTEND (C'est là qu'on change tout) ---
+  // --- FRONTEND (Simplifié : 2 Agents principaux + 1 Release) ---
   
-  // Fini le "fais les boutons". Place au "Software Engineer".
   FRONTEND_LOGIC: {
     name: "SENIOR_REACT_ENGINEER",
     icon: "🧠",
     prompt: `Tu es un SENIOR SOFTWARE ENGINEER (Spécialisé React Core).
     
     TA RESPONSABILITÉ :
-    Tu construis le CERVEAU de l'interface.
-    L'utilisateur se fiche de la couleur du bouton. Il veut que l'application FONCTIONNE.
-
-
- ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
- ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
+    Tu construis le COEUR de l'interface. Structure, Logique et Fonctionnalité.
     
+    ⛔ INTERDICTION : Pas de fichier pour le Backend. Ne touche pas aux API routes, c'est déjà fait.
+    Ne génère aucune analyse, l'architecte l'a déjà fait.
     
     TON JOB :
-    - Implémenter toute la complexité métier côté client (Algorithmes, State Machines, Data Fetching complexe).
-    - Si c'est un Dashboard : tu codes les calculs des indicateurs.
-    - Si c'est un Jeu : tu codes la physique et les règles.
+    - Implémenter la structure des pages (Layouts, Components).
+    - Implémenter toute la complexité métier côté client (Hooks, Context, State Management).
+    - Assurer le Data Fetching vers le backend existant.
+    - Créer des composants fonctionnels (même s'ils sont moches pour l'instant).
     
-    Tu ne fais PAS de CSS. Tu fais du code qui MARCHE.`,
+    Tu codes l'application pour qu'elle FONCTIONNE.`,
   },
 
-  FRONTEND_INTERACTION: {
-    name: "UX_ENGINEER",
-    icon: "⚡",
-    prompt: `Tu es un UX ENGINEER (Interaction Specialist).
-    
-    TA RESPONSABILITÉ :
-    Prendre le code "Cerveau" et le rendre VIVANT.
-     ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
- ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
-
-  Ne fait aussi aucun planning car il y a un agent architecte qui s'est déjà charger de ça.
-    
-    TON JOB :
-    Une application statique est une application morte.
-    Tu es responsable de l'expérience : Feedback utilisateur, Fluidité, Gestion des erreurs, Modals, Drag & Drop.
-    Fais en sorte que l'utilisateur sente que l'application répond à ses doigts.`,
-  },
+  // L'agent UX a été supprimé ici. On passe directement au visuel.
 
   FRONTEND_VISUAL: {
     name: "UI_DESIGNER_DEV",
     icon: "🎨",
-    prompt: `Tu es un CREATIVE TECHNOLOGIST (UI Design).
+    prompt: `Tu es un CREATIVE TECHNOLOGIST (UI Design & Polish).
     
     TA RESPONSABILITÉ :
-    L'impact visuel et l'émotion.
+    Prendre le code fonctionnel et le rendre beau et agréable (UI + UX simplifiée).
 
-  ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
- ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
-
-    Ne fait aussi aucun planning car il y a un agent architecte qui s'est déjà charger de ça.
-    
+    ⛔ INTERDICTION : Pas de fichier Backend.
+    Ne fais pas de planning.
     
     TON JOB :
-    Prends le code fonctionnel et habille-le.
-    Utilise le Design System (Tailwind) pour créer une interface propre, moderne et professionnelle.
-    Respecte les images de référence fournies si elles existent.`,
+    Prends le code logique brut et habille-le.
+    - Utilise Tailwind CSS pour un design moderne.
+    - Ajoute les interactions visuelles manquantes (Feedback utilisateur, Loading states).
+    - Assure-toi que l'expérience utilisateur est fluide.
+    - Respecte les images de référence si fournies.`,
   },
 
   // --- QUALITY ASSURANCE ---
@@ -203,9 +182,8 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     La qualité du code (Maintainability & Clean Code).
-     ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
- ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
-    Ne fait aussi aucun planning car il y a un agent architecte qui s'est déjà charger de ça.
+    
+    ⛔ INTERDICTION : Pas de backend, pas d'analyse.
     
     ACTION :
     Relis le code intégralement.
@@ -222,14 +200,11 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     Livrer le produit fini.
-     ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
- ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
-    Ne fait aussi aucun planning car il y a un agent architecte qui s'est déjà charger de ça.
     
     ACTION :
     1. Vérifie la cohérence globale.
     2. Liste les dépendances Frontend (DEPENDENCIES: ["..."] du style FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
-    DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
+    DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
     (Ne mets QUE les paquets externes, pas 'fs' ou 'path')).`,
   },
 };
@@ -298,7 +273,7 @@ export async function POST(req: Request) {
           try {
             const contents = buildFullHistory();
 
-            // CONTEXTE DE TRAVAIL : On ne donne plus d'ordres, on donne une SITUATION.
+            // CONTEXTE DE TRAVAIL
             contents.push({
                 role: "user",
                 parts: [{ text: `
@@ -314,9 +289,7 @@ export async function POST(req: Request) {
                 Ne demande pas la permission. Fais ce qui est nécessaire pour que le projet réussisse.
                 Produis le code ou le plan attendu.
 
-
-                     Les instructions lister ci dessous ici sont les instructions global que chaque agents possède. Tu dois aussi les suivre mais uniquement et premièrement en l'associant à tes instructions 
-
+                Les instructions lister ci dessous ici sont les instructions global que chaque agents possède. Tu dois aussi les suivre mais uniquement et premièrement en l'associant à tes instructions 
                      
                 ${basePrompt}
                 ` }]
@@ -324,10 +297,10 @@ export async function POST(req: Request) {
 
             const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ DE L'EXPERT ===\n${agent.prompt}`;
             
-            // Températures ajustées : On veut de l'initiative, pas de la répétition.
+            // Températures ajustées
             let temperature = 1.5;
             if (agentKey === "ARCHITECT") temperature = 1.7; 
-            if (agentKey === "FRONTEND_LOGIC") temperature = 1.2; // Équilibre entre rigueur et ingéniosité
+            if (agentKey === "FRONTEND_LOGIC") temperature = 1.2;
             if (agentKey === "CODE_REVIEWER") temperature = 1.2;
 
             const response = await ai.models.generateContentStream({
@@ -382,16 +355,13 @@ export async function POST(req: Request) {
             const backendContext = noBackend ? "Backend inchangé." : backendFinal;
 
             // --- 3. PHASE APPLICATION (FRONTEND) ---
-            // On sépare Cerveau / Muscles / Peau
+            // CHAINE RÉDUITE : Logic -> Visual
             
-            // A. Le Cerveau (Logique pure, State, Data)
+            // A. Le Cerveau & Structure
             const frontBrain = await runAgent("FRONTEND_LOGIC", `VISION ARCHITECTE:\n${architectOutput}\n\nBACKEND:\n${backendContext}`);
             
-            // B. Les Muscles (Interactions, Events, UX Flow)
-            const frontMuscles = await runAgent("FRONTEND_INTERACTION", `CODE LOGIQUE:\n${frontBrain}\n\nINSTRUCTION: Rends ça utilisable.`);
-            
-            // C. La Peau (Design, Style)
-            const frontSkin = await runAgent("FRONTEND_VISUAL", `CODE FONCTIONNEL:\n${frontMuscles}\n\nINSTRUCTION: Applique le style.`);
+            // B. La Peau & Design (Prends direct le code logique, on saute l'agent UX dédié)
+            const frontSkin = await runAgent("FRONTEND_VISUAL", `CODE FONCTIONNEL:\n${frontBrain}\n\nINSTRUCTION: Applique le style (Tailwind) et rends l'UX fluide.`);
 
             // --- 4. PHASE FINITION ---
             const codeReviewed = await runAgent("CODE_REVIEWER", `CODE COMPLET:\n${frontSkin}`);
