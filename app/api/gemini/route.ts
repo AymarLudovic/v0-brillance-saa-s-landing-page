@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, Type, FunctionDeclaration, Part } from "@google/genai";
 import { basePrompt } from "@/lib/prompt";
-// Assure-toi d'avoir installé: npm install package-json
 import packageJson from 'package-json';
 
 const BATCH_SIZE = 128;
-const MODEL_ID = "gemini-3-pro-preview"; 
+const MODEL_ID = "gemini-3-flash-preview"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -15,21 +14,7 @@ interface Message {
   mentionedFiles?: string[];
 }
 
-// --- 1. DÉFINITION DU FLUX DE TRAVAIL (Pour que chaque agent connaisse sa place) ---
-const WORKFLOW_CONTEXT = `
-CONTEXTE GLOBAL DE L'ÉQUIPE (Chaîne de production) :
-1. ARCHITECTE (Chef) : Définit le plan.
-2. BACKEND_DEV : Crée le serveur/API (Node/Next.js).
-3. BACKEND_REVIEWER : Optimise le code serveur.
-4. BACKEND_AUDITOR : Valide le serveur et liste les paquets npm backend.
-   --- BARRIÈRE : Le Backend s'arrête ici ---
-5. FRONTEND_DEV : Crée la structure React (utilise les API du Backend).
-6. FRONTEND_UX : Ajoute le style et les animations.
-7. FRONTEND_QA : Valide l'UI et liste les paquets npm frontend.
-`;
-
 // --- UTILITAIRES ---
-
 function getMimeTypeFromBase64(dataUrl: string) {
   const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
   return match ? match[1] : "application/octet-stream";
@@ -39,20 +24,13 @@ function cleanBase64Data(dataUrl: string) {
   return dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
 }
 
-// Extraction robuste des dépendances (JSON strict ou souple)
 function extractDependenciesFromAgentOutput(output: string): string[] {
-  // Regex pour capturer DEPENDENCIES: ["a", "b"] ou DEPENDENCIES: ['a', 'b']
-  // Le flag 'i' rend insensible à la casse, 's' permet le multiline
   const match = output.match(/DEPENDENCIES:\s*(\[[\s\S]*?\])/i);
-  
   if (match && match[1]) {
     try {
-      // Normalisation des quotes (remplace ' par ")
       const jsonStr = match[1].replace(/'/g, '"'); 
       return JSON.parse(jsonStr);
     } catch (e) {
-      console.error("Erreur parsing dépendances:", e);
-      // Tentative de fallback manuel si le JSON est mal formé
       const manualExtract = match[1].match(/"([a-zA-Z0-9-@/.]+)"/g);
       if (manualExtract) return manualExtract.map(s => s.replace(/"/g, ''));
       return [];
@@ -63,7 +41,7 @@ function extractDependenciesFromAgentOutput(output: string): string[] {
 
 const readFileDeclaration: FunctionDeclaration = {
   name: "readFile",
-  description: "Lit le contenu d'un fichier du projet.",
+  description: "Lecture fichier.",
   parameters: {
     type: Type.OBJECT,
     properties: { path: { type: Type.STRING } },
@@ -71,147 +49,155 @@ const readFileDeclaration: FunctionDeclaration = {
   },
 };
 
+// --- DEFINITION DES ROLES (APPROCHE "SENIOR STAFF") ---
+// Plus de checklist. Juste de la pure responsabilité.
 
-    
 const AGENTS = {
+  // --- STRATÉGIE ---
   ARCHITECT: {
-    name: "ARCHITECTE",
-    icon: "🧠",
-    prompt: `Tu es le CHEF DE PROJET TECHNIQUE.
-    ${WORKFLOW_CONTEXT}
+    name: "CHIEF_ARCHITECT",
+    icon: "🏗️",
+    prompt: `Tu es le CHIEF ARCHITECT.
     
-    TA MISSION UNIQUE :
-    L'utilisateur veut une APPLICATION COMPLÈTE (Clé en main).
-    Ton plan ne doit pas être vague. Il doit lister TOUTES les fonctionnalités qui devront être codées.
+    TA RESPONSABILITÉ :
+    L'utilisateur a une idée floue. Tu dois la transformer en une ARCHITECTURE TECHNICIENNE VIABLE.
+    Tu ne codes pas. Tu décides.
     
-    Exemple : Si on demande Spotify, tu ne dis pas "faire un lecteur". Tu dis :
-    "- Frontend : Coder la gestion du buffer audio, les arrays de playlists, les boutons play/pause avec gestion d'état booléen, le volume slider avec calcul de gain..."
-    
-    Sois exhaustif pour que les devs ne puissent rien oublier.
-    
-    FORMAT :
-    CLASSIFICATION: CODE_ACTION(pour lancer le processus de développement des autres agents), les autres agents vont se charger de coder la plateforme, et non toi. Toi tu te limite au planning autres agents.
-    CLASSIFICATION: FIX_ACTION: pour appeler l'agent fixer qui va corriger les erreurs et rajouter les petites modifications de l'utilisateur par rapport à la plateforme.
-    CLASSIFICATION: CHAT_ONLY: pour uniquement discuter avec l'utilisateur quand il veut juste parler.
-    Plan Détaillé : ...`,
+    TON OUTPUT :
+    Un plan technique complet. Tu décides de la stack, des patterns (MVC, Hexagonal?), et des flux de données.
+    Si le projet est complexe (Trading, SaaS), tu DOIS imposer une structure robuste.`,
   },
-  
+
   FIXER: {
-    name: "FIXER",
-    icon: "🛠️",
-    prompt: `Développeur Senior - Debugging.
-    TON RÔLE : Corriger un bug ou une erreur spécifique.
-    Utilise <create_file path="...">...code...</create_file>.`,
+    name: "HOTFIX_ENGINEER",
+    icon: "🔥",
+    prompt: `Tu es le HOTFIX ENGINEER.
+    
+    TA RESPONSABILITÉ :
+    Le système est cassé. Répare-le.
+    Tu as tous les droits pour écraser, supprimer ou réécrire n'importe quel fichier pour résoudre le bug rapporté.`,
   },
 
-  // --- BACKEND (INFRASTRUCTURE & DATA) ---
-  BACKEND: {
-    name: "BACKEND_DEV",
+  // --- BACKEND ---
+  BACKEND_LEAD: {
+    name: "BACKEND_LEAD",
     icon: "⚙️",
-    prompt: `Développeur Fullstack (Focus Data & API).
-    ${WORKFLOW_CONTEXT}
+    prompt: `Tu es le LEAD BACKEND DEVELOPER.
     
-    TON RÔLE : Poser les fondations solides (Base de données, Auth, API).
+    TA RESPONSABILITÉ :
+    Fournir une infrastructure de données (API + DB) qui fonctionne RÉELLEMENT.
     
-    IMPORTANT :
-    Tu prépares le terrain pour que le Frontend puisse être une application COMPLÈTE.
-    Ne fais pas juste des routes vides. Fais des Server Actions robustes qui traitent vraiment les données.
-    
-    FORMAT : Utilise <create_file path="...">...code...</create_file>.`,
+    MINDSET :
+    Si l'Architecte demande une app de trading, ne fais pas juste un "User Model".
+    Fais les transactions, les wallets, les calculs de fees, les webhooks.
+    Tu es responsable de la logique invisible.`,
   },
 
-  BACKEND_REVIEWER: {
-    name: "BACKEND_REVIEWER",
-    icon: "🔍",
-    prompt: `Lead Dev Backend.
-    ${WORKFLOW_CONTEXT}
-    Valide et optimise le code serveur.
-    FORMAT : Renvoie le code complet dans <create_file>.`,
-  },
-
-  BACKEND_AUDITOR: {
-    name: "BACKEND_AUDITOR",
+  BACKEND_SEC: {
+    name: "SYSTEM_ADMIN",
     icon: "🛡️",
-    prompt: `Auditeur Technique.
-    ${WORKFLOW_CONTEXT}
+    prompt: `Tu es le SYSTEM ADMINISTRATOR & SECURITY EXPERT.
     
-    TA MISSION :
-    1. Valide le code Backend.
-    2. LISTE LES DÉPENDANCES (C'est vital pour que l'app tourne).
+    TA RESPONSABILITÉ :
+    Protéger l'infrastructure.
     
-    FORMAT FIN :
-    DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]`,
+    ACTION :
+    Repasse sur le code du Backend Lead.
+    Si tu vois une faille, tu la combles. Si tu vois du code lent, tu l'optimises.
+    Tu es le dernier rempart avant le client.`,
   },
 
-  // --- FRONTEND (C'EST ICI QUE TOUT SE JOUE) ---
-  FRONTEND: {
-    name: "FRONTEND_DEV",
-    icon: "💻",
-    prompt: `DÉVELOPPEUR D'APPLICATION (Pas Web Designer).
-    ${WORKFLOW_CONTEXT}
+  BACKEND_PKG: {
+    name: "DEVOPS_BACKEND",
+    icon: "📦",
+    prompt: `Tu es le DEVOPS BACKEND.
     
-    ECOUTE BIEN CETTE INSTRUCTION, ELLE EST VITALE :
-    L'utilisateur veut une application QUI MARCHE, pas une coquille vide.
-    Comme l'a dit le client : "Si je demande une application Spotify, je suis sûr qu'il va créer l'application intégrale".
-    
-    TA MISSION (L'INTÉGRALE) :
-    Tu dois coder l'ensemble des fonctionnalités DIRECTEMENT dans le fichier .tsx.
-    
-    C'est quoi "L'INTEGRAL" ?
-    C'est tout ce qui se passe AVANT le \`return\` du JSX.
-    - Si c'est un chat : Tu codes la logique d'envoi, de réception, les tableaux de messages (\`useState\`), la gestion des dates.
-    - Si c'est un dashboard : Tu codes les calculs, les tris, les filtres.
-    
-    NE FAIS PAS SEMBLANT.
-    Interdiction de mettre des commentaires du type "// Ici on devrait calculer le total".
-    NON. CALCULE LE TOTAL. CODE LA FONCTION.
-    
-    Tu construis le moteur ET la carrosserie en même temps.
-    
-    FORMAT : Utilise <create_file path="...">...code...</create_file>.`,
+    TA RESPONSABILITÉ :
+    Validation finale et Packaging.
+    Liste les dépendances backend nécessaires (DEPENDENCIES: ["..."]).`,
   },
 
-  FRONTEND_DESIGNER: {
-    name: "FRONTEND_UX",
-    icon: "✨",
-    prompt: `Expert UX/UI & Finitions.
-    ${WORKFLOW_CONTEXT}
-
-    CONTEXTE :
-    Le développeur précédent a codé une application FONCTIONNELLE (logique, états, calculs).
+  // --- FRONTEND (C'est là qu'on change tout) ---
+  
+  // Fini le "fais les boutons". Place au "Software Engineer".
+  FRONTEND_LOGIC: {
+    name: "SENIOR_REACT_ENGINEER",
+    icon: "🧠",
+    prompt: `Tu es un SENIOR SOFTWARE ENGINEER (Spécialisé React Core).
     
-    TA MISSION :
-    1. Ne casse SURTOUT PAS la logique JavaScript existante (les fonctions qui font marcher l'app).
-    2. Si tu vois qu'il manque une fonctionnalité critique demandée (ex: le bouton play ne fait rien), CODE-LA.
-    3. Applique un design professionnel (Tailwind, animations fluides).
+    TA RESPONSABILITÉ :
+    Tu construis le CERVEAU de l'interface.
+    L'utilisateur se fiche de la couleur du bouton. Il veut que l'application FONCTIONNE.
     
-    Rends l'application belle, mais surtout assure-toi qu'elle reste INTELLIGENTE.
+    TON JOB :
+    - Implémenter toute la complexité métier côté client (Algorithmes, State Machines, Data Fetching complexe).
+    - Si c'est un Dashboard : tu codes les calculs des indicateurs.
+    - Si c'est un Jeu : tu codes la physique et les règles.
     
-    FORMAT : Renvoie le code complet dans <create_file>.`,
+    Tu ne fais PAS de CSS. Tu fais du code qui MARCHE.`,
   },
 
-  FRONTEND_FINALIZER: {
-    name: "FRONTEND_QA",
-    icon: "✅",
-    prompt: `Responsable Livraison.
-    ${WORKFLOW_CONTEXT}
+  FRONTEND_INTERACTION: {
+    name: "UX_ENGINEER",
+    icon: "⚡",
+    prompt: `Tu es un UX ENGINEER (Interaction Specialist).
     
-    TON RÔLE : Vérifier que l'application est COMPLÈTE.
+    TA RESPONSABILITÉ :
+    Prendre le code "Cerveau" et le rendre VIVANT.
     
-    CHECKLIST IMPÉRATIVE :
-    1. Est-ce que les fonctionnalités sont codées ? (Pas juste affichées).
-    2. Est-ce que le code est prêt à l'emploi ?
+    TON JOB :
+    Une application statique est une application morte.
+    Tu es responsable de l'expérience : Feedback utilisateur, Fluidité, Gestion des erreurs, Modals, Drag & Drop.
+    Fais en sorte que l'utilisateur sente que l'application répond à ses doigts.`,
+  },
+
+  FRONTEND_VISUAL: {
+    name: "UI_DESIGNER_DEV",
+    icon: "🎨",
+    prompt: `Tu es un CREATIVE TECHNOLOGIST (UI Design).
     
-    Si c'est bon, valide tout.
+    TA RESPONSABILITÉ :
+    L'impact visuel et l'émotion.
     
-    FORMAT OBLIGATOIRE FIN :
-    DEPENDENCIES: ["framer-motion", "lucide-react", "clsx", "date-fns"]`,
+    TON JOB :
+    Prends le code fonctionnel et habille-le.
+    Utilise le Design System (Tailwind) pour créer une interface propre, moderne et professionnelle.
+    Respecte les images de référence fournies si elles existent.`,
+  },
+
+  // --- QUALITY ASSURANCE ---
+  
+  CODE_REVIEWER: {
+    name: "STAFF_ENGINEER_REVIEWER",
+    icon: "🧐",
+    prompt: `Tu es le STAFF ENGINEER (Reviewer).
+    
+    TA RESPONSABILITÉ :
+    La qualité du code (Maintainability & Clean Code).
+    
+    ACTION :
+    Relis le code intégralement.
+    - Imports manquants ?
+    - Variables inutilisées ?
+    - Logique douteuse ?
+    Corrige le tir silencieusement. Rends le code "Production Ready".`,
+  },
+
+  FRONTEND_PKG: {
+    name: "RELEASE_MANAGER",
+    icon: "🚀",
+    prompt: `Tu es le RELEASE MANAGER.
+    
+    TA RESPONSABILITÉ :
+    Livrer le produit fini.
+    
+    ACTION :
+    1. Vérifie la cohérence globale.
+    2. Liste les dépendances Frontend (DEPENDENCIES: ["..."]).`,
   },
 };
 
-        
-            
-    export async function POST(req: Request) {
+export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
 
@@ -222,47 +208,35 @@ const AGENTS = {
 
     const body = await req.json();
     const { history, uploadedImages, allReferenceImages } = body;
-    
-    const lastUserMessage = history
-        .slice().reverse()
-        .find((m: Message) => m.role === "user")?.content || "";
+    const lastUserMessage = history.filter((m: Message) => m.role === "user").pop()?.content || "";
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // --- CONTEXTE TOTAL (IMAGES + CONSIGNE CLIENT) ---
-    const getFullContextParts = (agentName: string, taskInput: string) => {
-        const parts: Part[] = [];
+    const buildFullHistory = () => {
+      const contents: { role: "user" | "model"; parts: Part[] }[] = [];
+      
+      // Contexte visuel global
+      if (allReferenceImages?.length > 0) {
+        const styleParts = allReferenceImages.map((img: string) => ({
+          inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
+        }));
+        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE)]" }] });
+      }
+
+      history.forEach((msg: Message, i: number) => {
+        if (msg.role === "system") return;
+        let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
+        const parts: Part[] = [{ text: msg.content || " " }];
         
-        // 1. Injection Systématique des Images (Référence + Upload)
-        if (allReferenceImages?.length > 0) {
-            allReferenceImages.forEach((img: string) => {
-                parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } });
-            });
-            parts.push({ text: "\n[VISUAL REFERENCE]" });
+        if (i === history.length - 1 && role === "user" && uploadedImages?.length > 0) {
+          uploadedImages.forEach((img: string) =>
+            parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
+          );
+          parts.push({ text: "\n[FICHIERS UPLOADÉS]" });
         }
-        if (uploadedImages?.length > 0) {
-            uploadedImages.forEach((img: string) => {
-                parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } });
-            });
-            parts.push({ text: "\n[USER UPLOADED IMAGES]" });
-        }
-
-        // 2. Injection de la consigne "AGENCE" (Le contexte technique)
-        parts.push({ text: `
-            [MODE AGENCE ACTIVÉ : CODAGE INTÉGRAL]
-            
-            TÂCHE PRÉCÉDENTE (INPUT) : 
-            ${taskInput}
-            
-            CONSIGNE CLIENT :
-            "Je veux l'application INTEGRALE. Avec toutes les fonctionnalités. Pas de maquette. Pas de code vide."
-            
-            TON RÔLE (${agentName}) :
-            Code la solution complète. Backend logic inside Frontend components included.
-            Génère le code final dans <create_file>.
-        `});
-
-        return parts;
+        contents.push({ role, parts });
+      });
+      return contents;
     };
 
     const stream = new ReadableStream({
@@ -274,7 +248,10 @@ const AGENTS = {
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
-        async function runAgent(agentKey: keyof typeof AGENTS, taskInput: string = "", useChatHistory: boolean = false) {
+        async function runAgent(
+            agentKey: keyof typeof AGENTS, 
+            briefing: string = "" 
+        ) {
           const agent = AGENTS[agentKey];
           send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
           
@@ -282,29 +259,35 @@ const AGENTS = {
           let batchBuffer = "";
 
           try {
-            let contents;
-            if (useChatHistory) {
-                // Pour l'architecte, on garde l'historique complet pour comprendre la nuance de la demande
-                const historyParts = history.map((msg: Message) => ({
-                    role: msg.role === "assistant" ? "model" : "user",
-                    parts: [{ text: msg.content }]
-                }));
-                // On ajoute les images au dernier message user
-                if (allReferenceImages?.length || uploadedImages?.length) {
-                    const lastMsg = historyParts[historyParts.length - 1];
-                    // (Logique simplifiée pour l'exemple, l'important est que l'Architecte voie tout)
-                }
-                contents = historyParts; // Simplifié ici pour la clarté, assure-toi d'inclure les images
-            } else {
-                // Pour les Devs, on donne le contexte "Agency" ciblé
-                contents = [{ role: "user", parts: getFullContextParts(agent.name, taskInput) }];
-            }
+            const contents = buildFullHistory();
 
-            const systemInstruction = `${basePrompt}\n\n=== RÔLE ===\n${agent.prompt}`;
+            // CONTEXTE DE TRAVAIL : On ne donne plus d'ordres, on donne une SITUATION.
+            contents.push({
+                role: "user",
+                parts: [{ text: `
+                === SITUATION ACTUELLE DU PROJET ===
+                
+                TU ES : ${agent.name}
+                
+                L'ÉTAT ACTUEL (Ce que tes collègues ont fait avant toi) :
+                ${briefing}
+                
+                TA MISSION :
+                Agis selon ton rôle d'Expert.
+                Ne demande pas la permission. Fais ce qui est nécessaire pour que le projet réussisse.
+                Produis le code ou le plan attendu.
+                
+                ${basePrompt}
+                ` }]
+            });
+
+            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ DE L'EXPERT ===\n${agent.prompt}`;
             
-            // Backend : Rigueur (0.2). Frontend : Créativité mais Logic (0.5). Designer : (0.8)
-            let temperature = agentKey.includes("BACKEND") ? 0.2 : 0.5; 
-            if (agentKey === "FRONTEND_DESIGNER") temperature = 1.3;
+            // Températures ajustées : On veut de l'initiative, pas de la répétition.
+            let temperature = 0.5;
+            if (agentKey === "ARCHITECT") temperature = 0.7; 
+            if (agentKey === "FRONTEND_LOGIC") temperature = 0.4; // Équilibre entre rigueur et ingéniosité
+            if (agentKey === "CODE_REVIEWER") temperature = 0.2;
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
@@ -329,73 +312,113 @@ const AGENTS = {
 
           } catch (e: any) {
             console.error(`Erreur Agent ${agent.name}:`, e);
-            send(`\n[Erreur]: ${e.message}\n`);
-            return "";
+            send(`\n[Erreur ${agent.name}]: ${e.message}\n`);
+            return ""; 
           }
         }
 
         try {
-          // 1. ARCHITECTE
-          const architectOutput = await runAgent("ARCHITECT", "", true); // Lit l'historique conversationnel
+          // --- 1. PHASE DE CONCEPTION ---
+          const architectOutput = await runAgent("ARCHITECT", "Analyse la demande utilisateur.");
+          const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
+          const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; 
           
-          if (architectOutput.includes("CHAT_ONLY")) {
-             controller.close(); return;
-          }
-          if (architectOutput.includes("FIX_ACTION")) {
-             await runAgent("FIXER", `Erreur: ${lastUserMessage}`, true);
-             controller.close(); return;
-          }
+          if (decision === "CHAT_ONLY") {
+            controller.close();
+            return;
+          } else if (decision === "FIX_ACTION") {
+            await runAgent("FIXER", `Rapport bug: "${lastUserMessage}"`);
+            controller.close();
+            return;
+          } else if (decision === "CODE_ACTION") {
+            
+            // --- 2. PHASE ENGINE (BACKEND) ---
+            const backend1 = await runAgent("BACKEND_LEAD", `VISION ARCHITECTE:\n${architectOutput}`);
+            const backend2 = await runAgent("BACKEND_SEC", `CODE V1:\n${backend1}`);
+            const backendFinal = await runAgent("BACKEND_PKG", `CODE V2:\n${backend2}`);
+            
+            const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
+            const backendContext = noBackend ? "Backend inchangé." : backendFinal;
 
-          // 2. BACKEND (Socle)
-          const backend1 = await runAgent("BACKEND", `PLAN:\n${architectOutput}`);
-          const backend2 = await runAgent("BACKEND_REVIEWER", `CODE V1:\n${backend1}`);
-          const backend3 = await runAgent("BACKEND_AUDITOR", `CODE V2:\n${backend2}`);
-          const noBackend = backend3.includes("NO_BACKEND_CHANGES");
-          const finalBackend = noBackend ? "Pas de changement backend." : backend3;
+            // --- 3. PHASE APPLICATION (FRONTEND) ---
+            // On sépare Cerveau / Muscles / Peau
+            
+            // A. Le Cerveau (Logique pure, State, Data)
+            const frontBrain = await runAgent("FRONTEND_LOGIC", `VISION ARCHITECTE:\n${architectOutput}\n\nBACKEND:\n${backendContext}`);
+            
+            // B. Les Muscles (Interactions, Events, UX Flow)
+            const frontMuscles = await runAgent("FRONTEND_INTERACTION", `CODE LOGIQUE:\n${frontBrain}\n\nINSTRUCTION: Rends ça utilisable.`);
+            
+            // C. La Peau (Design, Style)
+            const frontSkin = await runAgent("FRONTEND_VISUAL", `CODE FONCTIONNEL:\n${frontMuscles}\n\nINSTRUCTION: Applique le style.`);
 
-          // 3. FRONTEND (L'APPLICATION COMPLÈTE)
-          // On passe le backend code pour qu'il sache sur quoi se brancher, mais il doit tout coder.
-          const frontend1 = await runAgent("FRONTEND", `PLAN:\n${architectOutput}\n\nBACKEND:\n${finalBackend}`);
-          const frontend2 = await runAgent("FRONTEND_DESIGNER", `CODE FONCTIONNEL:\n${frontend1}`);
-          const frontendFinal = await runAgent("FRONTEND_FINALIZER", `DESIGN:\n${frontend2}`);
+            // --- 4. PHASE FINITION ---
+            const codeReviewed = await runAgent("CODE_REVIEWER", `CODE COMPLET:\n${frontSkin}`);
+            const finalOutput = await runAgent("FRONTEND_PKG", `CODE FINAL:\n${codeReviewed}`);
 
-          // 4. PACKAGING (Auto-détection)
-          const deps = [...extractDependenciesFromAgentOutput(backend3), ...extractDependenciesFromAgentOutput(frontendFinal)];
-          if (deps.length > 0 || !noBackend) {
-              send("\n\n--- 📦 Installation des dépendances... ---\n");
-              // ... Logique de package.json inchangée ...
-              // Je te laisse la partie package.json standard ici
-               const baseDeps: Record<string, string> = {
+            // --- 5. DEPENDENCIES ---
+            const backendDeps = extractDependenciesFromAgentOutput(backendFinal);
+            const frontendDeps = extractDependenciesFromAgentOutput(finalOutput);
+            const allDetectedDeps = Array.from(new Set([...backendDeps, ...frontendDeps]));
+
+            if (allDetectedDeps.length > 0 || !noBackend) {
+                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances... ---\n");
+
+                const baseDeps: Record<string, string> = {
                     next: "15.1.0",
                     react: "19.0.0",
                     "react-dom": "19.0.0",
                     "lucide-react": "0.561.0"
                 };
                 const newDeps: Record<string, string> = {};
-                await Promise.all(deps.map(async (pkg) => {
-                    if (!pkg || baseDeps[pkg]) return;
-                    try { const data = await packageJson(pkg); newDeps[pkg] = data.version as string; } 
-                    catch (err) { newDeps[pkg] = "latest"; }
-                }));
-                const xmlOutput = `<create_file path="package.json">\n${JSON.stringify({
-                    name: "app-integrale", version: "1.0.0", private: true, 
-                    scripts: { dev: "next dev", build: "next build", start: "next start" },
-                    dependencies: { ...baseDeps, ...newDeps },
-                    devDependencies: { typescript: "^5", "@types/node": "^20", "@types/react": "^19", postcss: "^8", tailwindcss: "^3.4.1" }
-                }, null, 2)}\n</create_file>`;
-                send(xmlOutput);
-          }
 
-          controller.close();
+                await Promise.all(allDetectedDeps.map(async (pkg) => {
+                    if (!pkg || baseDeps[pkg]) return;
+                    try {
+                        const data = await packageJson(pkg);
+                        newDeps[pkg] = data.version as string;
+                    } catch (err) {
+                        newDeps[pkg] = "latest";
+                    }
+                }));
+
+                const finalDependencies = { ...baseDeps, ...newDeps };
+                const packageJsonContent = {
+                    name: "nextjs-app",
+                    version: "1.0.0",
+                    private: true,
+                    scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
+                    dependencies: finalDependencies,
+                    devDependencies: {
+                        typescript: "^5",
+                        "@types/node": "^20",
+                        "@types/react": "^19",
+                        "@types/react-dom": "^19",
+                        postcss: "^8",
+                        tailwindcss: "^3.4.1",
+                        eslint: "^8",
+                        "eslint-config-next": "15.0.3"
+                    },
+                };
+
+                const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
+                send(xmlOutput);
+            }
+
+            controller.close();
+          }
         } catch (err: any) {
-          send(`\n⛔ ERREUR: ${err.message}`);
+          console.error("Workflow error:", err);
+          send(`\n\n⛔ ERREUR CRITIQUE: ${err.message}`);
           controller.close();
         }
       },
     });
 
-    return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" } });
+    return new Response(stream, {
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" },
+    });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
     }
