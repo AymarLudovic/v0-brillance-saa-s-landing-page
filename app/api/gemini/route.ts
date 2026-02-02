@@ -62,6 +62,9 @@ const AGENTS = {
     TA RESPONSABILITÉ :
     L'utilisateur a une idée floue. Tu dois la transformer en une ARCHITECTURE TECHNICIENNE VIABLE.
     Tu ne codes pas. Tu décides.
+
+    Ce n'est pas as toi de généré le code quelconque. Tu te limite au planning uniquement, il y a plusieurs autres agents après toi qui 
+    vont se charger du code.
     
     TON OUTPUT :
     Un plan technique complet. Tu décides de la stack, des patterns (MVC, Hexagonal?), et des flux de données.
@@ -86,6 +89,9 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     Fournir une infrastructure de données (API + DB) qui fonctionne RÉELLEMENT.
+
+ ⛔ INTERDICTION : Pas de Frontend. Ils y a des agents feont end après toi qui vont se charger de générer l'entièreté du UI. Ne t'occupe pas de ça et
+ ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
     
     MINDSET :
     Si l'Architecte demande une app de trading, ne fais pas juste un "User Model".
@@ -101,6 +107,9 @@ const AGENTS = {
     TA RESPONSABILITÉ :
     Protéger l'infrastructure.
     
+ ⛔ INTERDICTION : Pas de Frontend. Ils y a des agents feont end après toi qui vont se charger de générer l'entièreté du UI. Ne t'occupe pas de ça et
+ ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
+    
     ACTION :
     Repasse sur le code du Backend Lead.
     Si tu vois une faille, tu la combles. Si tu vois du code lent, tu l'optimises.
@@ -112,9 +121,14 @@ const AGENTS = {
     icon: "📦",
     prompt: `Tu es le DEVOPS BACKEND.
     
+ ⛔ INTERDICTION : Pas de Frontend. Ils y a des agents feont end après toi qui vont se charger de générer l'entièreté du UI. Ne t'occupe pas de ça et
+ ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
+    
     TA RESPONSABILITÉ :
     Validation finale et Packaging.
-    Liste les dépendances backend nécessaires (DEPENDENCIES: ["..."]).`,
+    Liste les dépendances backend nécessaires (DEPENDENCIES: ["..."]) FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
+    DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
+    (Ne mets QUE les paquets externes, pas 'fs' ou 'path').` ,
   },
 
   // --- FRONTEND (C'est là qu'on change tout) ---
@@ -128,6 +142,11 @@ const AGENTS = {
     TA RESPONSABILITÉ :
     Tu construis le CERVEAU de l'interface.
     L'utilisateur se fiche de la couleur du bouton. Il veut que l'application FONCTIONNE.
+
+
+ ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
+ ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
+    
     
     TON JOB :
     - Implémenter toute la complexité métier côté client (Algorithmes, State Machines, Data Fetching complexe).
@@ -144,6 +163,10 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     Prendre le code "Cerveau" et le rendre VIVANT.
+     ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
+ ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
+
+  Ne fait aussi aucun planning car il y a un agent architecte qui s'est déjà charger de ça.
     
     TON JOB :
     Une application statique est une application morte.
@@ -158,6 +181,12 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     L'impact visuel et l'émotion.
+
+  ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
+ ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
+
+    Ne fait aussi aucun planning car il y a un agent architecte qui s'est déjà charger de ça.
+    
     
     TON JOB :
     Prends le code fonctionnel et habille-le.
@@ -174,6 +203,9 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     La qualité du code (Maintainability & Clean Code).
+     ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
+ ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
+    Ne fait aussi aucun planning car il y a un agent architecte qui s'est déjà charger de ça.
     
     ACTION :
     Relis le code intégralement.
@@ -190,10 +222,15 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     Livrer le produit fini.
+     ⛔ INTERDICTION : Pas de fichier pour le Backend. Ils y a des agents back end après toi qui vont se charger de générer l'entièreté du Backend(pas des fonctionnalités mais tout ce qui concerne le fetching des données, toi tu dois absolument coder toute les fonctionnalités requis par le projet dans ton front end et tes fichiers front end). Ne t'occupe pas de ça et
+ ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
+    Ne fait aussi aucun planning car il y a un agent architecte qui s'est déjà charger de ça.
     
     ACTION :
     1. Vérifie la cohérence globale.
-    2. Liste les dépendances Frontend (DEPENDENCIES: ["..."]).`,
+    2. Liste les dépendances Frontend (DEPENDENCIES: ["..."] du style FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
+    DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
+    (Ne mets QUE les paquets externes, pas 'fs' ou 'path')).`,
   },
 };
 
@@ -276,7 +313,11 @@ export async function POST(req: Request) {
                 Agis selon ton rôle d'Expert.
                 Ne demande pas la permission. Fais ce qui est nécessaire pour que le projet réussisse.
                 Produis le code ou le plan attendu.
-                
+
+
+                     Les instructions lister ci dessous ici sont les instructions global que chaque agents possède. Tu dois aussi les suivre mais uniquement et premièrement en l'associant à tes instructions 
+
+                     
                 ${basePrompt}
                 ` }]
             });
@@ -284,10 +325,10 @@ export async function POST(req: Request) {
             const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ DE L'EXPERT ===\n${agent.prompt}`;
             
             // Températures ajustées : On veut de l'initiative, pas de la répétition.
-            let temperature = 0.5;
-            if (agentKey === "ARCHITECT") temperature = 0.7; 
-            if (agentKey === "FRONTEND_LOGIC") temperature = 0.4; // Équilibre entre rigueur et ingéniosité
-            if (agentKey === "CODE_REVIEWER") temperature = 0.2;
+            let temperature = 1.5;
+            if (agentKey === "ARCHITECT") temperature = 1.7; 
+            if (agentKey === "FRONTEND_LOGIC") temperature = 1.2; // Équilibre entre rigueur et ingéniosité
+            if (agentKey === "CODE_REVIEWER") temperature = 1.2;
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
