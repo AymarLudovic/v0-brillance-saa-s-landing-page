@@ -5,7 +5,7 @@ import { basePrompt } from "@/lib/prompt";
 import packageJson from 'package-json';
 
 const BATCH_SIZE = 128;
-const MODEL_ID = "gemini-3-flash-preview"; 
+const MODEL_ID = "gemini-3-pro-preview"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
