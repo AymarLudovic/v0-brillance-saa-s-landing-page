@@ -316,17 +316,14 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    // On s'assure que tout est dispo pour buildHistoryParts
     const { history, uploadedImages, allReferenceImages } = body;
-    const lastUserMessage = history.filter((m: Message) => m.role === "user").pop()?.content || "";
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // --- Historique & Contextes (Accessible par TOUS les agents maintenant) ---
+    // --- Construction de l'historique ---
     const buildHistoryParts = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // 1. Images de référence (Style global)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -334,13 +331,11 @@ export async function POST(req: Request) {
         contents.push({ role: "user", parts: [...(styleParts as any), { text: "[SYSTEM: IMAGES DE RÉFÉRENCE DE STYLE GLOBALES]" }] });
       }
 
-      // 2. Historique de la conversation
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
         
-        // Ajout des images uploadées au dernier message utilisateur
         if (i === history.length - 1 && role === "user") {
           uploadedImages?.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
@@ -354,184 +349,108 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
-          const sanitized = txt
-            .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
-            .replace(/NO_BACKEND_CHANGES/gi, "");
-            
+          // Nettoyage éventuel des balises de classification si l'IA en produit encore
+          const sanitized = txt.replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "");
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
-        
-        // MODIFICATION: Suppression du paramètre 'useChatHistory', tout le monde a l'historique
-        async function runAgent(
-            agentKey: keyof typeof AGENTS, 
-            taskInput: string = ""
-        ) {
-          const agent = AGENTS[agentKey];
-          send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
-          
-          let fullAgentOutput = "";
-          let batchBuffer = "";
 
-          try {
-            // 1. On charge TOUJOURS l'historique complet (Chat + Images réf + Uploads)
-            const contents = buildHistoryParts();
-
-            // 2. Si l'agent reçoit un input technique (venant de l'agent précédent),
-            // on l'ajoute comme une nouvelle instruction 'user' à la fin de l'historique.
-            if (taskInput) {
-                contents.push({ 
-                    role: "user", 
-                    parts: [{ text: `
-                    [INSTRUCTION SYSTÈME - FLUX DE TRAVAIL INTERNE]
-                    
-                    CONTEXTE : Tu disposes de l'historique complet de la conversation ci-dessus pour comprendre les attentes de l'utilisateur.
-                    
-                    INPUT TECHNIQUE (Données transmises par l'agent précédent pour ta tâche) :
-                    ${taskInput}
-                    
-                    TES INSTRUCTIONS SPÉCIFIQUES :
-                    1. Tu es ${agent.name}.
-                    2. Combine la connaissance de l'historique (intentions globales) avec l'INPUT TECHNIQUE (tâche immédiate).
-                    3. Ne fais PAS le travail des autres agents, concentre-toi sur ton rôle.
-                    4. Génère le code demandé dans <create_file>.
-                    `}] 
-                });
-            }
-
-            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ ET FLUX DE TRAVAIL ===\n${agent.prompt}`;
-            
-            let temperature = 0.5; 
-            if (agentKey.includes("BACKEND")) temperature = 0.2; 
-            if (agentKey === "ARCHITECT") temperature = 0.4; 
-            if (agentKey === "FRONTEND_DESIGNER") temperature = 0.7; 
-
-            const response = await ai.models.generateContentStream({
-              model: MODEL_ID,
-              contents: contents,
-              tools: [{ functionDeclarations: [readFileDeclaration] }],
-              config: { systemInstruction, temperature, maxOutputTokens: 65536 },
-            });
-
-            for await (const chunk of response) {
-              const txt = chunk.text; 
-              if (txt) {
-                batchBuffer += txt;
-                fullAgentOutput += txt;
-                if (batchBuffer.length >= BATCH_SIZE) {
-                  send(batchBuffer);
-                  batchBuffer = "";
-                }
-              }
-            }
-            if (batchBuffer.length > 0) send(batchBuffer);
-            return fullAgentOutput;
-
-          } catch (e: any) {
-            console.error(`Erreur Agent ${agent.name}:`, e);
-            send(`\n[Erreur ${agent.name}]: ${e.message}\n`);
-            return "";
-          }
-        }
+        let fullResponseText = ""; // Pour stocker tout le code et analyser les dépendances ensuite
+        let batchBuffer = "";
 
         try {
-          // --- 1. ARCHITECTE ---
-          // L'Architecte n'a pas de taskInput, il se base purement sur l'historique
-          const architectOutput = await runAgent("ARCHITECT", "");
-          const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
-          const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; 
+          const contents = buildHistoryParts();
           
-          if (decision === "CHAT_ONLY") {
-            controller.close();
-            return;
-          } else if (decision === "FIX_ACTION") {
-            // Le Fixer reçoit l'erreur ET l'historique complet
-            await runAgent("FIXER", `Contexte erreur spécifique: "${lastUserMessage}"`);
-            controller.close();
-            return;
-          } else if (decision === "CODE_ACTION") {
-            
-            // --- 2. CASCADE BACKEND ---
-            // Tous les appels ont maintenant accès à l'historique via runAgent
-            const backend1 = await runAgent("BACKEND", `PLAN ARCHITECTE:\n${architectOutput}`);
-            const backend2 = await runAgent("BACKEND_REVIEWER", `CODE V1 (Backend Dev):\n${backend1}`);
-            const backend3 = await runAgent("BACKEND_AUDITOR", `CODE V2 (Backend Reviewer):\n${backend2}`);
-            
-            const noBackend = backend3.includes("NO_BACKEND_CHANGES");
-            const finalBackendCode = noBackend ? "Aucun changement Backend." : backend3;
+          // Appel UNIQUE à l'IA avec basePrompt comme seul maître
+          const response = await ai.models.generateContentStream({
+            model: MODEL_ID,
+            contents: contents,
+            tools: [{ functionDeclarations: [readFileDeclaration] }],
+            config: { 
+                systemInstruction: basePrompt, // L'unique agent
+                temperature: 0.5, 
+                maxOutputTokens: 65536 
+            },
+          });
 
-            // --- 3. CASCADE FRONTEND ---
-            const frontend1 = await runAgent("FRONTEND", `PLAN:\n${architectOutput}\n\nCONTEXTE BACKEND (APIs disponibles):\n${finalBackendCode}`);
-            const frontend2 = await runAgent("FRONTEND_DESIGNER", `STRUCTURE REACT (Frontend Dev):\n${frontend1}`);
-            const frontendFinal = await runAgent("FRONTEND_FINALIZER", `DESIGN UX (Frontend UX):\n${frontend2}`);
+          for await (const chunk of response) {
+            const txt = chunk.text();
+            if (txt) {
+              batchBuffer += txt;
+              fullResponseText += txt; // On accumule pour l'analyse finale
+              if (batchBuffer.length >= BATCH_SIZE) {
+                send(batchBuffer);
+                batchBuffer = "";
+              }
+            }
+          }
+          if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- 4. GESTION AUTOMATIQUE DES PAQUETS (NPM) ---
-            const backendDeps = extractDependenciesFromAgentOutput(backend3);
-            const frontendDeps = extractDependenciesFromAgentOutput(frontendFinal);
-            
-            const allDetectedDeps = Array.from(new Set([...backendDeps, ...frontendDeps]));
+          // --- LOGIQUE DE GÉNÉRATION DU PACKAGE.JSON ---
+          // On analyse la réponse complète de l'IA (fullResponseText) pour trouver les dépendances
+          const allDetectedDeps = extractDependenciesFromAgentOutput(fullResponseText);
 
-            if (allDetectedDeps.length > 0 || !noBackend) {
-                send("\n\n--- 📦 [SYSTEM] Génération du package.json... ---\n");
+          if (allDetectedDeps.length > 0) {
+            send("\n\n--- 📦 [SYSTEM] Génération du package.json... ---\n");
 
-                const baseDeps: Record<string, string> = {
-                    next: "15.1.0",
-                    react: "19.0.0",
-                    "react-dom": "19.0.0",
-                    "lucide-react": "0.561.0"
-                };
+            const baseDeps: Record<string, string> = {
+                next: "15.1.0",
+                react: "19.0.0",
+                "react-dom": "19.0.0",
+                "lucide-react": "0.561.0"
+            };
 
-                const newDeps: Record<string, string> = {};
+            const newDeps: Record<string, string> = {};
 
-                await Promise.all(allDetectedDeps.map(async (pkg) => {
-                    if (!pkg || baseDeps[pkg]) return;
-                    try {
-                        const data = await packageJson(pkg);
-                        newDeps[pkg] = data.version as string;
-                    } catch (err) {
-                        console.warn(`Package introuvable: ${pkg}`);
-                        newDeps[pkg] = "latest"; 
-                    }
-                }));
+            await Promise.all(allDetectedDeps.map(async (pkg) => {
+                if (!pkg || baseDeps[pkg]) return;
+                try {
+                    const data = await packageJson(pkg);
+                    newDeps[pkg] = data.version as string;
+                } catch (err) {
+                    console.warn(`Package introuvable: ${pkg}`);
+                    newDeps[pkg] = "latest"; 
+                }
+            }));
 
-                const finalDependencies = { ...baseDeps, ...newDeps };
+            const finalDependencies = { ...baseDeps, ...newDeps };
 
-                const packageJsonContent = {
-                    name: "nextjs-app",
-                    version: "0.1.0",
-                    private: true,
-                    scripts: {
-                        dev: "next dev",
-                        build: "next build",
-                        start: "next start",
-                        lint: "next lint"
-                    },
-                    dependencies: finalDependencies,
-                    devDependencies: {
-                        typescript: "^5",
-                        "@types/node": "^20",
-                        "@types/react": "^19",
-                        "@types/react-dom": "^19",
-                        postcss: "^8",
-                        tailwindcss: "^3.4.1",
-                        eslint: "^8",
-                        "eslint-config-next": "15.0.3"
-                    },
-                };
+            const packageJsonContent = {
+                name: "nextjs-app",
+                version: "0.1.0",
+                private: true,
+                scripts: {
+                    dev: "next dev",
+                    build: "next build",
+                    start: "next start",
+                    lint: "next lint"
+                },
+                dependencies: finalDependencies,
+                devDependencies: {
+                    typescript: "^5",
+                    "@types/node": "^20",
+                    "@types/react": "^19",
+                    "@types/react-dom": "^19",
+                    postcss: "^8",
+                    tailwindcss: "^3.4.1",
+                    eslint: "^8",
+                    "eslint-config-next": "15.0.3"
+                },
+            };
 
-                const xmlOutput = `
+            const xmlOutput = `
 <create_file path="package.json">
 ${JSON.stringify(packageJsonContent, null, 2)}
 </create_file>
-                `;
-                
-                send(xmlOutput);
-            }
-
-            controller.close();
+            `;
+            
+            send(xmlOutput);
           }
-        } catch (err: any) {
-          console.error("Workflow error:", err);
-          send(`\n\n⛔ ERREUR CRITIQUE: ${err.message}`);
+
+          controller.close();
+
+        } catch (e: any) {
+          console.error("Erreur de génération:", e);
+          send(`\n[Erreur]: ${e.message}\n`);
           controller.close();
         }
       },
@@ -543,4 +462,4 @@ ${JSON.stringify(packageJsonContent, null, 2)}
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-      }
+        }
