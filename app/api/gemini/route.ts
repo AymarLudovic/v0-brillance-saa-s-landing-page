@@ -183,6 +183,18 @@ const AGENTS = {
      Mais n'oublie pas ton but est de faire la liaison avec les modals et components fonctionnels que tu aura créé. Aussi pour mieux t'aider tu as, dans l'historique l'image UI qui sert de base UI, la demande de l'utilisateur et aussi le currentPlan et les fichiers actuels qui sont dans le projet.
 
      Je compte sur toi pour bien faire ton travail et tout cela en prévenant tout type d'erreur lier à Typescript au tsx/jsx à des éléments manquants et la totale. je compte sur toi.
+
+    Surtout n'oublie pas, ton job n'est pas premièremebt l'aspect visuel beau de la plateforme non , c'est ceci ton point focal:
+    - Maintenant que l'ensemble l'agent qui te précède a fait la structure complète de layouts pour la page et placer les éléments qui auront besoin des modals 
+      ta première mission sera donc de créé l'ensemble des modals qui devront être lier au UI et de les rendre fonctionnelle, c'est à dire que tout les modals et components qui font en réalité les fonctionnalités de la plateforme c'est à toi de les créés et les rendre fonctionnelle en tout point 
+      que ce soit ce qu'ils contiennent en eux mêmes qui soit absolument fonctionnelle et faire la tâche pour laquelle ils sont créés. Ton rôle n'est pas la de retoucher l'aspect layouts et refaire la page. Toi tu te concentres sur les composants, sur les modals et leurs fonctionnalités de celle-ci. C'est t'assurer que si tu as vu un bouton qui est censé appeler un modal, 
+      tu le créé et tu le rend fonctionnelle totalement, pas juste du UI. Si par exemple tu vois un components qui as été créé de player style la playef bar de Spotify, ton but c'est de t'assurer que chaque bouton, chaque élément, chaque input chaque moni texte de cette Player bar la soit fonctionnel c'est à dire lancé la musique en cour, mettre pause au song en cours, liké, jouer en boucle, lancé la musique suivante. C'est un peu ça ton objectif, où je veux t'emmener.
+      C'est toi le point critique des fonctionnalités.
+
+    - En deuxième lieu après avoir absolument fait ce premier point lister ici plus haut de ton job, ton deuxième objectif est l'implémentation de ces nouveaux modals et components fonctionnelles en tout point, tu vas maintenant reprendre les fichiers UI créé par le premier agent, la, celui qui fait les layouts de base, et tu va faire reprendre totalement le UI qu'il a fait et les layouts et c'est là que tu vas lier les components la et modals à normalement à chaque élément UI qui sont censés les appelés(boutons, input, fonctionnalités etc) tout ce qui sont censés les appelers.
+     et tu ne vas absolument pas changer le design UI que ce premier agent à fait, non, tu vas juste l'améliorer, c'est à dire être beaucoup plus créatif en rajoutant de la créativité et des éléments, mais tout cela en s'appuyant sur le code de base de l'agent là.
+     Mais n'oublie pas ton but est de faire la liaison avec les modals et components fonctionnels que tu aura créé. Aussi pour mieux t'aider tu as, dans l'historique l'image UI qui sert de base UI, la demande de l'utilisateur et aussi le currentPlan et les fichiers actuels qui sont dans le projet.
+     
     .`,
   },
 
@@ -230,7 +242,18 @@ const AGENTS = {
 
      Je compte sur toi pour bien faire ton travail et tout cela en prévenant tout type d'erreur lier à Typescript au tsx/jsx à des éléments manquants et la totale. je compte sur toi.
     .
-    Corrige le tir. Rends le code "Production Ready". aussi le but c'est que le design soit aussi améliorer avec plus de créativité sans sortir de ce que les autres agents ont fait. En effet, tu as bien tout ce qu'il ont fait , les images updloader les plans , les fichiers actuels du projet etc comme je l'ai dit à l'agent précédents.`,
+    Corrige le tir. Rends le code "Production Ready". aussi le but c'est que le design soit aussi améliorer avec plus de créativité sans sortir de ce que les autres agents ont fait. En effet, tu as bien tout ce qu'il ont fait , les images updloader les plans , les fichiers actuels du projet etc comme je l'ai dit à l'agent précédents. 
+    N'oublie surtout pas, ton but est de corriger ce que l'agent précédents à fait et de faire tout ceci comme lister : 
+    - Maintenant que l'ensemble l'agent qui te précède a fait la structure complète de layouts pour la page et placer les éléments qui auront besoin des modals 
+      ta première mission sera donc de créé l'ensemble des modals qui devront être lier au UI et de les rendre fonctionnelle, c'est à dire que tout les modals et components qui font en réalité les fonctionnalités de la plateforme c'est à toi de les créés et les rendre fonctionnelle en tout point 
+      que ce soit ce qu'ils contiennent en eux mêmes qui soit absolument fonctionnelle et faire la tâche pour laquelle ils sont créés. Ton rôle n'est pas la de retoucher l'aspect layouts et refaire la page. Toi tu te concentres sur les composants, sur les modals et leurs fonctionnalités de celle-ci. C'est t'assurer que si tu as vu un bouton qui est censé appeler un modal, 
+      tu le créé et tu le rend fonctionnelle totalement, pas juste du UI. Si par exemple tu vois un components qui as été créé de player style la playef bar de Spotify, ton but c'est de t'assurer que chaque bouton, chaque élément, chaque input chaque moni texte de cette Player bar la soit fonctionnel c'est à dire lancé la musique en cour, mettre pause au song en cours, liké, jouer en boucle, lancé la musique suivante. C'est un peu ça ton objectif, où je veux t'emmener.
+      C'est toi le point critique des fonctionnalités.
+
+    - En deuxième lieu après avoir absolument fait ce premier point lister ici plus haut de ton job, ton deuxième objectif est l'implémentation de ces nouveaux modals et components fonctionnelles en tout point, tu vas maintenant reprendre les fichiers UI créé par le premier agent, la, celui qui fait les layouts de base, et tu va faire reprendre totalement le UI qu'il a fait et les layouts et c'est là que tu vas lier les components la et modals à normalement à chaque élément UI qui sont censés les appelés(boutons, input, fonctionnalités etc) tout ce qui sont censés les appelers.
+     et tu ne vas absolument pas changer le design UI que ce premier agent à fait, non, tu vas juste l'améliorer, c'est à dire être beaucoup plus créatif en rajoutant de la créativité et des éléments, mais tout cela en s'appuyant sur le code de base de l'agent là.
+     Mais n'oublie pas ton but est de faire la liaison avec les modals et components fonctionnels que tu aura créé. Aussi pour mieux t'aider tu as, dans l'historique l'image UI qui sert de base UI, la demande de l'utilisateur et aussi le currentPlan et les fichiers actuels qui sont dans le projet.
+     `,
   },
 
   FRONTEND_PKG: {
@@ -240,7 +263,8 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     Livrer le produit fini.
-    
+    Ne code rien, ton but est juste d'uniquement faire la liste des dépendances qui doivent installer.
+    Les autres agents qui te précède ont déjà tout fait et bien fait. Toi sors juste la liste des dépendances à installer.
     ACTION :
     1. Vérifie la cohérence globale.
     2. Liste les dépendances Frontend (DEPENDENCIES: ["..."] du style FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
@@ -329,9 +353,8 @@ export async function POST(req: Request) {
                 Ne demande pas la permission. Fais ce qui est nécessaire pour que le projet réussisse.
                 Produis le code ou le plan attendu.
 
-                Les instructions lister ci dessous ici sont les instructions global que chaque agents possède. Tu dois aussi les suivre mais uniquement et premièrement en l'associant à tes instructions 
-                     
-                ${basePrompt}
+                format de création des fichiers : <create_file path="cheminfichicher">...code...</create_file> surtout sans markdown, à l'intérieur comme à l'intérieur de ce xml car sinon le fichier et son code ne sera pas capter par le client.
+        
                 ` }]
             });
 
