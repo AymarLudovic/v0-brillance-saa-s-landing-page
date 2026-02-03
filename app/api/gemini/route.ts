@@ -506,7 +506,7 @@ export async function POST(req: Request) {
                     name: "nextjs-app",
                     version: "1.0.0",
                     private: true,
-                    scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
+                    scripts: { dev: "next dev -p 3000 -H 0.0.0.0", build: "next build", start: "next start", lint: "next lint" },
                     dependencies: finalDependencies,
                     devDependencies: {
                         typescript: "^5",
