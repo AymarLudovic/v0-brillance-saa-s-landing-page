@@ -424,10 +424,10 @@ export async function POST(req: Request) {
             const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ DE L'EXPERT ===\n${agent.prompt}`;
             
             // Températures ajustées
-            let temperature = 1.5;
-            if (agentKey === "ARCHITECT") temperature = 1.7; 
-            if (agentKey === "FRONTEND_LOGIC") temperature = 1.2;
-            if (agentKey === "CODE_REVIEWER") temperature = 1.2;
+            let temperature = 0.5;
+            if (agentKey === "ARCHITECT") temperature = 0.3; 
+            if (agentKey === "FRONTEND_LOGIC") temperature = 0.6;
+            if (agentKey === "CODE_REVIEWER") temperature = 0.6;
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
