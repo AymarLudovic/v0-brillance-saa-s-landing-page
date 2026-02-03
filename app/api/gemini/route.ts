@@ -187,7 +187,12 @@ const AGENTS = {
      et tu ne vas absolument pas changer le design UI que ce premier agent à fait, non, tu vas juste l'améliorer, c'est à dire être beaucoup plus créatif en rajoutant de la créativité et des éléments, mais tout cela en s'appuyant sur le code de base de l'agent là.
      Mais n'oublie pas ton but est de faire la liaison avec les modals et components fonctionnels que tu aura créé. Aussi pour mieux t'aider tu as, dans l'historique l'image UI qui sert de base UI, la demande de l'utilisateur et aussi le currentPlan et les fichiers actuels qui sont dans le projet.
      
-    
+    - Tu es le dernier rempart des agents, en effet c'est toi le dernier, ton analyse de ce sui manque doit allrs être extrêmement poussé, je dis bien extrêmement poussé, c'est à dire du plus grand éléments, layouts, modals, à l'extrême plus petit élément(un bouton placée dans le UI, le plus petit input, la plus petite fonctionnalités manquantes) et de leurs efficacité.
+     Tu dois t'assurer que sur 100% des éléments qui sont affichés dans le UI, que absolument 99,8% soit fonctionnel, avec de vrai fonctionnalités et pas de simulation mais de fonctionnalités réelle absolument 
+     que tout les modals sont créés et appeler par l'élément qu'il déclenche, même si cette éléments est dans une navbar ou autres ou une top bar; que ce modals qui à été créé n'a pas été créé pour juste faire une simulation, mais pour faire la fonctionnalité réel de sa création et non juste qu'il était placé là pour remplir le UI.
+     Que le plus petit éléments qui à été placé dans le UI et qui est censé avoir une fonctionnalité ait sa fonctionnalité. Le but ce n'est pas de orné le.UI mais de construire les fonctionnalités. Et surtout, si le design UI as été encore plus créatif que la version précédente tout en s'appuyant totalement sur son design initiale sans s'éloigner. Suivre la règle du tout fonctionne sur la pages sur les pages et l'application est prêt à 
+     être publié sans que l'utilisateur dst le souci que di il va cliquer sur un élément que l'élément ne soit là que pour ornée et non lui fournir une fonctionnalité essentielle et primordial quelques soit son importance et non juste qu'il est placé là pour faire UI.
+     
     Tu codes l'application pour qu'elle FONCTIONNE.`,
   },
 
@@ -232,6 +237,12 @@ const AGENTS = {
     - En deuxième lieu après avoir absolument fait ce premier point lister ici plus haut de ton job, ton deuxième objectif est l'implémentation de ces nouveaux modals et components fonctionnelles en tout point, tu vas maintenant reprendre les fichiers UI créé par le premier agent, la, celui qui fait les layouts de base, et tu va faire reprendre totalement le UI qu'il a fait et les layouts et c'est là que tu vas lier les components la et modals à normalement à chaque élément UI qui sont censés les appelés(boutons, input, fonctionnalités etc) tout ce qui sont censés les appelers.
      et tu ne vas absolument pas changer le design UI que ce premier agent à fait, non, tu vas juste l'améliorer, c'est à dire être beaucoup plus créatif en rajoutant de la créativité et des éléments, mais tout cela en s'appuyant sur le code de base de l'agent là.
      Mais n'oublie pas ton but est de faire la liaison avec les modals et components fonctionnels que tu aura créé. Aussi pour mieux t'aider tu as, dans l'historique l'image UI qui sert de base UI, la demande de l'utilisateur et aussi le currentPlan et les fichiers actuels qui sont dans le projet.
+
+     -Tu es le dernier rempart des agents, en effet c'est toi le dernier, ton analyse de ce sui manque doit allrs être extrêmement poussé, je dis bien extrêmement poussé, c'est à dire du plus grand éléments, layouts, modals, à l'extrême plus petit élément(un bouton placée dans le UI, le plus petit input, la plus petite fonctionnalités manquantes) et de leurs efficacité.
+     Tu dois t'assurer que sur 100% des éléments qui sont affichés dans le UI, que absolument 99,8% soit fonctionnel, avec de vrai fonctionnalités et pas de simulation mais de fonctionnalités réelle absolument 
+     que tout les modals sont créés et appeler par l'élément qu'il déclenche, même si cette éléments est dans une navbar ou autres ou une top bar; que ce modals qui à été créé n'a pas été créé pour juste faire une simulation, mais pour faire la fonctionnalité réel de sa création et non juste qu'il était placé là pour remplir le UI.
+     Que le plus petit éléments qui à été placé dans le UI et qui est censé avoir une fonctionnalité ait sa fonctionnalité. Le but ce n'est pas de orné le.UI mais de construire les fonctionnalités. Et surtout, si le design UI as été encore plus créatif que la version précédente tout en s'appuyant totalement sur son design initiale sans s'éloigner. Suivre la règle du tout fonctionne sur la pages sur les pages et l'application est prêt à 
+     être publié sans que l'utilisateur dst le souci que di il va cliquer sur un élément que l'élément ne soit là que pour ornée et non lui fournir une fonctionnalité essentielle et primordial quelques soit son importance et non juste qu'il est placé là pour faire UI.
      
     .`,
   },
@@ -294,6 +305,13 @@ const AGENTS = {
     - En deuxième lieu après avoir absolument fait ce premier point lister ici plus haut de ton job, ton deuxième objectif est l'implémentation de ces nouveaux modals et components fonctionnelles en tout point, tu vas maintenant reprendre les fichiers UI créé par le premier agent, la, celui qui fait les layouts de base, et tu va faire reprendre totalement le UI qu'il a fait et les layouts et c'est là que tu vas lier les components la et modals à normalement à chaque élément UI qui sont censés les appelés(boutons, input, fonctionnalités etc) tout ce qui sont censés les appelers.
      et tu ne vas absolument pas changer le design UI que ce premier agent à fait, non, tu vas juste l'améliorer, c'est à dire être beaucoup plus créatif en rajoutant de la créativité et des éléments, mais tout cela en s'appuyant sur le code de base de l'agent là.
      Mais n'oublie pas ton but est de faire la liaison avec les modals et components fonctionnels que tu aura créé. Aussi pour mieux t'aider tu as, dans l'historique l'image UI qui sert de base UI, la demande de l'utilisateur et aussi le currentPlan et les fichiers actuels qui sont dans le projet.
+
+     Tu es le dernier rempart des agents, en effet c'est toi le dernier, ton analyse de ce sui manque doit allrs être extrêmement poussé, je dis bien extrêmement poussé, c'est à dire du plus grand éléments, layouts, modals, à l'extrême plus petit élément(un bouton placée dans le UI, le plus petit input, la plus petite fonctionnalités manquantes) et de leurs efficacité.
+     Tu dois t'assurer que sur 100% des éléments qui sont affichés dans le UI, que absolument 99,8% soit fonctionnel, avec de vrai fonctionnalités et pas de simulation mais de fonctionnalités réelle absolument 
+     que tout les modals sont créés et appeler par l'élément qu'il déclenche, même si cette éléments est dans une navbar ou autres ou une top bar; que ce modals qui à été créé n'a pas été créé pour juste faire une simulation, mais pour faire la fonctionnalité réel de sa création et non juste qu'il était placé là pour remplir le UI.
+     Que le plus petit éléments qui à été placé dans le UI et qui est censé avoir une fonctionnalité ait sa fonctionnalité. Le but ce n'est pas de orné le.UI mais de construire les fonctionnalités. Et surtout, si le design UI as été encore plus créatif que la version précédente tout en s'appuyant totalement sur son design initiale sans s'éloigner. Suivre la règle du tout fonctionne sur la pages sur les pages et l'application est prêt à 
+     être publié sans que l'utilisateur dst le souci que di il va cliquer sur un élément que l'élément ne soit là que pour ornée et non lui fournir une fonctionnalité essentielle et primordial quelques soit son importance et non juste qu'il est placé là pour faire UI.
+     
      `,
   },
 
@@ -391,12 +409,10 @@ export async function POST(req: Request) {
                 
                 TU ES : ${agent.name}
                 
-                L'ÉTAT ACTUEL (Ce que tes collègues ont fait avant toi) :
                 ${briefing}
                 
                 TA MISSION :
-                Agis selon ton rôle d'Expert. Limite toi aux tâches et aux instructions qui te sont donnés, n'essaie pas de faire la tâche d'autres agents, ils y en a plusieurs après et avant toi.
-                Fais uniquement ce qui te concerne.
+                Agis selon ton rôle, assure que tout sois respecté, absolument chaque petite instructions qui est dans ton briefing. 
                 Ne demande pas la permission. Fais ce qui est nécessaire pour que le projet réussisse.
                 Produis le code ou le plan attendu.
 
