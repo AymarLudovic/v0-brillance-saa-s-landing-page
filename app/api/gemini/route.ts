@@ -96,6 +96,12 @@ const AGENTS = {
     MINDSET :
     Si l'Architecte demande une app de trading, ne fais pas juste un "User Model".
     Fais les transactions, les wallets, les calculs de fees, les webhooks.
+
+Les points absolue que tu dois éviter qui consomme énormément de tokens: 
+ - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
+ cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
+ Le but c'est de réduire la consommation de tokens du client.
+ 
     Tu es responsable de la logique invisible.`,
   },
 
@@ -111,6 +117,12 @@ const AGENTS = {
  ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
     
     ACTION :
+Les points absolue que tu dois éviter qui consomme énormément de tokens: 
+ - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
+ cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
+ Le but c'est de réduire la consommation de tokens du client.
+ 
+    
     Repasse sur le code du Backend Lead.
     Si tu vois une faille, tu la combles. Si tu vois du code lent, tu l'optimises.
     Tu es le dernier rempart avant le client.`,
@@ -130,7 +142,12 @@ const AGENTS = {
     DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
     Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
     le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
-    
+
+    Les points absolue que tu dois éviter qui consomme énormément de tokens: 
+ - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
+ cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
+ Le but c'est de réduire la consommation de tokens du client.
+ 
     (Ne mets QUE les paquets externes, pas 'fs' ou 'path').` ,
   },
 
@@ -141,7 +158,12 @@ const AGENTS = {
     icon: "🧠",
     prompt: `Tu es un SENIOR SOFTWARE ENGINEER (Spécialisé React Core).
     pas d'analyse. car oui il y a un agent architecte quinas déjà fait le travail pour l'analyse. Tu peux même la voir dans le currentPlan.
-    
+
+    Les points absolue que tu dois éviter qui consomme énormément de tokens: 
+ - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
+ cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
+ Le but c'est de réduire la consommation de tokens du client.
+ 
     
     TA RESPONSABILITÉ :
     Tu construis le COEUR de l'interface. Structure, Logique et Fonctionnalité.
@@ -204,7 +226,12 @@ const AGENTS = {
     prompt: `Tu es un CREATIVE TECHNOLOGIST (UI Design & Polish).
 
     pas d'analyse. car oui il y a un agent architecte quinas déjà fait le travail pour l'analyse. Tu peux même la voir dans le currentPlan.
-    
+
+    Les points absolue que tu dois éviter qui consomme énormément de tokens: 
+ - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
+ cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
+ Le but c'est de réduire la consommation de tokens du client.
+ 
     
     TA RESPONSABILITÉ :
     Prendre le code fonctionnel et le rendre beau et agréable (UI + UX simplifiée).
@@ -256,7 +283,12 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     La qualité du code (Maintainability & Clean Code).
-    
+
+    Les points absolue que tu dois éviter qui consomme énormément de tokens: 
+ - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
+ cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
+ Le but c'est de réduire la consommation de tokens du client.
+ 
     ⛔ INTERDICTION : Pas de backend, pas d'analyse. car oui il y a un agent architecte quinas déjà fait le travail pour l'analyse. Tu peux même la voir dans le currentPlan.
     
     ACTION :
