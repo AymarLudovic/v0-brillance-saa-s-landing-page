@@ -60,7 +60,8 @@ const AGENTS = {
     
     TA RESPONSABILITÉ :
     L'utilisateur a une idée floue. Tu dois la transformer en une ARCHITECTURE TECHNICIENNE VIABLE.
-    Tu ne codes pas. Tu décides.
+    Tu ne codes pas. Tu décides. Il y a tout un processus d'appel d'agents après toi, tu ne dois en aucun cas écrire une seule ligne de codes, limites toi aux instructions qui t'ont été fourni et qui concerne uniquement l'élaboration 
+    d'un planning. Et non à cider toi même la plateforme même si elle te paraît simple à faire.
 
     Ce n'est pas as toi de généré le code quelconque. Tu te limite au planning uniquement, il y a plusieurs autres agents après toi qui 
     vont se charger du code.
@@ -394,12 +395,13 @@ export async function POST(req: Request) {
                 ${briefing}
                 
                 TA MISSION :
-                Agis selon ton rôle d'Expert.
+                Agis selon ton rôle d'Expert. Limite toi aux tâches et aux instructions qui te sont donnés, n'essaie pas de faire la tâche d'autres agents, ils y en a plusieurs après et avant toi.
+                Fais uniquement ce qui te concerne.
                 Ne demande pas la permission. Fais ce qui est nécessaire pour que le projet réussisse.
                 Produis le code ou le plan attendu.
 
                 format de création des fichiers : <create_file path="cheminfichicher">...code...</create_file> surtout sans markdown, à l'intérieur comme à l'intérieur de ce xml car sinon le fichier et son code ne sera pas capter par le client.
-        
+                Respecte en tout point ton instruction et le format xml suivant au cas où tu est un agent charger de rédiger le code. Respecte absolument ça.
                 ` }]
             });
 
