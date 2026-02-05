@@ -411,11 +411,6 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
 };
 
 
-                
-
- 
-        
-        
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
@@ -426,12 +421,11 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-        const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
-    
+    const { history, uploadedImages, allReferenceImages } = body;
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Construction de l'historique initial (User + Images)
+    // Construction de l'historique initial
     const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
@@ -462,59 +456,77 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
-          // On nettoie les tags techniques pour ne pas polluer la vue utilisateur
+          // On cache les tags techniques pour l'utilisateur final
           const sanitized = txt
-            .replace(/\[\[PROJECT_START\]\]/g, "") // On cache le tag de démarrage
+            .replace(/\[\[PROJECT_START\]\]/g, "") 
             .replace(/\[\[PROJECT_FINISHED\]\]/g, "")
+            .replace(/\[\[PROJECT_PAGES\]\][\s\S]*?(\n|$)/g, "") // Optionnel: Cacher le plan technique si tu veux
+            .replace(/\[\[PROJECT_MODALS\]\][\s\S]*?(\n|$)/g, "")
+            .replace(/\[\[PROJECT_MODALS_ROLES\]\][\s\S]*?(\n|$)/g, "")
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "");
+          
+          // On envoie le texte nettoyé (l'annonce reste visible, mais pas les balises internes)
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
         try {
-          // --- CONFIGURATION DU MODE AUTONOME ---
+          // --- CONFIGURATION DU MODE AUTONOME AVEC RIGUEUR ---
           const systemInstruction = `${basePrompt}
 
-          === MODE DÉVELOPPEUR AUTONOME (ITERATIF) ===
-          Tu es un expert Fullstack unique.
+          === MODE DÉVELOPPEUR AUTONOME (ITERATIF & RIGOUREUX) ===
+          Tu es un expert Fullstack Senior. Tu ne fais pas de "mockups", tu fais du code de production.
           
           🚨 DÉCISION CRITIQUE AU DÉMARRAGE 🚨
-          1. **SIMPLE DISCUSSION** (Bonjour, Question simple) :
-             - Réponds normalement.
-             - NE METS PAS DE TAG SPÉCIAL.
-          
-          2. **PROJET / CODE** (Créer une app, modifier un fichier, débugger) :
-             - Tu DOIS commencer ta réponse par : [[PROJECT_START]]
-             - Fais suivre ce tag par une courte phrase d'annonce (ex: "Je lance l'analyse du projet...").
-             - Ensuite, génère le code XML.
+          1. **SIMPLE DISCUSSION** : Réponds normalement.
+          2. **PROJET / CODE** :
+             - COMMENCE ta réponse par : [[PROJECT_START]]
+             - Fais une ANNONCE courte à l'utilisateur.
+             - ENSUITE, établis ton **MANIFESTE TECHNIQUE** (Voir ci-dessous).
+             - ENFIN, commence à coder.
 
-          RÈGLES D'EXÉCUTION (Une fois le projet lancé) :
-          - NE FAIS PAS tout d'un coup. Procède par étapes logiques (Architecture -> Code -> Finition).
-          - À la fin d'une étape, arrête-toi. Je te relancerai automatiquement.
-          - QUAND TU AS FINI TOUT LE PROJET, écris STRICTEMENT : [[PROJECT_FINISHED]]
+          === LE MANIFESTE TECHNIQUE (OBLIGATOIRE) ===
+          Dès que tu lances un projet, tu dois lister ce que tu vas faire dans ces blocs précis :
 
-          FORMAT DE FICHIER OBLIGATOIRE :
-          <create_file path="chemin/fichier.ext">
+          1. [[PROJECT_PAGES]]
+             - Liste chaque PAGE (route) à créer.
+             - Liste ses fonctionnalités clés.
+             - Liste ses dépendances (Quels composants elle appelle ?).
+
+          2. [[PROJECT_MODALS]]
+             - Liste TOUS les fichiers Components, Modals, Utils, et Hooks nécessaires.
+             - ⛔ INTERDICTION d'importer un fichier si tu ne le listes pas ici pour création.
+             - Si tu importes "Header", tu DOIS créer "Header".
+
+          3. [[PROJECT_MODALS_ROLES]]
+             - Pour chaque composant listé, décris sa LOGIQUE (pas juste le UI).
+             - Ex: "AuthModal: Doit gérer le submit, l'erreur API, le loading state, et la redirection".
+
+          === RÈGLES D'EXÉCUTION ===
+          - Procède par étapes. Ne coupe pas le XML au milieu.
+          - À chaque étape de relance, VÉRIFIE ton Manifeste.
+          - TANT QUE tout le manifeste n'est pas codé (Fichiers créés + Logique implémentée), tu continues.
+          - QUAND TU AS TOUT FINI (et vérifié que tout est vert), écris : [[PROJECT_FINISHED]]
+
+          FORMAT DE FICHIER :
+          <create_file path="...">
           ... code brut ...
           </create_file>
-          
-          INTERDIT : Pas de markdown (\`\`\`) autour des balises XML.
           `;
 
           // On initialise l'historique
           let currentHistory = buildInitialHistory();
           
-          // Variables pour gérer la boucle "Souffle & Reprend"
+          // Variables de contrôle
           let stepCount = 0;
-          const MAX_STEPS = 15;
+          const MAX_STEPS = 20; // Augmenté car le mode rigoureux demande plus d'étapes
           let finished = false;
           let fullSessionOutput = ""; 
-          let isProjectMode = false; // Nouvelle variable d'état
+          let isProjectMode = false;
 
           // --- BOUCLE PRINCIPALE ---
           while (!finished && stepCount < MAX_STEPS) {
             stepCount++;
             
-            // Appel API standard
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
               contents: currentHistory,
@@ -533,7 +545,6 @@ export async function POST(req: Request) {
                 currentStepOutput += txt;
                 fullSessionOutput += txt;
 
-                // Streaming fluide
                 if (batchBuffer.length >= BATCH_SIZE) {
                   send(batchBuffer);
                   batchBuffer = "";
@@ -542,43 +553,48 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- ANALYSE APRÈS L'ÉTAPE ---
-            
-            // 1. Mise à jour de la mémoire
+            // --- ANALYSE ET SUPERVISION ---
             currentHistory.push({ role: "model", parts: [{ text: currentStepOutput }] });
 
-            // 2. DÉTECTION DU TYPE D'INTERACTION (Au premier tour seulement)
+            // 1. Détection initiale
             if (stepCount === 1) {
                 if (currentStepOutput.includes("[[PROJECT_START]]")) {
-                    isProjectMode = true; // C'est un projet, on active la boucle
+                    isProjectMode = true;
                 } else {
-                    finished = true; // C'est juste du chat (pas de tag), on coupe tout de suite
+                    finished = true; // Chat simple
                 }
             }
 
-            // 3. Gestion de la boucle si on est en mode projet
+            // 2. Logique de relance (Le "Superviseur")
             if (isProjectMode) {
                 if (currentStepOutput.includes("[[PROJECT_FINISHED]]")) {
                   finished = true;
                 } else if (!finished) {
-                  // Relance automatique (Souffle & Reprend)
-                  currentHistory.push({
-                    role: "user",
-                    parts: [{ text: "Bien reçu. Continue le développement à l'étape suivante. Si c'est fini, affiche [[PROJECT_FINISHED]]." }]
-                  });
+                  // C'est ici que la magie opère. On force l'IA à se relire.
+                  const supervisorPrompt = `
+                  [SYSTÈME DE VÉRIFICATION]
+                  1. Relis tes listes [[PROJECT_PAGES]] et [[PROJECT_MODALS]] du début.
+                  2. As-tu créé TOUS les fichiers listés ?
+                  3. As-tu implémenté TOUTE la logique décrite dans [[PROJECT_MODALS_ROLES]] ?
+                  4. Vérifie tes imports : est-ce que les fichiers importés existent réellement maintenant ?
+                  
+                  Si il reste du travail, CONTINUE immédiatement. Ne t'arrête pas.
+                  Si tout est 100% complet et fonctionnel, affiche [[PROJECT_FINISHED]].
+                  `;
+                  
+                  currentHistory.push({ role: "user", parts: [{ text: supervisorPrompt }] });
                 }
             }
           }
 
-          // --- GESTION DES DÉPENDANCES (FINALE - SEULEMENT SI CODE GÉNÉRÉ) ---
+          // --- INSTALLATION DES DÉPENDANCES ---
           const hasCode = fullSessionOutput.includes("<create_file");
           
-          // On ne fait l'install que si c'était vraiment un projet avec du code
           if (isProjectMode && hasCode) {
             const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
             
             if (allDetectedDeps.length > 0) {
-                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances... ---\n");
+                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances complètes... ---\n");
 
                 const baseDeps: Record<string, string> = {
                     next: "15.1.0",
@@ -639,4 +655,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-      }
+          }
