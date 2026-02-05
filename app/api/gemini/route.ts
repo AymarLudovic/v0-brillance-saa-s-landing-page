@@ -413,7 +413,10 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
 
                 
 
- export async function POST(req: Request) {
+ 
+        
+        
+export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
 
@@ -431,12 +434,12 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
     const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // Contexte visuel global
+      // Contexte visuel global (LIMITÉ AUX 3 PREMIÈRES IMAGES)
       if (allReferenceImages?.length > 0) {
-        const styleParts = allReferenceImages.map((img: string) => ({
+        const styleParts = allReferenceImages.slice(0, 3).map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
-        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE)]" }] });
+        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }] });
       }
 
       history.forEach((msg: Message, i: number) => {
@@ -458,8 +461,9 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
-          // On nettoie le tag de fin pour ne pas l'afficher à l'user
+          // On nettoie les tags techniques pour ne pas polluer la vue utilisateur
           const sanitized = txt
+            .replace(/\[\[PROJECT_START\]\]/g, "") // On cache le tag de démarrage
             .replace(/\[\[PROJECT_FINISHED\]\]/g, "")
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "");
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
@@ -467,46 +471,53 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
         
         try {
           // --- CONFIGURATION DU MODE AUTONOME ---
-          // On utilise ton basePrompt, mais on ajoute les règles du jeu pour l'itération
           const systemInstruction = `${basePrompt}
 
           === MODE DÉVELOPPEUR AUTONOME (ITERATIF) ===
-          Tu es un expert Fullstack unique responsable de tout le projet.
+          Tu es un expert Fullstack unique.
           
-          RÈGLES D'EXÉCUTION :
-          1. Analyse la demande. Si c'est une simple discussion, réponds et finis.
-          2. Si c'est du développement (code), NE FAIS PAS TOUT D'UN COUP.
-          3. Procède par étapes (ex: Architecture -> Backend -> Frontend -> Finition).
-          4. À la fin d'une étape logique, arrête-toi pour "souffler". Je te relancerai automatiquement pour la suite.
-          5. QUAND TU AS FINI TOUT LE PROJET (que tout est codé et fonctionnel), écris STRICTEMENT ce tag à la fin :
-             [[PROJECT_FINISHED]]
+          🚨 DÉCISION CRITIQUE AU DÉMARRAGE 🚨
+          1. **SIMPLE DISCUSSION** (Bonjour, Question simple) :
+             - Réponds normalement.
+             - NE METS PAS DE TAG SPÉCIAL.
+          
+          2. **PROJET / CODE** (Créer une app, modifier un fichier, débugger) :
+             - Tu DOIS commencer ta réponse par : [[PROJECT_START]]
+             - Fais suivre ce tag par une courte phrase d'annonce (ex: "Je lance l'analyse du projet...").
+             - Ensuite, génère le code XML.
+
+          RÈGLES D'EXÉCUTION (Une fois le projet lancé) :
+          - NE FAIS PAS tout d'un coup. Procède par étapes logiques (Architecture -> Code -> Finition).
+          - À la fin d'une étape, arrête-toi. Je te relancerai automatiquement.
+          - QUAND TU AS FINI TOUT LE PROJET, écris STRICTEMENT : [[PROJECT_FINISHED]]
 
           FORMAT DE FICHIER OBLIGATOIRE :
           <create_file path="chemin/fichier.ext">
           ... code brut ...
           </create_file>
           
-          INTERDIT : Pas de markdown autour des balises XML. Pas de backticks.
+          INTERDIT : Pas de markdown (\`\`\`) autour des balises XML.
           `;
 
-          // On initialise l'historique avec les messages de l'utilisateur
+          // On initialise l'historique
           let currentHistory = buildInitialHistory();
           
           // Variables pour gérer la boucle "Souffle & Reprend"
           let stepCount = 0;
-          const MAX_STEPS = 15; // Sécurité anti-boucle infinie
+          const MAX_STEPS = 15;
           let finished = false;
-          let fullSessionOutput = ""; // Pour scanner les dépendances à la toute fin
+          let fullSessionOutput = ""; 
+          let isProjectMode = false; // Nouvelle variable d'état
 
           // --- BOUCLE PRINCIPALE ---
           while (!finished && stepCount < MAX_STEPS) {
             stepCount++;
             
-            // Appel API standard avec ton code
+            // Appel API standard
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
               contents: currentHistory,
-              tools: [{ functionDeclarations: [readFileDeclaration] }], // Si tu utilises les tools
+              tools: [{ functionDeclarations: [readFileDeclaration] }], 
               config: { systemInstruction, temperature: 0.5, maxOutputTokens: 65536 },
             });
 
@@ -514,7 +525,6 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
             let batchBuffer = "";
 
             for await (const chunk of response) {
-              // ICI : Utilisation stricte de la propriété .text (pas de fonction)
               const txt = chunk.text; 
               
               if (txt) {
@@ -533,31 +543,37 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
 
             // --- ANALYSE APRÈS L'ÉTAPE ---
             
-            // 1. Mise à jour de la mémoire : Le modèle doit se souvenir de ce qu'il vient de coder
+            // 1. Mise à jour de la mémoire
             currentHistory.push({ role: "model", parts: [{ text: currentStepOutput }] });
 
-            // 2. Vérification de la condition d'arrêt
-            if (currentStepOutput.includes("[[PROJECT_FINISHED]]")) {
-              finished = true;
-            } else {
-              // 3. Si pas fini, on injecte un prompt "système" (en role user) pour le faire continuer
-              // C'est ici qu'il "souffle" et qu'on le relance
-              currentHistory.push({
-                role: "user",
-                parts: [{ text: "Bien reçu. Analyse l'état actuel du code. Si le projet nécessite d'autres fichiers ou des corrections (CSS, logique, backend), continue immédiatement l'étape suivante. Si tout est complet et fonctionnel, affiche [[PROJECT_FINISHED]]." }]
-              });
-              
-              // Petit saut de ligne visuel pour l'utilisateur entre les étapes
-              send("\n\n"); 
+            // 2. DÉTECTION DU TYPE D'INTERACTION (Au premier tour seulement)
+            if (stepCount === 1) {
+                if (currentStepOutput.includes("[[PROJECT_START]]")) {
+                    isProjectMode = true; // C'est un projet, on active la boucle
+                } else {
+                    finished = true; // C'est juste du chat (pas de tag), on coupe tout de suite
+                }
+            }
+
+            // 3. Gestion de la boucle si on est en mode projet
+            if (isProjectMode) {
+                if (currentStepOutput.includes("[[PROJECT_FINISHED]]")) {
+                  finished = true;
+                } else if (!finished) {
+                  // Relance automatique (Souffle & Reprend)
+                  currentHistory.push({
+                    role: "user",
+                    parts: [{ text: "Bien reçu. Continue le développement à l'étape suivante. Si c'est fini, affiche [[PROJECT_FINISHED]]." }]
+                  });
+                }
             }
           }
 
-          // --- GESTION DES DÉPENDANCES (FINALE) ---
-          // On regarde si du code a été généré dans TOUTE la session
+          // --- GESTION DES DÉPENDANCES (FINALE - SEULEMENT SI CODE GÉNÉRÉ) ---
           const hasCode = fullSessionOutput.includes("<create_file");
           
-          if (hasCode) {
-            // Extraction des dépendances sur l'ensemble du texte généré par les étapes
+          // On ne fait l'install que si c'était vraiment un projet avec du code
+          if (isProjectMode && hasCode) {
             const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
             
             if (allDetectedDeps.length > 0) {
