@@ -184,6 +184,12 @@ export async function POST(req: Request) {
           <create_file path="...">
           ... code brut ...
           </create_file>
+
+          Liste les dépendances backend nécessaires (DEPENDENCIES: ["..."]) FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
+    DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
+    Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
+    le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
+    
           `;
 
           let currentHistory = buildInitialHistory();
