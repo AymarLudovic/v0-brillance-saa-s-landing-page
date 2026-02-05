@@ -229,6 +229,9 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
      pour éviter des multiples et multiples fichiers.
      
           pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
+
+          IMPORTANT 🔥🚧🚨: Tu reçois directement les fichiers que kes agents backend ont aussi fait, tu dois t'assurer que ta logique UI fonctionne absolument avec toutes cette logique backend qui a été créé par ces agents.
+   
     `,
   },
 
@@ -289,7 +292,9 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
      pour éviter des multiples et multiples fichiers.
 
           pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
-    
+
+    IMPORTANT 🔥🚧🚨: Tu reçois directement les fichiers que kes agents backend ont aussi fait, tu dois t'assurer que ta logique UI fonctionne absolument avec toutes cette logique backend qui a été créé par ces agents.
+   
     .`,
   },
 
@@ -310,6 +315,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
  
     ⛔ INTERDICTION : Pas de backend, pas d'analyse. car oui il y a un agent architecte quinas déjà fait le travail pour l'analyse. Tu peux même la voir dans le currentPlan.
     
+  IMPORTANT 🔥🚧🚨: Tu reçois directement les fichiers que kes agents backend ont aussi fait, tu dois t'assurer que ta logique UI fonctionne absolument avec toutes cette logique backend qui a été créé par ces agents.
+   
     ACTION :
     Relis le code intégralement.
 
@@ -393,7 +400,6 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
 };
 
 
-
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
@@ -439,9 +445,20 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
-          const sanitized = txt
+          let sanitized = txt
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
             .replace(/NO_BACKEND_CHANGES/gi, "");
+          
+          // --- FIX CRITIQUE POUR L'EXTRACTION ---
+          // On retire les balises markdown de code (```xml, ```typescript, etc.) qui empêchent le client de détecter le XML.
+          // On ne retire pas tous les ``` car cela briserait les template literals dans le code JS/TS généré.
+          sanitized = sanitized
+            .replace(/```xml/gi, "")
+            .replace(/```tsx/gi, "")
+            .replace(/```ts/gi, "")
+            .replace(/```html/gi, "");
+            .replace(/```css/gi, "");
+        
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
@@ -469,12 +486,18 @@ export async function POST(req: Request) {
                 ${briefing}
                 
                 TA MISSION :
-                Agis selon ton rôle, assure que tout sois respecté, absolument chaque petite instructions qui est dans ton briefing. 
-                Ne demande pas la permission. Fais ce qui est nécessaire pour que le projet réussisse.
-                Produis le code ou le plan attendu.
+                Agis selon ton rôle. Tu as accès à l'output de TOUS les agents précédents (voir ci-dessus) pour assurer une cohérence parfaite (Front/Back connectés).
+                
+                IMPORTANT - FORMAT DE SORTIE :
+                Tu dois générer le code en utilisant STRICTEMENT ce format XML :
+                <create_file path="chemin/du/fichier.ext">
+                ... le code complet ici ...
+                </create_file>
 
-                format de création des fichiers : <create_file path="cheminfichicher">...code...</create_file> surtout sans markdown, à l'intérieur comme à l'intérieur de ce xml car sinon le fichier et son code ne sera pas capter par le client.
-                Respecte en tout point ton instruction et le format xml suivant au cas où tu est un agent charger de rédiger le code. Respecte absolument ça.
+                RÈGLE D'OR : 
+                NE JAMAIS METTRE DE MARKDOWN (pas de \`\`\`) AUTOUR DE CES BALISES XML.
+                Écris le XML directement en texte brut, sinon le système de déploiement ne le verra pas.
+                Ne demande pas la permission. Fais ce qui est nécessaire.
                 ` }]
             });
 
@@ -515,14 +538,14 @@ export async function POST(req: Request) {
         }
 
         try {
-          // --- VARIABLE D'ACCUMULATION DU CONTEXTE ---
+          // --- VARIABLE D'ACCUMULATION (MÉMOIRE DU PROJET) ---
           let projectAccumulatedHistory = "";
 
           // --- 1. PHASE DE CONCEPTION ---
           const architectOutput = await runAgent("ARCHITECT", "Analyse la demande utilisateur.");
           
           // On ajoute le résultat au contexte global
-          projectAccumulatedHistory += `\n\n=== 1. RAPPORT ARCHITECTE ===\n${architectOutput}\n`;
+          projectAccumulatedHistory += `\n\n=== [1] RAPPORT ARCHITECTE ===\n${architectOutput}\n`;
 
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
           const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; 
@@ -531,39 +554,39 @@ export async function POST(req: Request) {
             controller.close();
             return;
           } else if (decision === "FIX_ACTION") {
-            // Le Fixer reçoit aussi l'historique de l'architecte s'il y en a un
+            // Le fixer reçoit tout l'historique accumulé
             await runAgent("FIXER", `CONTEXTE PRÉCÉDENT:\n${projectAccumulatedHistory}\n\nRapport bug: "${lastUserMessage}"`);
             controller.close();
             return;
           } else if (decision === "CODE_ACTION") {
             
             // --- 2. PHASE ENGINE (BACKEND) ---
-            // Backend Lead reçoit l'historique accumulé
-            const backend1 = await runAgent("BACKEND_LEAD", `HISTORIQUE DU PROJET & ARCHITECTURE:\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 2. CODE BACKEND V1 (Lead) ===\n${backend1}\n`;
+            const backend1 = await runAgent("BACKEND_LEAD", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== [2] CODE BACKEND V1 (Lead) ===\n${backend1}\n`;
 
-            const backend2 = await runAgent("BACKEND_SEC", `HISTORIQUE DU PROJET (Archi + Back V1):\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 3. CODE BACKEND V2 (Securité) ===\n${backend2}\n`;
+            const backend2 = await runAgent("BACKEND_SEC", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== [3] CODE BACKEND V2 (Securité) ===\n${backend2}\n`;
 
-            const backendFinal = await runAgent("BACKEND_PKG", `HISTORIQUE DU PROJET (Archi + Back V1 + V2):\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 4. CODE BACKEND FINAL (Package) ===\n${backendFinal}\n`;
+            const backendFinal = await runAgent("BACKEND_PKG", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== [4] CODE BACKEND FINAL (Package) ===\n${backendFinal}\n`;
             
             const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
-            
+            const backendContext = noBackend ? "Backend inchangé." : backendFinal;
+
             // --- 3. PHASE APPLICATION (FRONTEND) ---
-            // Le Frontend reçoit maintenant tout l'historique incluant l'architecte ET tout le cheminement backend
+            // Le Frontend reçoit maintenant tout l'historique : Archi + Back V1 + Back V2 + Back Final
             
             // A. Le Cerveau & Structure
-            const frontBrain = await runAgent("FRONTEND_LOGIC", `HISTORIQUE COMPLET DU PROJET (ARCHI + TOUT LE BACKEND):\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 5. LOGIQUE FRONTEND ===\n${frontBrain}\n`;
+            const frontBrain = await runAgent("FRONTEND_LOGIC", `HISTORIQUE COMPLET (ARCHI + TOUT LE BACKEND):\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== [5] LOGIQUE FRONTEND ===\n${frontBrain}\n`;
             
-            // B. La Peau & Design 
+            // B. La Peau & Design
             const frontSkin = await runAgent("FRONTEND_VISUAL", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}\n\nINSTRUCTION: Applique le style (Tailwind) et rends l'UX fluide.`);
-            projectAccumulatedHistory += `\n\n=== 6. VISUEL FRONTEND ===\n${frontSkin}\n`;
+            projectAccumulatedHistory += `\n\n=== [6] VISUEL FRONTEND ===\n${frontSkin}\n`;
 
             // --- 4. PHASE FINITION ---
             const codeReviewed = await runAgent("CODE_REVIEWER", `HISTORIQUE COMPLET:\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 7. REVUE DE CODE ===\n${codeReviewed}\n`;
+            projectAccumulatedHistory += `\n\n=== [7] REVUE DE CODE ===\n${codeReviewed}\n`;
 
             const finalOutput = await runAgent("FRONTEND_PKG", `HISTORIQUE FINAL:\n${projectAccumulatedHistory}`);
 
@@ -633,3 +656,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
     }
+                            
