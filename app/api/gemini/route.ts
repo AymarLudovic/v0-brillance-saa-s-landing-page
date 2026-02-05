@@ -392,6 +392,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
   },
 };
 
+
+
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
@@ -513,8 +515,15 @@ export async function POST(req: Request) {
         }
 
         try {
+          // --- VARIABLE D'ACCUMULATION DU CONTEXTE ---
+          let projectAccumulatedHistory = "";
+
           // --- 1. PHASE DE CONCEPTION ---
           const architectOutput = await runAgent("ARCHITECT", "Analyse la demande utilisateur.");
+          
+          // On ajoute le résultat au contexte global
+          projectAccumulatedHistory += `\n\n=== 1. RAPPORT ARCHITECTE ===\n${architectOutput}\n`;
+
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
           const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; 
           
@@ -522,31 +531,41 @@ export async function POST(req: Request) {
             controller.close();
             return;
           } else if (decision === "FIX_ACTION") {
-            await runAgent("FIXER", `Rapport bug: "${lastUserMessage}"`);
+            // Le Fixer reçoit aussi l'historique de l'architecte s'il y en a un
+            await runAgent("FIXER", `CONTEXTE PRÉCÉDENT:\n${projectAccumulatedHistory}\n\nRapport bug: "${lastUserMessage}"`);
             controller.close();
             return;
           } else if (decision === "CODE_ACTION") {
             
             // --- 2. PHASE ENGINE (BACKEND) ---
-            const backend1 = await runAgent("BACKEND_LEAD", `VISION ARCHITECTE:\n${architectOutput}`);
-            const backend2 = await runAgent("BACKEND_SEC", `CODE V1:\n${backend1}`);
-            const backendFinal = await runAgent("BACKEND_PKG", `CODE V2:\n${backend2}`);
+            // Backend Lead reçoit l'historique accumulé
+            const backend1 = await runAgent("BACKEND_LEAD", `HISTORIQUE DU PROJET & ARCHITECTURE:\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== 2. CODE BACKEND V1 (Lead) ===\n${backend1}\n`;
+
+            const backend2 = await runAgent("BACKEND_SEC", `HISTORIQUE DU PROJET (Archi + Back V1):\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== 3. CODE BACKEND V2 (Securité) ===\n${backend2}\n`;
+
+            const backendFinal = await runAgent("BACKEND_PKG", `HISTORIQUE DU PROJET (Archi + Back V1 + V2):\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== 4. CODE BACKEND FINAL (Package) ===\n${backendFinal}\n`;
             
             const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
-            const backendContext = noBackend ? "Backend inchangé." : backendFinal;
-
+            
             // --- 3. PHASE APPLICATION (FRONTEND) ---
-            // CHAINE RÉDUITE : Logic -> Visual
+            // Le Frontend reçoit maintenant tout l'historique incluant l'architecte ET tout le cheminement backend
             
             // A. Le Cerveau & Structure
-            const frontBrain = await runAgent("FRONTEND_LOGIC", `VISION ARCHITECTE:\n${architectOutput}\n\nBACKEND:\n${backendContext}`);
+            const frontBrain = await runAgent("FRONTEND_LOGIC", `HISTORIQUE COMPLET DU PROJET (ARCHI + TOUT LE BACKEND):\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== 5. LOGIQUE FRONTEND ===\n${frontBrain}\n`;
             
-            // B. La Peau & Design (Prends direct le code logique, on saute l'agent UX dédié)
-            const frontSkin = await runAgent("FRONTEND_VISUAL", `CODE FONCTIONNEL:\n${frontBrain}\n\nINSTRUCTION: Applique le style (Tailwind) et rends l'UX fluide.`);
+            // B. La Peau & Design 
+            const frontSkin = await runAgent("FRONTEND_VISUAL", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}\n\nINSTRUCTION: Applique le style (Tailwind) et rends l'UX fluide.`);
+            projectAccumulatedHistory += `\n\n=== 6. VISUEL FRONTEND ===\n${frontSkin}\n`;
 
             // --- 4. PHASE FINITION ---
-            const codeReviewed = await runAgent("CODE_REVIEWER", `CODE COMPLET:\n${frontSkin}`);
-            const finalOutput = await runAgent("FRONTEND_PKG", `CODE FINAL:\n${codeReviewed}`);
+            const codeReviewed = await runAgent("CODE_REVIEWER", `HISTORIQUE COMPLET:\n${projectAccumulatedHistory}`);
+            projectAccumulatedHistory += `\n\n=== 7. REVUE DE CODE ===\n${codeReviewed}\n`;
+
+            const finalOutput = await runAgent("FRONTEND_PKG", `HISTORIQUE FINAL:\n${projectAccumulatedHistory}`);
 
             // --- 5. DEPENDENCIES ---
             const backendDeps = extractDependenciesFromAgentOutput(backendFinal);
