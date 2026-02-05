@@ -456,7 +456,7 @@ export async function POST(req: Request) {
             .replace(/```xml/gi, "")
             .replace(/```tsx/gi, "")
             .replace(/```ts/gi, "")
-            .replace(/```html/gi, "");
+            .replace(/```html/gi, "")
             .replace(/```css/gi, "");
         
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
