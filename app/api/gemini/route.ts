@@ -543,6 +543,10 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
   },
 };
 
+
+        
+        
+            
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
@@ -633,7 +637,7 @@ export async function POST(req: Request) {
             let temperature = 0.5;
             if (agentKey === "ARCHITECT") temperature = 0.3; 
             if (agentKey === "FRONTEND_LOGIC") temperature = 0.6;
-            if (agentKey === "CODE_REVIEWER") temperature = 0.6;
+            // Note: J'ai retiré la config température du CODE_REVIEWER puisqu'il n'est plus utilisé
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
@@ -687,17 +691,17 @@ export async function POST(req: Request) {
             const backendContext = noBackend ? "Backend inchangé." : backendFinal;
 
             // --- 3. PHASE APPLICATION (FRONTEND) ---
-            // CHAINE RÉDUITE : Logic -> Visual
+            // CHAINE RÉDUITE : Logic -> Visual -> Package
             
             // A. Le Cerveau & Structure
             const frontBrain = await runAgent("FRONTEND_LOGIC", `VISION ARCHITECTE:\n${architectOutput}\n\nBACKEND:\n${backendContext}`);
             
-            // B. La Peau & Design (Prends direct le code logique, on saute l'agent UX dédié)
+            // B. La Peau & Design
             const frontSkin = await runAgent("FRONTEND_VISUAL", `CODE FONCTIONNEL:\n${frontBrain}\n\nINSTRUCTION: Applique le style (Tailwind) et rends l'UX fluide.`);
 
-            // --- 4. PHASE FINITION ---
-            const codeReviewed = await runAgent("CODE_REVIEWER", `CODE COMPLET:\n${frontSkin}`);
-            const finalOutput = await runAgent("FRONTEND_PKG", `CODE FINAL:\n${codeReviewed}`);
+            // --- 4. PHASE FINITION (MODIFIÉE) ---
+            // Le CODE_REVIEWER a été retiré. FRONTEND_PKG reçoit directement FRONTEND_VISUAL.
+            const finalOutput = await runAgent("FRONTEND_PKG", `CODE FINAL:\n${frontSkin}`);
 
             // --- 5. DEPENDENCIES ---
             const backendDeps = extractDependenciesFromAgentOutput(backendFinal);
@@ -764,4 +768,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-    }
+      }
