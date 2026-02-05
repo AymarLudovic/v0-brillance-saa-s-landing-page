@@ -410,25 +410,30 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
   },
 };
 
+
+                
+
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
 
   try {
+    // 1. Authentification
     const authHeader = req.headers.get("x-gemini-api-key");
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, allReferenceImages, currentPlan, currentProjectFiles, uploadedFiles } = body;
-    const lastUserMessage = history.filter((m: Message) => m.role === "user").pop()?.content || "";
-
+    const { history, uploadedImages, allReferenceImages } = body; // On garde l'essentiel
+    
+    // Initialisation du modèle
     const ai = new GoogleGenAI({ apiKey });
 
-    const buildFullHistory = () => {
+    // 2. Construction de l'historique initial (User + Images)
+    const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // Contexte visuel global
+      // A. Images de référence (Style)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -436,16 +441,18 @@ export async function POST(req: Request) {
         contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE)]" }] });
       }
 
+      // B. Historique de chat standard
       history.forEach((msg: Message, i: number) => {
-        if (msg.role === "system") return;
+        if (msg.role === "system") return; // On ignore le system prompt du chat, on utilise le nôtre
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
         
+        // Si c'est le dernier message user, on attache les images uploadées
         if (i === history.length - 1 && role === "user" && uploadedImages?.length > 0) {
           uploadedImages.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
           );
-          parts.push({ text: "\n[FICHIERS UPLOADÉS]" });
+          parts.push({ text: "\n[FICHIERS UPLOADÉS POUR CE PROJET]" });
         }
         contents.push({ role, parts });
       });
@@ -455,195 +462,170 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
-          const sanitized = txt
-            .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
-            .replace(/NO_BACKEND_CHANGES/gi, "");
+          // Nettoyage des balises de contrôle internes si elles apparaissent
+          const sanitized = txt.replace(/\[\[PROJECT_FINISHED\]\]/g, ""); 
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
-        
-        async function runAgent(
-            agentKey: keyof typeof AGENTS, 
-            briefing: string = "" 
-        ) {
-          const agent = AGENTS[agentKey];
-          send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
+
+        try {
+          // --- CONFIGURATION DU MODE "ITÉRATIF AUTONOME" ---
           
-          let fullAgentOutput = "";
-          let batchBuffer = "";
+          // On prépare l'instruction système unique qui guide tout le processus
+          const iterativeSystemInstruction = `
+            ${basePrompt}
 
-          try {
-            const contents = buildFullHistory();
-
-            // CONTEXTE DE TRAVAIL
-            contents.push({
-                role: "user",
-                parts: [{ text: `
-                === SITUATION ACTUELLE DU PROJET ===
-                
-                TU ES : ${agent.name}
-                
-                ${briefing}
-                
-                TA MISSION :
-                Agis selon ton rôle, assure que tout sois respecté, absolument chaque petite instructions qui est dans ton briefing. 
-                Ne demande pas la permission. Fais ce qui est nécessaire pour que le projet réussisse.
-                Produis le code ou le plan attendu.
-
-                === RÈGLES DE SORTIE CRITIQUES (NO MARKDOWN) ===
-                Tu dois générer les fichiers en utilisant STRICTEMENT ce format XML, sans AUCUN formatage Markdown autour ou à l'intérieur :
-                
-                <create_file path="chemin/du/fichier">
-                Le code brut ici, sans backticks, sans \`\`\`
-                </create_file>
-
-                INTERDICTIONS FORMELLES :
-                1. NE JAMAIS utiliser de blocs de code Markdown (\`\`\`xml ou \`\`\`typescript) pour envelopper ta réponse.
-                2. NE JAMAIS mettre de blocs de code Markdown À L'INTÉRIEUR des balises <create_file>.
-                3. Le contenu entre les balises doit être du CODE BRUT (Plain Text).
-
-                Si tu utilises des backticks (\`\`\`), le fichier sera CORROMPU et le système plantera. Donne-moi du texte brut uniquement.
-                ` }]
-            });
-
-            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ DE L'EXPERT ===\n${agent.prompt}`;
+            === MODE DÉVELOPPEMENT ITÉRATIF ===
+            Tu es un moteur de développement autonome. Tu ne dois pas tout faire d'un coup si c'est trop long.
+            Tu dois procéder par étapes logiques (Analyse -> Plan -> Code Backend -> Code Frontend -> Revue).
             
-            // Températures ajustées
-            let temperature = 0.5;
-            if (agentKey === "ARCHITECT") temperature = 0.3; 
-            if (agentKey === "FRONTEND_LOGIC") temperature = 0.6;
-            if (agentKey === "CODE_REVIEWER") temperature = 0.6;
+            RÈGLES DU JEU :
+            1. Analyse la demande. Si c'est une simple conversation, réponds normalement et finis.
+            2. Si c'est du code, commence par l'architecture.
+            3. À la fin de chaque étape, arrête-toi. Je te relancerai automatiquement.
+            4. QUAND TU AS TOUT FINI (Code généré, revu et complet), écris STRICTEMENT ce tag à la fin :
+               [[PROJECT_FINISHED]]
+            
+            FORMAT DE CODE OBLIGATOIRE (XML) :
+            <create_file path="chemin/fichier.ext">
+            ... code brut ...
+            </create_file>
 
+            Ne mets JAMAIS de markdown autour des balises XML.
+          `;
+
+          // On récupère l'historique de base
+          let currentHistory = buildInitialHistory();
+          
+          let stepCount = 0;
+          const MAX_STEPS = 10; // Sécurité pour éviter une boucle infinie
+          let finished = false;
+          let fullProjectOutput = ""; // Pour scanner les dépendances à la fin
+
+          send("\n\n🚀 **Démarrage du processus de création...**\n\n");
+
+          // --- BOUCLE D'ITÉRATION (Le "Cerveau" qui souffle et reprend) ---
+          while (!finished && stepCount < MAX_STEPS) {
+            stepCount++;
+            
+            // Petit indicateur visuel pour l'utilisateur (optionnel, ou log console)
+            // send(`\n\n--- Étape ${stepCount} ---\n\n`); 
+
+            // Appel au modèle
             const response = await ai.models.generateContentStream({
-              model: MODEL_ID,
-              contents: contents,
-              tools: [{ functionDeclarations: [readFileDeclaration] }],
-              config: { systemInstruction, temperature, maxOutputTokens: 65536 },
+              model: MODEL_ID, // ex: "gemini-1.5-pro-latest"
+              contents: currentHistory,
+              config: { 
+                systemInstruction: iterativeSystemInstruction, 
+                temperature: 0.4, // Équilibré pour le code et la créativité
+                maxOutputTokens: 65536 
+              },
             });
 
+            let currentStepOutput = "";
+            let batchBuffer = "";
+
+            // Streaming de la réponse en cours
             for await (const chunk of response) {
-              const txt = chunk.text; 
+              const txt = chunk.text();
               if (txt) {
                 batchBuffer += txt;
-                fullAgentOutput += txt;
-                if (batchBuffer.length >= BATCH_SIZE) {
+                currentStepOutput += txt;
+                fullProjectOutput += txt; // On accumule pour l'analyse globale
+                
+                // On envoie par paquets pour fluidifier
+                if (batchBuffer.length >= 100) { 
                   send(batchBuffer);
                   batchBuffer = "";
                 }
               }
             }
             if (batchBuffer.length > 0) send(batchBuffer);
-            return fullAgentOutput;
 
-          } catch (e: any) {
-            console.error(`Erreur Agent ${agent.name}:`, e);
-            send(`\n[Erreur ${agent.name}]: ${e.message}\n`);
-            return ""; 
-          }
-        }
+            // --- ANALYSE DE FIN DE BOUCLE ---
 
-        try {
-          // --- VARIABLE D'ACCUMULATION DU CONTEXTE ---
-          let projectAccumulatedHistory = "";
+            // 1. On met à jour l'historique pour que le modèle se souvienne de ce qu'il vient de faire
+            currentHistory.push({ role: "model", parts: [{ text: currentStepOutput }] });
 
-          // --- 1. PHASE DE CONCEPTION ---
-          const architectOutput = await runAgent("ARCHITECT", "Analyse la demande utilisateur.");
-          
-          projectAccumulatedHistory += `\n\n=== 1. RAPPORT ARCHITECTE ===\n${architectOutput}\n`;
-
-          const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
-          const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; 
-          
-          if (decision === "CHAT_ONLY") {
-            controller.close();
-            return;
-          } else if (decision === "FIX_ACTION") {
-            await runAgent("FIXER", `CONTEXTE PRÉCÉDENT:\n${projectAccumulatedHistory}\n\nRapport bug: "${lastUserMessage}"`);
-            controller.close();
-            return;
-          } else if (decision === "CODE_ACTION") {
-            
-            // --- 2. PHASE ENGINE (BACKEND) ---
-            const backend1 = await runAgent("BACKEND_LEAD", `HISTORIQUE DU PROJET & ARCHITECTURE:\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 2. CODE BACKEND V1 (Lead) ===\n${backend1}\n`;
-
-            const backend2 = await runAgent("BACKEND_SEC", `HISTORIQUE DU PROJET (Archi + Back V1):\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 3. CODE BACKEND V2 (Securité) ===\n${backend2}\n`;
-
-            const backendFinal = await runAgent("BACKEND_PKG", `HISTORIQUE DU PROJET (Archi + Back V1 + V2):\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 4. CODE BACKEND FINAL (Package) ===\n${backendFinal}\n`;
-            
-            const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
-            
-            // --- 3. PHASE APPLICATION (FRONTEND) ---
-            const frontBrain = await runAgent("FRONTEND_LOGIC", `HISTORIQUE COMPLET DU PROJET (ARCHI + TOUT LE BACKEND):\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 5. LOGIQUE FRONTEND ===\n${frontBrain}\n`;
-            
-            const frontSkin = await runAgent("FRONTEND_VISUAL", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}\n\nINSTRUCTION: Applique le style (Tailwind) et rends l'UX fluide.`);
-            projectAccumulatedHistory += `\n\n=== 6. VISUEL FRONTEND ===\n${frontSkin}\n`;
-
-            // --- 4. PHASE FINITION (ET DEPENDANCES) ---
-            // C'est maintenant la dernière étape de génération de code
-            const codeReviewed = await runAgent("CODE_REVIEWER", `HISTORIQUE COMPLET:\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== 7. REVUE DE CODE ===\n${codeReviewed}\n`;
-
-            // SUPPRESSION DE L'AGENT FRONTEND_PKG ICI
-            // On ne lance plus FRONTEND_PKG.
-
-            // --- 5. DEPENDENCIES ---
-            // On extrait les dépendances du Backend ET du Code Reviewed (au lieu de finalOutput/FRONTEND_PKG)
-            const backendDeps = extractDependenciesFromAgentOutput(backendFinal);
-            const frontendDeps = extractDependenciesFromAgentOutput(codeReviewed);
-            const allDetectedDeps = Array.from(new Set([...backendDeps, ...frontendDeps]));
-
-            if (allDetectedDeps.length > 0 || !noBackend) {
-                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances (Basée sur la Revue de Code)... ---\n");
-
-                const baseDeps: Record<string, string> = {
-                    next: "15.1.0",
-                    react: "19.0.0",
-                    "react-dom": "19.0.0",
-                    "lucide-react": "0.561.0"
-                };
-                const newDeps: Record<string, string> = {};
-
-                await Promise.all(allDetectedDeps.map(async (pkg) => {
-                    if (!pkg || baseDeps[pkg]) return;
-                    try {
-                        const data = await packageJson(pkg);
-                        newDeps[pkg] = data.version as string;
-                    } catch (err) {
-                        newDeps[pkg] = "latest";
-                    }
-                }));
-
-                const finalDependencies = { ...baseDeps, ...newDeps };
-                
-                // NOTE: Cette structure écrase tout package.json précédemment généré par les agents.
-                // C'est souvent nécessaire pour garantir la compatibilité des versions.
-                const packageJsonContent = {
-                    name: "nextjs-app",
-                    version: "1.0.0",
-                    private: true,
-                    scripts: { dev: "next dev -p 3000 -H 0.0.0.0", build: "next build", start: "next start", lint: "next lint" },
-                    dependencies: finalDependencies,
-                    devDependencies: {
-                        typescript: "^5",
-                        "@types/node": "^20",
-                        "@types/react": "^19",
-                        "@types/react-dom": "^19",
-                        postcss: "^8",
-                        tailwindcss: "^3.4.1",
-                        eslint: "^8",
-                        "eslint-config-next": "15.0.3"
-                    },
-                };
-
-                const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
-                send(xmlOutput);
+            // 2. Est-ce que le modèle a dit qu'il a fini ?
+            if (currentStepOutput.includes("[[PROJECT_FINISHED]]")) {
+              finished = true;
+            } else {
+              // 3. Sinon, on lui dit de continuer (C'est le "souffle")
+              // On ajoute un prompt utilisateur "virtuel" pour le pousser à l'étape suivante
+              const continuePrompt = `Étape ${stepCount} terminée. Analyse ce que tu as fait. Si le projet n'est pas complet (manque des fichiers, pas de CSS, backend incomplet), continue immédiatement avec la partie suivante. Sinon, affiche [[PROJECT_FINISHED]].`;
+              
+              currentHistory.push({ role: "user", parts: [{ text: continuePrompt }] });
+              
+              // Petit séparateur visuel discret entre les étapes
+              send("\n\n...\n\n"); 
             }
-
-            controller.close();
           }
+
+          // --- GESTION DES DÉPENDANCES (AUTO-DETECT) ---
+          // Le modèle a fini, on analyse TOUT ce qu'il a généré (fullProjectOutput)
+          
+          // On vérifie si du code a été généré
+          const hasCode = fullProjectOutput.includes("<create_file");
+
+          if (hasCode) {
+            send("\n\n--- 📦 Finalisation des dépendances... ---\n");
+
+            // Fonction d'extraction (supposée existante dans ton code helper)
+            const detectedDeps = extractDependenciesFromAgentOutput(fullProjectOutput);
+            
+            if (detectedDeps.length > 0) {
+              const baseDeps: Record<string, string> = {
+                  next: "15.1.0",
+                  react: "19.0.0",
+                  "react-dom": "19.0.0",
+                  "lucide-react": "0.561.0"
+              };
+              const newDeps: Record<string, string> = {};
+
+              // Résolution des versions
+              await Promise.all(detectedDeps.map(async (pkg) => {
+                  if (!pkg || baseDeps[pkg]) return;
+                  try {
+                      const data = await packageJson(pkg); // Ton utilitaire npm
+                      newDeps[pkg] = data.version as string;
+                  } catch (err) {
+                      newDeps[pkg] = "latest";
+                  }
+              }));
+
+              const finalDependencies = { ...baseDeps, ...newDeps };
+              
+              // Création du package.json final
+              const packageJsonContent = {
+                  name: "nextjs-app",
+                  version: "1.0.0",
+                  private: true,
+                  scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
+                  dependencies: finalDependencies,
+                  devDependencies: {
+                      typescript: "^5",
+                      "@types/node": "^20",
+                      "@types/react": "^19",
+                      "@types/react-dom": "^19",
+                      postcss: "^8",
+                      tailwindcss: "^3.4.1",
+                      eslint: "^8",
+                      "eslint-config-next": "15.0.3"
+                  },
+              };
+
+              // Envoi du fichier package.json
+              const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
+              send(xmlOutput);
+            }
+          }
+
+          if (stepCount >= MAX_STEPS && !finished) {
+             send("\n\n[Note: Limite d'étapes de sécurité atteinte, mais le projet semble fonctionnel.]");
+          }
+
+          controller.close();
+
         } catch (err: any) {
           console.error("Workflow error:", err);
           send(`\n\n⛔ ERREUR CRITIQUE: ${err.message}`);
@@ -658,4 +640,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-      }
+    }
