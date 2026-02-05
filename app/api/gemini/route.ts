@@ -413,27 +413,25 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
 
                 
 
-export async function POST(req: Request) {
+ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
 
   try {
-    // 1. Authentification
     const authHeader = req.headers.get("x-gemini-api-key");
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, allReferenceImages } = body; // On garde l'essentiel
-    
-    // Initialisation du modèle
+    const { history, uploadedImages, allReferenceImages } = body;
+
     const ai = new GoogleGenAI({ apiKey });
 
-    // 2. Construction de l'historique initial (User + Images)
+    // Construction de l'historique initial (User + Images)
     const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // A. Images de référence (Style)
+      // Contexte visuel global
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -441,18 +439,16 @@ export async function POST(req: Request) {
         contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE)]" }] });
       }
 
-      // B. Historique de chat standard
       history.forEach((msg: Message, i: number) => {
-        if (msg.role === "system") return; // On ignore le system prompt du chat, on utilise le nôtre
+        if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
         
-        // Si c'est le dernier message user, on attache les images uploadées
         if (i === history.length - 1 && role === "user" && uploadedImages?.length > 0) {
           uploadedImages.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
           );
-          parts.push({ text: "\n[FICHIERS UPLOADÉS POUR CE PROJET]" });
+          parts.push({ text: "\n[FICHIERS UPLOADÉS]" });
         }
         contents.push({ role, parts });
       });
@@ -462,78 +458,72 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
-          // Nettoyage des balises de contrôle internes si elles apparaissent
-          const sanitized = txt.replace(/\[\[PROJECT_FINISHED\]\]/g, ""); 
+          // On nettoie le tag de fin pour ne pas l'afficher à l'user
+          const sanitized = txt
+            .replace(/\[\[PROJECT_FINISHED\]\]/g, "")
+            .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "");
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
-
+        
         try {
-          // --- CONFIGURATION DU MODE "ITÉRATIF AUTONOME" ---
+          // --- CONFIGURATION DU MODE AUTONOME ---
+          // On utilise ton basePrompt, mais on ajoute les règles du jeu pour l'itération
+          const systemInstruction = `${basePrompt}
+
+          === MODE DÉVELOPPEUR AUTONOME (ITERATIF) ===
+          Tu es un expert Fullstack unique responsable de tout le projet.
           
-          // On prépare l'instruction système unique qui guide tout le processus
-          const iterativeSystemInstruction = `
-            ${basePrompt}
+          RÈGLES D'EXÉCUTION :
+          1. Analyse la demande. Si c'est une simple discussion, réponds et finis.
+          2. Si c'est du développement (code), NE FAIS PAS TOUT D'UN COUP.
+          3. Procède par étapes (ex: Architecture -> Backend -> Frontend -> Finition).
+          4. À la fin d'une étape logique, arrête-toi pour "souffler". Je te relancerai automatiquement pour la suite.
+          5. QUAND TU AS FINI TOUT LE PROJET (que tout est codé et fonctionnel), écris STRICTEMENT ce tag à la fin :
+             [[PROJECT_FINISHED]]
 
-            === MODE DÉVELOPPEMENT ITÉRATIF ===
-            Tu es un moteur de développement autonome. Tu ne dois pas tout faire d'un coup si c'est trop long.
-            Tu dois procéder par étapes logiques (Analyse -> Plan -> Code Backend -> Code Frontend -> Revue).
-            
-            RÈGLES DU JEU :
-            1. Analyse la demande. Si c'est une simple conversation, réponds normalement et finis.
-            2. Si c'est du code, commence par l'architecture.
-            3. À la fin de chaque étape, arrête-toi. Je te relancerai automatiquement.
-            4. QUAND TU AS TOUT FINI (Code généré, revu et complet), écris STRICTEMENT ce tag à la fin :
-               [[PROJECT_FINISHED]]
-            
-            FORMAT DE CODE OBLIGATOIRE (XML) :
-            <create_file path="chemin/fichier.ext">
-            ... code brut ...
-            </create_file>
-
-            Ne mets JAMAIS de markdown autour des balises XML.
+          FORMAT DE FICHIER OBLIGATOIRE :
+          <create_file path="chemin/fichier.ext">
+          ... code brut ...
+          </create_file>
+          
+          INTERDIT : Pas de markdown autour des balises XML. Pas de backticks.
           `;
 
-          // On récupère l'historique de base
+          // On initialise l'historique avec les messages de l'utilisateur
           let currentHistory = buildInitialHistory();
           
+          // Variables pour gérer la boucle "Souffle & Reprend"
           let stepCount = 0;
-          const MAX_STEPS = 10; // Sécurité pour éviter une boucle infinie
+          const MAX_STEPS = 15; // Sécurité anti-boucle infinie
           let finished = false;
-          let fullProjectOutput = ""; // Pour scanner les dépendances à la fin
+          let fullSessionOutput = ""; // Pour scanner les dépendances à la toute fin
 
-          send("\n\n🚀 **Démarrage du processus de création...**\n\n");
-
-          // --- BOUCLE D'ITÉRATION (Le "Cerveau" qui souffle et reprend) ---
+          // --- BOUCLE PRINCIPALE ---
           while (!finished && stepCount < MAX_STEPS) {
             stepCount++;
             
-            // Petit indicateur visuel pour l'utilisateur (optionnel, ou log console)
-            // send(`\n\n--- Étape ${stepCount} ---\n\n`); 
-
-            // Appel au modèle
+            // Appel API standard avec ton code
             const response = await ai.models.generateContentStream({
-              model: MODEL_ID, // ex: "gemini-1.5-pro-latest"
+              model: MODEL_ID,
               contents: currentHistory,
-              config: { 
-                systemInstruction: iterativeSystemInstruction, 
-                temperature: 0.4, // Équilibré pour le code et la créativité
-                maxOutputTokens: 65536 
-              },
+              tools: [{ functionDeclarations: [readFileDeclaration] }], // Si tu utilises les tools
+              config: { systemInstruction, temperature: 0.5, maxOutputTokens: 65536 },
             });
 
             let currentStepOutput = "";
             let batchBuffer = "";
 
-            // Streaming de la réponse en cours
             for await (const chunk of response) {
-              const txt = chunk.text();
+              // ICI : Utilisation stricte de la propriété .text (pas de fonction)
+              const txt = chunk.text; 
+              
               if (txt) {
                 batchBuffer += txt;
                 currentStepOutput += txt;
-                fullProjectOutput += txt; // On accumule pour l'analyse globale
-                
-                // On envoie par paquets pour fluidifier
-                if (batchBuffer.length >= 100) { 
+                fullSessionOutput += txt;
+
+                // Streaming fluide
+                if (batchBuffer.length >= BATCH_SIZE) {
                   send(batchBuffer);
                   batchBuffer = "";
                 }
@@ -541,87 +531,79 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- ANALYSE DE FIN DE BOUCLE ---
-
-            // 1. On met à jour l'historique pour que le modèle se souvienne de ce qu'il vient de faire
+            // --- ANALYSE APRÈS L'ÉTAPE ---
+            
+            // 1. Mise à jour de la mémoire : Le modèle doit se souvenir de ce qu'il vient de coder
             currentHistory.push({ role: "model", parts: [{ text: currentStepOutput }] });
 
-            // 2. Est-ce que le modèle a dit qu'il a fini ?
+            // 2. Vérification de la condition d'arrêt
             if (currentStepOutput.includes("[[PROJECT_FINISHED]]")) {
               finished = true;
             } else {
-              // 3. Sinon, on lui dit de continuer (C'est le "souffle")
-              // On ajoute un prompt utilisateur "virtuel" pour le pousser à l'étape suivante
-              const continuePrompt = `Étape ${stepCount} terminée. Analyse ce que tu as fait. Si le projet n'est pas complet (manque des fichiers, pas de CSS, backend incomplet), continue immédiatement avec la partie suivante. Sinon, affiche [[PROJECT_FINISHED]].`;
+              // 3. Si pas fini, on injecte un prompt "système" (en role user) pour le faire continuer
+              // C'est ici qu'il "souffle" et qu'on le relance
+              currentHistory.push({
+                role: "user",
+                parts: [{ text: "Bien reçu. Analyse l'état actuel du code. Si le projet nécessite d'autres fichiers ou des corrections (CSS, logique, backend), continue immédiatement l'étape suivante. Si tout est complet et fonctionnel, affiche [[PROJECT_FINISHED]]." }]
+              });
               
-              currentHistory.push({ role: "user", parts: [{ text: continuePrompt }] });
-              
-              // Petit séparateur visuel discret entre les étapes
-              send("\n\n...\n\n"); 
+              // Petit saut de ligne visuel pour l'utilisateur entre les étapes
+              send("\n\n"); 
             }
           }
 
-          // --- GESTION DES DÉPENDANCES (AUTO-DETECT) ---
-          // Le modèle a fini, on analyse TOUT ce qu'il a généré (fullProjectOutput)
+          // --- GESTION DES DÉPENDANCES (FINALE) ---
+          // On regarde si du code a été généré dans TOUTE la session
+          const hasCode = fullSessionOutput.includes("<create_file");
           
-          // On vérifie si du code a été généré
-          const hasCode = fullProjectOutput.includes("<create_file");
-
           if (hasCode) {
-            send("\n\n--- 📦 Finalisation des dépendances... ---\n");
-
-            // Fonction d'extraction (supposée existante dans ton code helper)
-            const detectedDeps = extractDependenciesFromAgentOutput(fullProjectOutput);
+            // Extraction des dépendances sur l'ensemble du texte généré par les étapes
+            const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
             
-            if (detectedDeps.length > 0) {
-              const baseDeps: Record<string, string> = {
-                  next: "15.1.0",
-                  react: "19.0.0",
-                  "react-dom": "19.0.0",
-                  "lucide-react": "0.561.0"
-              };
-              const newDeps: Record<string, string> = {};
+            if (allDetectedDeps.length > 0) {
+                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances... ---\n");
 
-              // Résolution des versions
-              await Promise.all(detectedDeps.map(async (pkg) => {
-                  if (!pkg || baseDeps[pkg]) return;
-                  try {
-                      const data = await packageJson(pkg); // Ton utilitaire npm
-                      newDeps[pkg] = data.version as string;
-                  } catch (err) {
-                      newDeps[pkg] = "latest";
-                  }
-              }));
+                const baseDeps: Record<string, string> = {
+                    next: "15.1.0",
+                    react: "19.0.0",
+                    "react-dom": "19.0.0",
+                    "lucide-react": "0.561.0"
+                };
+                const newDeps: Record<string, string> = {};
 
-              const finalDependencies = { ...baseDeps, ...newDeps };
-              
-              // Création du package.json final
-              const packageJsonContent = {
-                  name: "nextjs-app",
-                  version: "1.0.0",
-                  private: true,
-                  scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
-                  dependencies: finalDependencies,
-                  devDependencies: {
-                      typescript: "^5",
-                      "@types/node": "^20",
-                      "@types/react": "^19",
-                      "@types/react-dom": "^19",
-                      postcss: "^8",
-                      tailwindcss: "^3.4.1",
-                      eslint: "^8",
-                      "eslint-config-next": "15.0.3"
-                  },
-              };
+                await Promise.all(allDetectedDeps.map(async (pkg) => {
+                    if (!pkg || baseDeps[pkg]) return;
+                    try {
+                        const data = await packageJson(pkg);
+                        newDeps[pkg] = data.version as string;
+                    } catch (err) {
+                        newDeps[pkg] = "latest";
+                    }
+                }));
 
-              // Envoi du fichier package.json
-              const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
-              send(xmlOutput);
+                const finalDependencies = { ...baseDeps, ...newDeps };
+                
+                const packageJsonContent = {
+                    name: "nextjs-app",
+                    version: "1.0.0",
+                    private: true,
+                    scripts: { dev: "next dev -p 3000 -H 0.0.0.0", build: "next build", start: "next start", lint: "next lint" },
+                    dependencies: finalDependencies,
+                    devDependencies: {
+                        typescript: "^5",
+                        "@types/node": "^20",
+                        "@types/react": "^19",
+                        "@types/react-dom": "^19",
+                        postcss: "^8",
+                        tailwindcss: "^3.4.1",
+                        eslint: "^8",
+                        "eslint-config-next": "15.0.3"
+                    },
+                };
+
+                const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
+                send(xmlOutput);
             }
-          }
-
-          if (stepCount >= MAX_STEPS && !finished) {
-             send("\n\n[Note: Limite d'étapes de sécurité atteinte, mais le projet semble fonctionnel.]");
           }
 
           controller.close();
@@ -640,4 +622,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-    }
+      }
