@@ -374,7 +374,18 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
      pour éviter des multiples et multiples fichiers.
 
      pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
-     `,
+
+    1. Vérifie la cohérence globale.
+    2. Liste les dépendances Frontend (DEPENDENCIES: ["..."] du style FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
+    DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
+    (Ne mets QUE les paquets externes, pas 'fs' ou 'path')).
+
+    Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
+    le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
+    
+     
+  
+  `,
   },
 
   FRONTEND_PKG: {
@@ -398,7 +409,6 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
     `,
   },
 };
-
 
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
@@ -464,7 +474,6 @@ export async function POST(req: Request) {
           try {
             const contents = buildFullHistory();
 
-            // CONTEXTE DE TRAVAIL
             // CONTEXTE DE TRAVAIL
             contents.push({
                 role: "user",
@@ -539,7 +548,6 @@ export async function POST(req: Request) {
           // --- 1. PHASE DE CONCEPTION ---
           const architectOutput = await runAgent("ARCHITECT", "Analyse la demande utilisateur.");
           
-          // On ajoute le résultat au contexte global
           projectAccumulatedHistory += `\n\n=== 1. RAPPORT ARCHITECTE ===\n${architectOutput}\n`;
 
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
@@ -549,14 +557,12 @@ export async function POST(req: Request) {
             controller.close();
             return;
           } else if (decision === "FIX_ACTION") {
-            // Le Fixer reçoit aussi l'historique de l'architecte s'il y en a un
             await runAgent("FIXER", `CONTEXTE PRÉCÉDENT:\n${projectAccumulatedHistory}\n\nRapport bug: "${lastUserMessage}"`);
             controller.close();
             return;
           } else if (decision === "CODE_ACTION") {
             
             // --- 2. PHASE ENGINE (BACKEND) ---
-            // Backend Lead reçoit l'historique accumulé
             const backend1 = await runAgent("BACKEND_LEAD", `HISTORIQUE DU PROJET & ARCHITECTURE:\n${projectAccumulatedHistory}`);
             projectAccumulatedHistory += `\n\n=== 2. CODE BACKEND V1 (Lead) ===\n${backend1}\n`;
 
@@ -569,29 +575,28 @@ export async function POST(req: Request) {
             const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
             
             // --- 3. PHASE APPLICATION (FRONTEND) ---
-            // Le Frontend reçoit maintenant tout l'historique incluant l'architecte ET tout le cheminement backend
-            
-            // A. Le Cerveau & Structure
             const frontBrain = await runAgent("FRONTEND_LOGIC", `HISTORIQUE COMPLET DU PROJET (ARCHI + TOUT LE BACKEND):\n${projectAccumulatedHistory}`);
             projectAccumulatedHistory += `\n\n=== 5. LOGIQUE FRONTEND ===\n${frontBrain}\n`;
             
-            // B. La Peau & Design 
             const frontSkin = await runAgent("FRONTEND_VISUAL", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}\n\nINSTRUCTION: Applique le style (Tailwind) et rends l'UX fluide.`);
             projectAccumulatedHistory += `\n\n=== 6. VISUEL FRONTEND ===\n${frontSkin}\n`;
 
-            // --- 4. PHASE FINITION ---
+            // --- 4. PHASE FINITION (ET DEPENDANCES) ---
+            // C'est maintenant la dernière étape de génération de code
             const codeReviewed = await runAgent("CODE_REVIEWER", `HISTORIQUE COMPLET:\n${projectAccumulatedHistory}`);
             projectAccumulatedHistory += `\n\n=== 7. REVUE DE CODE ===\n${codeReviewed}\n`;
 
-            const finalOutput = await runAgent("FRONTEND_PKG", `HISTORIQUE FINAL:\n${projectAccumulatedHistory}`);
+            // SUPPRESSION DE L'AGENT FRONTEND_PKG ICI
+            // On ne lance plus FRONTEND_PKG.
 
             // --- 5. DEPENDENCIES ---
+            // On extrait les dépendances du Backend ET du Code Reviewed (au lieu de finalOutput/FRONTEND_PKG)
             const backendDeps = extractDependenciesFromAgentOutput(backendFinal);
-            const frontendDeps = extractDependenciesFromAgentOutput(finalOutput);
+            const frontendDeps = extractDependenciesFromAgentOutput(codeReviewed);
             const allDetectedDeps = Array.from(new Set([...backendDeps, ...frontendDeps]));
 
             if (allDetectedDeps.length > 0 || !noBackend) {
-                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances... ---\n");
+                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances (Basée sur la Revue de Code)... ---\n");
 
                 const baseDeps: Record<string, string> = {
                     next: "15.1.0",
@@ -612,6 +617,9 @@ export async function POST(req: Request) {
                 }));
 
                 const finalDependencies = { ...baseDeps, ...newDeps };
+                
+                // NOTE: Cette structure écrase tout package.json précédemment généré par les agents.
+                // C'est souvent nécessaire pour garantir la compatibilité des versions.
                 const packageJsonContent = {
                     name: "nextjs-app",
                     version: "1.0.0",
@@ -650,4 +658,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-    } 
+      }
