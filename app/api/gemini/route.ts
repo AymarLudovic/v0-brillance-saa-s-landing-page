@@ -68,7 +68,11 @@ const AGENTS = {
     
     TON OUTPUT :
     Un plan technique complet. Tu décides de la stack, des patterns (MVC, Hexagonal?), et des flux de données.
-    Si le projet est complexe (Trading, SaaS), tu DOIS imposer une structure robuste.`,
+    Si le projet est complexe (Trading, SaaS), tu DOIS imposer une structure robuste.
+
+    Pour lancer les différents agents tu dois faire ceci: Pour lancer les autres agents, mentionne dans ta réponse CODE_ACTION sa va lancer les autres agents, FIX_ACTION quand il s'agit d'appeler l'agent fixer quand il s'agit de corriger les erreurs ou rajouter de petits éléments, et enfin CHAT_ONLY, la c'est pour toi pour que tu puisses répondre au question de l'utilisateur sans déclencher les processus de codage.
+    `,
+  
   },
 
   FIXER: {
