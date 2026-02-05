@@ -39,6 +39,43 @@ function extractDependenciesFromAgentOutput(output: string): string[] {
   return [];
 }
 
+// --- NOUVEAUX UTILITAIRES DE SUPERVISION ---
+
+// 1. Extrait les fichiers promis dans les blocs [[PROJECT_...]]
+function extractManifestRequirements(text: string): string[] {
+  const requirements: string[] = [];
+  // Capture le contenu des blocs PROJECT_PAGES ou PROJECT_MODALS
+  const manifestRegex = /\[\[PROJECT_(?:PAGES|MODALS)\]\]([\s\S]*?)(?=\[\[|$)/g;
+  let match;
+  
+  while ((match = manifestRegex.exec(text)) !== null) {
+    const content = match[1];
+    // Cherche des lignes type "- src/components/Header.tsx" ou "1. app/page.tsx"
+    // Regex flexible pour capturer les chemins avec extensions communes
+    const fileLines = content.match(/(?:[-*]|\d+\.)\s+([a-zA-Z0-9_\-\/]+\.(tsx|ts|js|jsx|css|json))/g);
+    
+    if (fileLines) {
+      fileLines.forEach(line => {
+        // Nettoyage pour garder juste le chemin
+        const cleanPath = line.replace(/(?:[-*]|\d+\.)\s+/, "").trim();
+        requirements.push(cleanPath);
+      });
+    }
+  }
+  return requirements;
+}
+
+// 2. Extrait les fichiers réellement créés via XML
+function extractCreatedFiles(text: string): string[] {
+  const created: string[] = [];
+  const xmlRegex = /<create_file\s+path=["']([^"']+)["']/g;
+  let match;
+  while ((match = xmlRegex.exec(text)) !== null) {
+    created.push(match[1]);
+  }
+  return created;
+}
+
 const readFileDeclaration: FunctionDeclaration = {
   name: "readFile",
   description: "Lecture fichier.",
@@ -48,12 +85,6 @@ const readFileDeclaration: FunctionDeclaration = {
     required: ["path"],
   },
 };
-
-// --- DEFINITION DES ROLES ---
-
-
-
-
 
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
@@ -65,7 +96,9 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, allReferenceImages } = body;
+    
+      const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
+  
 
     const ai = new GoogleGenAI({ apiKey });
 
@@ -73,7 +106,6 @@ export async function POST(req: Request) {
     const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // Contexte visuel global (LIMITÉ AUX 3 PREMIÈRES IMAGES)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.slice(0, 3).map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -100,16 +132,14 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
-          // On cache les tags techniques pour l'utilisateur final
           const sanitized = txt
             .replace(/\[\[PROJECT_START\]\]/g, "") 
             .replace(/\[\[PROJECT_FINISHED\]\]/g, "")
-            .replace(/\[\[PROJECT_PAGES\]\][\s\S]*?(\n|$)/g, "") // Optionnel: Cacher le plan technique si tu veux
+            .replace(/\[\[PROJECT_PAGES\]\][\s\S]*?(\n|$)/g, "") 
             .replace(/\[\[PROJECT_MODALS\]\][\s\S]*?(\n|$)/g, "")
             .replace(/\[\[PROJECT_MODALS_ROLES\]\][\s\S]*?(\n|$)/g, "")
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "");
           
-          // On envoie le texte nettoyé (l'annonce reste visible, mais pas les balises internes)
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
@@ -133,22 +163,21 @@ export async function POST(req: Request) {
 
           1. [[PROJECT_PAGES]]
              - Liste chaque PAGE (route) à créer.
+             - Format ligne: - app/nom_page/page.tsx
              - Liste ses fonctionnalités clés.
-             - Liste ses dépendances (Quels composants elle appelle ?).
 
           2. [[PROJECT_MODALS]]
              - Liste TOUS les fichiers Components, Modals, Utils, et Hooks nécessaires.
+             - Format ligne: - components/NomComponent.tsx
              - ⛔ INTERDICTION d'importer un fichier si tu ne le listes pas ici pour création.
-             - Si tu importes "Header", tu DOIS créer "Header".
 
           3. [[PROJECT_MODALS_ROLES]]
              - Pour chaque composant listé, décris sa LOGIQUE (pas juste le UI).
              - Ex: "AuthModal: Doit gérer le submit, l'erreur API, le loading state, et la redirection".
 
-          === RÈGLES D'EXÉCUTION ===
-          - Procède par étapes. Ne coupe pas le XML au milieu.
-          - À chaque étape de relance, VÉRIFIE ton Manifeste.
-          - TANT QUE tout le manifeste n'est pas codé (Fichiers créés + Logique implémentée), tu continues.
+          === RÈGLES D'EXÉCUTION STRICTES ===
+          - Le système surveille tes fichiers.
+          - TANT QUE tu n'as pas généré de balise <create_file> pour CHAQUE fichier listé dans le manifeste, tu ne peux pas finir.
           - QUAND TU AS TOUT FINI (et vérifié que tout est vert), écris : [[PROJECT_FINISHED]]
 
           FORMAT DE FICHIER :
@@ -157,15 +186,17 @@ export async function POST(req: Request) {
           </create_file>
           `;
 
-          // On initialise l'historique
           let currentHistory = buildInitialHistory();
           
-          // Variables de contrôle
           let stepCount = 0;
-          const MAX_STEPS = 20; // Augmenté car le mode rigoureux demande plus d'étapes
+          const MAX_STEPS = 25; // Augmenté pour la robustesse
           let finished = false;
           let fullSessionOutput = ""; 
           let isProjectMode = false;
+
+          // --- STATE MANAGER (SUIVI DE PROJET) ---
+          let expectedFiles: Set<string> = new Set();
+          let createdFiles: Set<string> = new Set();
 
           // --- BOUCLE PRINCIPALE ---
           while (!finished && stepCount < MAX_STEPS) {
@@ -183,7 +214,6 @@ export async function POST(req: Request) {
 
             for await (const chunk of response) {
               const txt = chunk.text; 
-              
               if (txt) {
                 batchBuffer += txt;
                 currentStepOutput += txt;
@@ -197,7 +227,6 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- ANALYSE ET SUPERVISION ---
             currentHistory.push({ role: "model", parts: [{ text: currentStepOutput }] });
 
             // 1. Détection initiale
@@ -205,28 +234,59 @@ export async function POST(req: Request) {
                 if (currentStepOutput.includes("[[PROJECT_START]]")) {
                     isProjectMode = true;
                 } else {
-                    finished = true; // Chat simple
+                    finished = true;
                 }
             }
 
-            // 2. Logique de relance (Le "Superviseur")
+            // 2. Logique de relance ROBUSTE (Le "Superviseur Automatique")
             if (isProjectMode) {
-                if (currentStepOutput.includes("[[PROJECT_FINISHED]]")) {
-                  finished = true;
-                } else if (!finished) {
-                  // C'est ici que la magie opère. On force l'IA à se relire.
-                  const supervisorPrompt = `
-                  [SYSTÈME DE VÉRIFICATION]
-                  1. Relis tes listes [[PROJECT_PAGES]] et [[PROJECT_MODALS]] du début.
-                  2. As-tu créé TOUS les fichiers listés ?
-                  3. As-tu implémenté TOUTE la logique décrite dans [[PROJECT_MODALS_ROLES]] ?
-                  4. Vérifie tes imports : est-ce que les fichiers importés existent réellement maintenant ?
-                  
-                  Si il reste du travail, CONTINUE immédiatement. Ne t'arrête pas.
-                  Si tout est 100% complet et fonctionnel, affiche [[PROJECT_FINISHED]].
-                  `;
-                  
-                  currentHistory.push({ role: "user", parts: [{ text: supervisorPrompt }] });
+                
+                // A. Mise à jour de l'état (Promesses vs Réalité)
+                const newPromises = extractManifestRequirements(currentStepOutput);
+                newPromises.forEach(p => expectedFiles.add(p));
+
+                const newCreations = extractCreatedFiles(currentStepOutput);
+                newCreations.forEach(c => createdFiles.add(c));
+
+                // B. Calcul du différentiel (Le "Gap")
+                // On regarde quels fichiers attendus ne sont PAS dans les fichiers créés
+                const missingFiles = Array.from(expectedFiles).filter(f => !createdFiles.has(f));
+                
+                const aiSaysFinished = currentStepOutput.includes("[[PROJECT_FINISHED]]");
+
+                if (missingFiles.length > 0) {
+                    // CAS CRITIQUE : Il manque des fichiers. 
+                    // On IGNORE le fait que l'IA dise "Finished". On force la boucle.
+                    finished = false;
+
+                    const supervisorPrompt = `
+                    [SYSTÈME DE VÉRIFICATION AUTOMATIQUE]
+                    ⛔ INTERDICTION DE FINIR.
+                    
+                    Tu as listé ces fichiers dans ton plan, mais tu ne les as pas encore générés (balises XML manquantes) :
+                    ${missingFiles.map(f => `- ${f}`).join("\n")}
+                    
+                    ACTION REQUISE :
+                    1. Génère le code complet pour ces fichiers manquants maintenant.
+                    2. IMPORTANT : Pour chaque fichier, réfère-toi à [[PROJECT_MODALS_ROLES]] pour implémenter TOUTE la logique (pas de coquilles vides).
+                    `;
+
+                    // Petit feedback visuel pour l'utilisateur (optionnel, via send)
+                    // send(`\n\n🛠️ [Système] ${missingFiles.length} fichiers restants détectés, continuation du travail...\n`);
+
+                    currentHistory.push({ role: "user", parts: [{ text: supervisorPrompt }] });
+
+                } else if (aiSaysFinished && missingFiles.length === 0) {
+                    // Tout est bon : Liste vide et IA satisfaite
+                    finished = true;
+                } else {
+                    // L'IA n'a pas fini et il reste peut-être des choses, ou elle attend des instructions
+                    // Si elle n'a pas dit finished, on la laisse continuer ou on la relance si elle s'arrête sans code
+                    if (!currentStepOutput.trim().endsWith("</create_file>") && !aiSaysFinished) {
+                         const continuePrompt = `[SYSTÈME] Continue ton implémentation selon le manifeste. Ne t'arrête pas.`;
+                         currentHistory.push({ role: "user", parts: [{ text: continuePrompt }] });
+                    }
+                    // Sinon, la boucle while continuera naturellement car finished est false
                 }
             }
           }
@@ -299,4 +359,5 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-          }
+  }
+  
