@@ -426,7 +426,8 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, allReferenceImages } = body;
+        const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
+    
 
     const ai = new GoogleGenAI({ apiKey });
 
