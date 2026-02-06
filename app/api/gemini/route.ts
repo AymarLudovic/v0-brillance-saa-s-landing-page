@@ -261,7 +261,9 @@ export async function POST(req: Request) {
                     ${noMarkdownInstruction}
                     
                     TES INSTRUCTIONS :
+                    ${agent.icon}
                     Tu es ${agent.name}.
+                    ${agent.prompt}
                     FAIT UNIQUEMENT LE RÔLE QUI T'A ÉTÉ ATTRIBUÉ ET TU T'ARRETES QUAND TU AS FINI.
 
                     ${basePrompt}
