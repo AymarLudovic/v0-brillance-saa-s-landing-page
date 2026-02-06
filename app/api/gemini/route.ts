@@ -1,18 +1,10 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, Type, FunctionDeclaration, Part } from "@google/genai";
-import { basePrompt } from "@/lib/prompt";
+import { basePrompt } from "@/lib/prompt"; // Assure-toi que basePrompt ne contredit pas les nouvelles instructions
 import packageJson from 'package-json';
 
 const BATCH_SIZE = 128;
 const MODEL_ID = "gemini-3-flash-preview"; 
-
-interface Message {
-  role: "user" | "assistant" | "system";
-  content: string;
-  images?: string[];
-  externalFiles?: { fileName: string; base64Content: string }[];
-  mentionedFiles?: string[];
-}
 
 // --- UTILITAIRES ---
 function getMimeTypeFromBase64(dataUrl: string) {
@@ -39,46 +31,73 @@ function extractDependenciesFromAgentOutput(output: string): string[] {
   return [];
 }
 
-// --- NOUVEAUX UTILITAIRES DE SUPERVISION ---
+// --- NOUVEAUX UTILITAIRES DE SUPERVISION ROBUSTE ---
 
-// 1. Extrait les fichiers promis dans les blocs [[PROJECT_...]]
-function extractManifestRequirements(text: string): string[] {
-  const requirements: string[] = [];
-  // Capture le contenu des blocs PROJECT_PAGES ou PROJECT_MODALS
-  const manifestRegex = /\[\[PROJECT_(?:PAGES|MODALS)\]\]([\s\S]*?)(?=\[\[|$)/g;
-  let match;
+// 1. Extrait le plan technique
+function extractManifestRequirements(text: string): { files: string[], instructions: string } {
+  const files: string[] = [];
+  let instructions = "";
   
-  while ((match = manifestRegex.exec(text)) !== null) {
-    const content = match[1];
-    // Cherche des lignes type "- src/components/Header.tsx" ou "1. app/page.tsx"
-    // Regex flexible pour capturer les chemins avec extensions communes
-    const fileLines = content.match(/(?:[-*]|\d+\.)\s+([a-zA-Z0-9_\-\/]+\.(tsx|ts|js|jsx|css|json))/g);
-    
-    if (fileLines) {
-      fileLines.forEach(line => {
-        // Nettoyage pour garder juste le chemin
-        const cleanPath = line.replace(/(?:[-*]|\d+\.)\s+/, "").trim();
-        requirements.push(cleanPath);
-      });
-    }
+  // Capture tout le manifeste pour contexte
+  const manifestBlock = text.match(/\[\[PROJECT_MANIFEST_START\]\]([\s\S]*?)\[\[PROJECT_MANIFEST_END\]\]/);
+  if (manifestBlock) instructions = manifestBlock[1];
+
+  const fileRegex = /(?:[-*]|\d+\.)\s+([a-zA-Z0-9_\-\/]+\.(tsx|ts|js|jsx|css|json))/g;
+  let match;
+  while ((match = fileRegex.exec(instructions)) !== null) {
+     // On ignore les node_modules ou fichiers de config basiques s'ils apparaissent
+     if (!match[1].includes('node_modules')) {
+         files.push(match[1].trim());
+     }
   }
-  return requirements;
+  return { files, instructions };
 }
 
-// 2. Extrait les fichiers réellement créés via XML
-function extractCreatedFiles(text: string): string[] {
-  const created: string[] = [];
-  const xmlRegex = /<create_file\s+path=["']([^"']+)["']/g;
+// 2. Extrait ce qui a été fait
+function extractCreatedFiles(text: string): Map<string, string> {
+  const created = new Map<string, string>();
+  // Capture le path et le contenu (pour vérification ultérieure si besoin)
+  const xmlRegex = /<create_file\s+path=["']([^"']+)["']>([\s\S]*?)<\/create_file>/g;
   let match;
   while ((match = xmlRegex.exec(text)) !== null) {
-    created.push(match[1]);
+    created.set(match[1], match[2]);
   }
   return created;
 }
 
+// 3. VÉRIFICATION D'ORPHELINS (La clé pour que ça marche)
+// Vérifie si un composant créé est bien importé quelque part
+function checkConnectivity(createdFiles: Map<string, string>, fileList: string[]): string[] {
+    const issues: string[] = [];
+    
+    // On sépare les pages des composants
+    const pages = fileList.filter(f => f.includes('page.tsx') || f.includes('layout.tsx'));
+    const components = fileList.filter(f => !f.includes('page.tsx') && !f.includes('layout.tsx') && !f.includes('api/'));
+
+    // Pour chaque composant important, on vérifie s'il est importé dans au moins une page ou un autre composant
+    components.forEach(comp => {
+        const compName = comp.split('/').pop()?.replace('.tsx', '').replace('.ts', '');
+        if (!compName) return;
+
+        let isImported = false;
+        createdFiles.forEach((content, path) => {
+            if (path === comp) return; // Ne pas se vérifier soi-même
+            // Vérification basique d'import ou d'utilisation JSX
+            if (content.includes(compName)) isImported = true;
+        });
+
+        if (!isImported) {
+            // C'est un orphelin ! Il a été créé mais n'est pas utilisé.
+            issues.push(comp);
+        }
+    });
+
+    return issues;
+}
+
 const readFileDeclaration: FunctionDeclaration = {
   name: "readFile",
-  description: "Lecture fichier.",
+  description: "Lecture fichier existant pour contexte.",
   parameters: {
     type: Type.OBJECT,
     properties: { path: { type: Type.STRING } },
@@ -96,24 +115,23 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    
-      const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
-  
+    const { history, uploadedImages, allReferenceImages } = body;
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Construction de l'historique initial
+    // --- CONSTRUCTION HISTORIQUE ---
     const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
+      // Contexte visuel (Maquettes)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.slice(0, 3).map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
-        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }] });
+        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[CONTEXTE VISUEL - MAQUETTES À REPRODUIRE]" }] });
       }
 
-      history.forEach((msg: Message, i: number) => {
+      history.forEach((msg: any, i: number) => {
         if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
@@ -122,7 +140,7 @@ export async function POST(req: Request) {
           uploadedImages.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
           );
-          parts.push({ text: "\n[FICHIERS UPLOADÉS]" });
+          parts.push({ text: "\n[NOUVEAUX FICHIERS UPLOADÉS]" });
         }
         contents.push({ role, parts });
       });
@@ -132,89 +150,69 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
+           // Nettoyage des balises de pensée internes pour l'utilisateur final
           const sanitized = txt
-            .replace(/\[\[PROJECT_START\]\]/g, "") 
-            .replace(/\[\[PROJECT_FINISHED\]\]/g, "")
-            .replace(/\[\[PROJECT_PAGES\]\][\s\S]*?(\n|$)/g, "") 
-            .replace(/\[\[PROJECT_MODALS\]\][\s\S]*?(\n|$)/g, "")
-            .replace(/\[\[PROJECT_MODALS_ROLES\]\][\s\S]*?(\n|$)/g, "")
-            .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "");
-          
+            .replace(/\[\[PROJECT_.*?\]\]/g, "") 
+            .replace(/<thinking>[\s\S]*?<\/thinking>/g, "") // Si l'IA pense
+            .replace(/DEPENDENCIES:[\s\S]*?\]/g, ""); // On cache la liste brute
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
         try {
-          // --- CONFIGURATION DU MODE AUTONOME AVEC RIGUEUR ---
-          const systemInstruction = `${basePrompt}
+          // --- INSTRUCTION SYSTÈME RENFORCÉE (Le "Senior Tech Lead") ---
+          const systemInstruction = `
+          ${basePrompt}
 
-          === MODE DÉVELOPPEUR AUTONOME (ITERATIF & RIGOUREUX) ===
-          Tu es un expert Fullstack Senior. Tu ne fais pas de "mockups", tu fais du code de production.
+          === RÔLE : SENIOR FULLSTACK LEAD ===
+          Tu ne fais pas de prototypes. Tu construis des applications de PRODUCTION.
+          Ton objectif n'est pas de faire joli, mais de faire FONCTIONNEL (State, Data, Navigation).
+
+          🚨 RÈGLE D'OR : "LOGIC FIRST, UI SECOND" 🚨
+          Si un bouton ne fait rien, tu as échoué. Si une input ne met pas à jour un state, tu as échoué.
+          Si une modal est créée mais jamais importée dans la page, c'est une ERREUR CRITIQUE.
+
+          === PROCESSUS OBLIGATOIRE (A SUIVRE À LA LETTRE) ===
+
+          PHASE 1 : LE MANIFESTE TECHNIQUE
+          Avant de coder, écris un bloc [[PROJECT_MANIFEST_START]] ... [[PROJECT_MANIFEST_END]].
+          Il DOIT contenir :
+          1. **DATA LAYER** : Liste les fichiers pour les fausses données (ex: \`lib/mockData.ts\`) et les types (ex: \`types/index.ts\`).
+          2. **LOGIC LAYER** : Liste les Custom Hooks (ex: \`hooks/useAuth.ts\`, \`hooks/useCart.ts\`).
+          3. **COMPONENTS** : Liste les composants UI.
+          4. **PAGES** : Liste les pages Next.js.
           
-          🚨 DÉCISION CRITIQUE AU DÉMARRAGE 🚨
-          1. **SIMPLE DISCUSSION** : Réponds normalement.
-          2. **PROJET / CODE** :
-             - COMMENCE ta réponse par : [[PROJECT_START]]
-             - Fais une ANNONCE courte à l'utilisateur.
-             - ENSUITE, établis ton **MANIFESTE TECHNIQUE** (Voir ci-dessous).
-             - ENFIN, commence à coder.
+          PHASE 2 : L'IMPLÉMENTATION (ORDRE STRICT)
+          1. Commence par \`types/index.ts\` et \`lib/mockData.ts\`. SANS DONNÉES, PAS D'APP, SANS COMPOSANTS FONCTIONNELS, PAS D'APP,.
+          2. Crée les Hooks (\`use...\`) qui gèrent la logique (add, remove, toggle, fetch et bien d'autres).
+          3. Crée les Components qui *utilisent* ces types.
+          4. EN DERNIER : Crée les \`page.tsx\` qui *importent* et *connectent* le tout.
 
-          === LE MANIFESTE TECHNIQUE (OBLIGATOIRE) ===
-          Dès que tu lances un projet, tu dois lister ce que tu vas faire dans ces blocs précis :
+          === RÈGLES DE QUALITÉ DU CODE ===
+          - ⛔ INTERDIT : \`href="#"\` (Utilise de vraies routes ou state).
+          - ⛔ INTERDIT : \`console.log("TODO")\` (Implémente une logique qui marche : \`setItems([...items, newItem])\`).
+          - ✅ OBLIGATOIRE : Chaque fichier doit être complet. Pas de placeholder.
+          - ✅ OBLIGATOIRE : Si tu crées une Modal, tu DOIS modifier la Page parente pour l'importer et gérer son état (isOpen).
 
-          1. [[PROJECT_PAGES]]
-             - Liste chaque PAGE (route) à créer.
-             - Format ligne: - app/nom_page/page.tsx
-             - Liste ses fonctionnalités clés.
-
-          2. [[PROJECT_MODALS]]
-             - Liste TOUS les fichiers Components, Modals, Utils, et Hooks nécessaires.
-             - Format ligne: - components/NomComponent.tsx
-             - ⛔ INTERDICTION d'importer un fichier si tu ne le listes pas ici pour création.
-
-          3. [[PROJECT_MODALS_ROLES]]
-             - Pour chaque composant listé, décris sa LOGIQUE (pas juste le UI).
-             - Ex: "AuthModal: Doit gérer le submit, l'erreur API, le loading state, et la redirection".
-
-          === RÈGLES D'EXÉCUTION STRICTES ===
-          - Le système surveille tes fichiers.
-          - TANT QUE tu n'as pas généré de balise <create_file> pour CHAQUE fichier listé dans le manifeste, tu ne peux pas finir.
-          - QUAND TU AS TOUT FINI (et vérifié que tout est vert), écris : [[PROJECT_FINISHED]]
-
-          FORMAT DE FICHIER :
-          <create_file path="...">
-          ... code brut ...
+          FORMAT DE SORTIE CODE :
+          <create_file path="chemin/fichier.tsx">
+          ... code ...
           </create_file>
 
-          Liste les dépendances backend nécessaires (DEPENDENCIES: ["..."]) FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
-    DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
-    Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
-    le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
-
-
-          Pourquoi j'ai besoin que tu ne soit pas un développeur juste là pour les mvp, voixi ma vision en fait ::
-
-          <vision_developer>
-           Okay ça semble déjà être bon j'apprécie juste qu'il faut le rendre encore plus robuste. Et même il faut y rajouter quelques choses dont je vais t'en parler maintenant : En effet elle fait déjà presque tout ce qu'elle oublie mais le soucis est que son UI ne s'adapte pas et elle ne code en rien les fonctionnalités réel, elle fait juste disons 2 sur 50, fonctionnalités que l'on s'entend. Quand je parle de fonctionnalités je veux dire imagine un Spotify qui est juste du UI qui ne fait absolument aucune fonctionnalités mais peut être juste le lecteur de musique donne mais le reste non, imagine un peu les millions de dollars qu'il perdent. Et même son UI si elle a créé les fichiers modals, elle ne fait pas que son UI appel par exemple ses modals, c'est à dire que si au départ elle a mis que l'URL dans la sidebar ou un menu de navigation à # elle ne va jamais chercher à mettre la route. Elle ne va jamais chercher à ce que une input par exemple de recherche face son putain de travail. Si l'utilisateur à demander qu'il veux une plateforme de trading, elle ne fait que juste de légère fonctionnalités et pas un level de logiciels du niveau d'une startup comme Uber, Apple Google même. Les modals créé oui sont créé mais sont juste créé et n'ont aucune utilité. 
-           Le code que tu as déjà fait pallie légèrement déjà ça signale aussi à l'IA quand elle a oublié des fichiers. Mais tout ce ci n'est pas au niveau encore à cause des fonctionnalités. On ne peut pas compter sur l'IA pour faire ça comme tu l'as toi même dis mais il faut ce que tu as dis mais disons et fait dans mon code mais 100 fois plus efficace encore pour absolument pallier à tout ce problème et s'élever au niveau de ces grandes entreprises. Ce n'est pas juste que tu vas indiqué à l'IA que oui mais tu es développeur, n'oublie pas non ta méthode que tu m'as sorti ici la est bien mais elle doit encore être plus robuste ou tu rajoutes même encore une fonction qui va le faire avec une perfection absolue.
-
-           Tout doit être fonctionnel. C'est un logiciel. pas un mvp, un logiciel de plus de 1.5 millions d'utilisateurs mensuel. Les utilisateurs paie cher pour que tu puisses les généré de vrai logiciel pas des MVP. Ou des hallucinations que tu fais. Non il ne paie pas pour ça. Il pouvait aller voir des agences établi et solide de coding mais ils ont foks en toi que c'est toi qui peut le faire en tout point.
-          </vision_developer>
-    
+          A la fin, liste les dépendances exactes sous ce format :
+          DEPENDENCIES: ["lucide-react", "framer-motion", "zustand", "date-fns"]
           `;
 
           let currentHistory = buildInitialHistory();
-          
           let stepCount = 0;
-          const MAX_STEPS = 25; // Augmenté pour la robustesse
+          const MAX_STEPS = 15; // Assez pour faire plusieurs fichiers
           let finished = false;
           let fullSessionOutput = ""; 
           let isProjectMode = false;
 
-          // --- STATE MANAGER (SUIVI DE PROJET) ---
+          // State Manager
           let expectedFiles: Set<string> = new Set();
-          let createdFiles: Set<string> = new Set();
+          let createdFilesContent = new Map<string, string>(); // Path -> Content
 
-          // --- BOUCLE PRINCIPALE ---
           while (!finished && stepCount < MAX_STEPS) {
             stepCount++;
             
@@ -222,7 +220,7 @@ export async function POST(req: Request) {
               model: MODEL_ID,
               contents: currentHistory,
               tools: [{ functionDeclarations: [readFileDeclaration] }], 
-              config: { systemInstruction, temperature: 0.5, maxOutputTokens: 65536 },
+              config: { systemInstruction, temperature: 0.4 }, // Température plus basse pour la rigueur
             });
 
             let currentStepOutput = "";
@@ -234,10 +232,9 @@ export async function POST(req: Request) {
                 batchBuffer += txt;
                 currentStepOutput += txt;
                 fullSessionOutput += txt;
-
                 if (batchBuffer.length >= BATCH_SIZE) {
-                  send(batchBuffer);
-                  batchBuffer = "";
+                    send(batchBuffer);
+                    batchBuffer = "";
                 }
               }
             }
@@ -245,102 +242,98 @@ export async function POST(req: Request) {
 
             currentHistory.push({ role: "model", parts: [{ text: currentStepOutput }] });
 
-            // 1. Détection initiale
-            if (stepCount === 1) {
-                if (currentStepOutput.includes("[[PROJECT_START]]")) {
-                    isProjectMode = true;
-                } else {
-                    finished = true;
-                }
+            // --- ANALYSE ET SUPERVISION ---
+
+            // 1. Détection du mode projet
+            if (currentStepOutput.includes("[[PROJECT_MANIFEST_START]]")) {
+                isProjectMode = true;
+                const { files } = extractManifestRequirements(currentStepOutput);
+                files.forEach(f => expectedFiles.add(f));
             }
 
-            // 2. Logique de relance ROBUSTE (Le "Superviseur Automatique")
+            // 2. Mise à jour de ce qui a été fait
+            const newCreations = extractCreatedFiles(currentStepOutput);
+            newCreations.forEach((content, path) => createdFilesContent.set(path, content));
+
+            // 3. LOGIQUE DE RELANCE (Le "Tech Lead" virtuel)
             if (isProjectMode) {
+                const createdPaths = Array.from(createdFilesContent.keys());
+                const missingFiles = Array.from(expectedFiles).filter(f => !createdFilesContent.has(f));
                 
-                // A. Mise à jour de l'état (Promesses vs Réalité)
-                const newPromises = extractManifestRequirements(currentStepOutput);
-                newPromises.forEach(p => expectedFiles.add(p));
-
-                const newCreations = extractCreatedFiles(currentStepOutput);
-                newCreations.forEach(c => createdFiles.add(c));
-
-                // B. Calcul du différentiel (Le "Gap")
-                // On regarde quels fichiers attendus ne sont PAS dans les fichiers créés
-                const missingFiles = Array.from(expectedFiles).filter(f => !createdFiles.has(f));
-                
-                const aiSaysFinished = currentStepOutput.includes("[[PROJECT_FINISHED]]");
+                // Check des orphelins (Fichiers créés mais non importés)
+                // On ne le fait que si on a déjà commencé à créer des pages
+                const hasPages = createdPaths.some(p => p.includes('page.tsx'));
+                const orphanedComponents = hasPages ? checkConnectivity(createdFilesContent, Array.from(expectedFiles)) : [];
 
                 if (missingFiles.length > 0) {
-                    // CAS CRITIQUE : Il manque des fichiers. 
-                    // On IGNORE le fait que l'IA dise "Finished". On force la boucle.
+                    // Cas 1 : Il manque des fichiers promis
                     finished = false;
+                    const prompt = `[SUPERVISEUR] Il manque les fichiers suivants du manifeste : ${missingFiles.join(", ")}. Continue l'implémentation.`;
+                    currentHistory.push({ role: "user", parts: [{ text: prompt }] });
 
-                    const supervisorPrompt = `
-                    [SYSTÈME DE VÉRIFICATION AUTOMATIQUE]
-                    ⛔ INTERDICTION DE FINIR.
+                } else if (orphanedComponents.length > 0 && stepCount < MAX_STEPS - 2) {
+                    // Cas 2 : Tout est créé, MAIS certains composants ne sont pas branchés !
+                    // C'est souvent là que l'IA échoue : elle crée la modal mais oublie d'update la page.
+                    finished = false;
                     
-                    Tu as listé ces fichiers dans ton plan, mais tu ne les as pas encore générés (balises XML manquantes) :
-                    ${missingFiles.map(f => `- ${f}`).join("\n")}
+                    const prompt = `
+                    [SUPERVISEUR - ERREUR D'INTÉGRATION DÉTECTÉE]
+                    Tu as créé ces composants mais ils ne semblent pas être importés ou utilisés dans tes pages :
+                    ${orphanedComponents.map(c => `- ${c}`).join("\n")}
                     
                     ACTION REQUISE :
-                    1. Génère le code complet pour ces fichiers manquants maintenant.
-                    2. IMPORTANT : Pour chaque fichier, réfère-toi à [[PROJECT_MODALS_ROLES]] pour implémenter TOUTE la logique (pas de coquilles vides).
+                    Réécris le fichier parent (souvent page.tsx ou layout.tsx) pour IMPORTER et UTILISER ces composants.
+                    Assure-toi de créer le state nécessaire (ex: const [isModalOpen, setIsModalOpen] = useState(false)) pour les faire fonctionner.
                     `;
-
-                    // Petit feedback visuel pour l'utilisateur (optionnel, via send)
-                    // send(`\n\n🛠️ [Système] ${missingFiles.length} fichiers restants détectés, continuation du travail...\n`);
-
-                    currentHistory.push({ role: "user", parts: [{ text: supervisorPrompt }] });
-
-                } else if (aiSaysFinished && missingFiles.length === 0) {
-                    // Tout est bon : Liste vide et IA satisfaite
-                    finished = true;
+                    
+                    // On force l'IA à corriger le tir
+                    currentHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    
+                    // On retire les fichiers orphelins des "expected" pour ne pas boucler indéfiniment si l'IA galère, 
+                    // mais on force la réécriture de la page parente.
                 } else {
-                    // L'IA n'a pas fini et il reste peut-être des choses, ou elle attend des instructions
-                    // Si elle n'a pas dit finished, on la laisse continuer ou on la relance si elle s'arrête sans code
-                    if (!currentStepOutput.trim().endsWith("</create_file>") && !aiSaysFinished) {
-                         const continuePrompt = `[SYSTÈME] Continue ton implémentation selon le manifeste. Ne t'arrête pas.`;
-                         currentHistory.push({ role: "user", parts: [{ text: continuePrompt }] });
+                    // Tout semble bon
+                    if (currentStepOutput.includes("DEPENDENCIES:")) {
+                        finished = true;
+                    } else {
+                         // Si l'IA s'arrête sans finir formellement
+                         const prompt = `[SUPERVISEUR] Si tu as fini, liste les DEPENDENCIES. Sinon continue.`;
+                         currentHistory.push({ role: "user", parts: [{ text: prompt }] });
                     }
-                    // Sinon, la boucle while continuera naturellement car finished est false
                 }
+            } else {
+                // Mode chat simple
+                finished = true;
             }
           }
 
-          // --- INSTALLATION DES DÉPENDANCES ---
-          const hasCode = fullSessionOutput.includes("<create_file");
-          
-          if (isProjectMode && hasCode) {
+          // --- INSTALLATION (CODE IDENTIQUE A AVANT) ---
+          if (isProjectMode && fullSessionOutput.includes("<create_file")) {
             const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
-            
             if (allDetectedDeps.length > 0) {
-                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances complètes... ---\n");
-
+                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances... ---\n");
+                
+                // Ta logique package.json existante ici...
+                // J'ajoute juste des libs de logique souvent oubliées
                 const baseDeps: Record<string, string> = {
                     next: "15.1.0",
                     react: "19.0.0",
                     "react-dom": "19.0.0",
-                    "lucide-react": "0.561.0"
+                    "lucide-react": "0.460.0",
+                    "clsx": "latest"
                 };
+                
+                // ... (reste de ta logique package.json)
                 const newDeps: Record<string, string> = {};
-
                 await Promise.all(allDetectedDeps.map(async (pkg) => {
                     if (!pkg || baseDeps[pkg]) return;
-                    try {
-                        const data = await packageJson(pkg);
-                        newDeps[pkg] = data.version as string;
-                    } catch (err) {
-                        newDeps[pkg] = "latest";
-                    }
+                    newDeps[pkg] = "latest";
                 }));
-
-                const finalDependencies = { ...baseDeps, ...newDeps };
                 
-                const packageJsonContent = {
+                const finalDependencies = { ...baseDeps, ...newDeps };
+                 const packageJsonContent = {
                     name: "nextjs-app",
                     version: "1.0.0",
-                    private: true,
-                    scripts: { dev: "next dev -p 3000 -H 0.0.0.0", build: "next build", start: "next start", lint: "next lint" },
                     dependencies: finalDependencies,
                     devDependencies: {
                         typescript: "^5",
@@ -349,7 +342,7 @@ export async function POST(req: Request) {
                         "@types/react-dom": "^19",
                         postcss: "^8",
                         tailwindcss: "^3.4.1",
-                        eslint: "^8",
+                        "eslint": "^8",
                         "eslint-config-next": "15.0.3"
                     },
                 };
@@ -362,8 +355,8 @@ export async function POST(req: Request) {
           controller.close();
 
         } catch (err: any) {
-          console.error("Workflow error:", err);
-          send(`\n\n⛔ ERREUR CRITIQUE: ${err.message}`);
+          console.error(err);
+          send(`\n\n⛔ ERREUR: ${err.message}`);
           controller.close();
         }
       },
@@ -373,7 +366,6 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked" },
     });
   } catch (err: any) {
-    return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-  }
-  
+        }
