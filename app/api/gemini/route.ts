@@ -5,7 +5,7 @@ import packageJson from 'package-json';
 
 const BATCH_SIZE = 128;
 // Utilise un modèle valide (Flash 2.0 est excellent pour la vitesse/qualité)
-const MODEL_ID = "gemini-2.0-flash"; 
+const MODEL_ID = "gemini-3-flash-preview"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
