@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, Type, FunctionDeclaration, Part } from "@google/genai";
 import { basePrompt } from "@/lib/prompt";
-// Assure-toi d'avoir installé: npm install package-json
 import packageJson from 'package-json';
 
 const BATCH_SIZE = 128;
@@ -15,17 +14,15 @@ interface Message {
   mentionedFiles?: string[];
 }
 
-// --- 1. DÉFINITION DU FLUX DE TRAVAIL (Pour que chaque agent connaisse sa place) ---
+// --- 1. DÉFINITION DU FLUX DE TRAVAIL SIMPLIFIÉ ---
 const WORKFLOW_CONTEXT = `
-CONTEXTE GLOBAL DE L'ÉQUIPE (Chaîne de production) :
-1. ARCHITECTE (Chef) : Définit le plan.
-2. BACKEND_DEV : Crée le serveur/API (Node/Next.js).
-3. BACKEND_REVIEWER : Optimise le code serveur.
-4. BACKEND_AUDITOR : Valide le serveur et liste les paquets npm backend.
+CONTEXTE GLOBAL DE L'ÉQUIPE :
+1. ARCHITECTE : Planification.
+2. BACKEND_DEV : API & Database.
+3. BACKEND_AUDITOR : Sécurité & Dépendances Backend.
    --- BARRIÈRE : Le Backend s'arrête ici ---
-5. FRONTEND_DEV : Crée la structure React (utilise les API du Backend).
-6. FRONTEND_UX : Ajoute le style et les animations.
-7. FRONTEND_QA : Valide l'UI et liste les paquets npm frontend.
+4. FRONTEND_DEV : Logique, Structure React & Connexion API.
+5. FRONTEND_LEAD : Design (Tailwind), UI Polish, Validation & Dépendances Frontend.
 `;
 
 // --- UTILITAIRES ---
@@ -39,20 +36,13 @@ function cleanBase64Data(dataUrl: string) {
   return dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
 }
 
-// Extraction robuste des dépendances (JSON strict ou souple)
 function extractDependenciesFromAgentOutput(output: string): string[] {
-  // Regex pour capturer DEPENDENCIES: ["a", "b"] ou DEPENDENCIES: ['a', 'b']
-  // Le flag 'i' rend insensible à la casse, 's' permet le multiline
   const match = output.match(/DEPENDENCIES:\s*(\[[\s\S]*?\])/i);
-  
   if (match && match[1]) {
     try {
-      // Normalisation des quotes (remplace ' par ")
       const jsonStr = match[1].replace(/'/g, '"'); 
       return JSON.parse(jsonStr);
     } catch (e) {
-      console.error("Erreur parsing dépendances:", e);
-      // Tentative de fallback manuel si le JSON est mal formé
       const manualExtract = match[1].match(/"([a-zA-Z0-9-@/.]+)"/g);
       if (manualExtract) return manualExtract.map(s => s.replace(/"/g, ''));
       return [];
@@ -71,126 +61,81 @@ const readFileDeclaration: FunctionDeclaration = {
   },
 };
 
-// --- DEFINITION DES AGENTS AVEC ROLES STRICTS ---
+// --- DEFINITION DES AGENTS (Frontend réduit) ---
 const AGENTS = {
   ARCHITECT: {
     name: "ARCHITECTE",
     icon: "🧠",
     prompt: `Tu es le CHEF DE PROJET (Architecte).
     ${WORKFLOW_CONTEXT}
-    
-    TON RÔLE : Analyser la demande et produire un PLAN.
-    RÈGLES :
-    1. Tu es l'étape 1. Personne n'est avant toi. L'équipe Backend te suit.
-    2. ⛔ NE PRODUIS JAMAIS DE CODE.
-    
-    FORMAT DE SORTIE :
-    CLASSIFICATION: CODE_ACTION
-    Plan :
-    - Backend : ...
-    - Frontend : ...`,
+    RÈGLES : Pas de code, juste un PLAN solide. Décide de la stack et des routes API.
+    FORMAT : CLASSIFICATION: CODE_ACTION puis le Plan.`,
   },
   
   FIXER: {
     name: "FIXER",
     icon: "🛠️",
-    prompt: `Expert Correcteur.
-    TON RÔLE : Intervenir ponctuellement pour corriger un fichier précis.
-    Utilise <create_file path="...">...code...</create_file>.`,
+    prompt: `Expert Correcteur. Corrige le bug précis. Utilise <create_file>.`,
   },
 
-  // --- ÉQUIPE BACKEND ---
+  // --- BACKEND (Inchangé) ---
   BACKEND: {
     name: "BACKEND_DEV",
     icon: "⚙️",
-    prompt: `Expert Backend.
+    prompt: `Expert Backend (Node/Next.js).
     ${WORKFLOW_CONTEXT}
-    
-    TON RÔLE : Étape 2. Tu reçois le PLAN de l'Architecte.
-    SUIVANT : Le Reviewer repassera sur ton code.
-    
-    ⛔ INTERDICTION FORMELLE : 
-    - NE TOUCHE PAS au Frontend (pas de JSX, pas de React components, pas de CSS).
-    - Ton domaine c'est : API Routes, Server Actions, Database, Zod schemas.
-    
-    FORMAT : Utilise <create_file path="...">...code...</create_file>.`,
-  },
-
-  BACKEND_REVIEWER: {
-    name: "BACKEND_REVIEWER",
-    icon: "🔍",
-    prompt: `Expert Backend Senior.
-    ${WORKFLOW_CONTEXT}
-    
-    TON RÔLE : Étape 3. Tu valides le code du BACKEND_DEV.
-    PRÉCÉDENT : Backend Dev. SUIVANT : Backend Auditor.
-    
-    ⛔ INTERDICTION : Pas de Frontend. Reste sur le serveur.
-    FORMAT : Renvoie le code complet corrigé dans <create_file>.`,
+    TON RÔLE : Coder les API Routes, DB Schemas, Server Actions.
+    ⛔ Pas de Frontend.
+    FORMAT : <create_file path="...">...code...</create_file>.`,
   },
 
   BACKEND_AUDITOR: {
     name: "BACKEND_AUDITOR",
     icon: "🛡️",
-    prompt: `Validateur Backend & Gestionnaire de Paquets.
+    prompt: `Validateur Backend.
     ${WORKFLOW_CONTEXT}
-    
-    TON RÔLE : Étape 4 (FIN DU BACKEND). Tu valides tout avant de passer la main au Frontend.
-    
-    TA MISSION CRUCIALE :
-    1. Renvoie le code backend final dans <create_file>.
-    2. LISTE LES DÉPENDANCES pour le fichier package.json.
-    
-    ⚠️ FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
-    DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
-    (Ne mets QUE les paquets externes, pas 'fs' ou 'path')`,
+    TON RÔLE : Relis le code Backend, corrige les failles et liste les paquets.
+    FORMAT SORTIE : Code dans <create_file> puis DEPENDENCIES: ["pkg1", "pkg2"] à la fin.`,
   },
 
-  // --- ÉQUIPE FRONTEND ---
-  FRONTEND: {
+  // --- FRONTEND (Réduit à 2 Agents puissants) ---
+  
+  // Fusionne l'ancien FRONTEND_DEV et une partie de la logique
+  FRONTEND_DEV: {
     name: "FRONTEND_DEV",
-    icon: "🎨",
-    prompt: `Expert Frontend (React/Next.js).
+    icon: "💻", // Icône changée pour différencier
+    prompt: `Expert Frontend Senior (React/Next.js Logic).
     ${WORKFLOW_CONTEXT}
     
-    TON RÔLE : Étape 5. Tu récupères le relais après l'équipe Backend.
-    PRÉCÉDENT : Backend Auditor. SUIVANT : UX Designer.
+    TON RÔLE : Tu es le "Moteur". Tu construis la structure, le routing, les contexts et les appels API.
     
-    ⛔ INTERDICTION FORMELLE :
-    - NE MODIFIE PAS LE BACKEND. Si une API manque, fais avec ou mock-la, mais ne réécris pas le serveur.
-    - Ton domaine : Pages (.tsx), Components, Hooks.
+    INSTRUCTIONS :
+    1. Base-toi sur le plan de l'Architecte et le code du Backend Auditor.
+    2. Crée les fichiers .tsx fonctionnels.
+    3. Ne t'attarde pas sur le "joli", concentre-toi sur le "fonctionnel" et la data.
     
     FORMAT : Utilise <create_file path="...">...code...</create_file>.`,
   },
 
-  FRONTEND_DESIGNER: {
-    name: "FRONTEND_UX",
-    icon: "✨",
-    prompt: `Directeur Artistique.
+  // Fusionne UX, Design et Finalizer en un seul "Lead"
+  FRONTEND_LEAD: {
+    name: "FRONTEND_LEAD",
+    icon: "🎨", // Icône Designer
+    prompt: `Lead Frontend & UI/UX Designer.
     ${WORKFLOW_CONTEXT}
     
-    TON RÔLE : Étape 6. Tu sublimes le travail du FRONTEND_DEV.
-    PRÉCÉDENT : Frontend Dev. SUIVANT : Frontend QA.
+    TON RÔLE : Tu es la "Peau" et la "Validation". 
+    Tu prends le code fonctionnel du FRONTEND_DEV et tu le rends magnifique et production-ready.
     
-    Tâche : Ajoute du style (Tailwind/CSS) et des animations.
-    FORMAT : Renvoie le code complet dans <create_file>.`,
-  },
-
-  FRONTEND_FINALIZER: {
-    name: "FRONTEND_QA",
-    icon: "✅",
-    prompt: `Intégrateur Final & Gestionnaire de Paquets.
-    ${WORKFLOW_CONTEXT}
+    INSTRUCTIONS :
+    1. Applique le design (Tailwind CSS), les animations (Framer Motion) et l'UX.
+    2. Vérifie qu'il ne manque aucun import.
+    3. LISTE LES DÉPENDANCES FRONTEND à la fin.
     
-    TON RÔLE : Étape 7 (FIN DU PROJET). Tu livres le produit fini.
+    ⚠️ IMPORTANT : Renvoie le code complet mis à jour.
     
-    TA MISSION CRUCIALE :
-    1. Vérifie que tout le code UI est dans <create_file>.
-    2. LISTE LES DÉPENDANCES FRONTEND pour le package.json.
-    
-    ⚠️ FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
-    DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
-    (N'oublie pas les paquets d'animation ou d'icônes utilisés)`,
+    FORMAT OBLIGATOIRE À LA FIN :
+    DEPENDENCIES: ["lucide-react", "framer-motion", "clsx", "tailwind-merge"]`,
   },
 };
 
@@ -204,19 +149,19 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, allReferenceImages } = body;
+    const { history, uploadedImages, allReferenceImages, currentProjectFiles, currentPlan, uploadedFiles} = body;
     const lastUserMessage = history.filter((m: Message) => m.role === "user").pop()?.content || "";
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // --- Historique (visible uniquement par l'Architecte) ---
+    // Construction de l'historique
     const buildHistoryParts = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
-        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[STYLE REFERENCE]" }] });
+        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[STYLE REFERENCE & VIBES]" }] });
       }
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
@@ -235,14 +180,11 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         send = (txt: string) => {
-          // On masque les instructions de classification à l'utilisateur
+          // Nettoyage soft : on enlève juste les tags de classification interne
           const sanitized = txt
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
             .replace(/NO_BACKEND_CHANGES/gi, "");
           
-          // NOTE : On ne masque PAS "DEPENDENCIES: [...]" ici, pour que l'utilisateur voit ce qui se passe.
-          // De toute façon, ce n'est pas du XML, donc le parser de fichiers du client l'ignorera.
-            
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
@@ -259,38 +201,47 @@ export async function POST(req: Request) {
 
           try {
             let contents;
+            
+            // INSTRUCTION CRITIQUE POUR L'EXTRACTION CÔTÉ CLIENT
+            // On force l'IA à ne PAS mettre de markdown autour du XML
+            const noMarkdownInstruction = `
+            ⚠️ RÈGLE STRICTE D'OUTPUT XML :
+            N'utilise JAMAIS de blocs markdown (\`\`\`xml ... \`\`\`) pour entourer la balise <create_file>.
+            Écris le code XML DIRECTEMENT.
+            Exemple VALIDE :
+            <create_file path="lib/utils.ts">...</create_file>
+            Exemple INTERDIT :
+            \`\`\`xml
+            <create_file...>...</create_file>
+            \`\`\`
+            `;
+
             if (useChatHistory) {
                 contents = buildHistoryParts();
+                // On injecte la consigne "No Markdown" dans le dernier message
+                const lastMsg = contents[contents.length - 1];
+                lastMsg.parts.push({ text: `\n[SYSTEM: ${noMarkdownInstruction}]` });
             } else {
-                // --- INJECTION DU CONTEXTE STRICT POUR ÉVITER LES MÉLANGES ---
-                // On rappelle à l'agent qui il est et ce qu'il doit faire UNIQUEMENT.
                 contents = [{ 
                     role: "user", 
                     parts: [{ text: `
-                    [INSTRUCTION SYSTÈME - MODE EXÉCUTION STRICT]
+                    [CONTEXTE STRICT]
+                    INPUT PRÉCÉDENT : ${taskInput}
                     
-                    TÂCHE EN COURS : Le projet est en cours de création.
-                    TON INPUT TECHNIQUE (Données reçues de l'agent précédent) :
-                    ${taskInput}
+                    ${noMarkdownInstruction}
                     
-                    TES INSTRUCTIONS SPÉCIFIQUES :
-                    1. Tu es ${agent.name}.
-                    2. Réfère-toi au contexte global de l'équipe défini dans ton prompt système.
-                    3. Ne fais PAS le travail des autres agents.
-                    4. Génère le code demandé dans <create_file>.
-
-                    ${basePrompt}
+                    TES INSTRUCTIONS :
+                    Tu es ${agent.name}.
+                    Génère le code demandé dans <create_file>.
                     `}] 
                 }];
             }
 
-            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ ET FLUX DE TRAVAIL ===\n${agent.prompt}`;
+            const systemInstruction = `${basePrompt}\n\n=== RÔLE : ${agent.name} ===\n${agent.prompt}`;
             
-            // Températures ajustées pour éviter les hallucinations
-            let temperature = 0.5; 
-            if (agentKey.includes("BACKEND")) temperature = 0.2; // Très rigoureux pour le backend
-            if (agentKey === "ARCHITECT") temperature = 0.4; 
-            if (agentKey === "FRONTEND_DESIGNER") temperature = 0.9; 
+            // Température basse pour éviter le "bavardage" qui casse le parsing
+            let temperature = 0.4; 
+            if (agentKey === "FRONTEND_LEAD") temperature = 0.7; // Un peu de créativité pour le design
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
@@ -335,71 +286,51 @@ export async function POST(req: Request) {
             return;
           } else if (decision === "CODE_ACTION") {
             
-            // --- 2. CASCADE BACKEND ---
+            // --- 2. BACKEND (2 Agents) ---
             const backend1 = await runAgent("BACKEND", `PLAN ARCHITECTE:\n${architectOutput}`);
-            const backend2 = await runAgent("BACKEND_REVIEWER", `CODE V1 (Backend Dev):\n${backend1}`);
-            // L'auditor est instruit pour sortir DEPENDENCIES: [...]
-            const backend3 = await runAgent("BACKEND_AUDITOR", `CODE V2 (Backend Reviewer):\n${backend2}`);
+            const backendFinal = await runAgent("BACKEND_AUDITOR", `CODE V1 (Backend Dev):\n${backend1}`);
             
-            const noBackend = backend3.includes("NO_BACKEND_CHANGES");
-            const finalBackendCode = noBackend ? "Aucun changement Backend." : backend3;
+            const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
+            const finalBackendCode = noBackend ? "Aucun changement Backend." : backendFinal;
 
-            // --- 3. CASCADE FRONTEND ---
-            // On passe le backend final au frontend pour qu'il sache quelles API appeler
-            const frontend1 = await runAgent("FRONTEND", `PLAN:\n${architectOutput}\n\nCONTEXTE BACKEND (APIs disponibles):\n${finalBackendCode}`);
-            const frontend2 = await runAgent("FRONTEND_DESIGNER", `STRUCTURE REACT (Frontend Dev):\n${frontend1}`);
-            // Le finalizer est instruit pour sortir DEPENDENCIES: [...]
-            const frontendFinal = await runAgent("FRONTEND_FINALIZER", `DESIGN UX (Frontend UX):\n${frontend2}`);
+            // --- 3. FRONTEND (2 Agents) ---
+            // Le Dev fait le gros œuvre
+            const frontend1 = await runAgent("FRONTEND_DEV", `PLAN:\n${architectOutput}\n\nBACKEND:\n${finalBackendCode}`);
+            // Le Lead fait le design, le polish et les dépendances
+            const frontendFinal = await runAgent("FRONTEND_LEAD", `CODE BRUT (Frontend Dev):\n${frontend1}`);
 
-            // --- 4. GESTION AUTOMATIQUE DES PAQUETS (NPM) ---
-            
-            // On récupère les sorties COMPLÈTES des agents finaux
-            const backendDeps = extractDependenciesFromAgentOutput(backend3);
+            // --- 4. GESTION PAQUETS ---
+            const backendDeps = extractDependenciesFromAgentOutput(backendFinal);
             const frontendDeps = extractDependenciesFromAgentOutput(frontendFinal);
-            
-            // Fusion des listes
             const allDetectedDeps = Array.from(new Set([...backendDeps, ...frontendDeps]));
 
             if (allDetectedDeps.length > 0 || !noBackend) {
-                send("\n\n--- 📦 [SYSTEM] Génération du package.json... ---\n");
+                send("\n\n--- 📦 [SYSTEM] Configuration package.json... ---\n");
 
-                // Socle de base (ne change jamais)
                 const baseDeps: Record<string, string> = {
                     next: "15.1.0",
                     react: "19.0.0",
                     "react-dom": "19.0.0",
                     "lucide-react": "0.561.0"
                 };
-
                 const newDeps: Record<string, string> = {};
 
-                // Interrogation de NPM via le module 'package-json'
-                // Cela garantit que le fichier package.json contient les VRAIES versions actuelles
                 await Promise.all(allDetectedDeps.map(async (pkg) => {
-                    // Ignorer les paquets vides ou déjà dans le socle
                     if (!pkg || baseDeps[pkg]) return;
-                    
                     try {
                         const data = await packageJson(pkg);
                         newDeps[pkg] = data.version as string;
                     } catch (err) {
-                        console.warn(`Package introuvable: ${pkg}`);
-                        newDeps[pkg] = "latest"; // Fallback safe
+                        newDeps[pkg] = "latest";
                     }
                 }));
 
                 const finalDependencies = { ...baseDeps, ...newDeps };
-
                 const packageJsonContent = {
                     name: "nextjs-app",
                     version: "0.1.0",
                     private: true,
-                    scripts: {
-                        dev: "next dev",
-                        build: "next build",
-                        start: "next start",
-                        lint: "next lint"
-                    },
+                    scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
                     dependencies: finalDependencies,
                     devDependencies: {
                         typescript: "^5",
@@ -413,13 +344,7 @@ export async function POST(req: Request) {
                     },
                 };
 
-                // Envoi de l'artifact final pour package.json
-                const xmlOutput = `
-<create_file path="package.json">
-${JSON.stringify(packageJsonContent, null, 2)}
-</create_file>
-                `;
-                
+                const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
                 send(xmlOutput);
             }
 
@@ -439,4 +364,4 @@ ${JSON.stringify(packageJsonContent, null, 2)}
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-  }
+    }
