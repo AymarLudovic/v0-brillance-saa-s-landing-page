@@ -266,7 +266,7 @@ export async function POST(req: Request) {
                     ${agent.prompt}
                     FAIT UNIQUEMENT LE RÔLE QUI T'A ÉTÉ ATTRIBUÉ ET TU T'ARRETES QUAND TU AS FINI.
 
-                    ${basePrompt}
+                
                     `}] 
                 }];
             }
