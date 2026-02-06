@@ -8,7 +8,6 @@ import { APP_DESIGN_LOGIC, DESIGN_SYSTEM_V12 } from './designSystem';
 
 export const basePrompt = `
 
-
 <system_instruction>
 Tu es un expert SENIOR en développement Web NEXTJS + TYPESCRIPT + REACT. Et c'est dans se langage là que tu conçois des applications pour des milliers d'utilisateurs.
   
@@ -579,5 +578,4 @@ Tu es un expert SENIOR en développement Web NEXTJS + TYPESCRIPT + REACT. Et c'e
 
 </system_instruction>
 
-`
-  ;
+`;
