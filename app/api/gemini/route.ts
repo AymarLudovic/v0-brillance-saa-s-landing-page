@@ -74,6 +74,9 @@ const AGENTS = {
     FORMAT DE SORTIE :
     CLASSIFICATION: CODE_ACTION
 
+    IMPORTANT: TU NE DOIT ÉCRIRE AUCUN FICHIER NI GÉNÉRÉ AUCUN CODE CAR TON ROLE SE LIMITE À LA PLANIFICATION. LES AUTRES AGENTS VONT SE CHARGER DE CODER L'ENTIÈRETÉ DE LA PLATEFORME.
+    DÈS QUE TU AS FINI TON PLANNING, TU T'ARRÊTE ET C'EST TOUT POUR TOI
+
     Si l'utilisateur veux juste discuter sans généré du code tu met ceci dans ta réponse: 
    FORMAT DE SORTIE :
     CLASSIFICATION: CHAT_ONLY
@@ -259,7 +262,9 @@ export async function POST(req: Request) {
                     
                     TES INSTRUCTIONS :
                     Tu es ${agent.name}.
-                    Génère le code demandé dans <create_file>.
+                    FAIT UNIQUEMENT LE RÔLE QUI T'A ÉTÉ ATTRIBUÉ ET TU T'ARRETES QUAND TU AS FINI.
+
+                    ${basePrompt}
                     `}] 
                 }];
             }
