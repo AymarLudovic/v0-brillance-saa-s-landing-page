@@ -35,30 +35,36 @@ export async function POST(req: Request) {
 
         // Fichiers Next.js 15 par défaut (SANS Tailwind CSS)
         const defaultPackageJson = {
-          name: "nextjs-app",
-          private: true,
-          scripts: {
-            dev: "next dev -p 3000 -H 0.0.0.0",
-            build: "next build",
-            start: "next start -p 3000 -H 0.0.0.0",
-          },
-          dependencies: {
-            next: "15.1.0",
-            react: "19.0.0",
-            "react-dom": "19.0.0",
-            "iconsax-reactjs": "0.0.8",
-            "iconoir-react": "7.11.0",
-            "lucide-react": "0.561.0"
-          },
-          devDependencies: {
-            typescript: "5.7.2",
-            "@types/node": "22.10.1",
-            "@types/react": "19.0.1",
-            "@types/react-dom": "19.0.1",
-          },
-        }
+  name: "nextjs-app",
+  private: true,
+  scripts: {
+    dev: "next dev -p 3000 -H 0.0.0.0",
+    build: "next build",
+    start: "next start -p 3000 -H 0.0.0.0",
+  },
+  dependencies: {
+    next: "15.1.0",
+    react: "19.0.0",
+    "react-dom": "19.0.0",
+    "iconsax-reactjs": "0.0.8",
+    "iconoir-react": "7.11.0",
+    "lucide-react": "0.561.0"
+  },
+  devDependencies: {
+    typescript: "5.7.2",
+    "@types/node": "22.10.1",
+    "@types/react": "19.0.1",
+    "@types/react-dom": "19.0.1",
+    // AJOUTS POUR TAILWIND
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8",
+    "autoprefixer": "^10.0.1"
+  },
+}
 
-        await sandbox.files.write("/home/user/package.json", JSON.stringify(defaultPackageJson, null, 2))
+await sandbox.files.write("/home/user/package.json", JSON.stringify(defaultPackageJson, null, 2))
+
+
 
         // tsconfig.json pour Next.js 15
         await sandbox.files.write(
@@ -104,8 +110,9 @@ export default nextConfig;`,
 
         // layout.tsx
         await sandbox.files.write(
-          "/home/user/app/layout.tsx",
-          `import type { Metadata } from "next";
+  "/home/user/app/layout.tsx",
+  `import type { Metadata } from "next";
+import "./globals.css"; // <--- L'IMPORT CRUCIAL EST ICI
 
 export const metadata: Metadata = {
   title: "Generated App",
@@ -119,13 +126,55 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, padding: 0, fontFamily: "system-ui, sans-serif" }}>
+      <body className="antialiased bg-white text-black margin-0 padding-0">
         {children}
       </body>
     </html>
   );
-}`,
-        )
+}`
+);
+
+  await sandbox.files.write(
+  "/home/user/app/globals.css",
+  `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tu peux ajouter tes styles globaux ici si besoin */
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}`
+);
+
+        await sandbox.files.write(
+  "/home/user/postcss.config.mjs",
+  `/** @type {import('postcss-load-config').Config} */
+const config = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+
+export default config;`
+);
+
+          await sandbox.files.write(
+  "/home/user/tailwind.config.ts",
+  `import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
+export default config;`
+);
 
         // page.tsx par défaut
         await sandbox.files.write(
