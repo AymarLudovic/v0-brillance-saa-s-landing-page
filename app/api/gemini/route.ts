@@ -373,6 +373,7 @@ export async function POST(req: Request) {
                         "@types/react-dom": "^19",
                         postcss: "^8",
                         tailwindcss: "^3.4.1",
+                       "autoprefixer": "^10.4.19",
                         eslint: "^8",
                         "eslint-config-next": "15.0.3"
                     },
