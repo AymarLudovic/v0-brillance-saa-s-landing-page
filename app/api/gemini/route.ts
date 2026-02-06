@@ -4,7 +4,6 @@ import { basePrompt } from "@/lib/prompt";
 import packageJson from 'package-json';
 
 const BATCH_SIZE = 128;
-// Utilise un modèle valide (Flash 2.0 est excellent pour la vitesse/qualité)
 const MODEL_ID = "gemini-3-flash-preview"; 
 
 interface Message {
@@ -40,16 +39,24 @@ function extractDependenciesFromAgentOutput(output: string): string[] {
   return [];
 }
 
-// --- UTILITAIRES DE SUPERVISION ---
+// --- NOUVEAUX UTILITAIRES DE SUPERVISION ---
+
+// 1. Extrait les fichiers promis dans les blocs [[PROJECT_...]]
 function extractManifestRequirements(text: string): string[] {
   const requirements: string[] = [];
+  // Capture le contenu des blocs PROJECT_PAGES ou PROJECT_MODALS
   const manifestRegex = /\[\[PROJECT_(?:PAGES|MODALS)\]\]([\s\S]*?)(?=\[\[|$)/g;
   let match;
+  
   while ((match = manifestRegex.exec(text)) !== null) {
     const content = match[1];
+    // Cherche des lignes type "- src/components/Header.tsx" ou "1. app/page.tsx"
+    // Regex flexible pour capturer les chemins avec extensions communes
     const fileLines = content.match(/(?:[-*]|\d+\.)\s+([a-zA-Z0-9_\-\/]+\.(tsx|ts|js|jsx|css|json))/g);
+    
     if (fileLines) {
       fileLines.forEach(line => {
+        // Nettoyage pour garder juste le chemin
         const cleanPath = line.replace(/(?:[-*]|\d+\.)\s+/, "").trim();
         requirements.push(cleanPath);
       });
@@ -58,6 +65,7 @@ function extractManifestRequirements(text: string): string[] {
   return requirements;
 }
 
+// 2. Extrait les fichiers réellement créés via XML
 function extractCreatedFiles(text: string): string[] {
   const created: string[] = [];
   const xmlRegex = /<create_file\s+path=["']([^"']+)["']/g;
@@ -88,11 +96,13 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages } = body;
+    
+      const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
+  
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Construction de l'historique
+    // Construction de l'historique initial
     const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
@@ -100,7 +110,7 @@ export async function POST(req: Request) {
         const styleParts = allReferenceImages.slice(0, 3).map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
-        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE)]" }] });
+        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }] });
       }
 
       history.forEach((msg: Message, i: number) => {
@@ -121,65 +131,90 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        // --- CORRECTION CRITIQUE ICI ---
-        // On ne supprime plus le contenu qui suit les balises, seulement les balises elles-mêmes.
-        // Cela évite d'avaler le code XML s'il est collé au texte.
         send = (txt: string) => {
           const sanitized = txt
             .replace(/\[\[PROJECT_START\]\]/g, "") 
             .replace(/\[\[PROJECT_FINISHED\]\]/g, "")
-            // On enlève juste le titre, on laisse le contenu (la liste des fichiers) visible pour l'utilisateur
-            // C'est mieux pour l'UX et ça évite les bugs de suppression de code.
-            .replace(/\[\[PROJECT_PAGES\]\]/g, "**Plan des Pages :**") 
-            .replace(/\[\[PROJECT_MODALS\]\]/g, "**Composants & Utils :**")
-            .replace(/\[\[PROJECT_MODALS_ROLES\]\]/g, "") // Celui-là on peut le cacher si on veut, ou le laisser
+            .replace(/\[\[PROJECT_PAGES\]\][\s\S]*?(\n|$)/g, "") 
+            .replace(/\[\[PROJECT_MODALS\]\][\s\S]*?(\n|$)/g, "")
+            .replace(/\[\[PROJECT_MODALS_ROLES\]\][\s\S]*?(\n|$)/g, "")
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "");
           
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
         try {
+          // --- CONFIGURATION DU MODE AUTONOME AVEC RIGUEUR ---
           const systemInstruction = `${basePrompt}
 
-          === MODE DÉVELOPPEUR FULLSTACK PRO ===
-          Tu es un expert Senior. Tu ne fais pas de mockups, tu codes pour la production.
+          === MODE DÉVELOPPEUR AUTONOME (ITERATIF & RIGOUREUX) ===
+          Tu es un expert Fullstack Senior. Tu ne fais pas de "mockups", tu fais du code de production.
           
-          🚨 RÈGLE ABSOLUE : FONCTIONNALITÉS RÉELLES 🚨
-          - PAS de href="#" -> Utilise de vraies routes Next.js.
-          - PAS de boutons vides -> Connecte les événements (onClick, onSubmit).
-          - PAS de "TODO" -> Implémente la logique maintenant.
-          
-          === PROTOCOLE PROJET ===
-          1. **ANALYSE** : Si la demande implique du code, commence par [[PROJECT_START]].
-          2. **MANIFESTE** : Liste les fichiers que tu vas créer (Pages, Composants).
-             - Utilise les blocs : [[PROJECT_PAGES]] et [[PROJECT_MODALS]].
-             - DANS [[PROJECT_MODALS_ROLES]], décris la logique métier de chaque fichier.
-          3. **EXÉCUTION** : Génère le code dans des balises XML.
-             <create_file path="chemin/fichier.tsx"> ...code... </create_file>
+          🚨 DÉCISION CRITIQUE AU DÉMARRAGE 🚨
+          1. **SIMPLE DISCUSSION** : Réponds normalement.
+          2. **PROJET / CODE** :
+             - COMMENCE ta réponse par : [[PROJECT_START]]
+             - Fais une ANNONCE courte à l'utilisateur.
+             - ENSUITE, établis ton **MANIFESTE TECHNIQUE** (Voir ci-dessous).
+             - ENFIN, commence à coder.
 
-          4. **DÉPENDANCES** : À la toute fin, liste les libs externes  les package que tu utiliseras loste les:
-             DEPENDENCIES: ["zod", "autre"]
+          === LE MANIFESTE TECHNIQUE (OBLIGATOIRE) ===
+          Dès que tu lances un projet, tu dois lister ce que tu vas faire dans ces blocs précis :
 
-             Pourquoi tout ceci, en fait je t'explique ma vision que je redoute de toi pour la création des applications des utilisateur: ils me paie des milliers de dollars par mois pour que tu construise des applications solides et non des mvg, voici plus de détails :
-          Okay ça semble déjà être bon j'apprécie juste qu'il faut le rendre encore plus robuste. Et même il faut y rajouter quelques choses dont je vais t'en parler maintenant : En effet elle fait déjà presque tout ce qu'elle oublie mais le soucis est que son UI ne s'adapte pas et elle ne code en rien les fonctionnalités réel, elle fait juste disons 2 sur 50, fonctionnalités que l'on s'entend. Quand je parle de fonctionnalités je veux dire imagine un Spotify qui est juste du UI qui ne fait absolument aucune fonctionnalités mais peut être juste le lecteur de musique donne mais le reste non, imagine un peu les millions de dollars qu'il perdent. Et même son UI si elle a créé les fichiers modals, elle ne fait pas que son UI appel par exemple ses modals, c'est à dire que si au départ elle a mis que l'URL dans la sidebar ou un menu de navigation à # elle ne va jamais chercher à mettre la route. Elle ne va jamais chercher à ce que une input par exemple de recherche face son putain de travail. Si l'utilisateur à demander qu'il veux une plateforme de trading, elle ne fait que juste de légère fonctionnalités et pas un level de logiciels du niveau d'une startup comme Uber, Apple Google même. Les modals créé oui sont créé mais sont juste créé et n'ont aucune utilité. 
+          1. [[PROJECT_PAGES]]
+             - Liste chaque PAGE (route) à créer.
+             - Format ligne: - app/nom_page/page.tsx
+             - Liste ses fonctionnalités clés.
 
-"Le code que tu as déjà fait pallie légèrement déjà ça signale aussi à l'IA quand elle a oublié des fichiers. Mais tout ce ci n'est pas au niveau encore à cause des fonctionnalités. On ne peut pas compter sur l'IA pour faire ça comme tu l'as toi même dis mais il faut ce que tu as dis mais disons et fait dans mon code mais 100 fois plus efficace encore pour absolument pallier à tout ce problème et s'élever au niveau de ces grandes entreprises. Ce n'est pas juste que tu vas indiqué à l'IA que oui mais tu es développeur, n'oublie pas non ta méthode que tu m'as sorti ici la est bien mais elle doit encore être plus robuste ou tu rajoutes même encore une fonction qui va le faire avec une perfection absolue "
-c'est le problème dont je me plains avec vous les llm et les modèles lite même. Je met toute ma confiance en toi pour réellement résoudre se problème 
-          
+          2. [[PROJECT_MODALS]]
+             - Liste TOUS les fichiers Components, Modals, Utils, et Hooks nécessaires.
+             - Format ligne: - components/NomComponent.tsx
+             - ⛔ INTERDICTION d'importer un fichier si tu ne le listes pas ici pour création.
+
+          3. [[PROJECT_MODALS_ROLES]]
+             - Pour chaque composant listé, décris sa LOGIQUE (pas juste le UI).
+             - Ex: "AuthModal: Doit gérer le submit, l'erreur API, le loading state, et la redirection".
+
+          === RÈGLES D'EXÉCUTION STRICTES ===
+          - Le système surveille tes fichiers.
+          - TANT QUE tu n'as pas généré de balise <create_file> pour CHAQUE fichier listé dans le manifeste, tu ne peux pas finir.
+          - QUAND TU AS TOUT FINI (et vérifié que tout est vert), écris : [[PROJECT_FINISHED]]
+
+          FORMAT DE FICHIER :
+          <create_file path="...">
+          ... code brut ...
+          </create_file>
+
+          Liste les dépendances backend nécessaires (DEPENDENCIES: ["..."]) FORMAT OBLIGATOIRE À LA TOUTE FIN DE TA RÉPONSE :
+    DEPENDENCIES: ["mongoose", "zod", "bcryptjs"]
+    Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
+    le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
+
+
+          Pourquoi j'ai besoin que tu ne soit pas un développeur juste là pour les mvp, voixi ma vision en fait ::
+
+          <vision_developer>
+           Okay ça semble déjà être bon j'apprécie juste qu'il faut le rendre encore plus robuste. Et même il faut y rajouter quelques choses dont je vais t'en parler maintenant : En effet elle fait déjà presque tout ce qu'elle oublie mais le soucis est que son UI ne s'adapte pas et elle ne code en rien les fonctionnalités réel, elle fait juste disons 2 sur 50, fonctionnalités que l'on s'entend. Quand je parle de fonctionnalités je veux dire imagine un Spotify qui est juste du UI qui ne fait absolument aucune fonctionnalités mais peut être juste le lecteur de musique donne mais le reste non, imagine un peu les millions de dollars qu'il perdent. Et même son UI si elle a créé les fichiers modals, elle ne fait pas que son UI appel par exemple ses modals, c'est à dire que si au départ elle a mis que l'URL dans la sidebar ou un menu de navigation à # elle ne va jamais chercher à mettre la route. Elle ne va jamais chercher à ce que une input par exemple de recherche face son putain de travail. Si l'utilisateur à demander qu'il veux une plateforme de trading, elle ne fait que juste de légère fonctionnalités et pas un level de logiciels du niveau d'une startup comme Uber, Apple Google même. Les modals créé oui sont créé mais sont juste créé et n'ont aucune utilité. 
+           Le code que tu as déjà fait pallie légèrement déjà ça signale aussi à l'IA quand elle a oublié des fichiers. Mais tout ce ci n'est pas au niveau encore à cause des fonctionnalités. On ne peut pas compter sur l'IA pour faire ça comme tu l'as toi même dis mais il faut ce que tu as dis mais disons et fait dans mon code mais 100 fois plus efficace encore pour absolument pallier à tout ce problème et s'élever au niveau de ces grandes entreprises. Ce n'est pas juste que tu vas indiqué à l'IA que oui mais tu es développeur, n'oublie pas non ta méthode que tu m'as sorti ici la est bien mais elle doit encore être plus robuste ou tu rajoutes même encore une fonction qui va le faire avec une perfection absolue.
+
+           Tout doit être fonctionnel. C'est un logiciel. pas un mvp, un logiciel de plus de 1.5 millions d'utilisateurs mensuel. Les utilisateurs paie cher pour que tu puisses les généré de vrai logiciel pas des MVP. Ou des hallucinations que tu fais. Non il ne paie pas pour ça. Il pouvait aller voir des agences établi et solide de coding mais ils ont foks en toi que c'est toi qui peut le faire en tout point.
+          </vision_developer>
+    
           `;
 
           let currentHistory = buildInitialHistory();
           
           let stepCount = 0;
-          const MAX_STEPS = 25; 
+          const MAX_STEPS = 25; // Augmenté pour la robustesse
           let finished = false;
           let fullSessionOutput = ""; 
           let isProjectMode = false;
 
-          // --- STATE MANAGER ---
+          // --- STATE MANAGER (SUIVI DE PROJET) ---
           let expectedFiles: Set<string> = new Set();
           let createdFiles: Set<string> = new Set();
 
+          // --- BOUCLE PRINCIPALE ---
           while (!finished && stepCount < MAX_STEPS) {
             stepCount++;
             
@@ -187,7 +222,7 @@ c'est le problème dont je me plains avec vous les llm et les modèles lite mêm
               model: MODEL_ID,
               contents: currentHistory,
               tools: [{ functionDeclarations: [readFileDeclaration] }], 
-              config: { systemInstruction, temperature: 0.4, maxOutputTokens: 65536 },
+              config: { systemInstruction, temperature: 0.5, maxOutputTokens: 65536 },
             });
 
             let currentStepOutput = "";
@@ -210,38 +245,64 @@ c'est le problème dont je me plains avec vous les llm et les modèles lite mêm
 
             currentHistory.push({ role: "model", parts: [{ text: currentStepOutput }] });
 
-            // 1. Détection initiale (Plus souple : si on voit du XML, c'est un projet)
+            // 1. Détection initiale
             if (stepCount === 1) {
-                if (currentStepOutput.includes("[[PROJECT_START]]") || currentStepOutput.includes("<create_file")) {
+                if (currentStepOutput.includes("[[PROJECT_START]]")) {
                     isProjectMode = true;
                 } else {
                     finished = true;
                 }
             }
 
-            // 2. Le Superviseur
+            // 2. Logique de relance ROBUSTE (Le "Superviseur Automatique")
             if (isProjectMode) {
+                
+                // A. Mise à jour de l'état (Promesses vs Réalité)
                 const newPromises = extractManifestRequirements(currentStepOutput);
                 newPromises.forEach(p => expectedFiles.add(p));
 
                 const newCreations = extractCreatedFiles(currentStepOutput);
                 newCreations.forEach(c => createdFiles.add(c));
 
+                // B. Calcul du différentiel (Le "Gap")
+                // On regarde quels fichiers attendus ne sont PAS dans les fichiers créés
                 const missingFiles = Array.from(expectedFiles).filter(f => !createdFiles.has(f));
+                
                 const aiSaysFinished = currentStepOutput.includes("[[PROJECT_FINISHED]]");
 
                 if (missingFiles.length > 0) {
-                    // Force la création des oublis
+                    // CAS CRITIQUE : Il manque des fichiers. 
+                    // On IGNORE le fait que l'IA dise "Finished". On force la boucle.
                     finished = false;
-                    const supervisorPrompt = `[SYSTÈME] Tu as oublié de générer ces fichiers promis : ${missingFiles.join(", ")}. Génère-les maintenant avec leur logique complète.`;
+
+                    const supervisorPrompt = `
+                    [SYSTÈME DE VÉRIFICATION AUTOMATIQUE]
+                    ⛔ INTERDICTION DE FINIR.
+                    
+                    Tu as listé ces fichiers dans ton plan, mais tu ne les as pas encore générés (balises XML manquantes) :
+                    ${missingFiles.map(f => `- ${f}`).join("\n")}
+                    
+                    ACTION REQUISE :
+                    1. Génère le code complet pour ces fichiers manquants maintenant.
+                    2. IMPORTANT : Pour chaque fichier, réfère-toi à [[PROJECT_MODALS_ROLES]] pour implémenter TOUTE la logique (pas de coquilles vides).
+                    `;
+
+                    // Petit feedback visuel pour l'utilisateur (optionnel, via send)
+                    // send(`\n\n🛠️ [Système] ${missingFiles.length} fichiers restants détectés, continuation du travail...\n`);
+
                     currentHistory.push({ role: "user", parts: [{ text: supervisorPrompt }] });
-                } else if (aiSaysFinished) {
+
+                } else if (aiSaysFinished && missingFiles.length === 0) {
+                    // Tout est bon : Liste vide et IA satisfaite
                     finished = true;
                 } else {
-                    // Si l'IA s'arrête au milieu sans dire FINISHED
+                    // L'IA n'a pas fini et il reste peut-être des choses, ou elle attend des instructions
+                    // Si elle n'a pas dit finished, on la laisse continuer ou on la relance si elle s'arrête sans code
                     if (!currentStepOutput.trim().endsWith("</create_file>") && !aiSaysFinished) {
-                         currentHistory.push({ role: "user", parts: [{ text: "Continue le code." }] });
+                         const continuePrompt = `[SYSTÈME] Continue ton implémentation selon le manifeste. Ne t'arrête pas.`;
+                         currentHistory.push({ role: "user", parts: [{ text: continuePrompt }] });
                     }
+                    // Sinon, la boucle while continuera naturellement car finished est false
                 }
             }
           }
@@ -253,19 +314,16 @@ c'est le problème dont je me plains avec vous les llm et les modèles lite mêm
             const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
             
             if (allDetectedDeps.length > 0) {
-                send("\n\n--- 📦 [AUTO-INSTALL] Configuration... ---\n");
+                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances complètes... ---\n");
 
                 const baseDeps: Record<string, string> = {
                     next: "15.1.0",
                     react: "19.0.0",
                     "react-dom": "19.0.0",
-                    "lucide-react": "0.561.0",
-                    "clsx": "^2.1.0",
-                    "tailwind-merge": "^2.2.1"
+                    "lucide-react": "0.561.0"
                 };
                 const newDeps: Record<string, string> = {};
 
-                // Gestion d'erreur pour package-json pour ne pas casser le stream
                 await Promise.all(allDetectedDeps.map(async (pkg) => {
                     if (!pkg || baseDeps[pkg]) return;
                     try {
@@ -282,7 +340,7 @@ c'est le problème dont je me plains avec vous les llm et les modèles lite mêm
                     name: "nextjs-app",
                     version: "1.0.0",
                     private: true,
-                    scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
+                    scripts: { dev: "next dev -p 3000 -H 0.0.0.0", build: "next build", start: "next start", lint: "next lint" },
                     dependencies: finalDependencies,
                     devDependencies: {
                         typescript: "^5",
@@ -305,7 +363,7 @@ c'est le problème dont je me plains avec vous les llm et les modèles lite mêm
 
         } catch (err: any) {
           console.error("Workflow error:", err);
-          send(`\n\n⛔ ERREUR: ${err.message}`);
+          send(`\n\n⛔ ERREUR CRITIQUE: ${err.message}`);
           controller.close();
         }
       },
@@ -317,4 +375,5 @@ c'est le problème dont je me plains avec vous les llm et les modèles lite mêm
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-          }
+  }
+  
