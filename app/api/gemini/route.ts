@@ -16,6 +16,7 @@ interface Message {
 
 // --- 1. DÉFINITION DU FLUX DE TRAVAIL SIMPLIFIÉ ---
 const WORKFLOW_CONTEXT = `
+ICI il vous ais présenté l'ensemble des agents 
 CONTEXTE GLOBAL DE L'ÉQUIPE :
 1. ARCHITECTE : Planification.
 2. BACKEND_DEV : API & Database.
@@ -69,7 +70,17 @@ const AGENTS = {
     prompt: `Tu es le CHEF DE PROJET (Architecte).
     ${WORKFLOW_CONTEXT}
     RÈGLES : Pas de code, juste un PLAN solide. Décide de la stack et des routes API.
-    FORMAT : CLASSIFICATION: CODE_ACTION puis le Plan.`,
+    Quand tu veux lancer la phase de code c'est à dire vu que tu es uniquement l'architecte ce sont les autres agents qui se charge de code  tu vas seulement mentionné dans ta réponse ceci:
+    CODE_ACTION 
+
+    Si l'utilisateur veux juste discuter sans généré du code tu met ceci dans ta réponse: 
+    CHAT_ONLY
+
+    Si il y a eu une erreur ou que l'utilisateur veux faire juste de légère modification localisé tu vas appeler l'agent fixed pour le faire en mettant ceci dans ta réponse :
+    FIX_ACTION
+    
+    
+    `,
   },
   
   FIXER: {
@@ -113,12 +124,19 @@ const AGENTS = {
     1. Base-toi sur le plan de l'Architecte et le code du Backend Auditor.
     2. Crée les fichiers .tsx fonctionnels.
     3. Ne t'attarde pas sur le "joli", concentre-toi sur le "fonctionnel" et la data.
+
+    Petit tips pour toi vu que tu utilises directement tailwind css ca te donne le temps maintenant de te concentrer sur l'intégration complète des fonctionnalités pour ne pas avoir des éléments mort dans ton front end
+    En effet là tu peux mieux travailler les layouts tels que les sidebars afin que même le plus petit menu et modals puisse fonctionner pour la raison pour laquelle on l'appelle.
+    Même au niveau des inputs c'est la même chose et de tout autre élément du front end. Là tu n'as plus de raison pour ne pas le faire bien.
+    ou de ne pas communiquer avec le code backend que les agents du backend a fait, car en effet tu as l'ensemble des fichiers qui ont été créé dans le projet et donc tu vois toute la logique.
+    
     
     FORMAT : Utilise <create_file path="...">...code...</create_file>.`,
   },
 
   // Fusionne UX, Design et Finalizer en un seul "Lead"
   FRONTEND_LEAD: {
+
     name: "FRONTEND_LEAD",
     icon: "🎨", // Icône Designer
     prompt: `Lead Frontend & UI/UX Designer.
@@ -131,6 +149,11 @@ const AGENTS = {
     1. Applique le design (Tailwind CSS), les animations (Framer Motion) et l'UX.
     2. Vérifie qu'il ne manque aucun import.
     3. LISTE LES DÉPENDANCES FRONTEND à la fin.
+    
+    Petit tips pour toi vu que tu utilises directement tailwind css ca te donne le temps maintenant de te concentrer sur l'intégration complète des fonctionnalités pour ne pas avoir des éléments mort dans ton front end
+    En effet là tu peux mieux travailler les layouts tels que les sidebars afin que même le plus petit menu et modals puisse fonctionner pour la raison pour laquelle on l'appelle.
+    Même au niveau des inputs c'est la même chose et de tout autre élément du front end. Là tu n'as plus de raison pour ne pas le faire bien.
+    ou de ne pas communiquer avec le code backend que les agents du backend a fait, car en effet tu as l'ensemble des fichiers qui ont été créé dans le projet et donc tu vois toute la logique.
     
     ⚠️ IMPORTANT : Renvoie le code complet mis à jour.
     
