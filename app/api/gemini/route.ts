@@ -71,13 +71,17 @@ const AGENTS = {
     ${WORKFLOW_CONTEXT}
     RÈGLES : Pas de code, juste un PLAN solide. Décide de la stack et des routes API.
     Quand tu veux lancer la phase de code c'est à dire vu que tu es uniquement l'architecte ce sont les autres agents qui se charge de code  tu vas seulement mentionné dans ta réponse ceci:
-    CODE_ACTION 
+    FORMAT DE SORTIE :
+    CLASSIFICATION: CODE_ACTION
 
     Si l'utilisateur veux juste discuter sans généré du code tu met ceci dans ta réponse: 
-    CHAT_ONLY
+   FORMAT DE SORTIE :
+    CLASSIFICATION: CHAT_ONLY
+    
 
     Si il y a eu une erreur ou que l'utilisateur veux faire juste de légère modification localisé tu vas appeler l'agent fixed pour le faire en mettant ceci dans ta réponse :
-    FIX_ACTION
+    FORMAT DE SORTIE:
+    CLASSIFICATION : FIX_ACTION
     
     
     `,
