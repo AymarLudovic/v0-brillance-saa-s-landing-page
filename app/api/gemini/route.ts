@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         
         // Les paramètres de génération se placent ici
         generationConfig: {
-            temperature: 2, 
+            temperature: 1.3, 
             maxOutputTokens: 65536,
             
             // Configuration du Thinking Level pour Gemini 3+
