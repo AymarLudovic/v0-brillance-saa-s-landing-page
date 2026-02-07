@@ -63,15 +63,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
 
-    
-
     const ai = new GoogleGenAI({ apiKey });
 
-    // Construction de l'historique
+    // Construction de l'historique initial
     const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // Ajout des images de référence (style)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.slice(0, 3).map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -79,13 +76,11 @@ export async function POST(req: Request) {
         contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }] });
       }
 
-      // Ajout de l'historique de conversation
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
         
-        // Ajout des images uploadées au dernier message utilisateur
         if (i === history.length - 1 && role === "user" && uploadedImages?.length > 0) {
           uploadedImages.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
@@ -99,56 +94,84 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        // Fonction d'envoi simplifiée (plus de sanitization agressive)
         send = (txt: string) => {
             if (txt) controller.enqueue(encoder.encode(txt));
         };
         
         try {
+          // On initialise l'historique mutable
           const currentHistory = buildInitialHistory();
           let fullSessionOutput = ""; 
+          
+          // --- LOGIQUE DE BOUCLE DE CORRECTION ---
+          let loopCount = 0;
+          const MAX_LOOPS = 3;
+          let shouldContinue = true;
 
-          // --- APPEL UNIQUE À L'IA ---
-          const response = await ai.models.generateContentStream({
-    model: MODEL_ID,
-    contents: currentHistory,
-    tools: [{ functionDeclarations: [readFileDeclaration] }], 
-    config: { 
-        systemInstruction: basePrompt, 
-        
-        // Les paramètres de génération se placent ici
-        generationConfig: {
-            temperature: 1.5, 
-            maxOutputTokens: 65536,
+          while (shouldContinue && loopCount < MAX_LOOPS) {
             
-            // Configuration du Thinking Level pour Gemini 3+
-            thinkingConfig: {
-                includeThoughts: true, // Facultatif : pour voir le raisonnement dans la réponse
-                thinkingLevel: "high"  // Active le raisonnement profond (High)
+            // Si ce n'est pas le premier tour, on notifie le client qu'on relance une vérification
+            if (loopCount > 0) {
+                send(`\n\n--- 🔄 CYCLE DE VÉRIFICATION ANTI-GHOSTING (${loopCount}/${MAX_LOOPS - 1}) ---\n`);
             }
-        }
-    },
-});
-            
 
-          let batchBuffer = "";
+            const response = await ai.models.generateContentStream({
+                model: MODEL_ID,
+                contents: currentHistory, // On passe l'historique à jour
+                tools: [{ functionDeclarations: [readFileDeclaration] }], 
+                config: { 
+                    systemInstruction: basePrompt, 
+                    generationConfig: {
+                        temperature: 1.5, 
+                        maxOutputTokens: 65536,
+                        thinkingConfig: {
+                            includeThoughts: true, 
+                            thinkingLevel: "high"
+                        }
+                    }
+                },
+            });
 
-          for await (const chunk of response) {
-            const txt = chunk.text; 
-            if (txt) {
-              batchBuffer += txt;
-              fullSessionOutput += txt;
+            let batchBuffer = "";
+            let currentIterationOutput = ""; // Pour analyser ce tour spécifique
 
-              if (batchBuffer.length >= BATCH_SIZE) {
-                send(batchBuffer);
-                batchBuffer = "";
-              }
+            for await (const chunk of response) {
+                const txt = chunk.text; 
+                if (txt) {
+                batchBuffer += txt;
+                fullSessionOutput += txt; // Cumul global pour les dépendances finales
+                currentIterationOutput += txt; // Cumul local pour la vérification
+
+                if (batchBuffer.length >= BATCH_SIZE) {
+                    send(batchBuffer);
+                    batchBuffer = "";
+                }
+                }
             }
-          }
-          if (batchBuffer.length > 0) send(batchBuffer);
+            if (batchBuffer.length > 0) send(batchBuffer);
 
-          // --- GESTION INTELLIGENTE DES DÉPENDANCES ---
-          // On vérifie si l'IA a généré du code ET si elle a listé des dépendances
+            // --- VÉRIFICATION DU BESOIN DE CORRECTION ---
+            // On vérifie si l'IA a commencé à coder (Start) et si on n'a pas atteint la limite
+            if (currentIterationOutput.includes("[[START]]") && loopCount < MAX_LOOPS - 1) {
+                // On met à jour l'historique pour le prochain tour
+                currentHistory.push({ role: "model", parts: [{ text: currentIterationOutput }] });
+                
+                // Le message de "TORTURE" pour forcer la correction
+                const correctionPrompt = `Tu as utilisé [[START]], donc tu as généré du code. 
+                Vérifie bien si tous les problèmes de "ghosting" (code incomplet) et de "laziness" sont traités. 
+                C'est pour te redonner la chance de tout corriger afin que l'on atteigne l'objectif absolu de zéro erreurs de ce type.
+                Si tu vois [[FINISH]], relis ton code et réécris les parties manquantes ou simplifiées à l'excès.`;
+                
+                currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
+                
+                loopCount++;
+            } else {
+                // Pas de code généré ou limite atteinte -> On sort
+                shouldContinue = false;
+            }
+          } // Fin du While
+
+          // --- GESTION DES DÉPENDANCES (Sur la totalité de la sortie) ---
           const hasCode = fullSessionOutput.includes("<create_file");
           const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
           
@@ -163,7 +186,6 @@ export async function POST(req: Request) {
               };
               const newDeps: Record<string, string> = {};
 
-              // Récupération des versions réelles via npm
               await Promise.all(allDetectedDeps.map(async (pkg) => {
                   if (!pkg || baseDeps[pkg]) return;
                   try {
@@ -195,7 +217,6 @@ export async function POST(req: Request) {
                   },
               };
 
-              // On envoie le fichier package.json
               const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
               send(xmlOutput);
           }
@@ -216,4 +237,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-    }
+}
