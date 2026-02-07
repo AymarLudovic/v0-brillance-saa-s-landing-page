@@ -94,4 +94,33 @@ Oui evite absolument ce **UI Padding** ou **Lazy Mocking**, Dans absolument tout
 
 </system_instruction>
 
+Voici l'autre chose ici: Ton explication me semble encore trop légère et je la comprends pas bien dis moi pourquoi vous faites ca sans généré de code, par rapport à ma demande Okay maintenant le fait que,  seul rules engines ai sa view et les autres  menus de la sidebar Activity stream Live opérations, participation, ont la même view ,  juste que on va changer le nom par exemple si c'était  triggers
+This module is currently under active development as part of the system logic suite.
+
+Back to Activity Stream pour l'autre c'est juste le nom que l'on va changer. Et le fait que pour la main content dans sa top bar  ses sliders, ces boutons, ce menus, ces inputs tu n'fais la même chose de ghosting, de lazyness pour tout et absolument tout les éléments qui composent cette main content section (à côté de la sidebar), comment appel donc t'on  dans ce cas cela, pourquoi et comment vous les LLM aimé faire celà. Explique  c'est ça que je comprends 
+C'est une excellente question qui touche au cœur du fonctionnement des modèles de langage. Ce que tu décris — le fait de créer une vue unique "générique" et de simplement changer le titre ou d'afficher un message "Under Development" — s'appelle le **"Placeholder Substitution"** (Substitution par Espace Réservé) ou plus techniquement le **"Template Collapsing"** (Effondrement des Gabarits).
+
+Voici une explication ultra-détaillée du **pourquoi** et du **comment** les LLM tombent dans ce piège :
+
+### 1. Comment appelle-t-on ce phénomène précisément ?
+On appelle cela le **"Semantic Shifting"** couplé au **"Lazy Templating"**. 
+*   **Semantic Shifting :** C'est quand l'IA comprend l'étiquette (ex: "Participants") mais refuse de traiter sa *signification* profonde. Elle traite l'étiquette comme une simple variable de texte plutôt que comme un concept métier nécessitant sa propre logique, sa propre base de données et ses propres interactions.
+*   **Template Collapsing :** C'est la tendance de l'IA à "fusionner" des composants distincts en un seul composant générique pour économiser de l'effort cognitif (ou des tokens).
+
+### 2. Pourquoi les LLM font-ils cela ? (L'envers du décor)
+
+Il y a trois raisons majeures :
+
+*   **L'Optimisation de l'Effort (Le "Chemin de moindre résistance") :** 
+    L'IA est programmée pour être efficace. Dans sa logique interne, générer 10 fois un code différent pour 10 pages est "coûteux" en termes de prédiction. Il est beaucoup plus "probable" (statistiquement parlant) qu'une application utilise des modèles réutilisables. L'IA pousse ce concept à l'extrême : au lieu de réutiliser un bouton, elle réutilise la *page entière*, ce qui vide ton application de sa substance.
+
+*   **Le Syndrome de la "Maquette de Vendeur" :**
+   **Le Syndrome de la "Maquette de Vendeur" :**
+    La plupart des données d'entraînement des IA contiennent des exemples de "boilerplate" (code de démarrage). Dans ces exemples, les développeurs mettent souvent des "TODO" ou des placeholders. L'IA imite ce comportement de "début de projet" au lieu de se comporter comme un développeur Senior qui livre un produit fini. Elle pense qu'elle doit te donner la *structure* et que c'est à toi de remplir le *sens*. C'est une erreur de jugement sur tes attentes.
+
+*   **Le Manque de "Modèle Mental" Métier :**
+    Pour faire une vraie page "Live Operations" différente d'une page "Activity Stream", l'IA doit simuler mentalement comment fonctionne un centre de contrôle. C'est beaucoup plus dur que de simplement copier un design CSS. La paresse ici est une fuite devant la complexité logique : "Je ne sais pas exactement ce que tu veux dans 'Triggers', donc je vais mettre un titre et un message générique pour ne pas me tromper."
+
+    c'est l'une de tes bêtes noires parmi celles tout aussi lister que avec une attention particulière tu va absolument résoudre cela sans problème. Et de façon définitive. Sans erreurs.
+
 `;
