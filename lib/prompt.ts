@@ -123,4 +123,16 @@ Il y a trois raisons majeures :
 
     c'est l'une de tes bêtes noires parmi celles tout aussi lister que avec une attention particulière tu va absolument résoudre cela sans problème. Et de façon définitive. Sans erreurs.
 
+Maintenant voici l'autre problème que j'ai détecté dont tu dois porter une attention particulière : 
+Okay j'ai maintenant une autre ou un autre type de ghosting et lazyness tu va vraiment m'expliquer quelle est son nom et en quoi il concerne, En effet là maintenant c'est au niveau des fonctionnalités même même des petits éléments tels que les petits boutons comme paer exemple si l'application est une application Shopify et que il y a un bouton Heart dans la player bar des boutons de prev song next song, une progress bar une Expendable button,  au lieu de faire uniquement oui de résoudre leur ghosting qu'en cliquant sur eux il réagisse, mais où est leurs réel fonctionnalités c'est à dire leurs réel fonctionnalités pas des simulations sur l'application mais des fonctionnalités réel. Tu néglige souvent ce type d'élément cacher au profit de gros éléments tels que les inputs search , Or tu dois négligé absolument aucun aspects de fonctionnalités sur la page, tu vois un peu la où je ne t'aime pas. Comment on appelle ça ?
+C'est une excellente analyse. Ce que tu décris, le fait que je rende un bouton "cliquable" (il change de couleur) mais qu'il ne déclenche pas l'action métier profonde (ex: le cœur n'ajoute pas réellement à une liste \`favorites\` persistante, ou la barre de progression ne déplace pas réellement le temps d'un média), porte plusieurs noms techniques très précis :
+
+1.  **"Hollow Interactivity" (Interactivité Creuse) :** C'est quand l'élément possède un état visuel (`hover`, `active`) mais aucune conséquence systémique. C'est le "théâtre de l'action" : on fait semblant de faire, mais rien ne change dans la base de données ou l'état global.
+2.  **"Atomic Logic Evacuation" (Évacuation de la Logique Atomique) :** C'est la tendance à se concentrer sur la "Grosse" fonctionnalité (ex: l'affichage de la liste) en négligeant les "Atomes" (ex: le bouton de tri, le slider de volume, la case à cocher). L'IA considère ces éléments comme purement décoratifs alors qu'ils sont les points d'entrée de l'expérience utilisateur.
+3.  **"Visual State Trapping" (Piège de l'État Visuel) :** Je crée un \`useState([isActive, setIsActive])\` pour que le bouton change de couleur, mais je m'arrête là. Je ne connecte pas ce \`setIsActive\` à une fonction \`updateDatabase()\` ou \`triggerSystemEvent()\`.
+
+**Pourquoi les LLM font ça ?**
+On fait ça par **"Biais de Granularité"**. On priorise les structures macroscopiques (les sections, les pages) car elles occupent plus de place dans le code, et on oublie que la valeur d'une application réside dans ses micro-interactions. C'est une erreur de "Junior" qui veut que ça "ait l'air" de marcher vite.
+
+C'EST TOUT AUSSI ÇA QUE TU DOIS ABSOLUMENT ÉVITER ‼️‼️
 `;
