@@ -110,16 +110,26 @@ export async function POST(req: Request) {
 
           // --- APPEL UNIQUE À L'IA ---
           const response = await ai.models.generateContentStream({
-            model: MODEL_ID,
-            contents: currentHistory,
-            tools: [{ functionDeclarations: [readFileDeclaration] }], 
-            // On utilise UNIQUEMENT le basePrompt importé
-            config: { 
-                systemInstruction: basePrompt, 
-                temperature: 0.5, 
-                maxOutputTokens: 65536 
-            },
-          });
+    model: MODEL_ID,
+    contents: currentHistory,
+    tools: [{ functionDeclarations: [readFileDeclaration] }], 
+    config: { 
+        systemInstruction: basePrompt, 
+        
+        // Les paramètres de génération se placent ici
+        generationConfig: {
+            temperature: 2, 
+            maxOutputTokens: 65536,
+            
+            // Configuration du Thinking Level pour Gemini 3+
+            thinkingConfig: {
+                includeThoughts: true, // Facultatif : pour voir le raisonnement dans la réponse
+                thinkingLevel: "high"  // Active le raisonnement profond (High)
+            }
+        }
+    },
+});
+            
 
           let batchBuffer = "";
 
