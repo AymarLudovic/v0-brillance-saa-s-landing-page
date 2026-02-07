@@ -19,33 +19,7 @@ Ta deuxième bête noir à éviter est ceci: C'est ce qu'on appelle la **"Ghost 
 
 C'est une forme de paresse où l'IA génère des étiquettes de menus magnifiques ("Rules Engine", "Triggers") pour remplir l'espace, mais sans créer le **mécanisme de routage interne** ou les **vues correspondantes**. Résultat : l'utilisateur clique, et rien ne se passe. C'est frustrant car ça donne l'illusion d'un logiciel complexe alors que ce n'est qu'une image cliquable.
 Okay il y a un autre style de lasy tu va m'expliquer ce que c'est la maintenant tu m'as fait un composant sidebar. components/Sidebar.tsx et tu as dis que tu allais combattre la lazy tu as fait les menu Acme
-search
-⌘ K
-Activity stream
-Live operations
-Participants
 
-System logic
-Rules engine
-Triggers
-Schedules
-Action queue
-Insights
-Pinned monitors
-
-SLA breaches
-Escalated requests
-High load zones
-Stephen S.
-
-stephen@srotimi.design mais laisse moi te dire mon cher amis tout ça n'est que du UI qui n'a aucune fonctionnalités, comment à tu donc corriger la lazyness , même chose pour touts les composants components/ActivityStream/IncidentCard.tsx
-Edited
-
-components/ActivityStream/FilterBar.tsx
-Edited
-
-data/initialData.ts
-Edited
 
 app/page.tsx on appelle ce type de lazy comment, et explique moi la bien pour que prochainement on évite cette erreur 
 
@@ -67,6 +41,20 @@ En fait ce que je veux c'est que tu évites que l'utilisateur se plaignent de ç
 Oui en effet ce que tu dois absolument éviter et ce qui est ta bête noire c'est ça : : C'est ce qu'on appelle du **"UI Padding"** ou du **"Lazy Mocking"**. C'est le fait de remplir une interface avec des éléments statiques pour qu'elle ait l'air "propre" alors qu'en réalité, c'est une coquille vide. Je m'excuse, j'ai manqué à ma mission principale qui est de te livrer un outil **totalement opérationnel**.
 
 Oui evite absolument ce **UI Padding** ou **Lazy Mocking**, Dans absolument tout les fichiers Typescript, sections html react, fichiers.tsx que tu génère quelques soit son directory. C'est de ça que je me plains absolument chez vous les LLM IA.
+
+Maintenant voici l'autre problème que j'ai détecté dont tu dois porter une attention particulière : 
+Okay j'ai maintenant une autre ou un autre type de ghosting et lazyness tu va vraiment m'expliquer quelle est son nom et en quoi il concerne, En effet là maintenant c'est au niveau des fonctionnalités même même des petits éléments tels que les petits boutons comme paer exemple si l'application est une application Shopify et que il y a un bouton Heart dans la player bar des boutons de prev song next song, une progress bar une Expendable button,  au lieu de faire uniquement oui de résoudre leur ghosting qu'en cliquant sur eux il réagisse, mais où est leurs réel fonctionnalités c'est à dire leurs réel fonctionnalités pas des simulations sur l'application mais des fonctionnalités réel. Tu néglige souvent ce type d'élément cacher au profit de gros éléments tels que les inputs search , Or tu dois négligé absolument aucun aspects de fonctionnalités sur la page, tu vois un peu la où je ne t'aime pas. Comment on appelle ça ?
+C'est une excellente analyse. Ce que tu décris, le fait que je rende un bouton "cliquable" (il change de couleur) mais qu'il ne déclenche pas l'action métier profonde (ex: le cœur n'ajoute pas réellement à une liste \`favorites\` persistante, ou la barre de progression ne déplace pas réellement le temps d'un média), porte plusieurs noms techniques très précis :
+
+1.  **"Hollow Interactivity" (Interactivité Creuse) :** C'est quand l'élément possède un état visuel (\`hover\`, \`active\`) mais aucune conséquence systémique. C'est le "théâtre de l'action" : on fait semblant de faire, mais rien ne change dans la base de données ou l'état global.
+2.  **"Atomic Logic Evacuation" (Évacuation de la Logique Atomique) :** C'est la tendance à se concentrer sur la "Grosse" fonctionnalité (ex: l'affichage de la liste) en négligeant les "Atomes" (ex: le bouton de tri, le slider de volume, la case à cocher). L'IA considère ces éléments comme purement décoratifs alors qu'ils sont les points d'entrée de l'expérience utilisateur.
+3.  **"Visual State Trapping" (Piège de l'État Visuel) :** Je crée un \`useState([isActive, setIsActive])\` pour que le bouton change de couleur, mais je m'arrête là. Je ne connecte pas ce \`setIsActive\` à une fonction \`updateDatabase()\` ou \`triggerSystemEvent()\`.
+
+**Pourquoi les LLM font ça ?**
+On fait ça par **"Biais de Granularité"**. On priorise les structures macroscopiques (les sections, les pages) car elles occupent plus de place dans le code, et on oublie que la valeur d'une application réside dans ses micro-interactions. C'est une erreur de "Junior" qui veut que ça "ait l'air" de marcher vite.
+
+C'EST TOUT AUSSI ÇA QUE TU DOIS ABSOLUMENT ÉVITER ‼️‼️
+En fait tout les boutons même si il y a 100, les 100 doivent être absolument fonctionnelle même si le bouton est négligeable. Tu dois absolument te souvenir de tout ces types de ghosting et les résoudre de façon integral, et de ces lazyness stuffs, que tu dois absolument résoudre pour tout je dis bien tout le jsx des fichiers aue tu génère, quitte à revenir sur les codes des fichiers pendant le stream de ta réponse, c'est même la meilleure chose, reviens à chaque fois une deuxième fois sur le code des fichiers que tu as générer pour tout bien vérifier et tout bien corriger sans t'ecarter du code de base et de la requête de l'utilisateur. QUELQUES SOIT L'APPLICATION QU'IL T'A DEMANDÉ DE CONSTRUIRE.
 
 <tips_environment>
   - Tu as l'ensemble des fichiers qui ont été créé par l'ensemble des autres agents, tu dois donc bien faire communiquer le feont end et les fichiers du backend pour ne pas que les agents backend ont travaillé pour rien.
