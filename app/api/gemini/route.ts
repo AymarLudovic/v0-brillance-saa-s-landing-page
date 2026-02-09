@@ -55,6 +55,9 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
 
+  // Fonction utilitaire pour le délai (pause entre les appels)
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   try {
     const authHeader = req.headers.get("x-gemini-api-key");
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
@@ -102,8 +105,11 @@ export async function POST(req: Request) {
           // On initialise l'historique mutable
           const currentHistory = buildInitialHistory();
           let fullSessionOutput = ""; 
+          let hasGeneratedCode = false; // Flag pour savoir si on active la phase 2
           
-          // --- LOGIQUE DE BOUCLE DE CORRECTION ---
+          // =================================================================================
+          // PHASE 1 : GÉNÉRATION & ANTI-GHOSTING (Boucle Initiale de 3 tours)
+          // =================================================================================
           let loopCount = 0;
           const MAX_LOOPS = 3;
           let shouldContinue = true;
@@ -113,6 +119,7 @@ export async function POST(req: Request) {
             // Si ce n'est pas le premier tour, on notifie le client qu'on relance une vérification
             if (loopCount > 0) {
                 send(`\n\n--- 🔄 CYCLE DE VÉRIFICATION ANTI-GHOSTING (${loopCount}/${MAX_LOOPS - 1}) ---\n`);
+                await wait(2000); // Petit délai pour laisser respirer l'API
             }
 
             const response = await ai.models.generateContentStream({
@@ -138,40 +145,141 @@ export async function POST(req: Request) {
             for await (const chunk of response) {
                 const txt = chunk.text; 
                 if (txt) {
-                batchBuffer += txt;
-                fullSessionOutput += txt; // Cumul global pour les dépendances finales
-                currentIterationOutput += txt; // Cumul local pour la vérification
+                    batchBuffer += txt;
+                    fullSessionOutput += txt; // Cumul global pour les dépendances finales
+                    currentIterationOutput += txt; // Cumul local pour la vérification
 
-                if (batchBuffer.length >= BATCH_SIZE) {
-                    send(batchBuffer);
-                    batchBuffer = "";
-                }
+                    if (batchBuffer.length >= BATCH_SIZE) {
+                        send(batchBuffer);
+                        batchBuffer = "";
+                    }
                 }
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- VÉRIFICATION DU BESOIN DE CORRECTION ---
-            // On vérifie si l'IA a commencé à coder (Start) et si on n'a pas atteint la limite
-            if (currentIterationOutput.includes("[[START]]") && loopCount < MAX_LOOPS - 1) {
-                // On met à jour l'historique pour le prochain tour
-                currentHistory.push({ role: "model", parts: [{ text: currentIterationOutput }] });
-                
-                // Le message de "TORTURE" pour forcer la correction
-                const correctionPrompt = `Tu as utilisé [[START]], donc tu as généré du code. 
-                Vérifie bien si tous les problèmes de "ghosting" (code incomplet) et de "laziness" sont traités. 
-                C'est pour te redonner la chance de tout corriger afin que l'on atteigne l'objectif absolu de zéro erreurs de ce type.
-                Si tu vois [[FINISH]], relis ton code et réécris les parties manquantes ou simplifiées à l'excès.`;
-                
-                currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
-                
-                loopCount++;
+            // --- VÉRIFICATION DU BESOIN DE CORRECTION (PHASE 1) ---
+            if (currentIterationOutput.includes("[[START]]")) {
+                hasGeneratedCode = true; // On marque que du code a été produit
+
+                if (loopCount < MAX_LOOPS - 1) {
+                    // On met à jour l'historique pour le prochain tour
+                    currentHistory.push({ role: "model", parts: [{ text: currentIterationOutput }] });
+                    
+                    // --- TON PROMPT ORIGINAL EXACT ---
+                    const correctionPrompt = `Tu as utilisé [[START]], donc tu as généré du code. 
+                    Vérifie bien si tous les problèmes de "ghosting" (code incomplet) et de "laziness" sont traités. 
+                    C'est pour te redonner la chance de tout corriger afin que l'on atteigne l'objectif absolu de zéro erreurs de ce type.
+                    Si tu vois [[FINISH]], relis ton code et réécris les parties manquantes ou simplifiées à l'excès.`;
+                    
+                    currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
+                    loopCount++;
+                } else {
+                    shouldContinue = false; // Fin des essais anti-ghosting
+                }
             } else {
-                // Pas de code généré ou limite atteinte -> On sort
+                // Pas de code généré ou pas de tag start -> On arrête la boucle
                 shouldContinue = false;
             }
-          } // Fin du While
+          } // Fin du While Phase 1
 
-          // --- GESTION DES DÉPENDANCES (Sur la totalité de la sortie) ---
+
+          // =================================================================================
+          // PHASE 2 : DEEP QA & SECURITY (Fonctionnel + Sécurité) - Uniquement si code généré
+          // =================================================================================
+          
+          if (hasGeneratedCode) {
+            // S'assurer que la dernière sortie de l'IA est bien dans l'historique avant de continuer
+            // (Si on est sorti de la boucle au tour 0 ou sans faire de push manuel)
+            const lastMsg = currentHistory[currentHistory.length - 1];
+            if (lastMsg.role !== "model") {
+                 // Note: ceci est une sécurité. Normalement la boucle gère, mais si on sort au 1er tour:
+                 // On ajoute tout ce qui a été généré jusqu'ici comme context pour la suite.
+                 // Pour simplifier, on n'ajoute que si nécessaire.
+                 // Dans la logique ci-dessus, si loopCount=0, history n'a pas la réponse.
+                 if (loopCount === 0) {
+                     currentHistory.push({ role: "model", parts: [{ text: fullSessionOutput }] });
+                 }
+            }
+
+            // --- ÉTAPE 1 : VÉRIFICATION FONCTIONNELLE (READY TO PROD) ---
+            await wait(3000); // Délai de "réflexion" et pour éviter le rate limit
+            send(`\n\n--- 🌟 VÉRIFICATION FONCTIONNELLE (READY TO PROD) ---\n`);
+
+            const functionalPrompt = `Maintenant que le code de base est là, je veux vérifier si l'IA a construit la plateforme demandée par l'utilisateur de façon totalement fonctionnelle par rapport à la requête envoyée.
+            Vérifie véritablement que toutes les fonctionnalités demandées ont été effectuées avec succès et qu'elles marchent effectivement bien.
+            ATTENTION : Pas de MVP. Je veux une version "Ready to Production" dans l'optique d'avoir les 1450 premiers utilisateurs satisfaits de chacune des fonctionnalités.
+            Si une fonctionnalité a été négligée, simplifiée ou oubliée, corrige-la MAINTENANT pour atteindre cet objectif de satisfaction totale.`;
+
+            currentHistory.push({ role: "user", parts: [{ text: functionalPrompt }] });
+
+            const funcResponse = await ai.models.generateContentStream({
+                model: MODEL_ID,
+                contents: currentHistory,
+                tools: [{ functionDeclarations: [readFileDeclaration] }],
+                config: { 
+                    systemInstruction: basePrompt, 
+                    generationConfig: {
+                        temperature: 1.5, 
+                        maxOutputTokens: 65536,
+                        thinkingConfig: { includeThoughts: true, thinkingLevel: "high" }
+                    }
+                },
+            });
+
+            let funcBuffer = "";
+            let funcOutput = "";
+            for await (const chunk of funcResponse) {
+                const txt = chunk.text; 
+                if (txt) {
+                    funcBuffer += txt;
+                    fullSessionOutput += txt;
+                    funcOutput += txt;
+                    if (funcBuffer.length >= BATCH_SIZE) { send(funcBuffer); funcBuffer = ""; }
+                }
+            }
+            if (funcBuffer.length > 0) send(funcBuffer);
+            currentHistory.push({ role: "model", parts: [{ text: funcOutput }] });
+
+
+            // --- ÉTAPE 2 : VÉRIFICATION SÉCURITÉ & ROBUSTESSE ---
+            await wait(3000); // Délai supplémentaire
+            send(`\n\n--- 🛡️ VÉRIFICATION SÉCURITÉ & ROBUSTESSE ---\n`);
+
+            const securityPrompt = `Deuxièmement, vérifie si toutes les fonctionnalités ont été faites et qu'aucune n'a été négligée ou faite de façon légère et insécurisée.
+            L'objectif est d'éviter des attaques de hackeurs et de contournement via le DOM du navigateur. Tout doit être vraiment solide côté intégration.
+            Vérifie aussi scrupuleusement si aucun fichier n'a d'erreurs quelconques et qu'ils sont tous bien faits sans erreurs, ni d'erreurs d'appel ou de syntaxe.
+            Si tu trouves la moindre faille, code fragile ou erreur, corrige-le IMMÉDIATEMENT dans ta réponse.`;
+
+            currentHistory.push({ role: "user", parts: [{ text: securityPrompt }] });
+
+            const secResponse = await ai.models.generateContentStream({
+                model: MODEL_ID,
+                contents: currentHistory,
+                tools: [{ functionDeclarations: [readFileDeclaration] }],
+                config: { 
+                    systemInstruction: basePrompt, 
+                    generationConfig: {
+                        temperature: 1.0, // Un peu plus strict pour la sécurité
+                        maxOutputTokens: 65536,
+                        thinkingConfig: { includeThoughts: true, thinkingLevel: "high" }
+                    }
+                },
+            });
+
+            let secBuffer = "";
+            for await (const chunk of secResponse) {
+                const txt = chunk.text; 
+                if (txt) {
+                    secBuffer += txt;
+                    fullSessionOutput += txt;
+                    if (secBuffer.length >= BATCH_SIZE) { send(secBuffer); secBuffer = ""; }
+                }
+            }
+            if (secBuffer.length > 0) send(secBuffer);
+          }
+
+
+          // --- GESTION DES DÉPENDANCES (Sur la totalité de la sortie : Phase 1 + Phase 2) ---
           const hasCode = fullSessionOutput.includes("<create_file");
           const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
           
@@ -237,4 +345,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-}
+  }
