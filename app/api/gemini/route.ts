@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, Type, FunctionDeclaration, Part } from "@google/genai";
-import { basePrompt } from "@/lib/prompt";
 import packageJson from 'package-json';
+// Assure-toi que basePrompt contient bien tes instructions sur les "Bêtes Noires"
+import { basePrompt } from "@/lib/prompt";
 
 const BATCH_SIZE = 128;
 const MODEL_ID = "gemini-3-flash-preview"; 
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles, currentPlan } = body;
+    const { history, uploadedImages, uploadedFiles, allReferenceImages } = body;
 
     const ai = new GoogleGenAI({ apiKey });
 
@@ -101,10 +102,9 @@ export async function POST(req: Request) {
         try {
           const currentHistory = buildInitialHistory();
           let fullSessionOutput = ""; 
-          let hasGeneratedCode = false; 
           
           // =================================================================================
-          // PHASE 1 : GÉNÉRATION & ANTI-GHOSTING (Boucle de 4 tours max)
+          // PHASE UNIQUE : GÉNÉRATION & CORRECTION INTENSIVE (Boucle de 4 tours max)
           // =================================================================================
           let loopCount = 0;
           const MAX_LOOPS = 4;
@@ -112,10 +112,10 @@ export async function POST(req: Request) {
 
           while (shouldContinue && loopCount < MAX_LOOPS) {
             
-            // Notification uniquement si on est dans une boucle de correction
+            // Notification visuelle pour l'utilisateur
             if (loopCount > 0) {
-                send(`\n\n--- 🔄 CYCLE DE VÉRIFICATION ANTI-GHOSTING & CORRECTION (${loopCount}/${MAX_LOOPS - 1}) ---\n`);
-                await wait(2000); 
+                send(`\n\n--- 🚨 ANALYSE ANTI-GHOSTING & FINALISATION (${loopCount}/${MAX_LOOPS - 1}) ---\n`);
+                await wait(1000); 
             }
 
             const response = await ai.models.generateContentStream({
@@ -125,7 +125,7 @@ export async function POST(req: Request) {
                 config: { 
                     systemInstruction: basePrompt, 
                     generationConfig: {
-                        temperature: 1.5, 
+                        temperature: 1.0, // Température baissée légèrement pour plus de rigueur
                         maxOutputTokens: 65536,
                         thinkingConfig: {
                             includeThoughts: true, 
@@ -153,25 +153,30 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- LOGIQUE CRITIQUE : DÉCISION DE BOUCLER OU NON ---
+            // --- LOGIQUE CRITIQUE DE BOUCLE ---
             
-            // 1. Si pas de code (pas de tag START), on arrête TOUT immédiatement.
             if (!currentIterationOutput.includes("[[START]]")) {
+                // Si pas de code généré, on arrête la boucle (c'est probablement une réponse textuelle simple)
                 shouldContinue = false;
-                hasGeneratedCode = false; // Important : bloque la Phase 2
             } 
-            // 2. Si du code est détecté, on active la logique de correction et la Phase 2
             else {
-                hasGeneratedCode = true; 
-
+                // Code détecté : On lance l'analyse critique
                 if (loopCount < MAX_LOOPS - 1) {
-                    // Ajout contextuel pour le prochain tour
                     currentHistory.push({ role: "model", parts: [{ text: currentIterationOutput }] });
                     
-                    const correctionPrompt = `Tu as utilisé [[START]], donc tu as généré du code. 
-                    Vérifie bien si tous les problèmes de "ghosting" (code incomplet) et de "laziness" sont traités. 
-                    C'est pour te redonner la chance de tout corriger afin que l'on atteigne l'objectif absolu de zéro erreurs de ce type.
-                    Si tu vois [[FINISH]], relis ton code et réécris les parties manquantes ou simplifiées à l'excès.`;
+                    // LE PROMPT "TUEUR" DE GHOSTING
+                    const correctionPrompt = `⛔ STOP. ANALYSE STRICTE REQUISE.
+                    
+                    Tu viens de générer du code. Maintenant, avant de considérer que tu as fini, relis tes propres fichiers et chasse tes "Bêtes Noires" :
+                    
+                    1. **UI Padding / Lazy Mocking** : As-tu créé des boutons ou des menus purement décoratifs ? Si oui, IMPLÉMENTE LEUR LOGIQUE MAINTENANT.
+                    2. **Ghost Navigation** : Les liens de ta sidebar chargent-ils vraiment de nouvelles vues distinctes ? Si non, CRÉE CES VUES MAINTENANT.
+                    3. **Interactive Impotence** : Tes boutons (Like, Filtre, Search) changent-ils vraiment un état ou une liste ? Si c'est juste visuel, C'EST REFUSÉ. Ajoute le useState et la logique de tri/filtre réelle.
+                    
+                    **RÈGLE D'OR :** - Si tu as mis un commentaire "// Logic to be implemented", tu as ÉCHOUÉ. Remplace-le par du code.
+                    - Si tu n'as pas de backend, utilise des MOCK DATA complets (tableaux d'objets riches) pour simuler parfaitement le fonctionnement.
+                    
+                    Réécris UNIQUEMENT les fichiers qui nécessitent une correction pour être 100% fonctionnels et interactifs. Si tout est parfait (ce qui est rare), dis simplement "TERMINE".`;
                     
                     currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
                     loopCount++;
@@ -179,67 +184,9 @@ export async function POST(req: Request) {
                     shouldContinue = false; // Max loops atteints
                 }
             }
-          } // Fin du While Phase 1
+          } // Fin du While
 
-
-          // =================================================================================
-          // PHASE 2 : DEEP QA (FONCTIONNEL + SÉCURITÉ)
-          // S'exécute UNIQUEMENT si hasGeneratedCode est true (donc si [[START]] était présent)
-          // =================================================================================
-          
-          if (hasGeneratedCode) {
-            // Mise à jour de sécurité de l'historique au cas où
-            const lastMsg = currentHistory[currentHistory.length - 1];
-            if (lastMsg.role !== "model") {
-                 if (loopCount === 0) {
-                     currentHistory.push({ role: "model", parts: [{ text: fullSessionOutput }] });
-                 }
-            }
-
-            await wait(3000); 
-            send(`\n\n--- 🌟 VÉRIFICATION FINALE (FONCTIONNEL & SÉCURITÉ) ---\n`);
-
-            const functionalPart = `Maintenant que le code de base est là, je veux vérifier si l'IA a construit la plateforme demandée par l'utilisateur de façon totalement fonctionnelle par rapport à la requête envoyée.
-            Vérifie véritablement que toutes les fonctionnalités demandées ont été effectuées avec succès et qu'elles marchent effectivement bien.
-            ATTENTION : Pas de MVP. Je veux une version "Ready to Production" dans l'optique d'avoir les 1450 premiers utilisateurs satisfaits de chacune des fonctionnalités.
-            Si une fonctionnalité a été négligée, simplifiée ou oubliée, corrige-la MAINTENANT pour atteindre cet objectif de satisfaction totale.`;
-
-            const securityPart = `Deuxièmement, vérifie si toutes les fonctionnalités ont été faites et qu'aucune n'a été négligée ou faite de façon légère et insécurisée.
-            L'objectif est d'éviter des attaques de hackeurs et de contournement via le DOM du navigateur. Tout doit être vraiment solide côté intégration.
-            Vérifie aussi scrupuleusement si aucun fichier n'a d'erreurs quelconques et qu'ils sont tous bien faits sans erreurs, ni d'erreurs d'appel ou de syntaxe.
-            Si tu trouves la moindre faille, code fragile ou erreur, corrige-le IMMÉDIATEMENT dans ta réponse.`;
-
-            const combinedDeepQAPrompt = `${functionalPart}\n\n${securityPart}`;
-
-            currentHistory.push({ role: "user", parts: [{ text: combinedDeepQAPrompt }] });
-
-            const finalQaResponse = await ai.models.generateContentStream({
-                model: MODEL_ID,
-                contents: currentHistory, // Historique COMPLET
-                tools: [{ functionDeclarations: [readFileDeclaration] }],
-                config: { 
-                    systemInstruction: basePrompt, 
-                    generationConfig: {
-                        temperature: 1.5, 
-                        maxOutputTokens: 65536,
-                        thinkingConfig: { includeThoughts: true, thinkingLevel: "high" }
-                    }
-                },
-            });
-
-            let qaBuffer = "";
-            for await (const chunk of finalQaResponse) {
-                const txt = chunk.text; 
-                if (txt) {
-                    qaBuffer += txt;
-                    fullSessionOutput += txt;
-                    if (qaBuffer.length >= BATCH_SIZE) { send(qaBuffer); qaBuffer = ""; }
-                }
-            }
-            if (qaBuffer.length > 0) send(qaBuffer);
-          }
-
-          // --- GESTION DES DÉPENDANCES ---
+          // --- GESTION DES DÉPENDANCES (Uniquement si du code a été produit à la fin) ---
           const hasCode = fullSessionOutput.includes("<create_file");
           const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
           
@@ -305,4 +252,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-             }
+      }
