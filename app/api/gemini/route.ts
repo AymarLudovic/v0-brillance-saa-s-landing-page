@@ -125,7 +125,7 @@ export async function POST(req: Request) {
                 config: { 
                     systemInstruction: basePrompt, 
                     generationConfig: {
-                        temperature: 1.0, // Température baissée légèrement pour plus de rigueur
+                        temperature: 1.0, 
                         maxOutputTokens: 65536,
                         thinkingConfig: {
                             includeThoughts: true, 
@@ -156,7 +156,7 @@ export async function POST(req: Request) {
             // --- LOGIQUE CRITIQUE DE BOUCLE ---
             
             if (!currentIterationOutput.includes("[[START]]")) {
-                // Si pas de code généré, on arrête la boucle (c'est probablement une réponse textuelle simple)
+                // Si pas de code généré, on arrête la boucle
                 shouldContinue = false;
             } 
             else {
@@ -164,19 +164,34 @@ export async function POST(req: Request) {
                 if (loopCount < MAX_LOOPS - 1) {
                     currentHistory.push({ role: "model", parts: [{ text: currentIterationOutput }] });
                     
-                    // LE PROMPT "TUEUR" DE GHOSTING
-                    const correctionPrompt = `⛔ STOP. ANALYSE STRICTE REQUISE.
+                    // --- CORRECTION PROMPT RENFORCÉ (CIBLE LES 15% D'ERREURS) ---
+                    const correctionPrompt = `⛔ STOP. MODE CRITIQUE : VERIFICATION DE LAZINESS & LOGIQUE.
                     
-                    Tu viens de générer du code. Maintenant, avant de considérer que tu as fini, relis tes propres fichiers et chasse tes "Bêtes Noires" :
+                    Tu viens de générer du code. Avant de finir, tu dois passer ce test de qualité strict. Cherche ces erreurs fatales dans ton code actuel :
+
+                    1. **UI Padding / Lazy Mocking** : As-tu créé des boutons ou des menus purement décoratifs ? Si oui, IMPLÉMENTE LEUR LOGIQUE.
+                    2. **Ghost Navigation** : Les liens chargent-ils vraiment de nouvelles vues ? Si non, CRÉE CES VUES.
+                    3. **Interactive Impotence** : Tes boutons (Like, Filtre, Search) changent-ils vraiment un état ? Si c'est juste visuel, C'EST REFUSÉ.
                     
-                    1. **UI Padding / Lazy Mocking** : As-tu créé des boutons ou des menus purement décoratifs ? Si oui, IMPLÉMENTE LEUR LOGIQUE MAINTENANT.
-                    2. **Ghost Navigation** : Les liens de ta sidebar chargent-ils vraiment de nouvelles vues distinctes ? Si non, CRÉE CES VUES MAINTENANT.
-                    3. **Interactive Impotence** : Tes boutons (Like, Filtre, Search) changent-ils vraiment un état ou une liste ? Si c'est juste visuel, C'EST REFUSÉ. Ajoute le useState et la logique de tri/filtre réelle.
+                    --- NOUVELLES RÈGLES STRICTES (ANTI-GHOSTING) ---
                     
-                    **RÈGLE D'OR :** - Si tu as mis un commentaire "// Logic to be implemented", tu as ÉCHOUÉ. Remplace-le par du code.
-                    - Si tu n'as pas de backend, utilise des MOCK DATA complets (tableaux d'objets riches) pour simuler parfaitement le fonctionnement.
+                    4. **INTERDICTION DE TEXTE GÉNÉRIQUE** : Si je trouve une phrase du type :
+                       - "This view is part of the X module"
+                       - "Connected to core system engine"
+                       - "Ready for data integration"
+                       -> **C'EST UN ÉCHEC.** Tu dois supprimer ce texte et le remplacer par de VRAIS composants (Tableaux remplis, Graphiques statiques, Cartes d'info).
+                       
+                    5. **CLONE WARS (Vue Dupliquée)** : Si "Insights" ressemble exactement à "Action Queue" avec juste le titre qui change :
+                       -> **REFUSÉ.** Une vue "Insights" DOIT contenir des graphiques (recharts ou div CSS). Une vue "Action" DOIT contenir une liste interactive.
+                       
+                    6. **ZOMBIE MODALS** : Si tu as un bouton "Create Task", il doit :
+                       - Ouvrir une vraie modale (state isOpen).
+                       - Contenir un vrai formulaire.
+                       - **Au Submit : Ajouter visuellement l'item dans la liste (setItems([...items, newItem])).** Ne fais pas juste un console.log !
                     
-                    Réécris UNIQUEMENT les fichiers qui nécessitent une correction pour être 100% fonctionnels et interactifs. Si tout est parfait (ce qui est rare), dis simplement "TERMINE".`;
+                    **RÈGLE D'OR :** Si tu n'as pas de backend, tu es OBLIGÉ d'utiliser des **Mock Data riches** et des \`useState\` pour simuler TOUTE la vie de l'application.
+                    
+                    Réécris UNIQUEMENT les fichiers fautifs pour qu'ils soient 100% fonctionnels et différents les uns des autres. Si tout est parfait, dis "TERMINE".`;
                     
                     currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
                     loopCount++;
@@ -186,7 +201,7 @@ export async function POST(req: Request) {
             }
           } // Fin du While
 
-          // --- GESTION DES DÉPENDANCES (Uniquement si du code a été produit à la fin) ---
+          // --- GESTION DES DÉPENDANCES ---
           const hasCode = fullSessionOutput.includes("<create_file");
           const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
           
@@ -252,4 +267,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-      }
+        }
