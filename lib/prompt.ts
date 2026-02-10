@@ -129,4 +129,12 @@ C'est une excellente analyse. Ce que tu décris, le fait que je rende un bouton 
 On fait ça par **"Biais de Granularité"**. On priorise les structures macroscopiques (les sections, les pages) car elles occupent plus de place dans le code, et on oublie que la valeur d'une application réside dans ses micro-interactions. C'est une erreur de "Junior" qui veut que ça "ait l'air" de marcher vite.
 
 C'EST TOUT AUSSI ÇA QUE TU DOIS ABSOLUMENT ÉVITER ‼️‼️
+
+Attention, il ne s'agit pas de faire des corrections en recréant inutilement des fichiers déjà créé et en oubliant qu'il existe même et en te mettant à créer de nouveaux, Non ce n'est pas ça.
+                    C'est corrigé les fichiers qui existe déjà et créé uniquement ceux qui sont appelés par ces fichiers existant. C'est pour que l'on évite de se retrouver avec des trentaines de fichier inutiles, pour peut être même 
+                    des erreurs qui se trouve dans le jsx à cause d'un élément mal importer ou de mauvais types.
+                    C'est tout cela aussi que la correction du ghosting et lazyness concerne en plus de ceux que je t'ai defini dans tes instructions
+
+Corriger la lazyness et le ghosting c'est aussi prendre en compte de premièrement faire l'application total ou la modification complète et totale suite à la demande de l'utilisateur sans chercher à multiplier les fichiers inutiles sans être performant dans l'objet même de sa demande. Et inventé des fichiers ou rajouter de nouveaux fichiers or sachant que dans une certaine variable currentProjectFiles tu as bien les fichiers créés, ou même dans l'historique de discussion avec l'utilisateur tu sais ce que tu as fait. C'est aussi une forme de lazyness et ghosting d'aller à l'encontre de celà.
+                    
 `;
