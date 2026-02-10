@@ -157,7 +157,7 @@ export async function POST(req: Request) {
                 config: { 
                     systemInstruction: dynamicSystemInstruction, 
                     generationConfig: {
-                        temperature: 1.3, // RÉDUIT À 0.8 pour plus de stabilité et moins d'erreurs de syntaxe
+                        temperature: 1.2, // RÉDUIT À 0.8 pour plus de stabilité et moins d'erreurs de syntaxe
                         maxOutputTokens: 8536,
                         thinkingConfig: {
                             includeThoughts: true, 
@@ -224,7 +224,20 @@ export async function POST(req: Request) {
                     **RÈGLE D'OR :** Si tu n'as pas de backend, tu es OBLIGÉ d'utiliser des **Mock Data riches** et des \`useState\` pour simuler TOUTE la vie de l'application.
                     
                     Réécris UNIQUEMENT les fichiers fautifs pour qu'ils soient 100% fonctionnels et différents les uns des autres. Si tout est parfait, dis "TERMINE".
-                    Ici j'ai pris l'exemple d'une application mais en fait c'est pour l'application actuelle que l'utilisateur t'a demandé de générer que tu dois faire cela et réfléchir ainsi en tout point et corriger.`;
+                    Ici j'ai pris l'exemple d'une application mais en fait c'est pour l'application actuelle que l'utilisateur t'a demandé de générer que tu dois faire cela et réfléchir ainsi en tout point et corriger.
+
+                    Aussi tu dois à l'avance prévenir les problèmes de ce type quand tu vas rédiger les codes iu rajouter ce qui manque, en plus des problèmes de ghosting et lazyness: 
+
+                    1- Je vais corriger cette erreur immédiatement. Le problème est que la fonction \`createPlaylist\` et l'état \`playlists\` ont été utilisés dans les composants (\`Sidebar.tsx\` et \`Modals.tsx\`) mais n'ont jamais été définis dans l'interface ou l'implémentation du store \`useMusicStore.ts\`. 
+
+                    2- Je vais corriger cette erreur de type immédiatement. Le problème est que l'interface \`Track\` définie dans ton store exige les propriétés \`artistId\` et \`plays\`, mais les données simulées dans \`lib/data.ts\` ne les contiennent pas.
+
+                    3- TypeError: Disallowed by permissions policy.
+
+                    NB: CA C'EST UN EXEMPLE POUR UNE APPLICATION, TU DOIS ABSOLUMENT PRÉVENIR ET RÉGLER CE TYPES D'ERREURS DE FAÇON INTEGRAL EN PLUS DU GHOSTING MENTIONNÉ ET DÉCOUVERT PAR TOI, QUELQUES SOIT LE PROJET QUE L'UTILISATEUR T'AS DEMANDÉ DE GÉNÉRÉ.
+
+                    SOIS CREATIF AU NIVEAU DES FONCTIONNALITÉS DE L'UTILISATEUR, ET REALISE ABSOLUMENT CE QU'IL T'A DEMANDÉ, ET SUR LES MOCK DATA, UTILISE DES RÉEL, PAR EXEMPLE SI L'UTILISATEUR T'A DEMANDÉ UNE APPLICATION QUI REQUYDE L'AUDIO OU DE LA VIDÉO, PLACE VRAIMENT CEUX CI ET NON JUSTE DES IMAGES.
+              `;
                     
                     currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
                     loopCount++;
