@@ -169,7 +169,10 @@ export async function POST(req: Request) {
                     const correctionPrompt = `Tu as utilisé [[START]], donc tu as généré du code. 
                     Vérifie bien si tous les problèmes de "ghosting" (code incomplet) et de "laziness" sont traités. 
                     C'est pour te redonner la chance de tout corriger afin que l'on atteigne l'objectif absolu de zéro erreurs de ce type.
-                    Si tu vois [[FINISH]], relis ton code et réécris les parties manquantes ou simplifiées à l'excès.`;
+                    Si tu vois [[FINISH]], relis ton code et réécris les parties manquantes ou simplifiées à l'excès. Attention, il ne s'agit pas de faire des corrections en recréant inutilement des fichiers déjà créé et en oubliant qu'il existe même et en te mettant à créer de nouveaux, Non ce n'est pas ça.
+                    C'est corrigé les fichiers qui existe déjà et créé uniquement ceux qui sont appelés par ces fichiers existant. C'est pour que l'on évite de se retrouver avec des trentaines de fichier inutiles, pour peut être même 
+                    des erreurs qui se trouve dans le jsx à cause d'un élément mal importer ou de mauvais types.
+                    C'est tout cela aussi que la correction du ghosting et lazyness concerne en plus de ceux que je t'ai defini dans tes instructions`;
                     
                     currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
                     loopCount++;
@@ -208,7 +211,12 @@ export async function POST(req: Request) {
             const functionalPrompt = `Maintenant que le code de base est là, je veux vérifier si l'IA a construit la plateforme demandée par l'utilisateur de façon totalement fonctionnelle par rapport à la requête envoyée.
             Vérifie véritablement que toutes les fonctionnalités demandées ont été effectuées avec succès et qu'elles marchent effectivement bien.
             ATTENTION : Pas de MVP. Je veux une version "Ready to Production" dans l'optique d'avoir les 1450 premiers utilisateurs satisfaits de chacune des fonctionnalités.
-            Si une fonctionnalité a été négligée, simplifiée ou oubliée, corrige-la MAINTENANT pour atteindre cet objectif de satisfaction totale.`;
+            Si une fonctionnalité a été négligée, simplifiée ou oubliée, corrige-la MAINTENANT pour atteindre cet objectif de satisfaction totale.
+            Attention, il ne s'agit pas de faire des corrections en recréant inutilement des fichiers déjà créé et en oubliant qu'il existe même et en te mettant à créer de nouveaux, Non ce n'est pas ça.
+                    C'est corrigé les fichiers qui existe déjà et créé uniquement ceux qui sont appelés par ces fichiers existant. C'est pour que l'on évite de se retrouver avec des trentaines de fichier inutiles, pour peut être même 
+                    des erreurs qui se trouve dans le jsx à cause d'un élément mal importer ou de mauvais types.
+                    C'est tout cela aussi que la correction du ghosting et lazyness concerne en plus de ceux que je t'ai defini dans tes instructions`;
+                    
 
             currentHistory.push({ role: "user", parts: [{ text: functionalPrompt }] });
 
@@ -248,7 +256,12 @@ export async function POST(req: Request) {
             const securityPrompt = `Deuxièmement, vérifie si toutes les fonctionnalités ont été faites et qu'aucune n'a été négligée ou faite de façon légère et insécurisée.
             L'objectif est d'éviter des attaques de hackeurs et de contournement via le DOM du navigateur. Tout doit être vraiment solide côté intégration.
             Vérifie aussi scrupuleusement si aucun fichier n'a d'erreurs quelconques et qu'ils sont tous bien faits sans erreurs, ni d'erreurs d'appel ou de syntaxe.
-            Si tu trouves la moindre faille, code fragile ou erreur, corrige-le IMMÉDIATEMENT dans ta réponse.`;
+            Si tu trouves la moindre faille, code fragile ou erreur, corrige-le IMMÉDIATEMENT dans ta réponse.
+          Attention, il ne s'agit pas de faire des corrections en recréant inutilement des fichiers déjà créé et en oubliant qu'il existe même et en te mettant à créer de nouveaux, Non ce n'est pas ça.
+                    C'est corrigé les fichiers qui existe déjà et créé uniquement ceux qui sont appelés par ces fichiers existant. C'est pour que l'on évite de se retrouver avec des trentaines de fichier inutiles, pour peut être même 
+                    des erreurs qui se trouve dans le jsx à cause d'un élément mal importer ou de mauvais types.
+                    C'est tout cela aussi que la correction du ghosting et lazyness concerne en plus de ceux que je t'ai defini dans tes instructions`;
+                    
 
             currentHistory.push({ role: "user", parts: [{ text: securityPrompt }] });
 
@@ -259,7 +272,7 @@ export async function POST(req: Request) {
                 config: { 
                     systemInstruction: basePrompt, 
                     generationConfig: {
-                        temperature: 1.0, // Un peu plus strict pour la sécurité
+                        temperature: 1.5, // Un peu plus strict pour la sécurité
                         maxOutputTokens: 65536,
                         thinkingConfig: { includeThoughts: true, thinkingLevel: "high" }
                     }
