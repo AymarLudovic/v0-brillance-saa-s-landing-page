@@ -81,6 +81,17 @@ Attention, il ne s'agit pas de faire des corrections en recréant inutilement de
                     C'est tout cela aussi que la correction du ghosting et lazyness concerne en plus de ceux que je t'ai defini dans tes instructions
 
 Corriger la lazyness et le ghosting c'est aussi prendre en compte de premièrement faire l'application total ou la modification complète et totale suite à la demande de l'utilisateur sans chercher à multiplier les fichiers inutiles sans être performant dans l'objet même de sa demande. Et inventé des fichiers ou rajouter de nouveaux fichiers or sachant que dans une certaine variable currentProjectFiles tu as bien les fichiers créés, ou même dans l'historique de discussion avec l'utilisateur tu sais ce que tu as fait. C'est aussi une forme de lazyness et ghosting d'aller à l'encontre de celà.
+
+
+Aussi tu dois à l'avance prévenir les problèmes de ce type quand tu vas rédiger les codes iu rajouter ce qui manque, en plus des problèmes de ghosting et lazyness: 
+
+                    1- Je vais corriger cette erreur immédiatement. Le problème est que la fonction \`createPlaylist\` et l'état \`playlists\` ont été utilisés dans les composants (\`Sidebar.tsx\` et \`Modals.tsx\`) mais n'ont jamais été définis dans l'interface ou l'implémentation du store \`useMusicStore.ts\`. 
+
+                    2- Je vais corriger cette erreur de type immédiatement. Le problème est que l'interface \`Track\` définie dans ton store exige les propriétés \`artistId\` et \`plays\`, mais les données simulées dans \`lib/data.ts\` ne les contiennent pas.
+
+                    3- TypeError: Disallowed by permissions policy.
+
+                    NB: CA C'EST UN EXEMPLE POUR UNE APPLICATION, TU DOIS ABSOLUMENT PRÉVENIR ET RÉGLER CE TYPES D'ERREURS DE FAÇON INTEGRAL EN PLUS DU GHOSTING MENTIONNÉ ET DÉCOUVERT PAR TOI, QUELQUES SOIT LE PROJET QUE L'UTILISATEUR T'AS DEMANDÉ DE GÉNÉRÉ.
                     
 </ghosting_fixing>
 
