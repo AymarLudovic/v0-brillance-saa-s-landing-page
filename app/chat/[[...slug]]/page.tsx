@@ -5292,51 +5292,105 @@ ll
   </aside>
 </div>
 
-
-
 {isSearchOpen && (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/40 backdrop-blur-sm transition-all"
-            onClick={() => setIsSearchOpen(false)}
+    <div 
+        className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-[#ECECEC]/80 backdrop-blur-sm transition-all p-4"
+        onClick={() => setIsSearchOpen(false)}
     >
         <div 
-            className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[60vh]"
+            className="w-[80%] md:w-[65%] bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh] ring-1 ring-black/5"
             onClick={(e) => e.stopPropagation()}
         >
-            <div className="flex items-center border-b border-gray-100 p-4 gap-3">
-                <Search className="w-5 h-5 text-gray-400" />
+            {/* --- HEADER : SEARCH INPUT --- */}
+            <div className="flex items-center p-5 gap-4 pb-2">
+                <Search className="w-6 h-6 text-gray-400" />
                 <input 
                     autoFocus
                     type="text"
-                    placeholder="Search for projects..."
-                    className="flex-1 outline-none text-lg placeholder:text-gray-300"
+                    placeholder="Search for projects or type a command..."
+                    className="flex-1 outline-none text-xl text-[#212121] placeholder:text-gray-400 bg-transparent font-medium"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
             </div>
 
-            <div className="overflow-y-auto p-2">
-                {filteredProjects.map(p => (
+            {/* --- FILTERS (Local Hardcoded) --- */}
+            <div className="flex items-center gap-2 px-5 pb-4 border-b border-gray-100">
+                {['All', 'Today', 'This Week', 'Month', 'Year'].map((filter, idx) => (
+                    <button 
+                        key={filter}
+                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${idx === 0 ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                        {filter}
+                    </button>
+                ))}
+            </div>
+
+            {/* --- LISTE DES PROJETS --- */}
+            <div className="overflow-y-auto p-2 scrollbar-hide">
+                <div className="px-3 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Recent Projects
+                </div>
+                
+                {filteredProjects.map((p, i) => (
                     <div
                         key={p.id}
                         onClick={() => handleSelectProject(p.id)}
-                        className="flex items-center gap-3 p-3 hover:bg-[#F7F5F3] rounded-lg cursor-pointer group transition-colors"
+                        className="group flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-[#F3F4F6] transition-all duration-200"
                     >
-                        <div className="w-8 h-8 relative shadow-[0px_-4px_8px_rgba(255,255,255,0.64)_inset] overflow-hidden rounded-[8px] shrink-0">
-                            <img src="/horizon-icon.svg" alt="Horizon" className="w-full h-full object-contain" />
+                        <div className="flex items-center gap-4">
+                            {/* CONTAINER ICÔNE VARIANTE (Noir/Blanc alterné basé sur l'index) */}
+                            <div className="w-10 h-10 bg-white border border-gray-100 rounded-lg shadow-sm flex items-center justify-center shrink-0">
+                                <div className={`rounded-full transition-all ${
+                                    i % 2 === 0 
+                                    ? 'w-4 h-4 bg-[#212121]' // Variante Cercle Noir
+                                    : 'w-4 h-4 bg-white border-[3px] border-[#212121]' // Variante Cercle Blanc
+                                }`}></div>
+                            </div>
+
+                            {/* TEXTE */}
+                            <div className="flex flex-col">
+                                <span className="font-semibold text-[17px] text-[#212121] leading-tight">
+                                    {p.name}
+                                </span>
+                                <span className="text-sm text-gray-400 mt-0.5">
+                                    {/* Format date simplifié */}
+                                    Opened {new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(new Date(p.createdAt))}
+                                </span>
+                            </div>
                         </div>
-                        <div className="flex flex-col">
-                            <span className="font-medium text-gray-800">{p.name}</span>
-                            <span className="text-xs text-gray-400">
-                                {new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(p.createdAt))}
-                            </span>
+
+                        {/* RACCOURCIS CLAVIER VISUELS (Hardcoded style Raycast) */}
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-xs text-gray-400 font-medium">Open</span>
+                            <div className="flex gap-1">
+                                <span className="px-1.5 py-0.5 rounded bg-white border border-gray-200 shadow-[0_1px_0_rgba(0,0,0,0.05)] text-[10px] text-gray-500 font-sans min-w-[20px] text-center">↵</span>
+                            </div>
                         </div>
                     </div>
                 ))}
             </div>
+
+            {/* --- FOOTER STYLE RAYCAST --- */}
+            <div className="bg-[#F9FAFB] border-t border-gray-100 p-2 px-4 flex justify-between items-center text-xs text-gray-500 font-medium mt-auto">
+                <div className="flex items-center gap-1">
+                    <span>Suggestions</span>
+                    <span className="bg-gray-200 px-1 rounded text-[10px] min-w-[18px] text-center text-gray-600">TAB</span>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1">
+                        <span>Open</span>
+                        <span className="bg-gray-200 px-1 rounded text-[10px] min-w-[18px] text-center text-gray-600">↵</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <span>Actions</span>
+                        <span className="bg-gray-200 px-1 rounded text-[10px] min-w-[18px] text-center text-gray-600">⌘ K</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-)}
-                        
+)} 
 
 
       {isModalOpen && (
