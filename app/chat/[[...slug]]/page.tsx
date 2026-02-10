@@ -5302,95 +5302,135 @@ ll
             onClick={(e) => e.stopPropagation()}
         >
             {/* --- HEADER : SEARCH INPUT --- */}
-            <div className="flex items-center p-5 gap-4 pb-2">
+            <div className="flex items-center p-5 gap-4">
                 <Search className="w-6 h-6 text-gray-400" />
                 <input 
                     autoFocus
                     type="text"
-                    placeholder="Search for projects or type a command..."
+                    placeholder="Search for projects..."
                     className="flex-1 outline-none text-xl text-[#212121] placeholder:text-gray-400 bg-transparent font-medium"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
             </div>
 
-            {/* --- FILTERS (Local Hardcoded) --- */}
-            <div className="flex items-center gap-2 px-5 pb-4 border-b border-gray-100">
-                {['All', 'Today', 'This Week', 'Month', 'Year'].map((filter, idx) => (
+            {/* --- FILTERS (Barre séparée, sous l'input) --- */}
+            <div className="flex items-center gap-2 px-5 pb-4 border-b border-gray-100 overflow-x-auto scrollbar-hide">
+                {['All', 'Today', 'Week', 'Month', 'Year'].map((filter) => (
                     <button 
                         key={filter}
-                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${idx === 0 ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'}`}
+                        onClick={() => setActiveFilter(filter)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                            activeFilter === filter 
+                            ? 'bg-[#212121] text-white shadow-md' 
+                            : 'text-gray-500 hover:bg-gray-100 bg-gray-50'
+                        }`}
                     >
                         {filter}
                     </button>
                 ))}
             </div>
 
-            {/* --- LISTE DES PROJETS --- */}
+            {/* --- LISTE DES PROJETS (Filtrage Logique Intégré) --- */}
             <div className="overflow-y-auto p-2 scrollbar-hide">
-                <div className="px-3 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    Recent Projects
+                <div className="px-3 pt-3 pb-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    {activeFilter === 'All' ? 'Recent Projects' : `${activeFilter} Projects`}
                 </div>
                 
-                {filteredProjects.map((p, i) => (
-                    <div
-                        key={p.id}
-                        onClick={() => handleSelectProject(p.id)}
-                        className="group flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-[#F3F4F6] transition-all duration-200"
-                    >
-                        <div className="flex items-center gap-4">
-                            {/* CONTAINER ICÔNE VARIANTE (Noir/Blanc alterné basé sur l'index) */}
-                            <div className="w-10 h-10 bg-white border border-gray-100 rounded-lg shadow-sm flex items-center justify-center shrink-0">
-                                <div className={`rounded-full transition-all ${
-                                    i % 2 === 0 
-                                    ? 'w-4 h-4 bg-[#212121]' // Variante Cercle Noir
-                                    : 'w-4 h-4 bg-white border-[3px] border-[#212121]' // Variante Cercle Blanc
-                                }`}></div>
-                            </div>
+                {filteredProjects
+                    .filter(p => {
+                        if (activeFilter === 'All') return true;
+                        
+                        const date = new Date(p.createdAt);
+                        const now = new Date();
+                        const diffTime = Math.abs(now - date);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
-                            {/* TEXTE */}
-                            <div className="flex flex-col">
-                                <span className="font-semibold text-[17px] text-[#212121] leading-tight">
-                                    {p.name}
-                                </span>
-                                <span className="text-sm text-gray-400 mt-0.5">
-                                    {/* Format date simplifié */}
-                                    Opened {new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(new Date(p.createdAt))}
-                                </span>
-                            </div>
-                        </div>
+                        if (activeFilter === 'Today') {
+                            return date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                        }
+                        if (activeFilter === 'Week') return diffDays <= 7;
+                        if (activeFilter === 'Month') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                        if (activeFilter === 'Year') return date.getFullYear() === now.getFullYear();
+                        return true;
+                    })
+                    .map((p, i) => {
+                        // Génération de variantes sombres "infinies" basées sur l'index
+                        // Palette : Noir pur, Gris très foncé, Anthracite, Noir riche
+                        const darkVariants = ['bg-[#212121]', 'bg-[#111111]', 'bg-[#000000]', 'bg-[#1A1A1A]', 'bg-[#2B2B2B]'];
+                        const variantClass = darkVariants[i % darkVariants.length];
 
-                        {/* RACCOURCIS CLAVIER VISUELS (Hardcoded style Raycast) */}
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-xs text-gray-400 font-medium">Open</span>
-                            <div className="flex gap-1">
-                                <span className="px-1.5 py-0.5 rounded bg-white border border-gray-200 shadow-[0_1px_0_rgba(0,0,0,0.05)] text-[10px] text-gray-500 font-sans min-w-[20px] text-center">↵</span>
+                        return (
+                            <div
+                                key={p.id}
+                                onClick={() => handleSelectProject(p.id)}
+                                className="group flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-[#F3F4F6] transition-all duration-200"
+                            >
+                                <div className="flex items-center gap-4">
+                                    {/* CONTAINER CERCLE (Variantes Sombres Uniquement) */}
+                                    <div className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                        <div className={`w-4 h-4 rounded-full ${variantClass} shadow-sm`}></div>
+                                    </div>
+
+                                    {/* TEXTE */}
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold text-[17px] text-[#212121] leading-tight">
+                                            {p.name}
+                                        </span>
+                                        <span className="text-sm text-gray-400 mt-1 font-medium">
+                                            Opened {new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(new Date(p.createdAt))}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* RACCOURCIS CLAVIER (Apparaît au survol) */}
+                                <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                    <span className="text-xs text-gray-400 font-medium">Open</span>
+                                    <span className="px-2 py-0.5 rounded bg-white border border-gray-200 shadow-sm text-[11px] text-gray-600 font-sans min-w-[24px] text-center">
+                                        ↵
+                                    </span>
+                                </div>
                             </div>
+                        );
+                    })}
+                    
+                    {/* Message si aucun résultat après filtrage */}
+                    {filteredProjects.length > 0 && filteredProjects.filter(p => {
+                         // (Même logique rapide pour vérifier s'il faut afficher "No results")
+                         if (activeFilter === 'All') return true;
+                         const d = new Date(p.createdAt); const n = new Date();
+                         if (activeFilter === 'Today') return d.getDate() === n.getDate() && d.getMonth() === n.getMonth();
+                         if (activeFilter === 'Week') return (n - d) / (1000 * 3600 * 24) <= 7;
+                         if (activeFilter === 'Month') return d.getMonth() === n.getMonth();
+                         if (activeFilter === 'Year') return d.getFullYear() === n.getFullYear();
+                         return true;
+                    }).length === 0 && (
+                        <div className="p-8 text-center text-gray-400 text-sm">
+                            No projects found for this filter.
                         </div>
-                    </div>
-                ))}
+                    )}
             </div>
 
-            {/* --- FOOTER STYLE RAYCAST --- */}
-            <div className="bg-[#F9FAFB] border-t border-gray-100 p-2 px-4 flex justify-between items-center text-xs text-gray-500 font-medium mt-auto">
-                <div className="flex items-center gap-1">
+            {/* --- FOOTER --- */}
+            <div className="bg-[#F9FAFB] border-t border-gray-100 p-2.5 px-5 flex justify-between items-center text-xs text-gray-500 font-medium mt-auto">
+                <div className="flex items-center gap-2">
                     <span>Suggestions</span>
-                    <span className="bg-gray-200 px-1 rounded text-[10px] min-w-[18px] text-center text-gray-600">TAB</span>
+                    <span className="bg-gray-200 px-1.5 py-0.5 rounded text-[10px] text-gray-600 font-bold">TAB</span>
                 </div>
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
+                <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-1.5">
                         <span>Open</span>
-                        <span className="bg-gray-200 px-1 rounded text-[10px] min-w-[18px] text-center text-gray-600">↵</span>
+                        <span className="bg-gray-200 px-1.5 py-0.5 rounded text-[10px] text-gray-600 font-bold">↵</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                         <span>Actions</span>
-                        <span className="bg-gray-200 px-1 rounded text-[10px] min-w-[18px] text-center text-gray-600">⌘ K</span>
+                        <span className="bg-gray-200 px-1.5 py-0.5 rounded text-[10px] text-gray-600 font-bold">⌘ K</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-)} 
+)}
 
 
       {isModalOpen && (
