@@ -62,15 +62,21 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    const { history, uploadedImages, uploadedFiles, allReferenceImages } = body;
+    // Ajout de currentProjectFiles dans la récupération
+    const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles } = body;
 
     const ai = new GoogleGenAI({ apiKey });
+
+    // --- LOGIQUE D'EXCLUSION DES IMAGES ---
+    // Si l'utilisateur envoie une image ou un fichier, on NE MET PAS les images de référence globale
+    const hasUserUploads = (uploadedImages?.length > 0) || (uploadedFiles?.length > 0);
 
     // Construction de l'historique initial
     const buildInitialHistory = () => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      if (allReferenceImages?.length > 0) {
+      // On ajoute les références SEULEMENT SI aucun upload utilisateur n'est présent
+      if (allReferenceImages?.length > 0 && !hasUserUploads) {
         const styleParts = allReferenceImages.slice(0, 3).map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
@@ -82,16 +88,42 @@ export async function POST(req: Request) {
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
         
-        if (i === history.length - 1 && role === "user" && uploadedImages?.length > 0) {
-          uploadedImages.forEach((img: string) =>
-            parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
-          );
-          parts.push({ text: "\n[FICHIERS UPLOADÉS]" });
+        if (i === history.length - 1 && role === "user") {
+            // Gestion des images uploadées par l'user (Prioritaire)
+            if (uploadedImages?.length > 0) {
+                uploadedImages.forEach((img: string) =>
+                    parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
+                );
+                parts.push({ text: "\n[FICHIERS UPLOADÉS PAR L'UTILISATEUR]" });
+            }
+            // Gestion des fichiers texte/code uploadés
+            if (uploadedFiles?.length > 0) {
+                 uploadedFiles.forEach((file: { fileName: string; base64Content: string }) => {
+                    // On décode le base64 pour le donner en texte à l'IA (si c'est du code)
+                    // Note: Si ce sont des binaires, il faut adapter, mais pour du code c'est mieux en texte
+                    try {
+                        const content = atob(file.base64Content);
+                        parts.push({ text: `\n[CONTENU DU FICHIER ${file.fileName}]:\n${content}\n` });
+                    } catch (e) {
+                        // Fallback si ce n'est pas du texte
+                        parts.push({ text: `\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]` });
+                    }
+                 });
+            }
         }
         contents.push({ role, parts });
       });
       return contents;
     };
+
+    // Préparation du System Prompt avec le contexte du projet
+    let dynamicSystemInstruction = basePrompt;
+    if (currentProjectFiles) {
+        // On donne à l'IA la structure actuelle pour éviter qu'elle ne réinvente la roue ou écrase aveuglément
+        // On peut passer soit la liste des noms, soit un résumé. Ici on passe l'objet JSON stringifié (attention à la taille)
+        // Ou juste la liste des chemins si l'objet est trop gros.
+        dynamicSystemInstruction += `\n\n[CONTEXTE DU PROJET - FICHIERS EXISTANTS]\nTu travailles sur un projet existant. Voici la structure actuelle :\n${JSON.stringify(currentProjectFiles, null, 2)}\nUtilise ce contexte pour respecter l'architecture existante.`;
+    }
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -120,12 +152,12 @@ export async function POST(req: Request) {
 
             const response = await ai.models.generateContentStream({
                 model: MODEL_ID,
-                contents: currentHistory, // Toujours l'historique complet
+                contents: currentHistory, 
                 tools: [{ functionDeclarations: [readFileDeclaration] }], 
                 config: { 
-                    systemInstruction: basePrompt, 
+                    systemInstruction: dynamicSystemInstruction, 
                     generationConfig: {
-                        temperature: 1.0, 
+                        temperature: 0.8, // RÉDUIT À 0.8 pour plus de stabilité et moins d'erreurs de syntaxe
                         maxOutputTokens: 65536,
                         thinkingConfig: {
                             includeThoughts: true, 
@@ -164,7 +196,7 @@ export async function POST(req: Request) {
                 if (loopCount < MAX_LOOPS - 1) {
                     currentHistory.push({ role: "model", parts: [{ text: currentIterationOutput }] });
                     
-                    // --- CORRECTION PROMPT RENFORCÉ (CIBLE LES 15% D'ERREURS) ---
+                    // --- CORRECTION PROMPT RENFORCÉ ---
                     const correctionPrompt = `⛔ STOP. MODE CRITIQUE : VERIFICATION DE LAZINESS & LOGIQUE.
                     
                     Tu viens de générer du code. Avant de finir, tu dois passer ce test de qualité strict. Cherche ces erreurs fatales dans ton code actuel :
@@ -191,7 +223,8 @@ export async function POST(req: Request) {
                     
                     **RÈGLE D'OR :** Si tu n'as pas de backend, tu es OBLIGÉ d'utiliser des **Mock Data riches** et des \`useState\` pour simuler TOUTE la vie de l'application.
                     
-                    Réécris UNIQUEMENT les fichiers fautifs pour qu'ils soient 100% fonctionnels et différents les uns des autres. Si tout est parfait, dis "TERMINE".`;
+                    Réécris UNIQUEMENT les fichiers fautifs pour qu'ils soient 100% fonctionnels et différents les uns des autres. Si tout est parfait, dis "TERMINE".
+                    Ici j'ai pris l'exemple d'une application mais en fait c'est pour l'application actuelle que l'utilisateur t'a demandé de générer que tu dois faire cela et réfléchir ainsi en tout point et corriger.`;
                     
                     currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
                     loopCount++;
@@ -267,4 +300,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-        }
+  }
