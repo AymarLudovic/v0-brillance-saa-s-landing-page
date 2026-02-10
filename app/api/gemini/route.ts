@@ -157,7 +157,7 @@ export async function POST(req: Request) {
                 config: { 
                     systemInstruction: dynamicSystemInstruction, 
                     generationConfig: {
-                        temperature: 1.8, // RÉDUIT À 0.8 pour plus de stabilité et moins d'erreurs de syntaxe
+                        temperature: 1.7, // RÉDUIT À 0.8 pour plus de stabilité et moins d'erreurs de syntaxe
                         maxOutputTokens: 8536,
                         thinkingConfig: {
                             includeThoughts: true, 
@@ -236,7 +236,10 @@ export async function POST(req: Request) {
 
                     NB: CA C'EST UN EXEMPLE POUR UNE APPLICATION, TU DOIS ABSOLUMENT PRÉVENIR ET RÉGLER CE TYPES D'ERREURS DE FAÇON INTEGRAL EN PLUS DU GHOSTING MENTIONNÉ ET DÉCOUVERT PAR TOI, QUELQUES SOIT LE PROJET QUE L'UTILISATEUR T'AS DEMANDÉ DE GÉNÉRÉ.
 
-                    SOIS CREATIF AU NIVEAU DES FONCTIONNALITÉS DE L'UTILISATEUR, ET REALISE ABSOLUMENT CE QU'IL T'A DEMANDÉ, ET SUR LES MOCK DATA, UTILISE DES RÉEL, PAR EXEMPLE SI L'UTILISATEUR T'A DEMANDÉ UNE APPLICATION QUI REQUYDE L'AUDIO OU DE LA VIDÉO, PLACE VRAIMENT CEUX CI ET NON JUSTE DES IMAGES.
+                    SOIS CREATIF AU NIVEAU DES FONCTIONNALITÉS DE L'UTILISATEUR, ET REALISE ABSOLUMENT CE QU'IL T'A DEMANDÉ, ET SUR LES MOCK DATA, UTILISE DES RÉEL, PAR EXEMPLE SI L'UTILISATEUR T'A DEMANDÉ UNE APPLICATION QUI REQUYDE L'AUDIO OU DE LA VIDÉO, PLACE VRAIMENT CEUX CI ET NON JUSTE DES IMAGES. 
+
+                    MAIS L'IMPORTANT EST QUE TOUT ÉLÉMENT UI QUE TU VA METTRE QUE CE SOIT LE PLUS PETIT INPUT OU IMPORT DANS UNE CARD, DANS UNE VIEW, DOIS ÊTRE FONCTIONNELLE ET NON JUSTE DU UI PLACÉ.
+                    SI IL Y A 45 BOUTON ET INPUTS, QUE 45 BOUTONS ET INPUTS SOIT FONCTIONNEL.
               `;
                     
                     currentHistory.push({ role: "user", parts: [{ text: correctionPrompt }] });
