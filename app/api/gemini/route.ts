@@ -157,7 +157,7 @@ export async function POST(req: Request) {
                 config: { 
                     systemInstruction: dynamicSystemInstruction, 
                     generationConfig: {
-                        temperature: 1.7, // RÉDUIT À 0.8 pour plus de stabilité et moins d'erreurs de syntaxe
+                        temperature: 1, // RÉDUIT À 0.8 pour plus de stabilité et moins d'erreurs de syntaxe
                         maxOutputTokens: 8536,
                         thinkingConfig: {
                             includeThoughts: true, 
