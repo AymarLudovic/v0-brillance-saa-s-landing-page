@@ -6,7 +6,7 @@ import { basePrompt } from "@/lib/prompt";
 
 const BATCH_SIZE = 128;
 // On garde ton modèle spécifique
-const MODEL_ID = "gemini-3-pro-preview"; 
+const MODEL_ID = "gemini-3-flash-preview"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
