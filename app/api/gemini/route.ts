@@ -7,8 +7,8 @@ import { basePrompt } from "@/lib/prompt";
 const BATCH_SIZE = 128;
 
 // --- CHOIX DU MODÈLE GROQ ---
-// Llama 3.3 70B est excellent : rapide, gratuit, 128k contexte, très bon en code.
-const MODEL_ID = "llama-3.3-70b-versatile"; 
+// On utilise le modèle VISION (90B) pour supporter les images et le code complexe.
+const MODEL_ID = "llama-3.2-90b-vision-preview"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -19,22 +19,13 @@ interface Message {
 }
 
 // --- UTILITAIRES ---
-function getMimeTypeFromBase64(dataUrl: string) {
-  const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
-  return match ? match[1] : "application/octet-stream";
-}
 
-function cleanBase64Data(dataUrl: string) {
-  // Pour OpenAI/Groq, on garde parfois le préfixe data:..., mais ici on nettoie pour la logique interne
-  return dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
-}
-
-// Pour OpenAI/Groq, il faut souvent l'URL complète "data:image/..." dans le payload
-function formatImageForOpenAI(base64String: string) {
-  if (base64String.startsWith("data:")) return base64String;
-  // Si on a juste le raw base64, on suppose que c'est du png ou jpeg, mais mieux vaut avoir le type.
-  // Dans ton code actuel, tu as souvent l'URL complète dans uploadedImages.
-  return base64String; 
+// Fonction pour s'assurer que l'image a bien le format Data URL complet pour OpenAI/Groq
+// Ex: "data:image/png;base64,..."
+function ensureDataUrl(data: string) {
+  if (data.startsWith("data:")) return data;
+  // Si on a juste le raw base64, on devine un mime type générique (souvent suffisant)
+  return `data:image/jpeg;base64,${data}`;
 }
 
 function extractDependenciesFromAgentOutput(output: string): string[] {
@@ -75,8 +66,8 @@ export async function POST(req: Request) {
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   try {
-    // On récupère la clé. Note : J'ai gardé la logique header mais adapté pour Groq
-    const authHeader = req.headers.get("x-gemini-api-key") || req.headers.get("x-gemini-api-key"); // Fallback si tu n'as pas changé le front
+    // On récupère la clé.
+    const authHeader = req.headers.get("x-gemini-api-key") || req.headers.get("x-gemini-api-key"); 
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
     
     if (!apiKey) return NextResponse.json({ error: "Clé API Groq manquante" }, { status: 401 });
@@ -90,7 +81,6 @@ export async function POST(req: Request) {
       baseURL: "https://api.groq.com/openai/v1",
     });
 
-    // --- LOGIQUE D'EXCLUSION DES IMAGES ---
     const hasUserUploads = (uploadedImages?.length > 0) || (uploadedFiles?.length > 0);
 
     // Préparation du System Prompt
@@ -99,61 +89,75 @@ export async function POST(req: Request) {
         dynamicSystemInstruction += `\n\n[CONTEXTE DU PROJET - FICHIERS EXISTANTS]\nTu travailles sur un projet existant. Voici la structure actuelle :\n${JSON.stringify(currentProjectFiles, null, 2)}\nUtilise ce contexte pour respecter l'architecture existante.`;
     }
 
-    // Construction de l'historique initial pour OpenAI/Groq
+    // --- CONSTRUCTION DES MESSAGES (CORRECTION ERREUR 400) ---
     const buildInitialMessages = () => {
-      // 1. Le System Prompt est le premier message
+      // 1. System Prompt
       const messages: any[] = [
         { role: "system", content: dynamicSystemInstruction }
       ];
       
       // 2. Images de référence (si pas d'upload user)
       if (allReferenceImages?.length > 0 && !hasUserUploads) {
-        // En OpenAI/Groq, on ajoute un message User avec du contenu mixte (texte + images)
+        // Ici on force le mode "contenu mixte" (Array) car on a des images
         const content: any[] = [{ type: "text", text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }];
         
         allReferenceImages.slice(0, 3).forEach((img: string) => {
            content.push({
              type: "image_url",
-             image_url: { url: formatImageForOpenAI(img) }
+             image_url: { url: ensureDataUrl(img) }
            });
         });
         messages.push({ role: "user", content });
       }
 
-      // 3. Conversion de l'historique existant
+      // 3. Historique et dernier message
       history.forEach((msg: Message, i: number) => {
-        if (msg.role === "system") return; // On a déjà géré le system prompt global
+        if (msg.role === "system") return; 
         
         let role = msg.role === "assistant" ? "assistant" : "user";
         
-        // Cas spécial : le dernier message utilisateur contient les uploads
+        // C'est le dernier message utilisateur ? (C'est là qu'on gère les uploads)
         if (i === history.length - 1 && role === "user") {
-            const content: any[] = [{ type: "text", text: msg.content || " " }];
-
-            if (uploadedImages?.length > 0) {
-                uploadedImages.forEach((img: string) => {
-                    content.push({
-                        type: "image_url",
-                        image_url: { url: formatImageForOpenAI(img) }
-                    });
-                });
-                content.push({ type: "text", text: "\n[FICHIERS UPLOADÉS PAR L'UTILISATEUR]" });
-            }
+            
+            // On prépare d'abord tout le texte
+            let textContent = msg.content || " ";
 
             if (uploadedFiles?.length > 0) {
                  uploadedFiles.forEach((file: { fileName: string; base64Content: string }) => {
                     try {
                         const fileContent = atob(file.base64Content);
-                        content.push({ type: "text", text: `\n[CONTENU DU FICHIER ${file.fileName}]:\n${fileContent}\n` });
+                        textContent += `\n\n[CONTENU DU FICHIER ${file.fileName}]:\n${fileContent}\n`;
                     } catch (e) {
-                        content.push({ type: "text", text: `\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]` });
+                        textContent += `\n\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]`;
                     }
                  });
             }
-            messages.push({ role, content });
+
+            // A-t-on des images à uploader ?
+            const hasImages = uploadedImages?.length > 0;
+
+            if (hasImages) {
+                // CAS 1: IMAGES PRÉSENTES -> On envoie un Tableau (Mixed Content)
+                const content: any[] = [{ type: "text", text: textContent }];
+                
+                uploadedImages.forEach((img: string) => {
+                    content.push({
+                        type: "image_url",
+                        image_url: { url: ensureDataUrl(img) }
+                    });
+                });
+                content.push({ type: "text", text: "\n[FICHIERS IMAGES UPLOADÉS]" });
+                
+                messages.push({ role, content });
+            } else {
+                // CAS 2: PAS D'IMAGES -> On envoie une SIMPLE STRING
+                // C'est ICI que l'erreur 400 est corrigée. Groq déteste les tableaux sans images.
+                messages.push({ role, content: textContent });
+            }
+
         } else {
-            // Message standard (texte simple pour économiser les tokens si pas d'image)
-            messages.push({ role, content: msg.content });
+            // Messages historiques normaux : Simple String
+            messages.push({ role, content: msg.content || "" });
         }
       });
 
@@ -172,7 +176,7 @@ export async function POST(req: Request) {
           let fullSessionOutput = ""; 
           
           let loopCount = 0;
-          const MAX_LOOPS = 1;
+          const MAX_LOOPS = 4;
           let shouldContinue = true;
 
           while (shouldContinue && loopCount < MAX_LOOPS) {
@@ -182,16 +186,15 @@ export async function POST(req: Request) {
                 await wait(500); 
             }
 
-            // Appel API Groq via le SDK OpenAI
+            // Appel API Groq
             const response = await openai.chat.completions.create({
                 model: MODEL_ID,
                 messages: currentMessages,
-                tools: [readFileTool], // Définition des tools
+                tools: [readFileTool], 
                 tool_choice: "auto",
-                temperature: 0.7, // Llama est souvent meilleur avec un temp plus bas que Gemini
-                max_tokens: 8000, // Max output par requête
-                stream: true, // IMPORTANT
-                // Note: Pas de "thinkingConfig" sur Llama, c'est natif au modèle ou non supporté explicitement
+                temperature: 0.7, 
+                max_tokens: 8000, 
+                stream: true, 
             });
 
             let batchBuffer = "";
@@ -212,21 +215,20 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- LOGIQUE DE BOUCLE NEUTRE ---
-            
-            if (!currentIterationOutput.includes("[[START]]")) { // Assure-toi que ton Prompt demande bien [[START]] si c'est ta balise de fin
-                 // Note: Si tu n'utilises pas [[START]] comme marqueur de fin explicite dans Llama, 
-                 // tu peux vérifier si la réponse semble tronquée ou s'arrêter ici.
-                 // Pour l'instant, je garde ta logique stricte :
+            // --- LOGIQUE DE BOUCLE ---
+            // Si la réponse ne contient pas le marqueur de fin (ex: [[START]] ou balise XML de fin), on boucle.
+            // Note: Adapte la condition selon ton prompt. Ici je garde ta logique [[START]].
+            if (!currentIterationOutput.includes("[[START]]")) { 
                  shouldContinue = false;
             } 
             else {
                 if (loopCount < MAX_LOOPS - 1) {
                     currentMessages.push({ role: "assistant", content: currentIterationOutput });
                     
+                    // IMPORTANT : Le prompt de continuation doit être une string simple
                     const neutralContinuePrompt = "Continue l'écriture et la finalisation du code pour t'assurer que tout est complet.";
-                    
                     currentMessages.push({ role: "user", content: neutralContinuePrompt });
+                    
                     loopCount++;
                 } else {
                     shouldContinue = false; 
@@ -235,7 +237,7 @@ export async function POST(req: Request) {
           } // Fin du While
 
           // =================================================================================
-          // GESTION INTELLIGENTE DU PACKAGE.JSON (IDENTIQUE À AVANT)
+          // GESTION INTELLIGENTE DU PACKAGE.JSON
           // =================================================================================
           
           const hasCode = fullSessionOutput.includes("<create_file");
@@ -291,7 +293,7 @@ export async function POST(req: Request) {
               const depsToFetch = currentPackageJsonContent ? newDependenciesToInstall : [...newDependenciesToInstall, ...Object.keys(baseDeps)];
               
               const newDepsResolved: Record<string, string> = {};
-              // Note: packageJson() est une promesse externe, ça marche toujours pareil
+              
               await Promise.all(depsToFetch.map(async (pkg) => {
                   if (!pkg) return;
                   if (finalDependencies[pkg]) return;
@@ -334,4 +336,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-  }
+        }
