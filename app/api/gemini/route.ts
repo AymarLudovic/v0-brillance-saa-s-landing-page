@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai"; // On utilise le client OpenAI pour Groq
+import OpenAI from "openai";
 import packageJson from 'package-json';
-// Assure-toi que basePrompt contient bien tes instructions
 import { basePrompt } from "@/lib/prompt";
 
 const BATCH_SIZE = 128;
 
 // --- CHOIX DU MODÈLE GROQ ---
-// On utilise le modèle VISION (90B) pour supporter les images et le code complexe.
-const MODEL_ID = "meta-llama/llama-4-scout-17b-16e-instruct"; 
+// CORRECTION : On utilise le modèle VISION pour supporter les images uploadées.
+// Si tu utilises le 70b-versatile (texte seul) avec des images, ça plante (Erreur 400).
+const MODEL_ID = "meta-llama/llama-4-maverick-17b-128e-instruct"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -19,13 +19,18 @@ interface Message {
 }
 
 // --- UTILITAIRES ---
+function getMimeTypeFromBase64(dataUrl: string) {
+  const match = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-+.=]+);base64,/);
+  return match ? match[1] : "application/octet-stream";
+}
 
-// Fonction pour s'assurer que l'image a bien le format Data URL complet pour OpenAI/Groq
-// Ex: "data:image/png;base64,..."
-function ensureDataUrl(data: string) {
-  if (data.startsWith("data:")) return data;
-  // Si on a juste le raw base64, on devine un mime type générique (souvent suffisant)
-  return `data:image/jpeg;base64,${data}`;
+function cleanBase64Data(dataUrl: string) {
+  return dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+}
+
+function formatImageForOpenAI(base64String: string) {
+  if (base64String.startsWith("data:")) return base64String;
+  return base64String; 
 }
 
 function extractDependenciesFromAgentOutput(output: string): string[] {
@@ -43,7 +48,6 @@ function extractDependenciesFromAgentOutput(output: string): string[] {
   return [];
 }
 
-// Définition de l'outil (Tool) au format OpenAI
 const readFileTool = {
   type: "function" as const,
   function: {
@@ -66,8 +70,7 @@ export async function POST(req: Request) {
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   try {
-    // On récupère la clé.
-    const authHeader = req.headers.get("x-gemini-api-key") || req.headers.get("x-gemini-api-key"); 
+    const authHeader = req.headers.get("x-gemini-api-key") || req.headers.get("x-gemini-api-key");
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
     
     if (!apiKey) return NextResponse.json({ error: "Clé API Groq manquante" }, { status: 401 });
@@ -75,7 +78,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles } = body;
 
-    // Initialisation du client compatible OpenAI pointant vers Groq
     const openai = new OpenAI({
       apiKey: apiKey,
       baseURL: "https://api.groq.com/openai/v1",
@@ -83,87 +85,77 @@ export async function POST(req: Request) {
 
     const hasUserUploads = (uploadedImages?.length > 0) || (uploadedFiles?.length > 0);
 
-    // Préparation du System Prompt
     let dynamicSystemInstruction = basePrompt;
     if (currentProjectFiles) {
         dynamicSystemInstruction += `\n\n[CONTEXTE DU PROJET - FICHIERS EXISTANTS]\nTu travailles sur un projet existant. Voici la structure actuelle :\n${JSON.stringify(currentProjectFiles, null, 2)}\nUtilise ce contexte pour respecter l'architecture existante.`;
     }
 
-    // --- CONSTRUCTION DES MESSAGES (CORRECTION ERREUR 400) ---
     const buildInitialMessages = () => {
-      // 1. System Prompt
       const messages: any[] = [
         { role: "system", content: dynamicSystemInstruction }
       ];
       
       // 2. Images de référence (si pas d'upload user)
       if (allReferenceImages?.length > 0 && !hasUserUploads) {
-        // Ici on force le mode "contenu mixte" (Array) car on a des images
         const content: any[] = [{ type: "text", text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }];
         
         allReferenceImages.slice(0, 3).forEach((img: string) => {
            content.push({
              type: "image_url",
-             image_url: { url: ensureDataUrl(img) }
+             image_url: { url: formatImageForOpenAI(img) }
            });
         });
         messages.push({ role: "user", content });
       }
 
-      // 3. Historique et dernier message
+      // 3. Conversion de l'historique existant
       history.forEach((msg: Message, i: number) => {
-        if (msg.role === "system") return; 
+        if (msg.role === "system") return;
         
         let role = msg.role === "assistant" ? "assistant" : "user";
         
-        // C'est le dernier message utilisateur ? (C'est là qu'on gère les uploads)
         if (i === history.length - 1 && role === "user") {
-            
-            // On prépare d'abord tout le texte
-            let textContent = msg.content || " ";
+            const content: any[] = [{ type: "text", text: msg.content || " " }];
+
+            if (uploadedImages?.length > 0) {
+                uploadedImages.forEach((img: string) => {
+                    content.push({
+                        type: "image_url",
+                        image_url: { url: formatImageForOpenAI(img) }
+                    });
+                });
+                content.push({ type: "text", text: "\n[FICHIERS UPLOADÉS PAR L'UTILISATEUR]" });
+            }
 
             if (uploadedFiles?.length > 0) {
                  uploadedFiles.forEach((file: { fileName: string; base64Content: string }) => {
                     try {
                         const fileContent = atob(file.base64Content);
-                        textContent += `\n\n[CONTENU DU FICHIER ${file.fileName}]:\n${fileContent}\n`;
+                        content.push({ type: "text", text: `\n[CONTENU DU FICHIER ${file.fileName}]:\n${fileContent}\n` });
                     } catch (e) {
-                        textContent += `\n\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]`;
+                        content.push({ type: "text", text: `\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]` });
                     }
                  });
             }
 
-            // A-t-on des images à uploader ?
-            const hasImages = uploadedImages?.length > 0;
-
-            if (hasImages) {
-                // CAS 1: IMAGES PRÉSENTES -> On envoie un Tableau (Mixed Content)
-                const content: any[] = [{ type: "text", text: textContent }];
-                
-                uploadedImages.forEach((img: string) => {
-                    content.push({
-                        type: "image_url",
-                        image_url: { url: ensureDataUrl(img) }
-                    });
-                });
-                content.push({ type: "text", text: "\n[FICHIERS IMAGES UPLOADÉS]" });
-                
-                messages.push({ role, content });
+            // CORRECTION CRITIQUE : Si le contenu ne contient que du texte, on l'envoie comme string simple.
+            // Cela évite l'erreur "messages[1].content must be a string" sur certains endpoints Groq.
+            const hasImages = content.some(c => c.type === "image_url");
+            if (!hasImages) {
+                // On fusionne tout le texte en une seule string
+                const fullText = content.map(c => c.text).join("");
+                messages.push({ role, content: fullText });
             } else {
-                // CAS 2: PAS D'IMAGES -> On envoie une SIMPLE STRING
-                // C'est ICI que l'erreur 400 est corrigée. Groq déteste les tableaux sans images.
-                messages.push({ role, content: textContent });
+                messages.push({ role, content });
             }
 
         } else {
-            // Messages historiques normaux : Simple String
-            messages.push({ role, content: msg.content || "" });
+            messages.push({ role, content: msg.content });
         }
       });
 
       return messages;
     };
-
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -186,15 +178,16 @@ export async function POST(req: Request) {
                 await wait(500); 
             }
 
-            // Appel API Groq
             const response = await openai.chat.completions.create({
                 model: MODEL_ID,
                 messages: currentMessages,
-                tools: [readFileTool], 
+                tools: [readFileTool],
                 tool_choice: "auto",
-                temperature: 0.7, 
-                max_tokens: 8000, 
-                stream: true, 
+                temperature: 0.7,
+                max_tokens: 8000,
+                stream: true,
+                // CORRECTION : Désactiver parallel_tool_calls stabilise souvent Groq Llama 3
+                parallel_tool_calls: false 
             });
 
             let batchBuffer = "";
@@ -214,32 +207,23 @@ export async function POST(req: Request) {
                 }
             }
             if (batchBuffer.length > 0) send(batchBuffer);
-
-            // --- LOGIQUE DE BOUCLE ---
-            // Si la réponse ne contient pas le marqueur de fin (ex: [[START]] ou balise XML de fin), on boucle.
-            // Note: Adapte la condition selon ton prompt. Ici je garde ta logique [[START]].
-            if (!currentIterationOutput.includes("[[START]]")) { 
+            
+            if (!currentIterationOutput.includes("[[START]]")) {
                  shouldContinue = false;
             } 
             else {
                 if (loopCount < MAX_LOOPS - 1) {
                     currentMessages.push({ role: "assistant", content: currentIterationOutput });
-                    
-                    // IMPORTANT : Le prompt de continuation doit être une string simple
                     const neutralContinuePrompt = "Continue l'écriture et la finalisation du code pour t'assurer que tout est complet.";
                     currentMessages.push({ role: "user", content: neutralContinuePrompt });
-                    
                     loopCount++;
                 } else {
                     shouldContinue = false; 
                 }
             }
-          } // Fin du While
+          } 
 
-          // =================================================================================
-          // GESTION INTELLIGENTE DU PACKAGE.JSON
-          // =================================================================================
-          
+          // --- LOGIQUE PACKAGE.JSON (INTACTE) ---
           const hasCode = fullSessionOutput.includes("<create_file");
           const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
           
@@ -293,7 +277,6 @@ export async function POST(req: Request) {
               const depsToFetch = currentPackageJsonContent ? newDependenciesToInstall : [...newDependenciesToInstall, ...Object.keys(baseDeps)];
               
               const newDepsResolved: Record<string, string> = {};
-              
               await Promise.all(depsToFetch.map(async (pkg) => {
                   if (!pkg) return;
                   if (finalDependencies[pkg]) return;
