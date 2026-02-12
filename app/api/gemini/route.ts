@@ -144,7 +144,7 @@ export async function POST(req: Request) {
                 config: { 
                     systemInstruction: dynamicSystemInstruction, 
                     generationConfig: {
-                        temperature: 1, 
+                        temperature: 1.2, 
                         maxOutputTokens: 8536,
                         thinkingConfig: {
                             includeThoughts: true, 
