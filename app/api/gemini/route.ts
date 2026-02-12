@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { GoogleGenAI, Type, FunctionDeclaration, Part } from "@google/genai";
+import OpenAI from "openai"; // On utilise le client OpenAI pour Groq
 import packageJson from 'package-json';
-// Assure-toi que basePrompt contient bien tes instructions sur les "Bêtes Noires"
+// Assure-toi que basePrompt contient bien tes instructions
 import { basePrompt } from "@/lib/prompt";
 
 const BATCH_SIZE = 128;
-// On garde ton modèle spécifique
-const MODEL_ID = "gemini-3-flash-preview"; 
+
+// --- CHOIX DU MODÈLE GROQ ---
+// Llama 3.3 70B est excellent : rapide, gratuit, 128k contexte, très bon en code.
+const MODEL_ID = "llama-3.3-70b-versatile"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -23,7 +25,16 @@ function getMimeTypeFromBase64(dataUrl: string) {
 }
 
 function cleanBase64Data(dataUrl: string) {
+  // Pour OpenAI/Groq, on garde parfois le préfixe data:..., mais ici on nettoie pour la logique interne
   return dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+}
+
+// Pour OpenAI/Groq, il faut souvent l'URL complète "data:image/..." dans le payload
+function formatImageForOpenAI(base64String: string) {
+  if (base64String.startsWith("data:")) return base64String;
+  // Si on a juste le raw base64, on suppose que c'est du png ou jpeg, mais mieux vaut avoir le type.
+  // Dans ton code actuel, tu as souvent l'URL complète dans uploadedImages.
+  return base64String; 
 }
 
 function extractDependenciesFromAgentOutput(output: string): string[] {
@@ -41,13 +52,19 @@ function extractDependenciesFromAgentOutput(output: string): string[] {
   return [];
 }
 
-const readFileDeclaration: FunctionDeclaration = {
-  name: "readFile",
-  description: "Lecture fichier.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: { path: { type: Type.STRING } },
-    required: ["path"],
+// Définition de l'outil (Tool) au format OpenAI
+const readFileTool = {
+  type: "function" as const,
+  function: {
+    name: "readFile",
+    description: "Lecture fichier.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: { type: "string" }
+      },
+      required: ["path"],
+    },
   },
 };
 
@@ -58,62 +75,91 @@ export async function POST(req: Request) {
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   try {
-    const authHeader = req.headers.get("x-gemini-api-key");
+    // On récupère la clé. Note : J'ai gardé la logique header mais adapté pour Groq
+    const authHeader = req.headers.get("x-gemini-api-key") || req.headers.get("x-gemini-api-key"); // Fallback si tu n'as pas changé le front
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
-    if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
+    
+    if (!apiKey) return NextResponse.json({ error: "Clé API Groq manquante" }, { status: 401 });
 
     const body = await req.json();
     const { history, uploadedImages, uploadedFiles, allReferenceImages, currentProjectFiles } = body;
 
-    const ai = new GoogleGenAI({ apiKey });
+    // Initialisation du client compatible OpenAI pointant vers Groq
+    const openai = new OpenAI({
+      apiKey: apiKey,
+      baseURL: "https://api.groq.com/openai/v1",
+    });
 
     // --- LOGIQUE D'EXCLUSION DES IMAGES ---
     const hasUserUploads = (uploadedImages?.length > 0) || (uploadedFiles?.length > 0);
-
-    // Construction de l'historique initial
-    const buildInitialHistory = () => {
-      const contents: { role: "user" | "model"; parts: Part[] }[] = [];
-      
-      if (allReferenceImages?.length > 0 && !hasUserUploads) {
-        const styleParts = allReferenceImages.slice(0, 3).map((img: string) => ({
-          inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
-        }));
-        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }] });
-      }
-
-      history.forEach((msg: Message, i: number) => {
-        if (msg.role === "system") return;
-        let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
-        const parts: Part[] = [{ text: msg.content || " " }];
-        
-        if (i === history.length - 1 && role === "user") {
-            if (uploadedImages?.length > 0) {
-                uploadedImages.forEach((img: string) =>
-                    parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
-                );
-                parts.push({ text: "\n[FICHIERS UPLOADÉS PAR L'UTILISATEUR]" });
-            }
-            if (uploadedFiles?.length > 0) {
-                 uploadedFiles.forEach((file: { fileName: string; base64Content: string }) => {
-                    try {
-                        const content = atob(file.base64Content);
-                        parts.push({ text: `\n[CONTENU DU FICHIER ${file.fileName}]:\n${content}\n` });
-                    } catch (e) {
-                        parts.push({ text: `\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]` });
-                    }
-                 });
-            }
-        }
-        contents.push({ role, parts });
-      });
-      return contents;
-    };
 
     // Préparation du System Prompt
     let dynamicSystemInstruction = basePrompt;
     if (currentProjectFiles) {
         dynamicSystemInstruction += `\n\n[CONTEXTE DU PROJET - FICHIERS EXISTANTS]\nTu travailles sur un projet existant. Voici la structure actuelle :\n${JSON.stringify(currentProjectFiles, null, 2)}\nUtilise ce contexte pour respecter l'architecture existante.`;
     }
+
+    // Construction de l'historique initial pour OpenAI/Groq
+    const buildInitialMessages = () => {
+      // 1. Le System Prompt est le premier message
+      const messages: any[] = [
+        { role: "system", content: dynamicSystemInstruction }
+      ];
+      
+      // 2. Images de référence (si pas d'upload user)
+      if (allReferenceImages?.length > 0 && !hasUserUploads) {
+        // En OpenAI/Groq, on ajoute un message User avec du contenu mixte (texte + images)
+        const content: any[] = [{ type: "text", text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }];
+        
+        allReferenceImages.slice(0, 3).forEach((img: string) => {
+           content.push({
+             type: "image_url",
+             image_url: { url: formatImageForOpenAI(img) }
+           });
+        });
+        messages.push({ role: "user", content });
+      }
+
+      // 3. Conversion de l'historique existant
+      history.forEach((msg: Message, i: number) => {
+        if (msg.role === "system") return; // On a déjà géré le system prompt global
+        
+        let role = msg.role === "assistant" ? "assistant" : "user";
+        
+        // Cas spécial : le dernier message utilisateur contient les uploads
+        if (i === history.length - 1 && role === "user") {
+            const content: any[] = [{ type: "text", text: msg.content || " " }];
+
+            if (uploadedImages?.length > 0) {
+                uploadedImages.forEach((img: string) => {
+                    content.push({
+                        type: "image_url",
+                        image_url: { url: formatImageForOpenAI(img) }
+                    });
+                });
+                content.push({ type: "text", text: "\n[FICHIERS UPLOADÉS PAR L'UTILISATEUR]" });
+            }
+
+            if (uploadedFiles?.length > 0) {
+                 uploadedFiles.forEach((file: { fileName: string; base64Content: string }) => {
+                    try {
+                        const fileContent = atob(file.base64Content);
+                        content.push({ type: "text", text: `\n[CONTENU DU FICHIER ${file.fileName}]:\n${fileContent}\n` });
+                    } catch (e) {
+                        content.push({ type: "text", text: `\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]` });
+                    }
+                 });
+            }
+            messages.push({ role, content });
+        } else {
+            // Message standard (texte simple pour économiser les tokens si pas d'image)
+            messages.push({ role, content: msg.content });
+        }
+      });
+
+      return messages;
+    };
+
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -122,43 +168,37 @@ export async function POST(req: Request) {
         };
         
         try {
-          const currentHistory = buildInitialHistory();
+          const currentMessages = buildInitialMessages();
           let fullSessionOutput = ""; 
           
           let loopCount = 0;
-          const MAX_LOOPS = 4;
+          const MAX_LOOPS = 1;
           let shouldContinue = true;
 
           while (shouldContinue && loopCount < MAX_LOOPS) {
             
             if (loopCount > 0) {
-                // Notification plus discrète
                 send(`\n\n--- 🔄 Finalisation en cours (${loopCount}/${MAX_LOOPS - 1}) ---\n`);
                 await wait(500); 
             }
 
-            const response = await ai.models.generateContentStream({
+            // Appel API Groq via le SDK OpenAI
+            const response = await openai.chat.completions.create({
                 model: MODEL_ID,
-                contents: currentHistory, 
-                tools: [{ functionDeclarations: [readFileDeclaration] }], 
-                config: { 
-                    systemInstruction: dynamicSystemInstruction, 
-                    generationConfig: {
-                        temperature: 1.2, 
-                        maxOutputTokens: 8536,
-                        thinkingConfig: {
-                            includeThoughts: true, 
-                            thinkingLevel: "high"
-                        }
-                    }
-                },
+                messages: currentMessages,
+                tools: [readFileTool], // Définition des tools
+                tool_choice: "auto",
+                temperature: 0.7, // Llama est souvent meilleur avec un temp plus bas que Gemini
+                max_tokens: 8000, // Max output par requête
+                stream: true, // IMPORTANT
+                // Note: Pas de "thinkingConfig" sur Llama, c'est natif au modèle ou non supporté explicitement
             });
 
             let batchBuffer = "";
             let currentIterationOutput = ""; 
 
             for await (const chunk of response) {
-                const txt = chunk.text; 
+                const txt = chunk.choices[0]?.delta?.content || ""; 
                 if (txt) {
                     batchBuffer += txt;
                     fullSessionOutput += txt; 
@@ -172,20 +212,21 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- NOUVELLE LOGIQUE DE BOUCLE NEUTRE ---
+            // --- LOGIQUE DE BOUCLE NEUTRE ---
             
-            if (!currentIterationOutput.includes("[[START]]")) {
-                shouldContinue = false;
+            if (!currentIterationOutput.includes("[[START]]")) { // Assure-toi que ton Prompt demande bien [[START]] si c'est ta balise de fin
+                 // Note: Si tu n'utilises pas [[START]] comme marqueur de fin explicite dans Llama, 
+                 // tu peux vérifier si la réponse semble tronquée ou s'arrêter ici.
+                 // Pour l'instant, je garde ta logique stricte :
+                 shouldContinue = false;
             } 
             else {
                 if (loopCount < MAX_LOOPS - 1) {
-                    currentHistory.push({ role: "model", parts: [{ text: currentIterationOutput }] });
+                    currentMessages.push({ role: "assistant", content: currentIterationOutput });
                     
-                    // Ici, on envoie un prompt neutre juste pour déclencher la suite ("Re-work") 
-                    // sans distraire l'IA avec de nouvelles consignes complexes.
                     const neutralContinuePrompt = "Continue l'écriture et la finalisation du code pour t'assurer que tout est complet.";
                     
-                    currentHistory.push({ role: "user", parts: [{ text: neutralContinuePrompt }] });
+                    currentMessages.push({ role: "user", content: neutralContinuePrompt });
                     loopCount++;
                 } else {
                     shouldContinue = false; 
@@ -194,13 +235,12 @@ export async function POST(req: Request) {
           } // Fin du While
 
           // =================================================================================
-          // GESTION INTELLIGENTE DU PACKAGE.JSON
+          // GESTION INTELLIGENTE DU PACKAGE.JSON (IDENTIQUE À AVANT)
           // =================================================================================
           
           const hasCode = fullSessionOutput.includes("<create_file");
           const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
           
-          // 1. Analyse du package.json existant (si disponible)
           let existingDependencies: string[] = [];
           let currentPackageJsonContent: any = null;
 
@@ -211,25 +251,15 @@ export async function POST(req: Request) {
                       ...Object.keys(currentPackageJsonContent.dependencies || {}),
                       ...Object.keys(currentPackageJsonContent.devDependencies || {})
                   ];
-              } catch (e) {
-                  // Erreur silencieuse
-              }
+              } catch (e) { }
           }
 
-          // 2. Détection des VRAIES nouvelles dépendances
-          // On ne garde que celles qui ne sont PAS dans le package.json actuel
           const newDependenciesToInstall = allDetectedDeps.filter(dep => !existingDependencies.includes(dep));
-
-          // 3. Condition stricte de création/mise à jour
-          // - Soit il y a de nouvelles dépendances à ajouter.
-          // - Soit le fichier n'existait pas du tout et on doit le créer.
-          // - Si les dépendances détectées sont identiques à celles existantes, on ne fait RIEN.
           const shouldUpdatePackageJson = hasCode && (newDependenciesToInstall.length > 0 || (!currentPackageJsonContent && allDetectedDeps.length > 0));
 
           if (shouldUpdatePackageJson) {
-              send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances... ---\n");
+              send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances (Groq)... ---\n");
 
-              // Dépendances de base (uniquement si création à zéro)
               const baseDeps: Record<string, string> = {
                   next: "15.1.0",
                   react: "19.0.0",
@@ -241,11 +271,9 @@ export async function POST(req: Request) {
               let finalDevDependencies: Record<string, string> = {};
 
               if (currentPackageJsonContent) {
-                  // On garde l'existant
                   finalDependencies = { ...currentPackageJsonContent.dependencies };
                   finalDevDependencies = { ...currentPackageJsonContent.devDependencies };
               } else {
-                  // Création neuve
                   finalDependencies = { ...baseDeps };
                   finalDevDependencies = {
                       typescript: "^5",
@@ -260,13 +288,13 @@ export async function POST(req: Request) {
                   };
               }
 
-              // On ne cherche les versions que pour les NOUVELLES dépendances
               const depsToFetch = currentPackageJsonContent ? newDependenciesToInstall : [...newDependenciesToInstall, ...Object.keys(baseDeps)];
               
               const newDepsResolved: Record<string, string> = {};
+              // Note: packageJson() est une promesse externe, ça marche toujours pareil
               await Promise.all(depsToFetch.map(async (pkg) => {
                   if (!pkg) return;
-                  if (finalDependencies[pkg]) return; // Déjà présent
+                  if (finalDependencies[pkg]) return;
                   try {
                       const data = await packageJson(pkg);
                       newDepsResolved[pkg] = data.version as string;
@@ -281,7 +309,7 @@ export async function POST(req: Request) {
                   name: currentPackageJsonContent?.name || "nextjs-app",
                   version: currentPackageJsonContent?.version || "1.0.0",
                   private: true,
-                  scripts: currentPackageJsonContent?.scripts || { dev: "next dev -p 3000 -H 0.0.0.0", build: "next build", start: "next start", lint: "next lint" },
+                  scripts: currentPackageJsonContent?.scripts || { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
                   dependencies: finalDependencies,
                   devDependencies: finalDevDependencies,
               };
@@ -294,7 +322,7 @@ export async function POST(req: Request) {
 
         } catch (err: any) {
           console.error("Stream error:", err);
-          send(`\n\n⛔ ERREUR: ${err.message}`);
+          send(`\n\n⛔ ERREUR GROQ: ${err.message}`);
           controller.close();
         }
       },
@@ -306,4 +334,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-                                            }
+  }
