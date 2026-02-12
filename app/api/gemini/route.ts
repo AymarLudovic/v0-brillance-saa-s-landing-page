@@ -8,7 +8,7 @@ const BATCH_SIZE = 128;
 // --- CHOIX DU MODÈLE GROQ ---
 // CORRECTION : On utilise le modèle VISION pour supporter les images uploadées.
 // Si tu utilises le 70b-versatile (texte seul) avec des images, ça plante (Erreur 400).
-const MODEL_ID = "meta-llama/llama-4-maverick-17b-128e-instruct"; 
+const MODEL_ID = "openai/gpt-oss-120b"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
