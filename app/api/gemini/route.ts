@@ -8,7 +8,7 @@ const BATCH_SIZE = 128;
 
 // --- CHOIX DU MODÈLE GROQ ---
 // On utilise le modèle VISION (90B) pour supporter les images et le code complexe.
-const MODEL_ID = "llama-3.2-90b-vision-preview"; 
+const MODEL_ID = "meta-llama/llama-4-scout-17b-16e-instruct"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
