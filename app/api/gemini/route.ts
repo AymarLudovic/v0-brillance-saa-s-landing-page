@@ -8,7 +8,7 @@ const BATCH_SIZE = 128;
 // --- CHOIX DU MODÈLE GROQ ---
 // Je te conseille vivement celui-ci pour la stabilité et le code.
 // Si tu veux utiliser un modèle Vision plus tard, change juste cet ID par "llama-3.2-90b-vision-preview"
-const MODEL_ID = "llama-3.3-70b-versatile"; 
+const MODEL_ID = "openai/gpt-oss-120b"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
