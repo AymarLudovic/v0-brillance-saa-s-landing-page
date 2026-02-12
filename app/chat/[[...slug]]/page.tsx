@@ -4189,31 +4189,22 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 
           
           
-
-
-              
-
-              
-
-                
-
-          
-          
-{messages.map((msg, index) => {
+     {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
+  // Note: isCopied n'était pas utilisé dans ton snippet précédent, je le garde au cas où tu l'utilises ailleurs
   const isCopied = copiedMessageIndex === index;
   
   return (
     <div
       key={index}
-      className={`flex flex-col items-start gap-3 ${msg.role === "user" ? "items-end" : "items-start"}`}
+      className={`flex flex-col gap-3 max-w-full ${msg.role === "user" ? "items-end" : "items-start"}`}
     >
       {/* Affichage de l'icône de l'assistant */}
       {msg.role === "assistant" && (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 select-none">
           <div className="h-3 w-3 bg-[#37322F] rounded-full hidden items-center justify-center">
-            <svg className="h-[18px] w-[18px] hidden" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="h-[18px] w-[18px] hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="12" cy="12" r="10" />
             </svg>
           </div>
@@ -4222,7 +4213,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           {loading && index === messages.length - 1 && (
           <div className="flex items-center gap-[3px]">
             <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
-            <svg className="h-[17px] w-[17px]" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
+            <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
           </div>
           )}
         </div>
@@ -4230,7 +4221,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       
       {/* Conteneur du message */}
       <div
-        className={`p-2 rounded-xl w-full relative ${
+        className={`p-2 rounded-xl w-full max-w-full relative overflow-hidden ${
           msg.role === "user"
             ? "bg-[#f6f4ec] text-[#212121] self-end border-[#37322F]"
             : "bg-none text-[#37322F] self-start"
@@ -4241,8 +4232,66 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           const isFileArtifact = artifact && (artifact.type === 'files');
           const isUrlArtifact = artifact && (artifact.type === 'url');
           const displayElements = [];
+
+          // Logique Artefact Code (Définie avant pour l'afficher en premier chez l'assistant)
+          const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+          const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
+          const isBuilding = isCreating || isEditing;
+          const totalItems = artifact?.parsedList?.length || 0;
+          const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
+          const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
+
+          // --- RENDU ARTEFACT "BUILDING CODE" (DROPDOWN) ---
+          if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0 && msg.role === "assistant") {
+             displayElements.push(
+                <details key="code-artifact-dropdown" className="group w-full mb-3 rounded-lg border border-[rgba(55,50,47,0.1)] bg-white/50 open:bg-white/80 transition-all duration-200" open={isBuilding}>
+                    <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none">
+                         <div className="flex items-center gap-2 text-[#37322F]">
+                            <span className={`${isBuilding ? 'animate-spin' : ''}`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
+                            </span>
+                            <span className="font-semibold text-sm">
+                                {isBuilding ? 'Building code...' : 'Code Generated'}
+                            </span>
+                            <span className="bg-[#f6f4ec] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[rgba(55,50,47,0.1)]">
+                                {artifact.parsedList.length} files
+                            </span>
+                         </div>
+                         <svg className="w-4 h-4 transform group-open:rotate-180 transition-transform duration-200 text-[#37322F]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                         </svg>
+                    </summary>
+                    <div className="px-3 pb-3 pt-0 border-t border-[rgba(55,50,47,0.05)]">
+                        <ul className="list-disc pl-5 w-[100%] space-y-1 mt-2">
+                            {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i) => {
+                                const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
+                                const statusText = item.type === 'create' 
+                                    ? (isCurrentlyStreaming ? 'Editing' : 'Edited')
+                                    : (isCurrentlyStreaming ? 'Editing' : 'edited');
+                                
+                                return (
+                                    <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
+                                        <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
+                                        <p className="font-semibold">{statusText}</p>
+                                        <span className="bg-[#f6f4ec] py-[3px] rounded-[8px] font-semibold px-[12px] truncate max-w-[200px]" title={item.path}>{item.path}</span>
+                                    </li>
+                                );
+                            })}
+                            {isBuilding ? (
+                                <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 mt-2">
+                                  <span className="animate-spin">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
+                                  </span>
+                                  <span className="font-semibold">{currentStatusText}...</span>
+                                </li>
+                            ) : null}
+                        </ul>
+                    </div>
+                </details>
+             );
+          }
           
-          // 🔥 LOGIQUE DE MASQUAGE (Split sur |||)
+          // 🔥 LOGIQUE DE NETTOYAGE DU TEXTE
           const contentForTextDisplay = rawTextContent.split('|||')[0];
 
           let finalContentToDisplay = contentForTextDisplay
@@ -4251,6 +4300,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
               .replace(/<plan>[\s\S]*?<\/plan>/g, '')
               .replace(/---[\s\S]*?---/g, '')
+              .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '') // Nettoyage de balises internes si elles fuient
+              .replace(/\n{3,}/g, '\n\n') // Correction des espaces vides excessifs
               .trim();
           
           const hasTextContent = finalContentToDisplay.length > 0;
@@ -4262,15 +4313,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               
               const userContent = (
                   <pre 
-                      className="whitespace-pre-wrap font-sans text-sm leading-relaxed"
-                      style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px`, overflow: 'hidden' }}
+                      className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full overflow-hidden"
+                      style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px` }}
                   >
                       {msg.content}
                   </pre>
               );
 
               displayElements.push(
-                  <div key="user-content-wrapper" className="relative">
+                  <div key="user-content-wrapper" className="relative w-full">
                       {userContent}
                       {!isExpanded && isLongMessage && (
                           <div 
@@ -4295,52 +4346,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               return displayElements; 
           }
           
-          // --- RENDU MESSAGE ASSISTANT (TEXTE) ---
+          // --- RENDU MESSAGE ASSISTANT (TEXTE - APRES ARTEFACT) ---
           if (hasTextContent) {
               displayElements.push(
-                  <pre key="text" className="whitespace-pre-wrap font-sans text-sm leading-relaxed mb-1">
+                  <pre key="text" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed mb-1 max-w-full overflow-x-hidden">
                       {finalContentToDisplay} 
                   </pre>
-              );
-          }
-
-          // --- LOGIQUE ARTEFACT ---
-          const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
-          const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
-          const isBuilding = isCreating || isEditing;
-          const totalItems = artifact?.parsedList?.length || 0;
-          const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
-          const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
-
-          if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0) {
-              const artifactClasses = hasTextContent ? "mt-1 pt-1 border-[rgba(55,50,47,0.1)]" : "pt-0";
-              displayElements.push(
-                  <div key="code-artifact" className={`border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
-                      <ul className="list-disc pl-5 w-[100%] space-y-1">
-                          {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i) => {
-                              const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
-                              const statusText = item.type === 'create' 
-                                  ? (isCurrentlyStreaming ? 'Editing' : 'Edited')
-                                  : (isCurrentlyStreaming ? 'Editing' : 'edited');
-                              
-                              return (
-                                  <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
-                                      <span><svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
-                                      <p className="font-semibold">{statusText}</p>
-                                      <span className="bg-[#f6f4ec] py-[3px] rounded-[8px] font-semibold px-[12px]">{item.path}</span>
-                                  </li>
-                              );
-                          })}
-                          {isBuilding ? (
-                              <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1">
-                                <span className="animate-spin">
-                                  <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
-                                </span>
-                                <span className="font-semibold">{currentStatusText}...</span>
-                              </li>
-                          ) : null}
-                      </ul>
-                  </div>
               );
           }
 
@@ -4357,7 +4368,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           
           return displayElements.length > 0 
                  ? displayElements 
-                 : <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{finalContentToDisplay}</pre>;
+                 : <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full">{finalContentToDisplay}</pre>;
         })()}
       </div>
       
@@ -4392,6 +4403,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
   );
 })}
+
+              
+
+              
+
+                
 
             
           
