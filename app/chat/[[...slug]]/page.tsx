@@ -2946,7 +2946,10 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
 
        
   
-  const sendChat = async (promptOverride?: string, projectContext?: any) => {
+    
+
+ 
+const sendChat = async (promptOverride?: string, projectContext?: any) => {
   const userPrompt = promptOverride || chatInput;
   // Utilise le projet passé en argument (si création) ou le projet actuel
   const activeProject = projectContext || currentProject;
@@ -3045,10 +3048,9 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
       console.error("Design load error", e); 
   }
 
-const randomVibes = await getRandomVibes(8);
+  const randomVibes = await getRandomVibes(8);
 
-if (randomVibes && randomVibes.length > 0) {
-        // On suppose que ta fonction addLog prend un string en paramètre
+  if (randomVibes && randomVibes.length > 0) {
         addLog(`images found: ${randomVibes.length} inspirations injected into context`);
   }
 
@@ -3074,25 +3076,18 @@ if (randomVibes && randomVibes.length > 0) {
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-
-        
-            
-
-
-res = await fetch("/api/gemini", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-    body: JSON.stringify({ 
-        history: historyForApi, 
-        currentProjectFiles,
-        uploadedImages,
-        uploadedFiles,
-        currentPlan,
-        allReferenceImages: randomVibes,
-    }),
-});
-
-
+        res = await fetch("/api/gemini", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
+            body: JSON.stringify({ 
+                history: historyForApi, 
+                currentProjectFiles,
+                uploadedImages,
+                uploadedFiles,
+                currentPlan,
+                allReferenceImages: randomVibes,
+            }),
+        });
 
         if (!res.ok || !res.body) throw new Error(`API failed: ${res.statusText}`);
         apiCallSuccessful = true;
@@ -3152,10 +3147,16 @@ res = await fetch("/api/gemini", {
         newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
       }
 
+      // MODIFICATION IMPORTANTE ICI : J'ai retiré le replace de [[START]] et [[FINISH]]
+      // pour que l'interface puisse les lire pendant le stream.
       let textWithoutArtifacts = text
-        .replace(inspirationUrlRegex, '').replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '').replace(FETCH_FILE_REGEX, '') 
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '').replace(PLAN_REGEX, '');
+        .replace(inspirationUrlRegex, '')
+        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+        .replace(FETCH_FILE_REGEX, '') 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
+        .replace(PLAN_REGEX, '');
+        // Note: Je n'enlève PAS [[START]] ou [[FINISH]] ici pour l'affichage conditionnel
 
       setMessages((prev) => prev.map(msg => 
         msg.id === assistantMsgId 
@@ -3164,9 +3165,18 @@ res = await fetch("/api/gemini", {
       ));
     }
 
-    let finalCleanText = text.replace(inspirationUrlRegex, '').replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '').replace(FETCH_FILE_REGEX, '') 
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '').replace(PLAN_REGEX, '');
+    // Nettoyage final pour l'enregistrement en historique (optionnel : tu peux laisser les tags si tu veux garder l'état)
+    let finalCleanText = text
+        .replace(inspirationUrlRegex, '')
+        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+        .replace(FETCH_FILE_REGEX, '') 
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
+        .replace(PLAN_REGEX, '');
+    
+    // Si tu veux que l'historique final soit propre, décommente la ligne ci-dessous. 
+    // Si tu veux que le rechargement de page garde la "mémoire" des loops, laisse-les.
+    // finalCleanText = finalCleanText.replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '').replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '');
 
     const finalArtifacts = extractFileArtifacts(text);
     finalAssistantMessage = {
@@ -4188,12 +4198,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
                 
           
-          
-     {messages.map((msg, index) => {
+          {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
-  // Note: isCopied n'était pas utilisé dans ton snippet précédent, je le garde au cas où tu l'utilises ailleurs
-  const isCopied = copiedMessageIndex === index;
   
   return (
     <div
@@ -4231,20 +4238,36 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           const rawTextContent = msg.content; 
           const isFileArtifact = artifact && (artifact.type === 'files');
           const isUrlArtifact = artifact && (artifact.type === 'url');
-          const displayElements = [];
 
-          // Logique Artefact Code (Définie avant pour l'afficher en premier chez l'assistant)
-          const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
-          const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
-          const isBuilding = isCreating || isEditing;
-          const totalItems = artifact?.parsedList?.length || 0;
-          const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
-          const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
+          // --- LOGIQUE DETECTION DES LOOPS ---
+          const hasStartTag = rawTextContent.includes('[[START]]');
+          const hasFinishTag = rawTextContent.includes('[[FINISH]]');
+          
+          // Logique: Afficher le texte si c'est le 1er message, OU si c'est la loop finale ([[FINISH]]), 
+          // OU si ce n'est pas une loop intermédiaire (donc pas de start tag du tout, ex: message normal)
+          // On masque le texte si on a un [[START]] mais PAS de [[FINISH]] et que ce n'est pas le tout premier message du chat.
+          const isFirstMessageOfChat = index === 1; // 0=User, 1=Assistant
+          let showText = true;
 
-          // --- RENDU ARTEFACT "BUILDING CODE" (DROPDOWN) ---
+          if (msg.role === "assistant") {
+             if (hasStartTag && !hasFinishTag && !isFirstMessageOfChat) {
+                 showText = false;
+             }
+          }
+
+          // --- PREPARATION DU COMPOSANT ARTEFACT (Building Code) ---
+          let codeArtifactComponent = null;
+
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0 && msg.role === "assistant") {
-             displayElements.push(
-                <details key="code-artifact-dropdown" className="group w-full mb-3 rounded-lg border border-[rgba(55,50,47,0.1)] bg-white/50 open:bg-white/80 transition-all duration-200" open={isBuilding}>
+             const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+             const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
+             const isBuilding = isCreating || isEditing;
+             const totalItems = artifact?.parsedList?.length || 0;
+             const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
+             const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
+
+             codeArtifactComponent = (
+                <details key="code-artifact-dropdown" className="group w-full mt-2 rounded-lg border border-[rgba(55,50,47,0.1)] bg-white/50 open:bg-white/80 transition-all duration-200" open={isBuilding}>
                     <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none">
                          <div className="flex items-center gap-2 text-[#37322F]">
                             <span className={`${isBuilding ? 'animate-spin' : ''}`}>
@@ -4263,7 +4286,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     </summary>
                     <div className="px-3 pb-3 pt-0 border-t border-[rgba(55,50,47,0.05)]">
                         <ul className="list-disc pl-5 w-[100%] space-y-1 mt-2">
-                            {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i) => {
+                            {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i: number) => {
                                 const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
                                 const statusText = item.type === 'create' 
                                     ? (isCurrentlyStreaming ? 'Editing' : 'Edited')
@@ -4277,31 +4300,32 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                                     </li>
                                 );
                             })}
-                            {isBuilding ? (
+                            {isBuilding && (
                                 <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 mt-2">
                                   <span className="animate-spin">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM..."/></svg>
                                   </span>
                                   <span className="font-semibold">{currentStatusText}...</span>
                                 </li>
-                            ) : null}
+                            )}
                         </ul>
                     </div>
                 </details>
              );
           }
           
-          // 🔥 LOGIQUE DE NETTOYAGE DU TEXTE
+          // --- NETTOYAGE DU TEXTE POUR AFFICHAGE ---
+          // On nettoie les tags artefact ET les tags de loop ([[START]]) pour ne pas les voir visuellement
           const contentForTextDisplay = rawTextContent.split('|||')[0];
-
           let finalContentToDisplay = contentForTextDisplay
               .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
               .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
               .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
               .replace(/<plan>[\s\S]*?<\/plan>/g, '')
               .replace(/---[\s\S]*?---/g, '')
-              .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '') // Nettoyage de balises internes si elles fuient
-              .replace(/\n{3,}/g, '\n\n') // Correction des espaces vides excessifs
+              .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '') // On le retire visuellement ici
+              .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '') // On le retire visuellement ici
+              .replace(/\n{3,}/g, '\n\n') 
               .trim();
           
           const hasTextContent = finalContentToDisplay.length > 0;
@@ -4320,7 +4344,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                   </pre>
               );
 
-              displayElements.push(
+              return (
                   <div key="user-content-wrapper" className="relative w-full">
                       {userContent}
                       {!isExpanded && isLongMessage && (
@@ -4330,24 +4354,26 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                               onClick={() => setExpandedMessageIndex(index)} 
                           >
                               <button className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
-                                  <ArrowUp className="h-3 w-3 inline-block mr-1 rotate-180" /> Expand
+                                  <svg className="h-3 w-3 inline-block mr-1 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 9l-7 7-7-7" /></svg> Expand
                               </button>
                           </div>
                       )}
                       {isExpanded && isLongMessage && (
                           <div className="flex justify-center mt-2">
                               <button onClick={() => setExpandedMessageIndex(null)} className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
-                                  <ArrowUp className="h-3 w-3 inline-block mr-1" /> Collapse
+                                  <svg className="h-3 w-3 inline-block mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 9l-7 7-7-7" /></svg> Collapse
                               </button>
                           </div>
                       )}
                   </div>
               );
-              return displayElements; 
           }
           
-          // --- RENDU MESSAGE ASSISTANT (TEXTE - APRES ARTEFACT) ---
-          if (hasTextContent) {
+          // --- RENDU MESSAGE ASSISTANT (ASSEMBLAGE) ---
+          const displayElements = [];
+
+          // 1. TEXTE (Visible seulement si loop 1, loop finale, ou pas de loop detectée)
+          if (hasTextContent && showText) {
               displayElements.push(
                   <pre key="text" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed mb-1 max-w-full overflow-x-hidden">
                       {finalContentToDisplay} 
@@ -4355,9 +4381,14 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               );
           }
 
-          // --- RENDU URL ARTIFACT ---
+          // 2. ARTEFACT CODE (En DESSOUS du texte)
+          if (codeArtifactComponent) {
+              displayElements.push(codeArtifactComponent);
+          }
+
+          // 3. URL ARTIFACT
           if (isUrlArtifact) {
-              const artifactClasses = hasTextContent ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+              const artifactClasses = (hasTextContent && showText) ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
               displayElements.push(
                   <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
                       <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
@@ -4366,9 +4397,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               );
           }
           
-          return displayElements.length > 0 
-                 ? displayElements 
-                 : <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full">{finalContentToDisplay}</pre>;
+          if (displayElements.length > 0) return displayElements;
+          // Fallback
+          return <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full">{finalContentToDisplay}</pre>;
+
         })()}
       </div>
       
@@ -4403,6 +4435,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
   );
 })}
+                
+          
+              
 
               
 
