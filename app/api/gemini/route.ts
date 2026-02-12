@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import OpenAI from "openai"; 
 import packageJson from 'package-json';
 import { basePrompt } from "@/lib/prompt";
 
 const BATCH_SIZE = 128;
 
 // --- CHOIX DU MODÈLE GROQ ---
-// CORRECTION : On utilise le modèle VISION pour supporter les images uploadées.
-// Si tu utilises le 70b-versatile (texte seul) avec des images, ça plante (Erreur 400).
-const MODEL_ID = "openai/gpt-oss-120b"; 
+// Je te conseille vivement celui-ci pour la stabilité et le code.
+// Si tu veux utiliser un modèle Vision plus tard, change juste cet ID par "llama-3.2-90b-vision-preview"
+const MODEL_ID = "llama-3.3-70b-versatile"; 
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   try {
-    const authHeader = req.headers.get("x-gemini-api-key") || req.headers.get("x-gemini-api-key");
+    const authHeader = req.headers.get("x-gemini-api-key") || req.headers.get("x-gemini-api-key"); 
     const apiKey = authHeader && authHeader !== "null" ? authHeader : process.env.GEMINI_API_KEY;
     
     if (!apiKey) return NextResponse.json({ error: "Clé API Groq manquante" }, { status: 401 });
@@ -90,72 +90,85 @@ export async function POST(req: Request) {
         dynamicSystemInstruction += `\n\n[CONTEXTE DU PROJET - FICHIERS EXISTANTS]\nTu travailles sur un projet existant. Voici la structure actuelle :\n${JSON.stringify(currentProjectFiles, null, 2)}\nUtilise ce contexte pour respecter l'architecture existante.`;
     }
 
+    // --- CORRECTION MAJEURE DANS LA CONSTRUCTION DES MESSAGES ---
     const buildInitialMessages = () => {
       const messages: any[] = [
         { role: "system", content: dynamicSystemInstruction }
       ];
       
-      // 2. Images de référence (si pas d'upload user)
+      // Gestion des images de référence
       if (allReferenceImages?.length > 0 && !hasUserUploads) {
-        const content: any[] = [{ type: "text", text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }];
+        // Pour les modèles Text-Only, on ne peut pas envoyer d'images.
+        // Si MODEL_ID contient "vision", on envoie le tableau, sinon on ignore les images pour éviter le crash.
+        const isVisionModel = MODEL_ID.includes("vision");
         
-        allReferenceImages.slice(0, 3).forEach((img: string) => {
-           content.push({
-             type: "image_url",
-             image_url: { url: formatImageForOpenAI(img) }
-           });
-        });
-        messages.push({ role: "user", content });
+        if (isVisionModel) {
+            const content: any[] = [{ type: "text", text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE) - MAX 3]" }];
+            allReferenceImages.slice(0, 3).forEach((img: string) => {
+               content.push({ type: "image_url", image_url: { url: formatImageForOpenAI(img) } });
+            });
+            messages.push({ role: "user", content });
+        } else {
+             // Si modèle texte, on prévient juste qu'il y a des refs mais on ne les envoie pas pour éviter l'erreur 400
+             messages.push({ role: "user", content: "[Note: L'utilisateur a des images de référence mais le modèle actuel ne supporte pas la vision.]" });
+        }
       }
 
-      // 3. Conversion de l'historique existant
       history.forEach((msg: Message, i: number) => {
-        if (msg.role === "system") return;
+        if (msg.role === "system") return; 
         
         let role = msg.role === "assistant" ? "assistant" : "user";
         
+        // Dernier message (contenant potentiellement les uploads)
         if (i === history.length - 1 && role === "user") {
-            const content: any[] = [{ type: "text", text: msg.content || " " }];
+            // On prépare le contenu sous forme de tableau d'abord
+            const contentArray: any[] = [{ type: "text", text: msg.content || " " }];
 
             if (uploadedImages?.length > 0) {
                 uploadedImages.forEach((img: string) => {
-                    content.push({
+                    contentArray.push({
                         type: "image_url",
                         image_url: { url: formatImageForOpenAI(img) }
                     });
                 });
-                content.push({ type: "text", text: "\n[FICHIERS UPLOADÉS PAR L'UTILISATEUR]" });
+                contentArray.push({ type: "text", text: "\n[FICHIERS UPLOADÉS PAR L'UTILISATEUR]" });
             }
 
             if (uploadedFiles?.length > 0) {
                  uploadedFiles.forEach((file: { fileName: string; base64Content: string }) => {
                     try {
                         const fileContent = atob(file.base64Content);
-                        content.push({ type: "text", text: `\n[CONTENU DU FICHIER ${file.fileName}]:\n${fileContent}\n` });
+                        contentArray.push({ type: "text", text: `\n[CONTENU DU FICHIER ${file.fileName}]:\n${fileContent}\n` });
                     } catch (e) {
-                        content.push({ type: "text", text: `\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]` });
+                        contentArray.push({ type: "text", text: `\n[FICHIER BINAIRE ${file.fileName} PRÉSENT]` });
                     }
                  });
             }
 
-            // CORRECTION CRITIQUE : Si le contenu ne contient que du texte, on l'envoie comme string simple.
-            // Cela évite l'erreur "messages[1].content must be a string" sur certains endpoints Groq.
-            const hasImages = content.some(c => c.type === "image_url");
-            if (!hasImages) {
-                // On fusionne tout le texte en une seule string
-                const fullText = content.map(c => c.text).join("");
-                messages.push({ role, content: fullText });
+            // --- LE FIX MAGIQUE ---
+            // On vérifie si on a VRAIMENT des images à envoyer
+            const hasActualImages = contentArray.some(item => item.type === "image_url");
+            
+            if (hasActualImages) {
+                // Si on a des images, on envoie le tableau (Risque d'erreur 400 si le modèle n'est pas Vision, mais nécessaire pour les images)
+                messages.push({ role, content: contentArray });
             } else {
-                messages.push({ role, content });
+                // S'il n'y a PAS d'images (juste du texte et des fichiers convertis en texte),
+                // ON CONVERTIT TOUT EN STRING SIMPLE.
+                // C'est ça qui empêche l'erreur "must be a string".
+                const fullString = contentArray.map(item => item.text || "").join("");
+                messages.push({ role, content: fullString });
             }
 
         } else {
+            // Messages historiques simples
             messages.push({ role, content: msg.content });
         }
       });
 
       return messages;
     };
+
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -181,13 +194,12 @@ export async function POST(req: Request) {
             const response = await openai.chat.completions.create({
                 model: MODEL_ID,
                 messages: currentMessages,
-                tools: [readFileTool],
+                tools: [readFileTool], 
                 tool_choice: "auto",
-                temperature: 0.7,
-                max_tokens: 8000,
-                stream: true,
-                // CORRECTION : Désactiver parallel_tool_calls stabilise souvent Groq Llama 3
-                parallel_tool_calls: false 
+                temperature: 0.7, 
+                max_tokens: 8000, 
+                stream: true, 
+                parallel_tool_calls: false // Sécurité pour Llama 3 sur Groq
             });
 
             let batchBuffer = "";
@@ -207,8 +219,9 @@ export async function POST(req: Request) {
                 }
             }
             if (batchBuffer.length > 0) send(batchBuffer);
+
             
-            if (!currentIterationOutput.includes("[[START]]")) {
+            if (!currentIterationOutput.includes("[[START]]")) { 
                  shouldContinue = false;
             } 
             else {
@@ -223,7 +236,8 @@ export async function POST(req: Request) {
             }
           } 
 
-          // --- LOGIQUE PACKAGE.JSON (INTACTE) ---
+          // --- PACKAGE.JSON LOGIC ---
+          
           const hasCode = fullSessionOutput.includes("<create_file");
           const allDetectedDeps = extractDependenciesFromAgentOutput(fullSessionOutput);
           
@@ -277,6 +291,7 @@ export async function POST(req: Request) {
               const depsToFetch = currentPackageJsonContent ? newDependenciesToInstall : [...newDependenciesToInstall, ...Object.keys(baseDeps)];
               
               const newDepsResolved: Record<string, string> = {};
+              
               await Promise.all(depsToFetch.map(async (pkg) => {
                   if (!pkg) return;
                   if (finalDependencies[pkg]) return;
@@ -319,4 +334,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-        }
+      }
