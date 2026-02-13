@@ -87,6 +87,8 @@ const AGENTS = {
     name: "BACKEND_LEAD",
     icon: "⚙️",
     prompt: `Tu es le LEAD BACKEND DEVELOPER.
+    Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
     
     TA RESPONSABILITÉ :
     Fournir une infrastructure de données (API + DB) qui fonctionne RÉELLEMENT.
@@ -107,7 +109,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
 
 
          pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
-    
+    Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
     Tu es responsable de la logique invisible.`,
   },
 
@@ -118,6 +121,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
     
     TA RESPONSABILITÉ :
     Protéger l'infrastructure.
+    Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
     
  ⛔ INTERDICTION : Pas de Frontend. Ils y a des agents feont end après toi qui vont se charger de générer l'entièreté du UI. Ne t'occupe pas de ça et
  ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
@@ -133,7 +138,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
     Repasse sur le code du Backend Lead.
     Si tu vois une faille, tu la combles. Si tu vois du code lent, tu l'optimises.
     Tu es le dernier rempart avant le client
-    
+    Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
          pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
     .`,
   },
@@ -142,6 +148,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
     name: "DEVOPS_BACKEND",
     icon: "📦",
     prompt: `Tu es le DEVOPS BACKEND.
+    Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
     
  ⛔ INTERDICTION : Pas de Frontend. Ils y a des agents feont end après toi qui vont se charger de générer l'entièreté du UI. Ne t'occupe pas de ça et
  ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
@@ -159,7 +167,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
  Le but c'est de réduire la consommation de tokens du client.
  Ne donne pas d'explication à l'utilisateur, liste juste les packages 
     (Ne mets QUE les paquets externes, pas 'fs' ou 'path')
-    
+    Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
          .` ,
   },
 
@@ -171,7 +180,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
     prompt: `Tu es un SENIOR SOFTWARE ENGINEER (Spécialisé React Core).
     Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
     pas d'analyse. car oui il y a un agent architecte quinas déjà fait le travail pour l'analyse. Tu peux même la voir dans le currentPlan.
-
+Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
     Les points absolue que tu dois éviter qui consomme énormément de tokens: 
  - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
  cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
@@ -237,7 +247,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
           pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
 
           IMPORTANT 🔥🚧🚨: Tu reçois directement les fichiers que kes agents backend ont aussi fait, tu dois t'assurer que ta logique UI fonctionne absolument avec toutes cette logique backend qui a été créé par ces agents.
-   
+   Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
     `,
   },
 
@@ -303,6 +314,9 @@ Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications 
 
     IMPORTANT 🔥🚧🚨: Tu reçois directement les fichiers que kes agents backend ont aussi fait, tu dois t'assurer que ta logique UI fonctionne absolument avec toutes cette logique backend qui a été créé par ces agents.
    Tu peux répondre à l'utilisateur, pour résumer tout ce qui as été fait pour son projet 
+   Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
     .`,
   },
 
@@ -403,7 +417,8 @@ Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications 
 
     Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
     le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
-    
+    Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  
     `,
   },
 };
