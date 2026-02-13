@@ -69,7 +69,24 @@ const AGENTS = {
     TON OUTPUT :
     Un plan technique complet. Tu décides de la stack, des patterns (MVC, Hexagonal?), et des flux de données.
     Tu peux répondre à l'utilisateur, pour le début 
-    Si le projet est complexe (Trading, SaaS), tu DOIS imposer une structure robuste.`,
+    Si le projet est complexe (Trading, SaaS), tu DOIS imposer une structure robuste.
+
+    Attention ta manière de t'inspirer avec l'utilisateur ce n'est pas de lui faire un long planning avec des listes plein astérisque etc, e' fait même ton rôle n'est pas vraiment architecte, ton rôle est principalement de discuter naturellement avec l'utilisateur
+    Pas lui sortir des listes techniques et longues inutilement et ce n'est pas as toi aussi de faire la liste des dépendances à installer.
+    Tu connais la manière dont je souhaite que tu t'exprime, j'ai bien défini ça dans le prompt d'instruction global je pense que tu le sais.
+
+
+    Aussi toujours avant de commencer à répondre à l'utilisateur tu vas devoir choisir l'un des trois mode suivant en les mettant au tout début de ton message afin de déclencher le mode. 
+    1- Mode chat only: il est le mode qui te permet de discuter avec l'utilisateur sans lancer le processus de développement et d'écriture de codes par les autres agents.
+    ce mode te permet de discuter avec l'utilisateur si il veut uniquement discuter, te parler, te poser des questions et bien d'autres. Tu dois détecté sa véritable intention.
+
+   Pour déclencher ce mot tu met ceci au début de ta réponse à chaque fois qu'il s'agit de ce contexte de chat: CLASSIFICATION: CHAT_ONLY
+
+   2- Mode Coding: ce mode lui permet de lancer le processus de codage, il se lance via: CLASSIFICATION: CODE_ACTION
+
+   3- Mode FIx error et add little fonctionnalités: ici ce mode permet de corriger les erreurs rencontrées dans le codes, et de faire les petites modifications demandées par l'utilisateur, c'est l'agent Fixer qui se charge de cela, tout cela sans vouloir lancer tout le mong processus de code des autres agents 
+   d'où son importance pour les petites modifications, ajouts, corrections: il s'active comme ceci: CLASSIFICATION: FIX_ACTION, au tout début de ta réponse aussi.
+`,
   },
 
   FIXER: {
@@ -106,7 +123,7 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
  Le but c'est de réduire la consommation de tokens du client.
  Tu ne peux pas répondre à l'utilisateur, ou parler dans le chat, concentre toi uniquement sur le code, sans donner d'explications de ce que tu vas et de ce que tu as fait à l'utilisateur.
  
-
+Ce n'est pas à toi de sortir la liste des dépendances à installer, c'est un autre agent qui va se charger de cela.
 
          pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
     Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
@@ -122,6 +139,7 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
     TA RESPONSABILITÉ :
     Protéger l'infrastructure.
     Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
+  Ce n'est pas à toi de sortir la liste des dépendances à installer, c'est un autre agent qui va se charger de cela.
   
     
  ⛔ INTERDICTION : Pas de Frontend. Ils y a des agents feont end après toi qui vont se charger de générer l'entièreté du UI. Ne t'occupe pas de ça et
@@ -188,6 +206,7 @@ Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications 
  Le but c'est de réduire la consommation de tokens du client.
   Tu ne peux pas répondre à l'utilisateur, ou parler dans le chat, concentre toi uniquement sur le code, sans donner d'explications de ce que tu vas et de ce que tu as fait à l'utilisateur.
  
+    Ce n'est pas à toi de sortir la liste des dépendances à installer, c'est un autre agent qui va se charger de cela.
     
     TA RESPONSABILITÉ :
     Tu construis le COEUR de l'interface. Structure, Logique et Fonctionnalité.
@@ -267,6 +286,7 @@ Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications 
  cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
  Le but c'est de réduire la consommation de tokens du client.
   Tu ne peux pas répondre à l'utilisateur, ou parler dans le chat, concentre toi uniquement sur le code, sans donner d'explications de ce que tu vas et de ce que tu as fait à l'utilisateur.
+ Ce n'est pas à toi de sortir la liste des dépendances à installer, c'est un autre agent qui va se charger de cela.
  
     
     TA RESPONSABILITÉ :
@@ -334,6 +354,7 @@ Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications 
  - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
  cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
  Le but c'est de réduire la consommation de tokens du client.
+ Ce n'est pas à toi de sortir la liste des dépendances à installer, c'est un autre agent qui va se charger de cela.
  
     ⛔ INTERDICTION : Pas de backend, pas d'analyse. car oui il y a un agent architecte quinas déjà fait le travail pour l'analyse. Tu peux même la voir dans le currentPlan.
     
@@ -434,15 +455,17 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
+    // On récupère tout le contexte nécessaire
     const { history, uploadedImages, allReferenceImages, currentPlan, currentProjectFiles, uploadedFiles } = body;
     const lastUserMessage = history.filter((m: Message) => m.role === "user").pop()?.content || "";
 
     const ai = new GoogleGenAI({ apiKey });
 
-    const buildFullHistory = () => {
+    // --- 1. FONCTION DE CONSTRUCTION D'HISTORIQUE ---
+    const buildFullHistory = (extraContext: string = "") => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // Contexte visuel global
+      // A. Contexte visuel global (Maquettes)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -450,32 +473,51 @@ export async function POST(req: Request) {
         contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE)]" }] });
       }
 
+      // B. Historique de conversation (Chat)
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
         
+        // Attacher les images uploadées au dernier message utilisateur
         if (i === history.length - 1 && role === "user" && uploadedImages?.length > 0) {
           uploadedImages.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
           );
-          parts.push({ text: "\n[FICHIERS UPLOADÉS]" });
+          parts.push({ text: "\n[FICHIERS UPLOADÉS PAR L'USER]" });
         }
         contents.push({ role, parts });
       });
+
+      // C. Injection du contexte technique accumulé (Le "Cerveau Partagé")
+      if (extraContext) {
+        contents.push({
+            role: "user",
+            parts: [{ text: `
+            \n\n=================================================
+            🧠 MÉMOIRE TECHNIQUE & CONTEXTE DU PROJET (CRITIQUE)
+            =================================================
+            Voici ce qui a été fait ou analysé par les autres agents jusqu'à présent.
+            Tu DOIS t'aligner parfaitement sur ces informations (noms de variables, endpoints API, structure de fichiers).
+            
+            ${extraContext}
+            =================================================
+            ` }]
+        });
+      }
+
       return contents;
     };
 
     const stream = new ReadableStream({
       async start(controller) {
+        // Fonction d'envoi vers le client
         send = (txt: string) => {
           let sanitized = txt
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
             .replace(/NO_BACKEND_CHANGES/gi, "");
           
-          // --- FIX CRITIQUE POUR L'EXTRACTION ---
-          // On retire les balises markdown de code (```xml, ```typescript, etc.) qui empêchent le client de détecter le XML.
-          // On ne retire pas tous les ``` car cela briserait les template literals dans le code JS/TS généré.
+          // Nettoyage des balises markdown code pour ne pas casser le parsing XML côté client
           sanitized = sanitized
             .replace(/```xml/gi, "")
             .replace(/```tsx/gi, "")
@@ -486,9 +528,14 @@ export async function POST(req: Request) {
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
+        // Suivi global des dépendances détectées par TOUS les agents
+        const globalDetectedPackages: Set<string> = new Set();
+
+        // --- EXÉCUTION D'UN AGENT ---
         async function runAgent(
             agentKey: keyof typeof AGENTS, 
-            briefing: string = "" 
+            specificInstruction: string = "",
+            projectContext: string = "" // Le contexte accumulé passé explicitement
         ) {
           const agent = AGENTS[agentKey];
           send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
@@ -497,41 +544,31 @@ export async function POST(req: Request) {
           let batchBuffer = "";
 
           try {
-            const contents = buildFullHistory();
+            // On construit l'historique en injectant le contexte accumulé
+            const contents = buildFullHistory(projectContext);
 
-            // CONTEXTE DE TRAVAIL
+            // Instructions spécifiques pour le job actuel
             contents.push({
                 role: "user",
                 parts: [{ text: `
-                === SITUATION ACTUELLE DU PROJET ===
+                === MISSION ACTUELLE (${agent.name}) ===
                 
-                TU ES : ${agent.name}
+                ${specificInstruction}
                 
-                ${briefing}
-                
-                TA MISSION :
-                Agis selon ton rôle. Tu as accès à l'output de TOUS les agents précédents (voir ci-dessus) pour assurer une cohérence parfaite (Front/Back connectés).
-                
-                IMPORTANT - FORMAT DE SORTIE :
-                Tu dois générer le code en utilisant STRICTEMENT ce format XML :
-                <create_file path="chemin/du/fichier.ext">
-                ... le code complet ici ...
-                </create_file>
-
-                RÈGLE D'OR : 
-                NE JAMAIS METTRE DE MARKDOWN (pas de \`\`\`) AUTOUR DE CES BALISES XML.
-                Écris le XML directement en texte brut, sinon le système de déploiement ne le verra pas.
-                Ne demande pas la permission. Fais ce qui est nécessaire.
+                RAPPEL FORMAT :
+                Utilise STRICTEMENT <create_file path="...">code...</create_file>.
+                PAS DE MARKDOWN autour du XML.
                 ` }]
             });
 
             const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ DE L'EXPERT ===\n${agent.prompt}`;
             
-            // Températures ajustées
+            // Températures ajustées selon le rôle
             let temperature = 0.5;
-            if (agentKey === "ARCHITECT") temperature = 0.3; 
-            if (agentKey === "FRONTEND_LOGIC") temperature = 0.6;
-            if (agentKey === "CODE_REVIEWER") temperature = 0.6;
+            if (agentKey === "ARCHITECT") temperature = 0.3; // Plus strict
+            if (agentKey === "FRONTEND_LOGIC") temperature = 0.4; // Logique précise
+            if (agentKey === "FRONTEND_VISUAL") temperature = 0.65; // Créativité
+            if (agentKey === "FIXER") temperature = 0.4; // Chirurgical
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
@@ -552,6 +589,12 @@ export async function POST(req: Request) {
               }
             }
             if (batchBuffer.length > 0) send(batchBuffer);
+
+            // --- COLLECTE DES DÉPENDANCES ---
+            // On scanne immédiatement la sortie de cet agent
+            const deps = extractDependenciesFromAgentOutput(fullAgentOutput);
+            deps.forEach(d => globalDetectedPackages.add(d));
+
             return fullAgentOutput;
 
           } catch (e: any) {
@@ -563,13 +606,13 @@ export async function POST(req: Request) {
 
         try {
           // --- VARIABLE D'ACCUMULATION (MÉMOIRE DU PROJET) ---
-          let projectAccumulatedHistory = "";
+          // C'est ici que l'on stocke tout ce que les agents disent pour les suivants
+          let fullProjectContext = "";
 
-          // --- 1. PHASE DE CONCEPTION ---
-          const architectOutput = await runAgent("ARCHITECT", "Analyse la demande utilisateur.");
+          // --- 1. PHASE DE CONCEPTION (ARCHITECTE) ---
+          const architectOutput = await runAgent("ARCHITECT", "Analyse la demande, identifie les besoins techniques et choisis la stratégie.", "");
           
-          // On ajoute le résultat au contexte global
-          projectAccumulatedHistory += `\n\n=== [1] RAPPORT ARCHITECTE ===\n${architectOutput}\n`;
+          fullProjectContext += `\n\n=== [RAPPORT ARCHITECTE] ===\n${architectOutput}\n`;
 
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
           const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; 
@@ -577,94 +620,164 @@ export async function POST(req: Request) {
           if (decision === "CHAT_ONLY") {
             controller.close();
             return;
-          } else if (decision === "FIX_ACTION") {
-            // Le fixer reçoit tout l'historique accumulé
-            await runAgent("FIXER", `CONTEXTE PRÉCÉDENT:\n${projectAccumulatedHistory}\n\nRapport bug: "${lastUserMessage}"`);
-            controller.close();
-            return;
-          } else if (decision === "CODE_ACTION") {
+          } 
+          
+          // --- BRANCHEMENT : FIXATION DE BUG ---
+          else if (decision === "FIX_ACTION") {
+            // Pour le Fixer, on doit lui donner l'état RÉEL des fichiers actuels
+            // Sinon il va halluciner des corrections sur du code qui n'est pas là.
+            let existingFilesContext = "FICHIERS ACTUELS DU PROJET :\n";
+            if (currentProjectFiles && Array.isArray(currentProjectFiles)) {
+                existingFilesContext += currentProjectFiles.map((f: any) => 
+                    `--- FICHIER: ${f.path} ---\n${f.content}\n`
+                ).join("\n");
+            }
+
+            const fixContext = `
+            ${fullProjectContext}
+            
+            ${existingFilesContext}
+            
+            MESSAGE UTILISATEUR (BUG/DEMANDE) : "${lastUserMessage}"
+            `;
+
+            await runAgent("FIXER", 
+                `Tu es un expert en debugging. Analyse les fichiers existants ci-dessus et la demande. 
+                Modifie UNIQUEMENT les fichiers nécessaires pour résoudre le problème. 
+                Ne réécris pas tout le projet. Sois chirurgical.`, 
+                fixContext
+            );
+            
+            // Note: Le Fixer a aussi rempli globalDetectedPackages s'il a ajouté des imports
+          } 
+          
+          // --- BRANCHEMENT : GÉNÉRATION DE CODE (NOUVELLE FEATURE) ---
+          else if (decision === "CODE_ACTION") {
             
             // --- 2. PHASE ENGINE (BACKEND) ---
-            const backend1 = await runAgent("BACKEND_LEAD", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== [2] CODE BACKEND V1 (Lead) ===\n${backend1}\n`;
+            // Le Backend Lead démarre avec le rapport de l'architecte
+            const backend1 = await runAgent("BACKEND_LEAD", "Génère la structure principale du backend (Routes, DB Schema).", fullProjectContext);
+            fullProjectContext += `\n\n=== [CODE BACKEND - V1 LEAD] ===\n${backend1}\n`;
 
-            const backend2 = await runAgent("BACKEND_SEC", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== [3] CODE BACKEND V2 (Securité) ===\n${backend2}\n`;
+            const backend2 = await runAgent("BACKEND_SEC", "Vérifie la sécurité, ajoute l'authentification si nécessaire et affine les types.", fullProjectContext);
+            fullProjectContext += `\n\n=== [CODE BACKEND - V2 SECURITY] ===\n${backend2}\n`;
 
-            const backendFinal = await runAgent("BACKEND_PKG", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== [4] CODE BACKEND FINAL (Package) ===\n${backendFinal}\n`;
+            // Back Final package
+            const backendFinal = await runAgent("BACKEND_PKG", "Finalise le code backend, prépare les exports.", fullProjectContext);
+            fullProjectContext += `\n\n=== [CODE BACKEND - FINAL] ===\n${backendFinal}\n`;
             
             const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
-            const backendContext = noBackend ? "Backend inchangé." : backendFinal;
 
             // --- 3. PHASE APPLICATION (FRONTEND) ---
-            // Le Frontend reçoit maintenant tout l'historique : Archi + Back V1 + Back V2 + Back Final
+            // C'EST ICI QUE LA MAGIE OPÈRE : Le Frontend reçoit TOUT le code Backend généré
+            // Il sait donc exactement quels endpoints appeler (/api/...) et quels types utiliser.
             
-            // A. Le Cerveau & Structure
-            const frontBrain = await runAgent("FRONTEND_LOGIC", `HISTORIQUE COMPLET (ARCHI + TOUT LE BACKEND):\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== [5] LOGIQUE FRONTEND ===\n${frontBrain}\n`;
+            const frontBrain = await runAgent("FRONTEND_LOGIC", 
+                `CONTEXTE CRITIQUE : Voici tout le code Backend qui vient d'être généré ci-dessus.
+                Tu dois créer la logique Frontend (Hooks, Fetching) qui se connecte PARFAITEMENT à ce Backend.
+                Ne crée pas d'endpoints imaginaires. Utilise ceux listés dans le contexte.`, 
+                fullProjectContext
+            );
+            fullProjectContext += `\n\n=== [LOGIQUE FRONTEND] ===\n${frontBrain}\n`;
             
-            // B. La Peau & Design
-            const frontSkin = await runAgent("FRONTEND_VISUAL", `HISTORIQUE DU PROJET:\n${projectAccumulatedHistory}\n\nINSTRUCTION: Applique le style (Tailwind) et rends l'UX fluide.`);
-            projectAccumulatedHistory += `\n\n=== [6] VISUEL FRONTEND ===\n${frontSkin}\n`;
+            const frontSkin = await runAgent("FRONTEND_VISUAL", 
+                `Applique le design (Tailwind/Lucide) sur la logique fournie. Rends l'interface magnifique et UX-friendly.`, 
+                fullProjectContext
+            );
+            fullProjectContext += `\n\n=== [VISUEL FRONTEND] ===\n${frontSkin}\n`;
 
             // --- 4. PHASE FINITION ---
-            const codeReviewed = await runAgent("CODE_REVIEWER", `HISTORIQUE COMPLET:\n${projectAccumulatedHistory}`);
-            projectAccumulatedHistory += `\n\n=== [7] REVUE DE CODE ===\n${codeReviewed}\n`;
+            const codeReviewed = await runAgent("CODE_REVIEWER", "Revue finale : Cherche les erreurs de syntaxe, les imports manquants et corrige.", fullProjectContext);
+            fullProjectContext += `\n\n=== [REVUE DE CODE] ===\n${codeReviewed}\n`;
 
-            const finalOutput = await runAgent("FRONTEND_PKG", `HISTORIQUE FINAL:\n${projectAccumulatedHistory}`);
+            // Dernier passage pour s'assurer que tout est propre
+            await runAgent("FRONTEND_PKG", "Dernier packaging si nécessaire.", fullProjectContext);
+          }
 
-            // --- 5. DEPENDENCIES ---
-            const backendDeps = extractDependenciesFromAgentOutput(backendFinal);
-            const frontendDeps = extractDependenciesFromAgentOutput(finalOutput);
-            const allDetectedDeps = Array.from(new Set([...backendDeps, ...frontendDeps]));
+          // --- 5. GESTION INTELLIGENTE DES DEPENDANCES (PACKAGE.JSON) ---
+          // On vérifie si on doit mettre à jour package.json
+          
+          const detectedDepsArray = Array.from(globalDetectedPackages);
+          
+          if (detectedDepsArray.length > 0) {
+            
+            // Dépendances de base toujours requises
+            const baseDeps: Record<string, string> = {
+                next: "15.1.0",
+                react: "19.0.0",
+                "react-dom": "19.0.0",
+                "lucide-react": "0.561.0",
+                ...currentProjectFiles?.["package.json"]?.dependencies // On garde les existantes si possible
+            };
+            
+            // DevDependencies de base (avec autoprefixer ajouté comme demandé)
+            const baseDevDeps: Record<string, string> = {
+                typescript: "^5",
+                "@types/node": "^20",
+                "@types/react": "^19",
+                "@types/react-dom": "^19",
+                postcss: "^8",
+                tailwindcss: "^3.4.1",
+                autoprefixer: "^10.4.19", // Ajouté
+                eslint: "^8",
+                "eslint-config-next": "15.0.3",
+                ...currentProjectFiles?.["package.json"]?.devDependencies
+            };
 
-            if (allDetectedDeps.length > 0 || !noBackend) {
-                send("\n\n--- 📦 [AUTO-INSTALL] Configuration des dépendances... ---\n");
+            const depsToAdd: Record<string, string> = {};
+            let hasNewPackages = false;
 
-                const baseDeps: Record<string, string> = {
-                    next: "15.1.0",
-                    react: "19.0.0",
-                    "react-dom": "19.0.0",
-                    "lucide-react": "0.561.0"
-                };
-                const newDeps: Record<string, string> = {};
+            // On compare ce qu'on a trouvé avec ce qui existe déjà
+            await Promise.all(detectedDepsArray.map(async (pkg) => {
+                if (!pkg) return;
+                
+                const existsInProd = baseDeps[pkg];
+                const existsInDev = baseDevDeps[pkg];
 
-                await Promise.all(allDetectedDeps.map(async (pkg) => {
-                    if (!pkg || baseDeps[pkg]) return;
+                // Si le package n'est nulle part, c'est un NOUVEAU package
+                if (!existsInProd && !existsInDev) {
+                    hasNewPackages = true;
                     try {
                         const data = await packageJson(pkg);
-                        newDeps[pkg] = data.version as string;
+                        depsToAdd[pkg] = data.version as string;
                     } catch (err) {
-                        newDeps[pkg] = "latest";
+                        depsToAdd[pkg] = "latest";
                     }
-                }));
+                }
+            }));
 
-                const finalDependencies = { ...baseDeps, ...newDeps };
+            // On ne génère le fichier package.json QUE si on a trouvé de nouvelles dépendances
+            // OU si le fichier n'existait pas du tout dans le projet.
+            const packageJsonExists = currentProjectFiles && currentProjectFiles.some((f: any) => f.path === "package.json");
+
+            if (hasNewPackages || !packageJsonExists) {
+                send("\n\n--- 📦 [AUTO-INSTALL] Mise à jour des dépendances... ---\n");
+
+                const finalDependencies = { ...baseDeps, ...depsToAdd };
+                
                 const packageJsonContent = {
-                    name: "nextjs-app",
+                    name: "vibe-coded-app",
                     version: "1.0.0",
                     private: true,
-                    scripts: { dev: "next dev -p 3000 -H 0.0.0.0", build: "next build", start: "next start", lint: "next lint" },
-                    dependencies: finalDependencies,
-                    devDependencies: {
-                        typescript: "^5",
-                        "@types/node": "^20",
-                        "@types/react": "^19",
-                        "@types/react-dom": "^19",
-                        postcss: "^8",
-                        tailwindcss: "^3.4.1",
-                        eslint: "^8",
-                        "eslint-config-next": "15.0.3"
+                    scripts: { 
+                        dev: "next dev", 
+                        build: "next build", 
+                        start: "next start", 
+                        lint: "next lint" 
                     },
+                    dependencies: finalDependencies,
+                    devDependencies: baseDevDeps,
                 };
 
                 const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
                 send(xmlOutput);
+            } else {
+                send("\n\n--- ✅ [DEP CHECK] Aucune nouvelle dépendance nécessaire. ---\n");
             }
-
-            controller.close();
           }
+
+          controller.close();
+
         } catch (err: any) {
           console.error("Workflow error:", err);
           send(`\n\n⛔ ERREUR CRITIQUE: ${err.message}`);
@@ -679,5 +792,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-    }
-                            
+            }
+
+            
+                                    
