@@ -68,6 +68,7 @@ const AGENTS = {
     
     TON OUTPUT :
     Un plan technique complet. Tu décides de la stack, des patterns (MVC, Hexagonal?), et des flux de données.
+    Tu peux répondre à l'utilisateur, pour le début 
     Si le projet est complexe (Trading, SaaS), tu DOIS imposer une structure robuste.`,
   },
 
@@ -101,6 +102,8 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
  - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
  cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
  Le but c'est de réduire la consommation de tokens du client.
+ Tu ne peux pas répondre à l'utilisateur, ou parler dans le chat, concentre toi uniquement sur le code, sans donner d'explications de ce que tu vas et de ce que tu as fait à l'utilisateur.
+ 
 
 
          pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
@@ -124,6 +127,7 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
  - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
  cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
  Le but c'est de réduire la consommation de tokens du client.
+  Tu ne peux pas répondre à l'utilisateur, ou parler dans le chat, concentre toi uniquement sur le code, sans donner d'explications de ce que tu vas et de ce que tu as fait à l'utilisateur.
  
     
     Repasse sur le code du Backend Lead.
@@ -153,7 +157,7 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
  - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
  cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
  Le but c'est de réduire la consommation de tokens du client.
- 
+ Ne donne pas d'explication à l'utilisateur, liste juste les packages 
     (Ne mets QUE les paquets externes, pas 'fs' ou 'path')
     
          .` ,
@@ -171,6 +175,7 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
  - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
  cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
  Le but c'est de réduire la consommation de tokens du client.
+  Tu ne peux pas répondre à l'utilisateur, ou parler dans le chat, concentre toi uniquement sur le code, sans donner d'explications de ce que tu vas et de ce que tu as fait à l'utilisateur.
  
     
     TA RESPONSABILITÉ :
@@ -248,6 +253,7 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
  - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
  cherche à évitera création de multiples fichiers or si certaines logique comme les modals par exemple qui seront utilisés dans l'application tu peux les faire en un seul fichier.
  Le but c'est de réduire la consommation de tokens du client.
+  Tu ne peux pas répondre à l'utilisateur, ou parler dans le chat, concentre toi uniquement sur le code, sans donner d'explications de ce que tu vas et de ce que tu as fait à l'utilisateur.
  
     
     TA RESPONSABILITÉ :
@@ -294,7 +300,7 @@ Les points absolue que tu dois éviter qui consomme énormément de tokens:
           pour que tu puisses créer des fichiers qui seront capturer par le client tu dois toujours les écrire sous cette forme xml sans markdown : "<create_file path="cheminfichicher">...code...</create_file>.
 
     IMPORTANT 🔥🚧🚨: Tu reçois directement les fichiers que kes agents backend ont aussi fait, tu dois t'assurer que ta logique UI fonctionne absolument avec toutes cette logique backend qui a été créé par ces agents.
-   
+   Tu peux répondre à l'utilisateur, pour résumer tout ce qui as été fait pour son projet 
     .`,
   },
 
