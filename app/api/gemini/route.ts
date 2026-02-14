@@ -455,53 +455,103 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "Clé API manquante" }, { status: 401 });
 
     const body = await req.json();
-    // On récupère tout le contexte nécessaire
-    const { history, uploadedImages, allReferenceImages, currentPlan, currentProjectFiles, uploadedFiles } = body;
+    
+    // --- 1. RÉCUPÉRATION DES DONNÉES ET ANALYSE D'IMAGE ---
+    /* imageAnalysis attendu du front: 
+       { 
+         dominantColors: ['#FF0000', '#00FF00'], 
+         accentColors: ['#0000FF'], 
+         textColor: '#000000',
+         backgroundColor: '#FFFFFF'
+       }
+    */
+    const { 
+      history, 
+      uploadedImages, 
+      allReferenceImages, 
+      currentProjectFiles, 
+      uploadedFiles,
+      imageAnalysis // <--- NOUVEAU: Données brutes de couleur/position envoyées par le front
+    } = body;
+    
     const lastUserMessage = history.filter((m: Message) => m.role === "user").pop()?.content || "";
-
     const ai = new GoogleGenAI({ apiKey });
 
-    // --- 1. FONCTION DE CONSTRUCTION D'HISTORIQUE ---
+    // --- 2. CONSTRUCTION DU CONTEXTE VISUEL STRICT (Colorimétrie) ---
+    // On force l'IA à utiliser CES codes hexadécimaux et pas d'autres.
+    let visualConstraints = "";
+    if (imageAnalysis) {
+        visualConstraints = `
+        === 🎨 CHARTE GRAPHIQUE IMPÉRATIVE (NE PAS INVENTER) ===
+        L'analyseur pixel a déterminé ces codes exacts. Utilise-les STRICTEMENT dans Tailwind (ex: bg-[#AABBCC]).
+        
+        - Couleur Principale (Primaire) : ${imageAnalysis.dominantColors?.[0] || "Non défini"}
+        - Couleur Secondaire : ${imageAnalysis.dominantColors?.[1] || "Non défini"}
+        - Couleur de Fond : ${imageAnalysis.backgroundColor || "white"}
+        - Couleur de Texte : ${imageAnalysis.textColor || "black"}
+        - Accents : ${imageAnalysis.accentColors?.join(", ") || "Non défini"}
+        
+        RÈGLE D'OR : Si tu dois appliquer une couleur, vérifie cette liste d'abord. N'utilise "blue-500" que si cela correspond à ces codes.
+        `;
+    }
+
+    // --- 3. SYSTÈME DE "COMPILATEUR VIRTUEL" (Validation sans agent) ---
+    // Ce prompt est injecté partout pour forcer une auto-correction avant écriture.
+    const VIRTUAL_COMPILER_RULES = `
+    === 🛡️ PROTOCOLE DE SÉCURITÉ DU CODE (COMPILATEUR VIRTUEL) ===
+    Tu agis comme un compilateur TypeScript strict. Avant d'écrire le moindre caractère de code, vérifie mentalement :
+    
+    1. 🚫 NO HALLUCINATED IMPORTS : N'importe JAMAIS un composant (ex: import { Button } from '@/components/ui/button') SI tu ne l'as pas créé toi-même ou s'il n'est pas listé dans le [FILE SYSTEM MANIFEST].
+       -> Si tu as besoin d'un bouton et qu'il n'existe pas : Crée-le ou utilise un <button> HTML standard.
+    
+    2. 🔗 COHÉRENCE DES EXPORTS : Si tu crées un fichier 'utils.ts' avec 'export const add...', n'essaie pas de l'importer avec 'export default' ailleurs.
+    
+    3. 📦 DEPENDENCIES CHECK : Pour 'lucide-react', n'utilise que les icônes standards (Menu, User, X, ChevronDown, etc.). Si tu as un doute sur une icône exotique, NE L'UTILISE PAS.
+    
+    4. 🧹 CLEANUP : Pas de code mort. Pas de 'console.log' oubliés. Pas de commentaires "TODO". Ferme toutes les balises JSX.
+    `;
+
+    // Initialisation du Manifeste des fichiers (Le "Linker")
+    // On le pré-remplit avec les fichiers existants pour que le Fixer sache ce qui existe.
+    const createdFilePaths = new Set<string>();
+    if (currentProjectFiles) {
+        currentProjectFiles.forEach((f: any) => createdFilePaths.add(f.path));
+    }
+
+    // --- 4. CONSTRUCTION DE L'HISTORIQUE ---
     const buildFullHistory = (extraContext: string = "") => {
       const contents: { role: "user" | "model"; parts: Part[] }[] = [];
       
-      // A. Contexte visuel global (Maquettes)
+      // Contexte visuel (Images)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
         }));
-        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE (MAQUETTES/STYLE)]" }] });
+        contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE]" }] });
       }
 
-      // B. Historique de conversation (Chat)
       history.forEach((msg: Message, i: number) => {
         if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
         const parts: Part[] = [{ text: msg.content || " " }];
         
-        // Attacher les images uploadées au dernier message utilisateur
         if (i === history.length - 1 && role === "user" && uploadedImages?.length > 0) {
           uploadedImages.forEach((img: string) =>
             parts.push({ inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) } })
           );
-          parts.push({ text: "\n[FICHIERS UPLOADÉS PAR L'USER]" });
+          parts.push({ text: "\n[FICHIERS UPLOADÉS]" });
         }
         contents.push({ role, parts });
       });
 
-      // C. Injection du contexte technique accumulé (Le "Cerveau Partagé")
+      // Injection du contexte technique
       if (extraContext) {
         contents.push({
             role: "user",
             parts: [{ text: `
-            \n\n=================================================
-            🧠 MÉMOIRE TECHNIQUE & CONTEXTE DU PROJET (CRITIQUE)
-            =================================================
-            Voici ce qui a été fait ou analysé par les autres agents jusqu'à présent.
-            Tu DOIS t'aligner parfaitement sur ces informations (noms de variables, endpoints API, structure de fichiers).
-            
+            \n\n=== 🧠 MÉMOIRE DU PROJET (CONTEXTE PARTAGÉ) ===
+            Ceci est la vérité absolue sur l'état du projet.
             ${extraContext}
-            =================================================
             ` }]
         });
       }
@@ -511,13 +561,11 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        // Fonction d'envoi vers le client
         send = (txt: string) => {
           let sanitized = txt
             .replace(/CLASSIFICATION:\s*(CHAT_ONLY|CODE_ACTION|FIX_ACTION)/gi, "")
             .replace(/NO_BACKEND_CHANGES/gi, "");
           
-          // Nettoyage des balises markdown code pour ne pas casser le parsing XML côté client
           sanitized = sanitized
             .replace(/```xml/gi, "")
             .replace(/```tsx/gi, "")
@@ -528,14 +576,13 @@ export async function POST(req: Request) {
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
-        // Suivi global des dépendances détectées par TOUS les agents
+        // Détection globale des packages pour le package.json final
         const globalDetectedPackages: Set<string> = new Set();
-
-        // --- EXÉCUTION D'UN AGENT ---
+        
         async function runAgent(
             agentKey: keyof typeof AGENTS, 
-            specificInstruction: string = "",
-            projectContext: string = "" // Le contexte accumulé passé explicitement
+            briefing: string = "",
+            projectContext: string = "" // Le contexte accumulé
         ) {
           const agent = AGENTS[agentKey];
           send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
@@ -544,31 +591,46 @@ export async function POST(req: Request) {
           let batchBuffer = "";
 
           try {
-            // On construit l'historique en injectant le contexte accumulé
             const contents = buildFullHistory(projectContext);
 
-            // Instructions spécifiques pour le job actuel
+            // Construction du "File System Manifest" à jour
+            // C'est ici qu'on empêche les hallucinations d'imports
+            const fileSystemState = Array.from(createdFilePaths).length > 0 
+                ? `FILES CURRENTLY EXIST IN PROJECT:\n${Array.from(createdFilePaths).join("\n")}`
+                : "NO FILES CREATED YET.";
+
+            // INSTRUCTION ULTIME POUR L'AGENT
             contents.push({
                 role: "user",
                 parts: [{ text: `
-                === MISSION ACTUELLE (${agent.name}) ===
+                === SITUATION & MISSION (${agent.name}) ===
                 
-                ${specificInstruction}
+                ${briefing}
                 
-                RAPPEL FORMAT :
-                Utilise STRICTEMENT <create_file path="...">code...</create_file>.
-                PAS DE MARKDOWN autour du XML.
+                === 📂 FILE SYSTEM MANIFEST (RÉALITÉ DU PROJET) ===
+                ${fileSystemState}
+                (Tu ne peux importer que ce qui est listé ci-dessus ou les librairies standards)
+
+                ${visualConstraints}
+                
+                ${VIRTUAL_COMPILER_RULES}
+                
+                FORMAT DE SORTIE OBLIGATOIRE :
+                <create_file path="chemin/fichier.ext">
+                ... code ...
+                </create_file>
+                (PAS DE MARKDOWN, PAS DE \`\`\`)
                 ` }]
             });
 
-            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ DE L'EXPERT ===\n${agent.prompt}`;
+            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ ===\n${agent.prompt}`;
             
-            // Températures ajustées selon le rôle
             let temperature = 0.5;
-            if (agentKey === "ARCHITECT") temperature = 0.3; // Plus strict
-            if (agentKey === "FRONTEND_LOGIC") temperature = 0.4; // Logique précise
-            if (agentKey === "FRONTEND_VISUAL") temperature = 0.65; // Créativité
-            if (agentKey === "FIXER") temperature = 0.4; // Chirurgical
+            // On réduit la température pour les agents qui doivent être rigoureux
+            if (agentKey === "BACKEND_LEAD" || agentKey === "BACKEND_SEC") temperature = 0.3; 
+            if (agentKey === "FRONTEND_LOGIC") temperature = 0.3; // Logique stricte
+            if (agentKey === "CODE_REVIEWER") temperature = 0.2; // Rigueur maximale
+            if (agentKey === "FIXER") temperature = 0.3;
 
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
@@ -590,8 +652,15 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- COLLECTE DES DÉPENDANCES ---
-            // On scanne immédiatement la sortie de cet agent
+            // --- AUTO-APPRENTISSAGE DU SYSTÈME DE FICHIERS ---
+            // On analyse la sortie pour voir quels fichiers ont été créés
+            // et on les ajoute au Manifeste pour les agents suivants.
+            const fileMatches = fullAgentOutput.matchAll(/<create_file path="(.*?)">/g);
+            for (const match of fileMatches) {
+                if (match[1]) createdFilePaths.add(match[1]);
+            }
+
+            // Capture des dépendances
             const deps = extractDependenciesFromAgentOutput(fullAgentOutput);
             deps.forEach(d => globalDetectedPackages.add(d));
 
@@ -605,14 +674,11 @@ export async function POST(req: Request) {
         }
 
         try {
-          // --- VARIABLE D'ACCUMULATION (MÉMOIRE DU PROJET) ---
-          // C'est ici que l'on stocke tout ce que les agents disent pour les suivants
-          let fullProjectContext = "";
+          let projectAccumulatedHistory = "";
 
-          // --- 1. PHASE DE CONCEPTION (ARCHITECTE) ---
-          const architectOutput = await runAgent("ARCHITECT", "Analyse la demande, identifie les besoins techniques et choisis la stratégie.", "");
-          
-          fullProjectContext += `\n\n=== [RAPPORT ARCHITECTE] ===\n${architectOutput}\n`;
+          // --- 1. PHASE DE CONCEPTION ---
+          const architectOutput = await runAgent("ARCHITECT", "Analyse la demande utilisateur.", "");
+          projectAccumulatedHistory += `\n\n=== [1] ARCHITECTE ===\n${architectOutput}\n`;
 
           const match = architectOutput.match(/CLASSIFICATION:\s*(CHAT_ONLY|FIX_ACTION|CODE_ACTION)/i);
           const decision = match ? match[1].toUpperCase() : "CHAT_ONLY"; 
@@ -620,164 +686,141 @@ export async function POST(req: Request) {
           if (decision === "CHAT_ONLY") {
             controller.close();
             return;
-          } 
-          
-          // --- BRANCHEMENT : FIXATION DE BUG ---
-          else if (decision === "FIX_ACTION") {
-            // Pour le Fixer, on doit lui donner l'état RÉEL des fichiers actuels
-            // Sinon il va halluciner des corrections sur du code qui n'est pas là.
-            let existingFilesContext = "FICHIERS ACTUELS DU PROJET :\n";
-            if (currentProjectFiles && Array.isArray(currentProjectFiles)) {
-                existingFilesContext += currentProjectFiles.map((f: any) => 
-                    `--- FICHIER: ${f.path} ---\n${f.content}\n`
-                ).join("\n");
+          } else if (decision === "FIX_ACTION") {
+            // FIXER CRITIQUE : Il doit voir le code actuel pour ne pas casser l'existant.
+            // On lui passe currentProjectFiles sous forme de texte brut.
+            let codeBaseContext = "";
+            if (currentProjectFiles) {
+                codeBaseContext = currentProjectFiles.map((f: any) => `\n--- FICHIER: ${f.path} ---\n${f.content}`).join("\n");
             }
-
-            const fixContext = `
-            ${fullProjectContext}
             
-            ${existingFilesContext}
-            
-            MESSAGE UTILISATEUR (BUG/DEMANDE) : "${lastUserMessage}"
-            `;
-
             await runAgent("FIXER", 
-                `Tu es un expert en debugging. Analyse les fichiers existants ci-dessus et la demande. 
-                Modifie UNIQUEMENT les fichiers nécessaires pour résoudre le problème. 
-                Ne réécris pas tout le projet. Sois chirurgical.`, 
-                fixContext
+                `CONTEXTE: L'utilisateur signale un bug. Voici les fichiers ACTUELS du projet.
+                Ne réécris pas tout. Modifie SEULEMENT ce qui doit l'être pour corriger le bug.
+                Vérifie bien tes imports.`,
+                `${projectAccumulatedHistory}\n\n=== CODEBASE ACTUELLE ===\n${codeBaseContext}\n\nRapport bug: "${lastUserMessage}"`
             );
+            controller.close();
+            return;
+          } else if (decision === "CODE_ACTION") {
             
-            // Note: Le Fixer a aussi rempli globalDetectedPackages s'il a ajouté des imports
-          } 
-          
-          // --- BRANCHEMENT : GÉNÉRATION DE CODE (NOUVELLE FEATURE) ---
-          else if (decision === "CODE_ACTION") {
-            
-            // --- 2. PHASE ENGINE (BACKEND) ---
-            // Le Backend Lead démarre avec le rapport de l'architecte
-            const backend1 = await runAgent("BACKEND_LEAD", "Génère la structure principale du backend (Routes, DB Schema).", fullProjectContext);
-            fullProjectContext += `\n\n=== [CODE BACKEND - V1 LEAD] ===\n${backend1}\n`;
+            // --- 2. BACKEND ---
+            const backend1 = await runAgent("BACKEND_LEAD", "Structure Backend.", projectAccumulatedHistory);
+            projectAccumulatedHistory += `\n\n=== [2] BACKEND LEAD ===\n${backend1}\n`;
 
-            const backend2 = await runAgent("BACKEND_SEC", "Vérifie la sécurité, ajoute l'authentification si nécessaire et affine les types.", fullProjectContext);
-            fullProjectContext += `\n\n=== [CODE BACKEND - V2 SECURITY] ===\n${backend2}\n`;
+            const backend2 = await runAgent("BACKEND_SEC", "Sécurité & Validation.", projectAccumulatedHistory);
+            projectAccumulatedHistory += `\n\n=== [3] BACKEND SEC ===\n${backend2}\n`;
 
-            // Back Final package
-            const backendFinal = await runAgent("BACKEND_PKG", "Finalise le code backend, prépare les exports.", fullProjectContext);
-            fullProjectContext += `\n\n=== [CODE BACKEND - FINAL] ===\n${backendFinal}\n`;
+            const backendFinal = await runAgent("BACKEND_PKG", "Packaging Backend.", projectAccumulatedHistory);
+            projectAccumulatedHistory += `\n\n=== [4] BACKEND FINAL ===\n${backendFinal}\n`;
             
             const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
-
-            // --- 3. PHASE APPLICATION (FRONTEND) ---
-            // C'EST ICI QUE LA MAGIE OPÈRE : Le Frontend reçoit TOUT le code Backend généré
-            // Il sait donc exactement quels endpoints appeler (/api/...) et quels types utiliser.
             
+            // --- 3. FRONTEND (Avec Manifeste à jour) ---
+            // À ce stade, createdFilePaths contient tous les fichiers backend créés.
+            // L'agent Front saura qu'il NE PEUT PAS importer "user.ts" s'il n'est pas dans la liste.
+
             const frontBrain = await runAgent("FRONTEND_LOGIC", 
-                `CONTEXTE CRITIQUE : Voici tout le code Backend qui vient d'être généré ci-dessus.
-                Tu dois créer la logique Frontend (Hooks, Fetching) qui se connecte PARFAITEMENT à ce Backend.
-                Ne crée pas d'endpoints imaginaires. Utilise ceux listés dans le contexte.`, 
-                fullProjectContext
+                `Génère la logique (Hooks/State). 
+                Connecte-toi au Backend ci-dessus. 
+                ATTENTION: N'invente pas de types ou d'API qui n'existent pas dans le backend.`, 
+                projectAccumulatedHistory
             );
-            fullProjectContext += `\n\n=== [LOGIQUE FRONTEND] ===\n${frontBrain}\n`;
+            projectAccumulatedHistory += `\n\n=== [5] FRONT LOGIC ===\n${frontBrain}\n`;
             
             const frontSkin = await runAgent("FRONTEND_VISUAL", 
-                `Applique le design (Tailwind/Lucide) sur la logique fournie. Rends l'interface magnifique et UX-friendly.`, 
-                fullProjectContext
+                `Applique le design (Tailwind) et le JSX.
+                Utilise les couleurs imposées par la charte graphique (voir instructions visuelles).`, 
+                projectAccumulatedHistory
             );
-            fullProjectContext += `\n\n=== [VISUEL FRONTEND] ===\n${frontSkin}\n`;
+            projectAccumulatedHistory += `\n\n=== [6] FRONT VISUAL ===\n${frontSkin}\n`;
 
-            // --- 4. PHASE FINITION ---
-            const codeReviewed = await runAgent("CODE_REVIEWER", "Revue finale : Cherche les erreurs de syntaxe, les imports manquants et corrige.", fullProjectContext);
-            fullProjectContext += `\n\n=== [REVUE DE CODE] ===\n${codeReviewed}\n`;
+            // --- 4. PHASE FINITION (Le compilateur humain) ---
+            const codeReviewed = await runAgent("CODE_REVIEWER", 
+                `MISSION: SCAN DE COHÉRENCE.
+                Parcours tout le code généré ci-dessus.
+                1. Vérifie que chaque import pointe vers un fichier qui existe vraiment (regarde le File System Manifest).
+                2. Vérifie qu'il n'y a pas d'erreurs de syntaxe JSX (balises non fermées).
+                3. Vérifie les exports.
+                Si tu trouves des erreurs, réécris SEULEMENT les fichiers corrigés.`, 
+                projectAccumulatedHistory
+            );
+            projectAccumulatedHistory += `\n\n=== [7] REVIEW ===\n${codeReviewed}\n`;
 
-            // Dernier passage pour s'assurer que tout est propre
-            await runAgent("FRONTEND_PKG", "Dernier packaging si nécessaire.", fullProjectContext);
-          }
+            const finalOutput = await runAgent("FRONTEND_PKG", "Finalisation.", projectAccumulatedHistory);
 
-          // --- 5. GESTION INTELLIGENTE DES DEPENDANCES (PACKAGE.JSON) ---
-          // On vérifie si on doit mettre à jour package.json
-          
-          const detectedDepsArray = Array.from(globalDetectedPackages);
-          
-          if (detectedDepsArray.length > 0) {
+            // --- 5. GESTION DES DÉPENDANCES (CUMULATIVE & INTELLIGENTE) ---
+            // On scanne package.json actuel + les détectés par TOUS les agents
             
-            // Dépendances de base toujours requises
+            // On ajoute explicitement autoprefixer
+            globalDetectedPackages.add("autoprefixer"); 
+
+            // Fusion des dépendances existantes (si on modifie un projet existant)
+            const existingDeps = currentProjectFiles?.find((f: any) => f.path === "package.json") 
+                ? JSON.parse(currentProjectFiles.find((f: any) => f.path === "package.json").content).dependencies || {}
+                : {};
+            
+            const existingDevDeps = currentProjectFiles?.find((f: any) => f.path === "package.json") 
+                ? JSON.parse(currentProjectFiles.find((f: any) => f.path === "package.json").content).devDependencies || {}
+                : {};
+
             const baseDeps: Record<string, string> = {
                 next: "15.1.0",
                 react: "19.0.0",
                 "react-dom": "19.0.0",
                 "lucide-react": "0.561.0",
-                ...currentProjectFiles?.["package.json"]?.dependencies // On garde les existantes si possible
+                ...existingDeps
             };
             
-            // DevDependencies de base (avec autoprefixer ajouté comme demandé)
-            const baseDevDeps: Record<string, string> = {
-                typescript: "^5",
-                "@types/node": "^20",
-                "@types/react": "^19",
-                "@types/react-dom": "^19",
-                postcss: "^8",
-                tailwindcss: "^3.4.1",
-                autoprefixer: "^10.4.19", // Ajouté
-                eslint: "^8",
-                "eslint-config-next": "15.0.3",
-                ...currentProjectFiles?.["package.json"]?.devDependencies
-            };
+            const newDeps: Record<string, string> = {};
+            const allDetectedDeps = Array.from(globalDetectedPackages);
 
-            const depsToAdd: Record<string, string> = {};
-            let hasNewPackages = false;
+            // Est-ce qu'on a de nouvelles choses ?
+            let newPackageNeeded = false;
 
-            // On compare ce qu'on a trouvé avec ce qui existe déjà
-            await Promise.all(detectedDepsArray.map(async (pkg) => {
-                if (!pkg) return;
-                
-                const existsInProd = baseDeps[pkg];
-                const existsInDev = baseDevDeps[pkg];
+            if (allDetectedDeps.length > 0 || !currentProjectFiles?.find((f:any) => f.path === "package.json")) {
+                send("\n\n--- 📦 [DEP CHECK] Analyse des dépendances... ---\n");
 
-                // Si le package n'est nulle part, c'est un NOUVEAU package
-                if (!existsInProd && !existsInDev) {
-                    hasNewPackages = true;
+                await Promise.all(allDetectedDeps.map(async (pkg) => {
+                    if (!pkg || baseDeps[pkg] || existingDevDeps[pkg]) return;
+                    
+                    // C'est un nouveau package !
+                    newPackageNeeded = true;
                     try {
                         const data = await packageJson(pkg);
-                        depsToAdd[pkg] = data.version as string;
+                        newDeps[pkg] = data.version as string;
                     } catch (err) {
-                        depsToAdd[pkg] = "latest";
+                        newDeps[pkg] = "latest";
                     }
+                }));
+
+                if (newPackageNeeded || !currentProjectFiles?.find((f:any) => f.path === "package.json")) {
+                     const finalDependencies = { ...baseDeps, ...newDeps };
+                     const packageJsonContent = {
+                        name: "app",
+                        version: "1.0.0",
+                        private: true,
+                        scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
+                        dependencies: finalDependencies,
+                        devDependencies: {
+                            typescript: "^5",
+                            "@types/node": "^20",
+                            "@types/react": "^19",
+                            "@types/react-dom": "^19",
+                            postcss: "^8",
+                            tailwindcss: "^3.4.1",
+                            eslint: "^8",
+                            "eslint-config-next": "15.0.3",
+                            ...existingDevDeps // On garde les devDeps existants
+                        },
+                    };
+                    const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
+                    send(xmlOutput);
                 }
-            }));
-
-            // On ne génère le fichier package.json QUE si on a trouvé de nouvelles dépendances
-            // OU si le fichier n'existait pas du tout dans le projet.
-            const packageJsonExists = currentProjectFiles && currentProjectFiles.some((f: any) => f.path === "package.json");
-
-            if (hasNewPackages || !packageJsonExists) {
-                send("\n\n--- 📦 [AUTO-INSTALL] Mise à jour des dépendances... ---\n");
-
-                const finalDependencies = { ...baseDeps, ...depsToAdd };
-                
-                const packageJsonContent = {
-                    name: "vibe-coded-app",
-                    version: "1.0.0",
-                    private: true,
-                    scripts: { 
-                        dev: "next dev", 
-                        build: "next build", 
-                        start: "next start", 
-                        lint: "next lint" 
-                    },
-                    dependencies: finalDependencies,
-                    devDependencies: baseDevDeps,
-                };
-
-                const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
-                send(xmlOutput);
-            } else {
-                send("\n\n--- ✅ [DEP CHECK] Aucune nouvelle dépendance nécessaire. ---\n");
             }
+
+            controller.close();
           }
-
-          controller.close();
-
         } catch (err: any) {
           console.error("Workflow error:", err);
           send(`\n\n⛔ ERREUR CRITIQUE: ${err.message}`);
@@ -792,7 +835,9 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-            }
+      }
 
+      
+              
             
-                                    
+                                        
