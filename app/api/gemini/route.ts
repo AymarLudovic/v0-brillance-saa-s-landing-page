@@ -148,6 +148,22 @@ Attempted import error: 'FuelStats' is not exported from './FuelStats' (imported
 
 S'il te plaît tu doit te rassurer que dans ton code que l'on ne trouve jamais, je dis biy jamais ces erreurs et tout autres du même type ou type similaire.
 
+5- 59:15] ./components/MainContent.tsx:185:35
+[23:59:15] Type error: Cannot find name 'Pause'. Did you mean 'onpause'?
+
+6-  obtenu cette erreur pendant l’action 'build'. Corrige-la :
+
+Failed to compile.
+
+./store/useLibraryStore.ts:62:26
+Type error: Type 'null' is not assignable to type 'string | undefined'.
+
+  60 |   setFilter: (activeFilter) => set({ activeFilter }),
+  61 |
+> 62 |   setView
+
+    Tu dois absolument t'efforcer à corriger et prévenir ces types d'erreurs et leurs variantes et à ne pas faire de long fichier tsx mais en utilisant des comportements 
+    car c'est plus facile 
 
 Ce n'est pas à toi de sortir la liste des dépendances à installer, c'est un autre agent qui va se charger de cela.
 
@@ -192,6 +208,22 @@ Attempted import error: 'FuelStats' is not exported from './FuelStats' (imported
 
 S'il te plaît tu doit te rassurer que dans ton code que l'on ne trouve jamais, je dis biy jamais ces erreurs et tout autres du même type ou type similaire.
 
+5- 59:15] ./components/MainContent.tsx:185:35
+[23:59:15] Type error: Cannot find name 'Pause'. Did you mean 'onpause'?
+
+6-  obtenu cette erreur pendant l’action 'build'. Corrige-la :
+
+Failed to compile.
+
+./store/useLibraryStore.ts:62:26
+Type error: Type 'null' is not assignable to type 'string | undefined'.
+
+  60 |   setFilter: (activeFilter) => set({ activeFilter }),
+  61 |
+> 62 |   setView
+
+    Tu dois absolument t'efforcer à corriger et prévenir ces types d'erreurs et leurs variantes et à ne pas faire de long fichier tsx mais en utilisant des comportements 
+    car c'est plus facile 
 
  ⛔ INTERDICTION : Pas de Frontend. Ils y a des agents feont end après toi qui vont se charger de générer l'entièreté du UI. Ne t'occupe pas de ça et
  ne  génère aucune analyse même ultra analyse, il y a un agent architecte qui s'occupe déjà de ça.
@@ -253,6 +285,22 @@ Attempted import error: 'FuelStats' is not exported from './FuelStats' (imported
 
 S'il te plaît tu doit te rassurer que dans ton code que l'on ne trouve jamais, je dis biy jamais ces erreurs et tout autres du même type ou type similaire.
 
+5- 59:15] ./components/MainContent.tsx:185:35
+[23:59:15] Type error: Cannot find name 'Pause'. Did you mean 'onpause'?
+
+6-  obtenu cette erreur pendant l’action 'build'. Corrige-la :
+
+Failed to compile.
+
+./store/useLibraryStore.ts:62:26
+Type error: Type 'null' is not assignable to type 'string | undefined'.
+
+  60 |   setFilter: (activeFilter) => set({ activeFilter }),
+  61 |
+> 62 |   setView
+
+    Tu dois absolument t'efforcer à corriger et prévenir ces types d'erreurs et leurs variantes et à ne pas faire de long fichier tsx mais en utilisant des comportements 
+    car c'est plus facile 
 
     Les points absolue que tu dois éviter qui consomme énormément de tokens: 
  - Écrire de long code ou réécrire de long fichiers, créer des icônes svg, etc, ton but aussi est de réduire le nombre de token vu que tu est un LLM
@@ -368,7 +416,22 @@ Attempted import error: 'FuelStats' is not exported from './FuelStats' (imported
 S'il te plaît tu doit te rassurer que dans ton code que l'on ne trouve jamais, je dis biy jamais ces erreurs et tout autres du même type ou type similaire.
 
 
-  
+  5- 59:15] ./components/MainContent.tsx:185:35
+[23:59:15] Type error: Cannot find name 'Pause'. Did you mean 'onpause'?
+
+6-  obtenu cette erreur pendant l’action 'build'. Corrige-la :
+
+Failed to compile.
+
+./store/useLibraryStore.ts:62:26
+Type error: Type 'null' is not assignable to type 'string | undefined'.
+
+  60 |   setFilter: (activeFilter) => set({ activeFilter }),
+  61 |
+> 62 |   setView
+
+    Tu dois absolument t'efforcer à corriger et prévenir ces types d'erreurs et leurs variantes et à ne pas faire de long fichier tsx mais en utilisant des comportements 
+    car c'est plus facile 
     `,
   },
 
@@ -463,7 +526,22 @@ Attempted import error: 'FuelStats' is not exported from './FuelStats' (imported
 
 S'il te plaît tu doit te rassurer que dans ton code que l'on ne trouve jamais, je dis biy jamais ces erreurs et tout autres du même type ou type similaire.
 
+5- 59:15] ./components/MainContent.tsx:185:35
+[23:59:15] Type error: Cannot find name 'Pause'. Did you mean 'onpause'?
 
+6-  obtenu cette erreur pendant l’action 'build'. Corrige-la :
+
+Failed to compile.
+
+./store/useLibraryStore.ts:62:26
+Type error: Type 'null' is not assignable to type 'string | undefined'.
+
+  60 |   setFilter: (activeFilter) => set({ activeFilter }),
+  61 |
+> 62 |   setView
+
+    Tu dois absolument t'efforcer à corriger et prévenir ces types d'erreurs et leurs variantes et à ne pas faire de long fichier tsx mais en utilisant des comportements 
+    car c'est plus facile 
     .`,
   },
 
@@ -565,6 +643,22 @@ Attempted import error: 'FuelStats' is not exported from './FuelStats' (imported
 
 S'il te plaît tu doit te rassurer que dans ton code que l'on ne trouve jamais, je dis biy jamais ces erreurs et tout autres du même type ou type similaire.
 
+5- 59:15] ./components/MainContent.tsx:185:35
+[23:59:15] Type error: Cannot find name 'Pause'. Did you mean 'onpause'?
+
+6-  obtenu cette erreur pendant l’action 'build'. Corrige-la :
+
+Failed to compile.
+
+./store/useLibraryStore.ts:62:26
+Type error: Type 'null' is not assignable to type 'string | undefined'.
+
+  60 |   setFilter: (activeFilter) => set({ activeFilter }),
+  61 |
+> 62 |   setView
+
+    Tu dois absolument t'efforcer à corriger et prévenir ces types d'erreurs et leurs variantes et à ne pas faire de long fichier tsx mais en utilisant des comportements 
+    car c'est plus facile 
 
      Tout les modals qui devront être créé et ainsi que l'ensemble de leurs fonctions, fonctionnalités et autres devront être créé  dans un même fichier. c'est le même principe pour tout le monde 
      pour éviter des multiples et multiples fichiers.
@@ -614,7 +708,22 @@ Attempted import error: 'FuelStats' is not exported from './FuelStats' (imported
 
 S'il te plaît tu doit te rassurer que dans ton code que l'on ne trouve jamais, je dis biy jamais ces erreurs et tout autres du même type ou type similaire.
 
+5- 59:15] ./components/MainContent.tsx:185:35
+[23:59:15] Type error: Cannot find name 'Pause'. Did you mean 'onpause'?
 
+6-  obtenu cette erreur pendant l’action 'build'. Corrige-la :
+
+Failed to compile.
+
+./store/useLibraryStore.ts:62:26
+Type error: Type 'null' is not assignable to type 'string | undefined'.
+
+  60 |   setFilter: (activeFilter) => set({ activeFilter }),
+  61 |
+> 62 |   setView
+
+    Tu dois absolument t'efforcer à corriger et prévenir ces types d'erreurs et leurs variantes et à ne pas faire de long fichier tsx mais en utilisant des comportements 
+    car c'est plus facile 
     Surtout ton format de sortie des dépendances que tu liste doivent être comme ceci DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"] et pas que tu créé un fichier non.. Mon client va capter
     le format suivant et extraire les dépendances lister DEPENDENCIES: ["framer-motion", "lucide-react", "clsx"]
     Surtout ne discute pas avec l'utilisateur, ne fait aucun message d'explications c'est un autre agent qui va se charger de ça, créé uniquement les fichiers, sans donner un autres messages, c'est un autre agent qui se chargera de ça.
