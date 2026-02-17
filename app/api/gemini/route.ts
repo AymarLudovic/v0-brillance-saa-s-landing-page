@@ -733,6 +733,13 @@ Type error: Type 'null' is not assignable to type 'string | undefined'.
 };
 
 
+
+
+
+
+
+
+
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
   let send: (txt: string) => void = () => {};
@@ -744,29 +751,18 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     
-    // --- 1. RÉCUPÉRATION DES DONNÉES ET ANALYSE D'IMAGE ---
-    /* imageAnalysis attendu du front: 
-       { 
-         dominantColors: ['#FF0000', '#00FF00'], 
-         accentColors: ['#0000FF'], 
-         textColor: '#000000',
-         backgroundColor: '#FFFFFF'
-       }
-    */
     const { 
       history, 
       uploadedImages, 
       allReferenceImages, 
       currentProjectFiles, 
       uploadedFiles,
-      imageAnalysis // <--- NOUVEAU: Données brutes de couleur/position envoyées par le front
+      imageAnalysis 
     } = body;
     
-    const lastUserMessage = history.filter((m: Message) => m.role === "user").pop()?.content || "";
-    const ai = new GoogleGenAI({ apiKey });
+    const lastUserMessage = history.filter((m: any) => m.role === "user").pop()?.content || "";
+    const ai = new GoogleGenAI({ apiKey }); // Remplace par ta vraie instanciation
 
-    // --- 2. CONSTRUCTION DU CONTEXTE VISUEL STRICT (Colorimétrie) ---
-    // On force l'IA à utiliser CES codes hexadécimaux et pas d'autres.
     let visualConstraints = "";
     if (imageAnalysis) {
         visualConstraints = `
@@ -783,8 +779,6 @@ export async function POST(req: Request) {
         `;
     }
 
-    // --- 3. SYSTÈME DE "COMPILATEUR VIRTUEL" (Validation sans agent) ---
-    // Ce prompt est injecté partout pour forcer une auto-correction avant écriture.
     const VIRTUAL_COMPILER_RULES = `
     === 🛡️ PROTOCOLE DE SÉCURITÉ DU CODE (COMPILATEUR VIRTUEL) ===
     Tu agis comme un compilateur TypeScript strict. Avant d'écrire le moindre caractère de code, vérifie mentalement :
@@ -799,18 +793,14 @@ export async function POST(req: Request) {
     4. 🧹 CLEANUP : Pas de code mort. Pas de 'console.log' oubliés. Pas de commentaires "TODO". Ferme toutes les balises JSX.
     `;
 
-    // Initialisation du Manifeste des fichiers (Le "Linker")
-    // On le pré-remplit avec les fichiers existants pour que le Fixer sache ce qui existe.
     const createdFilePaths = new Set<string>();
     if (currentProjectFiles) {
         currentProjectFiles.forEach((f: any) => createdFilePaths.add(f.path));
     }
 
-    // --- 4. CONSTRUCTION DE L'HISTORIQUE ---
     const buildFullHistory = (extraContext: string = "") => {
-      const contents: { role: "user" | "model"; parts: Part[] }[] = [];
+      const contents: { role: "user" | "model"; parts: any[] }[] = [];
       
-      // Contexte visuel (Images)
       if (allReferenceImages?.length > 0) {
         const styleParts = allReferenceImages.map((img: string) => ({
           inlineData: { data: cleanBase64Data(img), mimeType: getMimeTypeFromBase64(img) },
@@ -818,10 +808,10 @@ export async function POST(req: Request) {
         contents.push({ role: "user", parts: [...(styleParts as any), { text: "[DOCUMENTS DE RÉFÉRENCE]" }] });
       }
 
-      history.forEach((msg: Message, i: number) => {
+      history.forEach((msg: any, i: number) => {
         if (msg.role === "system") return;
         let role: "user" | "model" = msg.role === "assistant" ? "model" : "user";
-        const parts: Part[] = [{ text: msg.content || " " }];
+        const parts: any[] = [{ text: msg.content || " " }];
         
         if (i === history.length - 1 && role === "user" && uploadedImages?.length > 0) {
           uploadedImages.forEach((img: string) =>
@@ -832,7 +822,6 @@ export async function POST(req: Request) {
         contents.push({ role, parts });
       });
 
-      // Injection du contexte technique
       if (extraContext) {
         contents.push({
             role: "user",
@@ -864,13 +853,12 @@ export async function POST(req: Request) {
           if (sanitized) controller.enqueue(encoder.encode(sanitized));
         };
         
-        // Détection globale des packages pour le package.json final
         const globalDetectedPackages: Set<string> = new Set();
         
         async function runAgent(
             agentKey: keyof typeof AGENTS, 
             briefing: string = "",
-            projectContext: string = "" // Le contexte accumulé
+            projectContext: string = "" 
         ) {
           const agent = AGENTS[agentKey];
           send(`\n\n--- ${agent.icon} [${agent.name}] ---\n\n`);
@@ -881,13 +869,10 @@ export async function POST(req: Request) {
           try {
             const contents = buildFullHistory(projectContext);
 
-            // Construction du "File System Manifest" à jour
-            // C'est ici qu'on empêche les hallucinations d'imports
             const fileSystemState = Array.from(createdFilePaths).length > 0 
                 ? `FILES CURRENTLY EXIST IN PROJECT:\n${Array.from(createdFilePaths).join("\n")}`
                 : "NO FILES CREATED YET.";
 
-            // INSTRUCTION ULTIME POUR L'AGENT
             contents.push({
                 role: "user",
                 parts: [{ text: `
@@ -914,10 +899,9 @@ export async function POST(req: Request) {
             const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ ===\n${agent.prompt}`;
             
             let temperature = 0.5;
-            // On réduit la température pour les agents qui doivent être rigoureux
             if (agentKey === "BACKEND_LEAD" || agentKey === "BACKEND_SEC") temperature = 0.3; 
-            if (agentKey === "FRONTEND_LOGIC") temperature = 0.3; // Logique stricte
-            if (agentKey === "CODE_REVIEWER") temperature = 0.2; // Rigueur maximale
+            if (agentKey === "FRONTEND_LOGIC") temperature = 0.3; 
+            if (agentKey === "CODE_REVIEWER") temperature = 0.2; 
             if (agentKey === "FIXER") temperature = 0.3;
 
             const response = await ai.models.generateContentStream({
@@ -940,15 +924,11 @@ export async function POST(req: Request) {
             }
             if (batchBuffer.length > 0) send(batchBuffer);
 
-            // --- AUTO-APPRENTISSAGE DU SYSTÈME DE FICHIERS ---
-            // On analyse la sortie pour voir quels fichiers ont été créés
-            // et on les ajoute au Manifeste pour les agents suivants.
             const fileMatches = fullAgentOutput.matchAll(/<create_file path="(.*?)">/g);
             for (const match of fileMatches) {
                 if (match[1]) createdFilePaths.add(match[1]);
             }
 
-            // Capture des dépendances
             const deps = extractDependenciesFromAgentOutput(fullAgentOutput);
             deps.forEach(d => globalDetectedPackages.add(d));
 
@@ -964,7 +944,6 @@ export async function POST(req: Request) {
         try {
           let projectAccumulatedHistory = "";
 
-          // --- 1. PHASE DE CONCEPTION ---
           const architectOutput = await runAgent("ARCHITECT", "Analyse la demande utilisateur.", "");
           projectAccumulatedHistory += `\n\n=== [1] ARCHITECTE ===\n${architectOutput}\n`;
 
@@ -975,8 +954,6 @@ export async function POST(req: Request) {
             controller.close();
             return;
           } else if (decision === "FIX_ACTION") {
-            // FIXER CRITIQUE : Il doit voir le code actuel pour ne pas casser l'existant.
-            // On lui passe currentProjectFiles sous forme de texte brut.
             let codeBaseContext = "";
             if (currentProjectFiles) {
                 codeBaseContext = currentProjectFiles.map((f: any) => `\n--- FICHIER: ${f.path} ---\n${f.content}`).join("\n");
@@ -992,7 +969,6 @@ export async function POST(req: Request) {
             return;
           } else if (decision === "CODE_ACTION") {
             
-            // --- 2. BACKEND ---
             const backend1 = await runAgent("BACKEND_LEAD", "Structure Backend.", projectAccumulatedHistory);
             projectAccumulatedHistory += `\n\n=== [2] BACKEND LEAD ===\n${backend1}\n`;
 
@@ -1004,10 +980,6 @@ export async function POST(req: Request) {
             
             const noBackend = backendFinal.includes("NO_BACKEND_CHANGES");
             
-            // --- 3. FRONTEND (Avec Manifeste à jour) ---
-            // À ce stade, createdFilePaths contient tous les fichiers backend créés.
-            // L'agent Front saura qu'il NE PEUT PAS importer "user.ts" s'il n'est pas dans la liste.
-
             const frontBrain = await runAgent("FRONTEND_LOGIC", 
                 `Génère la logique (Hooks/State). 
                 Connecte-toi au Backend ci-dessus. 
@@ -1023,7 +995,6 @@ export async function POST(req: Request) {
             );
             projectAccumulatedHistory += `\n\n=== [6] FRONT VISUAL ===\n${frontSkin}\n`;
 
-            // --- 4. PHASE FINITION (Le compilateur humain) ---
             const codeReviewed = await runAgent("CODE_REVIEWER", 
                 `MISSION: SCAN DE COHÉRENCE.
                 Parcours tout le code généré ci-dessus.
@@ -1037,13 +1008,8 @@ export async function POST(req: Request) {
 
             const finalOutput = await runAgent("FRONTEND_PKG", "Finalisation.", projectAccumulatedHistory);
 
-            // --- 5. GESTION DES DÉPENDANCES (CUMULATIVE & INTELLIGENTE) ---
-            // On scanne package.json actuel + les détectés par TOUS les agents
-            
-            // On ajoute explicitement autoprefixer
             globalDetectedPackages.add("autoprefixer"); 
 
-            // Fusion des dépendances existantes (si on modifie un projet existant)
             const existingDeps = currentProjectFiles?.find((f: any) => f.path === "package.json") 
                 ? JSON.parse(currentProjectFiles.find((f: any) => f.path === "package.json").content).dependencies || {}
                 : {};
@@ -1063,7 +1029,6 @@ export async function POST(req: Request) {
             const newDeps: Record<string, string> = {};
             const allDetectedDeps = Array.from(globalDetectedPackages);
 
-            // Est-ce qu'on a de nouvelles choses ?
             let newPackageNeeded = false;
 
             if (allDetectedDeps.length > 0 || !currentProjectFiles?.find((f:any) => f.path === "package.json")) {
@@ -1071,8 +1036,6 @@ export async function POST(req: Request) {
 
                 await Promise.all(allDetectedDeps.map(async (pkg) => {
                     if (!pkg || baseDeps[pkg] || existingDevDeps[pkg]) return;
-                    
-                    // C'est un nouveau package !
                     newPackageNeeded = true;
                     try {
                         const data = await packageJson(pkg);
@@ -1099,13 +1062,16 @@ export async function POST(req: Request) {
                             tailwindcss: "^3.4.1",
                             eslint: "^8",
                             "eslint-config-next": "15.0.3",
-                            ...existingDevDeps // On garde les devDeps existants
+                            ...existingDevDeps 
                         },
                     };
                     const xmlOutput = `<create_file path="package.json">\n${JSON.stringify(packageJsonContent, null, 2)}\n</create_file>`;
                     send(xmlOutput);
                 }
             }
+
+            // INJECTION INFAILLIBLE DU SIGNAL DE FIN
+            send("\n[PAGE_DONE]\n");
 
             controller.close();
           }
@@ -1123,9 +1089,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: "Error: " + err.message }, { status: 500 });
   }
-      }
-
-      
-              
-            
-                                        
+    }
