@@ -1212,6 +1212,86 @@ const [deployResult, setDeployResult] = useState<string | null>(null); // URL ou
 // Référence pour le scroll des logs
 const logsEndRef = useRef<HTMLDivElement>(null);
 
+
+// 1. Déclarer ces états en haut de ton composant
+const [isSaaSMode, setIsSaaSMode] = useState(false);
+const [saasTodo, setSaasTodo] = useState<{name: string, status: 'pending' | 'building' | 'done'}[]>([]);
+
+// 2. La fonction liée à ton bouton "Activer Mode SaaS"
+const startBuildSaasMode = async (appDescription: string) => {
+  setIsSaaSMode(true);
+  setSaasTodo([]);
+  addLog("🚀 Lancement du Mode Build SaaS...");
+
+  // On force le CLASSIFICATION: CHAT_ONLY pour que l'API s'arrête juste après l'Architecte
+  const prompt = `Voici mon idée de SaaS : ${appDescription}. 
+  Génère UNIQUEMENT un plan strict sous format XML avec les pages à créer, au format exact :
+  <saas-pages>
+    <page>Dashboard</page>
+    <page>Settings</page>
+  </saas-pages>
+  N'ajoute aucun code. Ajoute OBLIGATOIREMENT "CLASSIFICATION: CHAT_ONLY" à la fin de ta réponse pour stopper la chaîne.`;
+  
+  const responseText = await sendChat(prompt);
+  
+  if (responseText) {
+    const saasPagesMatch = responseText.match(/<saas-pages>([\s\S]*?)<\/saas-pages>/);
+    if (saasPagesMatch) {
+       const pages = [...saasPagesMatch[1].matchAll(/<page>(.*?)<\/page>/g)].map(m => m[1]);
+       const todoList = pages.map(p => ({ name: p, status: 'pending' as const }));
+       setSaasTodo(todoList);
+       
+       addLog(`📋 Plan généré : ${pages.length} pages à construire. Début dans 3 secondes...`);
+       
+       // Lancement de la boucle après une pause
+       setTimeout(() => processNextSaasPage(todoList), 3000);
+    } else {
+       addLog("❌ Erreur: Le plan XML n'a pas été détecté.");
+       setIsSaaSMode(false);
+    }
+  }
+};
+
+// 3. L'Orchestrateur (La boucle de todo list)
+const processNextSaasPage = async (currentTodo: {name: string, status: 'pending' | 'building' | 'done'}[]) => {
+   const nextIndex = currentTodo.findIndex(p => p.status === 'pending');
+   
+   if (nextIndex === -1) {
+       addLog("🎉 SaaS Build Mode terminé ! Toutes les pages ont été générées.");
+       setIsSaaSMode(false);
+       return;
+   }
+
+   // Mise à jour de l'état : la page passe en "building"
+   const updatedTodo = [...currentTodo];
+   updatedTodo[nextIndex].status = 'building';
+   setSaasTodo(updatedTodo);
+
+   const pageName = updatedTodo[nextIndex].name;
+   addLog(`⚙️ Construction de la page : ${pageName}...`);
+
+   const prompt = `[MODE SAAS ACTIF] Construis l'intégralité de la page : "${pageName}". 
+   Crée les routes Backend, la logique Frontend et le Design. (CLASSIFICATION: CODE_ACTION)`;
+
+   const responseText = await sendChat(prompt);
+
+   // Vérification du mot-clé de fin infaillible
+   if (responseText?.includes('[PAGE_DONE]')) {
+       const finishedTodo = [...updatedTodo];
+       finishedTodo[nextIndex].status = 'done';
+       setSaasTodo(finishedTodo);
+       
+       addLog(`✅ Page ${pageName} terminée. Pause de 5 secondes pour refroidir les moteurs...`);
+       
+       // Pause avant d'appeler la page suivante
+       setTimeout(() => {
+           processNextSaasPage(finishedTodo);
+       }, 5000); 
+   } else {
+       addLog(`⚠️ La page ${pageName} n'a pas renvoyé le signal de fin. Mode SaaS interrompu par sécurité.`);
+       setIsSaaSMode(false);
+   }
+};
 // ----------------------
 // Fonctions de la Modal
 // ----------------------
@@ -2947,9 +3027,9 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
        
   
     
-
  
-const sendChat = async (promptOverride?: string, projectContext?: any) => {
+
+      const sendChat = async (promptOverride?: string, projectContext?: any): Promise<string | undefined> => {
   const userPrompt = promptOverride || chatInput;
   // Utilise le projet passé en argument (si création) ou le projet actuel
   const activeProject = projectContext || currentProject;
@@ -3147,16 +3227,15 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
         newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
       }
 
-      // MODIFICATION IMPORTANTE ICI : J'ai retiré le replace de [[START]] et [[FINISH]]
-      // pour que l'interface puisse les lire pendant le stream.
+      // MODIFICATION : Masquage propre du XML SaaS dans le chat pour une meilleure UX
       let textWithoutArtifacts = text
         .replace(inspirationUrlRegex, '')
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
         .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
         .replace(FETCH_FILE_REGEX, '') 
         .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
-        .replace(PLAN_REGEX, '');
-        // Note: Je n'enlève PAS [[START]] ou [[FINISH]] ici pour l'affichage conditionnel
+        .replace(PLAN_REGEX, '')
+        .replace(/<saas-pages>[\s\S]*?<\/saas-pages>/gs, '*(Génération du plan d\'architecture SaaS validée)*');
 
       setMessages((prev) => prev.map(msg => 
         msg.id === assistantMsgId 
@@ -3165,7 +3244,6 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
       ));
     }
 
-    // Nettoyage final pour l'enregistrement en historique (optionnel : tu peux laisser les tags si tu veux garder l'état)
     let finalCleanText = text
         .replace(inspirationUrlRegex, '')
         .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
@@ -3173,10 +3251,6 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
         .replace(FETCH_FILE_REGEX, '') 
         .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
         .replace(PLAN_REGEX, '');
-    
-    // Si tu veux que l'historique final soit propre, décommente la ligne ci-dessous. 
-    // Si tu veux que le rechargement de page garde la "mémoire" des loops, laisse-les.
-    // finalCleanText = finalCleanText.replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '').replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '');
 
     const finalArtifacts = extractFileArtifacts(text);
     finalAssistantMessage = {
@@ -3189,12 +3263,15 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
 
     if (urlArtifact) {
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      return; 
+      return finalCleanText; // Ajout du retour ici
     }
           
     if (finalArtifacts.length > 0) {
       applyArtifactsToProject(finalArtifacts);
     }
+    
+    return finalCleanText; // Le retour principal qui permet à la boucle de continuer
+    
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
     setMessages((prev) => prev.filter(m => m.id !== assistantMsgId));
@@ -3205,8 +3282,6 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
     setLoading(false);
   }
 };
-
-
   
         
         
