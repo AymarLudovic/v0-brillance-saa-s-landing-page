@@ -4273,7 +4273,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
                 
           
-          {messages.map((msg, index) => {
+              {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
   
@@ -4318,16 +4318,54 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           const hasStartTag = rawTextContent.includes('[[START]]');
           const hasFinishTag = rawTextContent.includes('[[FINISH]]');
           
-          // Logique: Afficher le texte si c'est le 1er message, OU si c'est la loop finale ([[FINISH]]), 
-          // OU si ce n'est pas une loop intermédiaire (donc pas de start tag du tout, ex: message normal)
-          // On masque le texte si on a un [[START]] mais PAS de [[FINISH]] et que ce n'est pas le tout premier message du chat.
-          const isFirstMessageOfChat = index === 1; // 0=User, 1=Assistant
+          const isFirstMessageOfChat = index === 1; 
           let showText = true;
 
           if (msg.role === "assistant") {
              if (hasStartTag && !hasFinishTag && !isFirstMessageOfChat) {
                  showText = false;
              }
+          }
+
+          // --- NOUVEAU : RENDU DE LA SAAS TODO LIST ---
+          let saasProgressComponent = null;
+          // On affiche la liste si on est en mode SaaS et qu'il y a des items
+          // On l'affiche sur le dernier message de l'assistant pour le suivi temps réel
+          if (isSaaSMode && saasTodo.length > 0 && msg.role === "assistant" && index === messages.length - 1) {
+            saasProgressComponent = (
+              <div key="saas-todo-list" className="mt-4 mb-4 p-4 rounded-xl border border-[#37322F]/10 bg-[#f6f4ec]/50 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#37322F]/60 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    SaaS Build Progress
+                  </h3>
+                  <span className="text-[10px] font-mono bg-[#37322F] text-white px-2 py-0.5 rounded">
+                    {saasTodo.filter(t => t.status === 'done').length} / {saasTodo.length}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {saasTodo.map((todo, tIdx) => (
+                    <div key={tIdx} className={`flex items-center justify-between p-2 rounded-lg border transition-all ${todo.status === 'building' ? 'bg-white border-[#37322F]/20 shadow-sm scale-[1.02]' : 'bg-transparent border-transparent'}`}>
+                      <div className="flex items-center gap-3">
+                        {todo.status === 'done' ? (
+                          <div className="bg-green-500 rounded-full p-0.5"><svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                        ) : todo.status === 'building' ? (
+                          <div className="w-4 h-4 border-2 border-[#37322F]/20 border-t-[#37322F] rounded-full animate-spin"></div>
+                        ) : (
+                          <div className="w-4 h-4 border-2 border-[#37322F]/10 rounded-full"></div>
+                        )}
+                        <span className={`text-sm font-medium ${todo.status === 'pending' ? 'text-[#37322F]/40' : 'text-[#37322F]'}`}>
+                          {todo.name}
+                        </span>
+                      </div>
+                      {todo.status === 'building' && (
+                        <span className="text-[10px] font-bold text-[#37322F] animate-pulse uppercase tracking-tighter">Processing Agents...</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
           }
 
           // --- PREPARATION DU COMPOSANT ARTEFACT (Building Code) ---
@@ -4346,7 +4384,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none">
                          <div className="flex items-center gap-2 text-[#37322F]">
                             <span className={`${isBuilding ? 'animate-spin' : ''}`}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41 1.41 1.41z"/></svg>
                             </span>
                             <span className="font-semibold text-sm">
                                 {isBuilding ? 'Building code...' : 'Code Generated'}
@@ -4364,8 +4402,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                             {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i: number) => {
                                 const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
                                 const statusText = item.type === 'create' 
-                                    ? (isCurrentlyStreaming ? 'Editing' : 'Edited')
-                                    : (isCurrentlyStreaming ? 'Editing' : 'edited');
+                                    ? (isCurrentlyStreaming ? 'Creating' : 'Created')
+                                    : (isCurrentlyStreaming ? 'Editing' : 'Edited');
                                 
                                 return (
                                     <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
@@ -4377,10 +4415,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                             })}
                             {isBuilding && (
                                 <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 mt-2">
-                                  <span className="animate-spin">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM..."/></svg>
+                                  <span className="animate-spin text-[#37322F]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4z"/></svg>
                                   </span>
-                                  <span className="font-semibold">{currentStatusText}...</span>
+                                  <span className="font-semibold text-xs tracking-tight">{currentStatusText}...</span>
                                 </li>
                             )}
                         </ul>
@@ -4390,16 +4428,17 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           }
           
           // --- NETTOYAGE DU TEXTE POUR AFFICHAGE ---
-          // On nettoie les tags artefact ET les tags de loop ([[START]]) pour ne pas les voir visuellement
           const contentForTextDisplay = rawTextContent.split('|||')[0];
           let finalContentToDisplay = contentForTextDisplay
               .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
               .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
               .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
               .replace(/<plan>[\s\S]*?<\/plan>/g, '')
+              .replace(/<saas-pages>[\s\S]*?<\/saas-pages>/g, '') // On masque le XML SaaS brut
               .replace(/---[\s\S]*?---/g, '')
-              .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '') // On le retire visuellement ici
-              .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '') // On le retire visuellement ici
+              .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '') 
+              .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '') 
+              .replace(/\[PAGE_DONE\]/g, '') // On masque aussi le mot clé de fin
               .replace(/\n{3,}/g, '\n\n') 
               .trim();
           
@@ -4456,12 +4495,17 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               );
           }
 
-          // 2. ARTEFACT CODE (En DESSOUS du texte)
+          // 2. NOUVEAU : SAAS TODO LIST (S'affiche dynamiquement)
+          if (saasProgressComponent) {
+              displayElements.push(saasProgressComponent);
+          }
+
+          // 3. ARTEFACT CODE (En DESSOUS du texte et de la Todo)
           if (codeArtifactComponent) {
               displayElements.push(codeArtifactComponent);
           }
 
-          // 3. URL ARTIFACT
+          // 4. URL ARTIFACT
           if (isUrlArtifact) {
               const artifactClasses = (hasTextContent && showText) ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
               displayElements.push(
@@ -4510,9 +4554,6 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
   );
 })}
-                
-          
-              
 
               
 
@@ -4805,6 +4846,52 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
          <svg className="h-[20px] w-[20px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
          <p>Plan</p>
 </button>
+
+
+{/* À placer juste au-dessus de ton <textarea> ou de ton input de chat */}
+<div className="flex items-center justify-between mb-2 px-1">
+  <div className="flex items-center gap-2">
+    <button
+      onClick={() => {
+        if (!isSaaSMode) {
+          // Si on l'active, on prévient l'utilisateur
+          addLog("🛠 Mode Architecte SaaS activé.");
+          startBuildSaasMode(chatInput);
+        } else {
+          setIsSaaSMode(false);
+          addLog("⏹ Mode SaaS interrompu.");
+        }
+      }}
+      disabled={loading}
+      className={`
+        flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-200
+        ${isSaaSMode 
+          ? 'bg-[#37322F] text-[#f6f4ec] border-[#37322F] shadow-md' 
+          : 'bg-white/50 text-[#37322F]/60 border-[rgba(55,50,47,0.1)] hover:border-[#37322F]/40'}
+      `}
+    >
+      {/* Petit indicateur d'état */}
+      <span className="relative flex h-2 w-2">
+        {isSaaSMode && (
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+        )}
+        <span className={`relative inline-flex rounded-full h-2 w-2 ${isSaaSMode ? 'bg-orange-500' : 'bg-gray-300'}`}></span>
+      </span>
+      
+      <span className="text-[10px] font-bold uppercase tracking-wider">
+        {isSaaSMode ? 'SaaS Build en cours...' : 'Activer Mode SaaS'}
+      </span>
+    </button>
+  </div>
+
+  {/* Affichage discret du nombre de fichiers si un projet est chargé */}
+  {currentProject && (
+    <span className="text-[10px] text-[#37322F]/40 font-medium">
+      Projet: {currentProject.name} ({currentProject.files.length} fichiers)
+    </span>
+  )}
+</div>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
         <Button
       className=" bg-[#37322F] mb-1 -ml-[8px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[30px] rounded-full flex items-center justify-center p-1"
       onClick={() => handleSmartSend()}
