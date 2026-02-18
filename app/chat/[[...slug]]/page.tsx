@@ -1232,19 +1232,23 @@ const startBuildSaasMode = async (appDescription: string) => {
   </saas-pages>
   N'ajoute aucun code. Ajoute OBLIGATOIREMENT "CLASSIFICATION: CHAT_ONLY" à la fin de ta réponse pour stopper la chaîne.`;
   
-  const responseText = await sendChat(prompt);
   
-  if (responseText) {
+
+    const result = await sendChat(prompt);
+  const responseText = result?.text;
+  
+
+    if (responseText) {
     const saasPagesMatch = responseText.match(/<saas-pages>([\s\S]*?)<\/saas-pages>/);
     if (saasPagesMatch) {
        const pages = [...saasPagesMatch[1].matchAll(/<page>(.*?)<\/page>/g)].map(m => m[1]);
        const todoList = pages.map(p => ({ name: p, status: 'pending' as const }));
        setSaasTodo(todoList);
        
-       addLog(`📋 Plan généré : ${pages.length} pages à construire. Début dans 3 secondes...`);
+       addLog(`📋 Plan généré : ${pages.length} pages à construire.`);
        
-       // Lancement de la boucle après une pause
-       setTimeout(() => processNextSaasPage(todoList), 3000);
+       // IMPORTANT : On passe le currentProject actuel pour démarrer la boucle
+       setTimeout(() => processNextSaasPage(todoList, currentProject), 3000);
     } else {
        addLog("❌ Erreur: Le plan XML n'a pas été détecté.");
        setIsSaaSMode(false);
@@ -1253,42 +1257,52 @@ const startBuildSaasMode = async (appDescription: string) => {
 };
 
 // 3. L'Orchestrateur (La boucle de todo list)
-const processNextSaasPage = async (currentTodo: {name: string, status: 'pending' | 'building' | 'done'}[]) => {
+
+
+const processNextSaasPage = async (
+    currentTodo: {name: string, status: 'pending' | 'building' | 'done'}[], 
+    accumulatedProjectContext: any // <--- NOUVEL ARGUMENT CRUCIAL
+) => {
    const nextIndex = currentTodo.findIndex(p => p.status === 'pending');
    
    if (nextIndex === -1) {
-       addLog("🎉 SaaS Build Mode terminé ! Toutes les pages ont été générées.");
+       addLog("🎉 SaaS Build Mode terminé !");
        setIsSaaSMode(false);
        return;
-   }
-
-   // Mise à jour de l'état : la page passe en "building"
-   const updatedTodo = [...currentTodo];
+                  }
+    const updatedTodo = [...currentTodo];
    updatedTodo[nextIndex].status = 'building';
    setSaasTodo(updatedTodo);
 
    const pageName = updatedTodo[nextIndex].name;
    addLog(`⚙️ Construction de la page : ${pageName}...`);
 
-   const prompt = `[MODE SAAS ACTIF] Construis l'intégralité de la page : "${pageName}". 
-   Crée les routes Backend, la logique Frontend et le Design. (CLASSIFICATION: CODE_ACTION)`;
+   const prompt = `[MODE SAAS ACTIF] Construis la page : "${pageName}"...`;
 
-   const responseText = await sendChat(prompt);
+    // IMPORTANT : On passe accumulatedProjectContext au lieu de laisser sendChat prendre le state React
+   const result = await sendChat(prompt, accumulatedProjectContext);
 
-   // Vérification du mot-clé de fin infaillible
+   // On récupère le texte ET le projet mis à jour
+   const responseText = result?.text;
+   const newProjectState = result?.updatedProject || accumulatedProjectContext; 
+
    if (responseText?.includes('[PAGE_DONE]')) {
        const finishedTodo = [...updatedTodo];
        finishedTodo[nextIndex].status = 'done';
        setSaasTodo(finishedTodo);
        
-       addLog(`✅ Page ${pageName} terminée. Pause de 5 secondes pour refroidir les moteurs...`);
+       addLog(`✅ Page ${pageName} terminée.`);
+
+    
        
-       // Pause avant d'appeler la page suivante
        setTimeout(() => {
-           processNextSaasPage(finishedTodo);
+           // ON PASSE LE "newProjectState" À LA PROCHAINE ITÉRATION
+           processNextSaasPage(finishedTodo, newProjectState);
        }, 5000); 
    } else {
+       // ... gestion erreur
        addLog(`⚠️ La page ${pageName} n'a pas renvoyé le signal de fin. Mode SaaS interrompu par sécurité.`);
+ 
        setIsSaaSMode(false);
    }
 };
@@ -3266,15 +3280,38 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
       return finalCleanText; // Ajout du retour ici
     }
           
+    // ... (tout le début reste identique)
+
+    // --- MODIFICATION ICI : Calcul du projet mis à jour pour la boucle SaaS ---
+    let updatedProjectForLoop = activeProject;
+
     if (finalArtifacts.length > 0) {
-      applyArtifactsToProject(finalArtifacts);
+      applyArtifactsToProject(finalArtifacts); // Mise à jour de l'état React (pour l'UI)
+
+      // On construit manuellement l'objet mis à jour pour le renvoyer immédiatement
+      const newFiles = finalArtifacts.map(a => ({ 
+          filePath: a.filePath, 
+          content: a.content || "", 
+          type: a.type 
+      }));
+      
+      // Fusion intelligente pour éviter les doublons (si modification de fichier existant)
+      const existingFilesMap = new Map(activeProject.files.map((f: any) => [f.filePath, f]));
+      newFiles.forEach(nf => existingFilesMap.set(nf.filePath, nf));
+      
+      updatedProjectForLoop = {
+          ...activeProject,
+          files: Array.from(existingFilesMap.values())
+      };
     }
     
-    return finalCleanText; // Le retour principal qui permet à la boucle de continuer
+    // On retourne un OBJET maintenant, plus juste une string
+    return { text: finalCleanText, updatedProject: updatedProjectForLoop };
     
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
     setMessages((prev) => prev.filter(m => m.id !== assistantMsgId));
+    return undefined; // Important de retourner undefined en cas d'erreur
   } finally {
     if (finalAssistantMessage) {
         setMessages((prev) => prev.map(msg => msg.id === assistantMsgId ? { ...finalAssistantMessage, id: assistantMsgId } : msg));
@@ -3282,7 +3319,6 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
     setLoading(false);
   }
 };
-  
         
         
     
