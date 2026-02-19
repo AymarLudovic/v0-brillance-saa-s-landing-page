@@ -1,4 +1,4 @@
-"use client"
+il"use client"
 
 import React from "react"
 import  { useState, useRef, useEffect, useMemo, useCallback } from "react"
@@ -117,6 +117,155 @@ interface FileArtifact {
   content: string; // Contient soit le code complet, soit le JSON des changements
 }
 
+
+// ─── Types et parseur des phases de progression ───────────────────────────────
+interface PhaseInfo {
+  id: string;
+  label: string;
+  status: "processing" | "done" | "error";
+  detail?: string;
+}
+
+function parsePhaseBlocks(rawText: string): {
+  phases: PhaseInfo[];
+  cleanText: string;
+} {
+  const phaseMap = new Map<string, PhaseInfo>();
+
+  // On itère sur tous les blocs <div data-phase-id="..."> du stream
+  const blockRegex =
+    /<div\s+data-phase-id="([^"]+)"[^>]*>([\s\S]*?)<\/div>/g;
+  let match;
+
+  while ((match = blockRegex.exec(rawText)) !== null) {
+    const id = match[1];
+    const fullBlock = match[0];
+
+    // Détermine le statut depuis la couleur de la bordure gauche injectée par le serveur
+    const isDone = fullBlock.includes("#22c55e");
+    const isError = fullBlock.includes("#ef4444");
+    const status: PhaseInfo["status"] = isError
+      ? "error"
+      : isDone
+      ? "done"
+      : "processing";
+
+    // Extrait le label (span avec font-weight:600)
+    const labelMatch = fullBlock.match(
+      /font-weight:600[^>]*>\s*([^<]{2,}?)\s*<\/span>/
+    );
+    const label = labelMatch ? labelMatch[1].trim() : id;
+
+    // Extrait le détail (span avec color:#9ca3af)
+    const detailMatch = fullBlock.match(
+      /color:#9ca3af[^>]*>\s*([^<]+?)\s*<\/span>/
+    );
+    const detail = detailMatch ? detailMatch[1].trim() : undefined;
+
+    // On garde toujours la version la plus récente du bloc (done écrase processing)
+    const existing = phaseMap.get(id);
+    if (!existing || existing.status === "processing") {
+      phaseMap.set(id, { id, label, status, detail });
+    }
+  }
+
+  // Supprime tous les blocs HTML de phase + les balises <script> du texte affiché
+  const cleanText = rawText
+    .replace(/<div\s+data-phase-id="[^"]*"[\s\S]*?<\/div>/g, "")
+    .replace(/<script>[\s\S]*?<\/script>/g, "")
+    .trim();
+
+  return { phases: Array.from(phaseMap.values()), cleanText };
+}
+
+// ─── Composant React d'une phase — respecte ta charte #37322F / #f6f4ec ─────
+function PhaseCard({ phase }: { phase: PhaseInfo }) {
+  const isProcessing = phase.status === "processing";
+  const isDone = phase.status === "done";
+  const isError = phase.status === "error";
+
+  const borderColor = isDone
+    ? "#22c55e"
+    : isError
+    ? "#ef4444"
+    : "#6366f1";
+
+  const textColor = isDone
+    ? "text-green-600"
+    : isError
+    ? "text-red-500"
+    : "text-indigo-500";
+
+  const statusLabel = isDone ? "Terminé" : isError ? "Erreur" : "En cours...";
+
+  return (
+    <div
+      className="flex items-center gap-2.5 px-3 py-2 my-1 rounded-lg text-[#37322F] text-xs font-medium"
+      style={{
+        background: "rgba(55,50,47,0.04)",
+        border: "1px solid rgba(55,50,47,0.08)",
+        borderLeft: `3px solid ${borderColor}`,
+      }}
+    >
+      {/* Icône de statut */}
+      <span className={`flex-shrink-0 ${textColor}`}>
+        {isProcessing ? (
+          <svg
+            className="w-3.5 h-3.5 animate-spin"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 12a9 9 0 1 1-6.219-8.56"
+            />
+          </svg>
+        ) : isDone ? (
+          <svg
+            className="w-3.5 h-3.5"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        ) : (
+          <svg
+            className="w-3.5 h-3.5"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+          </svg>
+        )}
+      </span>
+
+      {/* Label */}
+      <span className="flex-1 font-semibold">{phase.label}</span>
+
+      {/* Statut */}
+      <span className={`font-medium ${textColor}`}>{statusLabel}</span>
+
+      {/* Détail optionnel */}
+      {phase.detail && (
+        <span className="text-[#37322F]/40 text-[10px] font-normal ml-1">
+          {phase.detail}
+        </span>
+      )}
+    </div>
+  );
+}
 /**
  * Extrait les balises de création/modification de fichiers (<create_file> et <file_changes>)
  * d'une chaîne de texte streamée.
@@ -3041,11 +3190,8 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
        
   
     
- 
-
-      const sendChat = async (promptOverride?: string, projectContext?: any): Promise<string | undefined> => {
+ const sendChat = async (promptOverride?: string, projectContext?: any): Promise<string | undefined> => {
   const userPrompt = promptOverride || chatInput;
-  // Utilise le projet passé en argument (si création) ou le projet actuel
   const activeProject = projectContext || currentProject;
 
   if (!userPrompt && uploadedImages.length === 0 && uploadedFiles.length === 0 && mentionedFiles.length === 0) return;
@@ -3054,7 +3200,7 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
     return;
   }
 
-  const assistantMsgId = crypto.randomUUID(); // Identifiant unique pour la bulle assistant
+  const assistantMsgId = crypto.randomUUID();
 
   let contextForPrompt = "";
   if (mentionedFiles.length > 0 && activeProject) {
@@ -3068,57 +3214,59 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
     artifactData: { type: null, rawJson: "", parsedList: [] },
     images: uploadedImages,
     externalFiles: uploadedFiles,
-    mentionedFiles
+    mentionedFiles,
   };
 
   const assistantPlaceholder: Message = {
     id: assistantMsgId,
     role: "assistant",
     content: "",
-    artifactData: { type: null, rawJson: "", parsedList: [] }
+    artifactData: { type: null, rawJson: "", parsedList: [] },
   };
-  
-  // Utilise les messages du projet si on vient de le créer, sinon le state actuel
+
   const baseHistory = projectContext ? [] : messages;
   let currentHistory = [...baseHistory, userMsg];
-  
+
   setMessages((prev) => {
     if (!promptOverride) setChatInput("");
     return [...prev, userMsg, assistantPlaceholder];
   });
-  
-  const currentProjectFiles = activeProject.files.map((f: any) => ({ 
-    filePath: f.filePath, 
-    content: f.content 
+
+  const currentProjectFiles = activeProject.files.map((f: any) => ({
+    filePath: f.filePath,
+    content: f.content,
   }));
 
   const filesList: string[] = [];
   const filesContentSnapshots: string[] = [];
-  let filesExcludedCount = 0; 
+  let filesExcludedCount = 0;
 
-  currentProjectFiles.forEach(file => {
-      const content = file.content || "";
-      const size = content.length;
-      if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
-          const lines = content.split('\n');
-          const contentWithLineNumbers = lines.map((line, index) => `${index + 1}: ${line}`).join('\n');
-          filesContentSnapshots.push(`<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n${contentWithLineNumbers}\n</file_content_snapshot>`);
-          filesList.push(`<project_file path="${file.filePath}" (Content snapshot INCLUDED: ${size} chars)/>`);
-      } else if (size > CONTENT_SNAPSHOT_LIMIT) {
-          filesExcludedCount++;
-          filesList.push(`<project_file path="${file.filePath}" (Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)/>`);
-      } else {
-          filesList.push(`<project_file path="${file.filePath}" (EMPTY file)/>`);
-      }
+  currentProjectFiles.forEach((file) => {
+    const content = file.content || "";
+    const size = content.length;
+    if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
+      const lines = content.split("\n");
+      const contentWithLineNumbers = lines.map((line, index) => `${index + 1}: ${line}`).join("\n");
+      filesContentSnapshots.push(`<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n${contentWithLineNumbers}\n</file_content_snapshot>`);
+      filesList.push(`<project_file path="${file.filePath}" (Content snapshot INCLUDED: ${size} chars)/>`);
+    } else if (size > CONTENT_SNAPSHOT_LIMIT) {
+      filesExcludedCount++;
+      filesList.push(`<project_file path="${file.filePath}" (Content EXCLUDED: ${size} chars > ${CONTENT_SNAPSHOT_LIMIT} limit)/>`);
+    } else {
+      filesList.push(`<project_file path="${file.filePath}" (EMPTY file)/>`);
+    }
   });
 
   const systemFileContext: Message = {
     role: "system",
-    content: `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
-             `[Use the <fetch_file path="..."/> artifact to read content for files excluded.]\n` +
-             (filesExcludedCount > 0 ? `⚠️ ${filesExcludedCount} files were EXCLUDED.\n` : '') +
-             filesList.join("\n") +
-             (filesContentSnapshots.length > 0 ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS\n` + filesContentSnapshots.join("\n\n") : "")
+    content:
+      `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
+      `[Use the <fetch_file path="..."/> artifact to read content for files excluded.]\n` +
+      (filesExcludedCount > 0 ? `⚠️ ${filesExcludedCount} files were EXCLUDED.\n` : "") +
+      filesList.join("\n") +
+      (filesContentSnapshots.length > 0
+        ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS\n` + filesContentSnapshots.join("\n\n")
+        : ""),
   };
 
   let historyForApi = [systemFileContext, ...currentHistory];
@@ -3129,36 +3277,37 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
 
   let shopImages: string[] = [];
   let inspirationCSS = "";
-  
+
   try {
-      addLog("🎨 Gathering design resources..."); 
-      const images = await getAllShopImages();
-      const cssUrl = await getShopCssUrl();
-      shopImages = images;
-      if (cssUrl) inspirationCSS = await fetchInspirationCSS(cssUrl);
-      if (shopImages.length > 0) addLog(`✅ Loaded ${shopImages.length} visual refs.`);
-      if (inspirationCSS) addLog(`✅ Loaded CSS System.`);
-  } catch (e: any) { 
-      console.error("Design load error", e); 
+    addLog("🎨 Gathering design resources...");
+    const images = await getAllShopImages();
+    const cssUrl = await getShopCssUrl();
+    shopImages = images;
+    if (cssUrl) inspirationCSS = await fetchInspirationCSS(cssUrl);
+    if (shopImages.length > 0) addLog(`✅ Loaded ${shopImages.length} visual refs.`);
+    if (inspirationCSS) addLog(`✅ Loaded CSS System.`);
+  } catch (e: any) {
+    console.error("Design load error", e);
   }
 
   const randomVibes = await getRandomVibes(8);
-
   if (randomVibes && randomVibes.length > 0) {
-        addLog(`images found: ${randomVibes.length} inspirations injected into context`);
+    addLog(`images found: ${randomVibes.length} inspirations injected into context`);
   }
 
   let apiKey = "";
   try {
-      const dbKey = await getApiKeyFromIDB();
-      if (dbKey) apiKey = dbKey;
-  } catch (e) { console.warn("Erreur API Key:", e); }
-  
+    const dbKey = await getApiKeyFromIDB();
+    if (dbKey) apiKey = dbKey;
+  } catch (e) {
+    console.warn("Erreur API Key:", e);
+  }
+
   let urlArtifact: any = null;
   let text = "";
   let retryCount = 0;
-  let finalAssistantMessage: Message | undefined = undefined; 
-  
+  let finalAssistantMessage: Message | undefined = undefined;
+
   try {
     let res: Response | null = null;
     let apiCallSuccessful = false;
@@ -3166,21 +3315,21 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
     while (!apiCallSuccessful && retryCount < MAX_RETRIES) {
       try {
         if (retryCount > 0) {
-          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000); 
-          await new Promise(resolve => setTimeout(resolve, delay));
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
 
         res = await fetch("/api/gemini", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-            body: JSON.stringify({ 
-                history: historyForApi, 
-                currentProjectFiles,
-                uploadedImages,
-                uploadedFiles,
-                currentPlan,
-                allReferenceImages: randomVibes,
-            }),
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
+          body: JSON.stringify({
+            history: historyForApi,
+            currentProjectFiles,
+            uploadedImages,
+            uploadedFiles,
+            currentPlan,
+            allReferenceImages: randomVibes,
+          }),
         });
 
         if (!res.ok || !res.body) throw new Error(`API failed: ${res.statusText}`);
@@ -3194,7 +3343,7 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
     if (!res || !res.body) return;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -3206,9 +3355,9 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
       if (fetchFileMatch && !isFetchInProgress) {
         const filePath = fetchFileMatch[1].trim();
         if (!readFilesCache.has(filePath)) {
-          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles); 
+          const fileContent = await handleFetchFileAction(filePath, currentProjectFiles);
           if (fileContent) {
-            text += `\n${fileContent}\n`; 
+            text += `\n${fileContent}\n`;
             readFilesCache.add(filePath);
           }
         }
@@ -3217,110 +3366,124 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
       const urlMatch = text.match(inspirationUrlRegex);
       if (urlMatch) {
         try {
-          const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
+          const jsonString = urlMatch[0].replace(/```json|```/g, "").trim();
           const parsedUrlData = JSON.parse(jsonString);
-          if (parsedUrlData.type === 'inspirationUrl') urlArtifact = { url: parsedUrlData.url };
+          if (parsedUrlData.type === "inspirationUrl") urlArtifact = { url: parsedUrlData.url };
         } catch (e) {}
       }
 
-       const planMatch = text.match(PLAN_REGEX);
-       if (planMatch) {
-           const extractedPlan = planMatch[1].trim();
-           if (extractedPlan && extractedPlan !== currentPlan) setCurrentPlan(extractedPlan);
-       }
+      const planMatch = text.match(PLAN_REGEX);
+      if (planMatch) {
+        const extractedPlan = planMatch[1].trim();
+        if (extractedPlan && extractedPlan !== currentPlan) setCurrentPlan(extractedPlan);
+      }
 
       const fileArtifacts = extractFileArtifacts(text);
       let newArtifactData = undefined;
       const artifactList: any[] = [];
 
       if (fileArtifacts.length > 0) {
-        fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
+        fileArtifacts.forEach((a) => artifactList.push({ path: a.filePath, type: a.type }));
         if (activeProject) {
-            addFilesIfNew(artifactList, activeProject.files, activeFile, setActiveFile, setCurrentProject);
+          addFilesIfNew(artifactList, activeProject.files, activeFile, setActiveFile, setCurrentProject);
         }
-        newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
+        newArtifactData = { type: "files", parsedList: artifactList, rawJson: text };
       }
 
-      // MODIFICATION : Masquage propre du XML SaaS dans le chat pour une meilleure UX
+      // ── MODIFICATION CLÉ : on conserve les blocs de phases dans `content`
+      // pour que parsePhaseBlocks() puisse les lire au rendu, mais on retire
+      // les balises <script> de remplacement (inutiles côté React) ainsi que
+      // les autres artefacts habituels.
       let textWithoutArtifacts = text
-        .replace(inspirationUrlRegex, '')
-        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, '') 
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
-        .replace(PLAN_REGEX, '')
-        .replace(/<saas-pages>[\s\S]*?<\/saas-pages>/gs, '*(Génération du plan d\'architecture SaaS validée)*');
+        .replace(inspirationUrlRegex, "")
+        .replace(/<create_file[\s\S]*?<\/create_file>/gs, "")
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, "")
+        .replace(FETCH_FILE_REGEX, "")
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, "")
+        .replace(PLAN_REGEX, "")
+        // On retire les <script> de remplacement — inutiles en React
+        .replace(/<script>[\s\S]*?<\/script>/g, "")
+        // On garde les <div data-phase-id="..."> — parsePhaseBlocks les lira
+        .replace(/<saas-pages>[\s\S]*?<\/saas-pages>/gs, "*(Génération du plan d'architecture SaaS validée)*");
 
-      setMessages((prev) => prev.map(msg => 
-        msg.id === assistantMsgId 
-          ? { ...msg, content: textWithoutArtifacts, artifactData: newArtifactData || msg.artifactData } 
-          : msg
-      ));
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsgId
+            ? { ...msg, content: textWithoutArtifacts, artifactData: newArtifactData || msg.artifactData }
+            : msg
+        )
+      );
     }
 
+    // ── Nettoyage final : idem, on garde les phase blocks pour le rendu
     let finalCleanText = text
-        .replace(inspirationUrlRegex, '')
-        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-        .replace(FETCH_FILE_REGEX, '') 
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
-        .replace(PLAN_REGEX, '');
+      .replace(inspirationUrlRegex, "")
+      .replace(/<create_file[\s\S]*?<\/create_file>/gs, "")
+      .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, "")
+      .replace(FETCH_FILE_REGEX, "")
+      .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, "")
+      .replace(PLAN_REGEX, "")
+      .replace(/<script>[\s\S]*?<\/script>/g, "");
 
     const finalArtifacts = extractFileArtifacts(text);
     finalAssistantMessage = {
-        role: "assistant",
-        content: finalCleanText,
-        artifactData: finalArtifacts.length > 0 
-            ? { type: 'files', parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })), rawJson: text }
-            : (urlArtifact ? { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] } : { type: null, rawJson: "", parsedList: [] })
+      role: "assistant",
+      content: finalCleanText,
+      artifactData:
+        finalArtifacts.length > 0
+          ? { type: "files", parsedList: finalArtifacts.map((a) => ({ path: a.filePath, type: a.type })), rawJson: text }
+          : urlArtifact
+          ? { type: "inspirationUrl", rawJson: JSON.stringify(urlArtifact), parsedList: [] }
+          : { type: null, rawJson: "", parsedList: [] },
     };
 
     if (urlArtifact) {
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      return finalCleanText; // Ajout du retour ici
+      return finalCleanText;
     }
-          
-    // ... (tout le début reste identique)
 
-    // --- MODIFICATION ICI : Calcul du projet mis à jour pour la boucle SaaS ---
     let updatedProjectForLoop = activeProject;
 
     if (finalArtifacts.length > 0) {
-      applyArtifactsToProject(finalArtifacts); // Mise à jour de l'état React (pour l'UI)
+      applyArtifactsToProject(finalArtifacts);
 
-      // On construit manuellement l'objet mis à jour pour le renvoyer immédiatement
-      const newFiles = finalArtifacts.map(a => ({ 
-          filePath: a.filePath, 
-          content: a.content || "", 
-          type: a.type 
+      const newFiles = finalArtifacts.map((a) => ({
+        filePath: a.filePath,
+        content: a.content || "",
+        type: a.type,
       }));
-      
-      // Fusion intelligente pour éviter les doublons (si modification de fichier existant)
+
       const existingFilesMap = new Map(activeProject.files.map((f: any) => [f.filePath, f]));
-      newFiles.forEach(nf => existingFilesMap.set(nf.filePath, nf));
-      
+      newFiles.forEach((nf) => existingFilesMap.set(nf.filePath, nf));
+
       updatedProjectForLoop = {
-          ...activeProject,
-          files: Array.from(existingFilesMap.values())
+        ...activeProject,
+        files: Array.from(existingFilesMap.values()),
       };
     }
-    
-    // On retourne un OBJET maintenant, plus juste une string
+
     return { text: finalCleanText, updatedProject: updatedProjectForLoop };
-    
+
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
-    setMessages((prev) => prev.filter(m => m.id !== assistantMsgId));
-    return undefined; // Important de retourner undefined en cas d'erreur
+    setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId));
+    return undefined;
   } finally {
     if (finalAssistantMessage) {
-        setMessages((prev) => prev.map(msg => msg.id === assistantMsgId ? { ...finalAssistantMessage, id: assistantMsgId } : msg));
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsgId ? { ...finalAssistantMessage, id: assistantMsgId } : msg
+        )
+      );
     }
     setLoading(false);
   }
 };
-        
-        
+
+      
+
+  
+
     
 
 
@@ -4308,11 +4471,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
                 
+
           
-              {messages.map((msg, index) => {
+              
+           {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
-  
+
   return (
     <div
       key={index}
@@ -4327,16 +4492,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             </svg>
           </div>
 
-          {/* Indicateur "Thinking..." */}
           {loading && index === messages.length - 1 && (
-          <div className="flex items-center gap-[3px]">
-            <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
-            <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
-          </div>
+            <div className="flex items-center gap-[3px]">
+              <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
+              <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
+            </div>
           )}
         </div>
       )}
-      
+
       {/* Conteneur du message */}
       <div
         className={`p-2 rounded-xl w-full max-w-full relative overflow-hidden ${
@@ -4346,27 +4510,30 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         }`}
       >
         {(() => {
-          const rawTextContent = msg.content; 
-          const isFileArtifact = artifact && (artifact.type === 'files');
-          const isUrlArtifact = artifact && (artifact.type === 'url');
+          const rawTextContent = msg.content;
+          const isFileArtifact = artifact && artifact.type === "files";
+          const isUrlArtifact = artifact && artifact.type === "url";
 
-          // --- LOGIQUE DETECTION DES LOOPS ---
-          const hasStartTag = rawTextContent.includes('[[START]]');
-          const hasFinishTag = rawTextContent.includes('[[FINISH]]');
-          
-          const isFirstMessageOfChat = index === 1; 
+          // ─── PARSING DES PHASES DE PROGRESSION ───────────────────────
+          // On extrait les blocs HTML de phase avant tout autre traitement
+          const { phases, cleanText: textWithoutPhaseBlocks } =
+            msg.role === "assistant"
+              ? parsePhaseBlocks(rawTextContent)
+              : { phases: [], cleanText: rawTextContent };
+
+          // ─── LOGIQUE DETECTION DES LOOPS ─────────────────────────────
+          const hasStartTag = textWithoutPhaseBlocks.includes("[[START]]");
+          const hasFinishTag = textWithoutPhaseBlocks.includes("[[FINISH]]");
+          const isFirstMessageOfChat = index === 1;
           let showText = true;
-
           if (msg.role === "assistant") {
-             if (hasStartTag && !hasFinishTag && !isFirstMessageOfChat) {
-                 showText = false;
-             }
+            if (hasStartTag && !hasFinishTag && !isFirstMessageOfChat) {
+              showText = false;
+            }
           }
 
-          // --- NOUVEAU : RENDU DE LA SAAS TODO LIST ---
+          // ─── SAAS TODO LIST ───────────────────────────────────────────
           let saasProgressComponent = null;
-          // On affiche la liste si on est en mode SaaS et qu'il y a des items
-          // On l'affiche sur le dernier message de l'assistant pour le suivi temps réel
           if (isSaaSMode && saasTodo.length > 0 && msg.role === "assistant" && index === messages.length - 1) {
             saasProgressComponent = (
               <div key="saas-todo-list" className="mt-4 mb-4 p-4 rounded-xl border border-[#37322F]/10 bg-[#f6f4ec]/50 shadow-sm animate-in fade-in slide-in-from-bottom-2">
@@ -4404,189 +4571,193 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             );
           }
 
-          // --- PREPARATION DU COMPOSANT ARTEFACT (Building Code) ---
+          // ─── ARTEFACT CODE ────────────────────────────────────────────
           let codeArtifactComponent = null;
-
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0 && msg.role === "assistant") {
-             const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
-             const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
-             const isBuilding = isCreating || isEditing;
-             const totalItems = artifact?.parsedList?.length || 0;
-             const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
-             const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
+            const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+            const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
+            const isBuilding = isCreating || isEditing;
+            const totalItems = artifact?.parsedList?.length || 0;
+            const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
+            const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
 
-             codeArtifactComponent = (
-                <details key="code-artifact-dropdown" className="group w-full mt-2 rounded-lg border border-[rgba(55,50,47,0.1)] bg-white/50 open:bg-white/80 transition-all duration-200" open={isBuilding}>
-                    <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none">
-                         <div className="flex items-center gap-2 text-[#37322F]">
-                            <span className={`${isBuilding ? 'animate-spin' : ''}`}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41 1.41 1.41z"/></svg>
-                            </span>
-                            <span className="font-semibold text-sm">
-                                {isBuilding ? 'Building code...' : 'Code Generated'}
-                            </span>
-                            <span className="bg-[#f6f4ec] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[rgba(55,50,47,0.1)]">
-                                {artifact.parsedList.length} files
-                            </span>
-                         </div>
-                         <svg className="w-4 h-4 transform group-open:rotate-180 transition-transform duration-200 text-[#37322F]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                         </svg>
-                    </summary>
-                    <div className="px-3 pb-3 pt-0 border-t border-[rgba(55,50,47,0.05)]">
-                        <ul className="list-disc pl-5 w-[100%] space-y-1 mt-2">
-                            {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i: number) => {
-                                const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
-                                const statusText = item.type === 'create' 
-                                    ? (isCurrentlyStreaming ? 'Creating' : 'Created')
-                                    : (isCurrentlyStreaming ? 'Editing' : 'Edited');
-                                
-                                return (
-                                    <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
-                                        <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
-                                        <p className="font-semibold">{statusText}</p>
-                                        <span className="bg-[#f6f4ec] py-[3px] rounded-[8px] font-semibold px-[12px] truncate max-w-[200px]" title={item.path}>{item.path}</span>
-                                    </li>
-                                );
-                            })}
-                            {isBuilding && (
-                                <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 mt-2">
-                                  <span className="animate-spin text-[#37322F]">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4z"/></svg>
-                                  </span>
-                                  <span className="font-semibold text-xs tracking-tight">{currentStatusText}...</span>
-                                </li>
-                            )}
-                        </ul>
-                    </div>
-                </details>
-             );
-          }
-          
-          // --- NETTOYAGE DU TEXTE POUR AFFICHAGE ---
-          const contentForTextDisplay = rawTextContent.split('|||')[0];
-          let finalContentToDisplay = contentForTextDisplay
-              .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-              .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-              .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
-              .replace(/<plan>[\s\S]*?<\/plan>/g, '')
-              .replace(/<saas-pages>[\s\S]*?<\/saas-pages>/g, '') // On masque le XML SaaS brut
-              .replace(/---[\s\S]*?---/g, '')
-              .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '') 
-              .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '') 
-              .replace(/\[PAGE_DONE\]/g, '') // On masque aussi le mot clé de fin
-              .replace(/\n{3,}/g, '\n\n') 
-              .trim();
-          
-          const hasTextContent = finalContentToDisplay.length > 0;
-          
-          // --- RENDU MESSAGE UTILISATEUR ---
-          if (msg.role === "user") {
-              const MAX_HEIGHT = 150; 
-              const isLongMessage = msg.content.length > 10000 || rawTextContent.split('\n').length > 20; 
-              
-              const userContent = (
-                  <pre 
-                      className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full overflow-hidden"
-                      style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px` }}
-                  >
-                      {msg.content}
-                  </pre>
-              );
-
-              return (
-                  <div key="user-content-wrapper" className="relative w-full">
-                      {userContent}
-                      {!isExpanded && isLongMessage && (
-                          <div 
-                              className="absolute inset-x-0 bottom-0 h-[60px] flex flex-col justify-end items-center p-2 rounded-b-xl cursor-pointer z-10"
-                              style={{ background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' }}
-                              onClick={() => setExpandedMessageIndex(index)} 
-                          >
-                              <button className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
-                                  <svg className="h-3 w-3 inline-block mr-1 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 9l-7 7-7-7" /></svg> Expand
-                              </button>
-                          </div>
-                      )}
-                      {isExpanded && isLongMessage && (
-                          <div className="flex justify-center mt-2">
-                              <button onClick={() => setExpandedMessageIndex(null)} className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
-                                  <svg className="h-3 w-3 inline-block mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 9l-7 7-7-7" /></svg> Collapse
-                              </button>
-                          </div>
-                      )}
+            codeArtifactComponent = (
+              <details key="code-artifact-dropdown" className="group w-full mt-2 rounded-lg border border-[rgba(55,50,47,0.1)] bg-white/50 open:bg-white/80 transition-all duration-200" open={isBuilding}>
+                <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none">
+                  <div className="flex items-center gap-2 text-[#37322F]">
+                    <span className={`${isBuilding ? 'animate-spin' : ''}`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41 1.41 1.41z"/></svg>
+                    </span>
+                    <span className="font-semibold text-sm">{isBuilding ? 'Building code...' : 'Code Generated'}</span>
+                    <span className="bg-[#f6f4ec] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[rgba(55,50,47,0.1)]">
+                      {artifact.parsedList.length} files
+                    </span>
                   </div>
-              );
+                  <svg className="w-4 h-4 transform group-open:rotate-180 transition-transform duration-200 text-[#37322F]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </summary>
+                <div className="px-3 pb-3 pt-0 border-t border-[rgba(55,50,47,0.05)]">
+                  <ul className="list-disc pl-5 w-[100%] space-y-1 mt-2">
+                    {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i: number) => {
+                      const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
+                      const statusText = item.type === 'create'
+                        ? (isCurrentlyStreaming ? 'Creating' : 'Created')
+                        : (isCurrentlyStreaming ? 'Editing' : 'Edited');
+                      return (
+                        <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
+                          <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
+                          <p className="font-semibold">{statusText}</p>
+                          <span className="bg-[#f6f4ec] py-[3px] rounded-[8px] font-semibold px-[12px] truncate max-w-[200px]" title={item.path}>{item.path}</span>
+                        </li>
+                      );
+                    })}
+                    {isBuilding && (
+                      <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 mt-2">
+                        <span className="animate-spin text-[#37322F]">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4z"/></svg>
+                        </span>
+                        <span className="font-semibold text-xs tracking-tight">{currentStatusText}...</span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </details>
+            );
           }
-          
-          // --- RENDU MESSAGE ASSISTANT (ASSEMBLAGE) ---
+
+          // ─── NETTOYAGE DU TEXTE POUR AFFICHAGE ───────────────────────
+          // On part de textWithoutPhaseBlocks (déjà sans HTML de phases)
+          const contentForTextDisplay = textWithoutPhaseBlocks.split("|||")[0];
+          let finalContentToDisplay = contentForTextDisplay
+            .replace(/<create_file[\s\S]*?<\/create_file>/gs, "")
+            .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, "")
+            .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, "")
+            .replace(/<plan>[\s\S]*?<\/plan>/g, "")
+            .replace(/<saas-pages>[\s\S]*?<\/saas-pages>/g, "")
+            .replace(/---[\s\S]*?---/g, "")
+            .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, "")
+            .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, "")
+            .replace(/\[PAGE_DONE\]/g, "")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+
+          const hasTextContent = finalContentToDisplay.length > 0;
+
+          // ─── RENDU MESSAGE UTILISATEUR ────────────────────────────────
+          if (msg.role === "user") {
+            const MAX_HEIGHT = 150;
+            const isLongMessage = msg.content.length > 10000 || rawTextContent.split("\n").length > 20;
+            const userContent = (
+              <pre
+                className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full overflow-hidden"
+                style={{ maxHeight: isExpanded ? "none" : `${MAX_HEIGHT}px` }}
+              >
+                {msg.content}
+              </pre>
+            );
+            return (
+              <div key="user-content-wrapper" className="relative w-full">
+                {userContent}
+                {!isExpanded && isLongMessage && (
+                  <div
+                    className="absolute inset-x-0 bottom-0 h-[60px] flex flex-col justify-end items-center p-2 rounded-b-xl cursor-pointer z-10"
+                    style={{ background: "linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))" }}
+                    onClick={() => setExpandedMessageIndex(index)}
+                  >
+                    <button className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
+                      <svg className="h-3 w-3 inline-block mr-1 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 9l-7 7-7-7" /></svg> Expand
+                    </button>
+                  </div>
+                )}
+                {isExpanded && isLongMessage && (
+                  <div className="flex justify-center mt-2">
+                    <button onClick={() => setExpandedMessageIndex(null)} className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
+                      <svg className="h-3 w-3 inline-block mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 9l-7 7-7-7" /></svg> Collapse
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // ─── RENDU MESSAGE ASSISTANT (ASSEMBLAGE) ────────────────────
           const displayElements = [];
 
-          // 1. TEXTE (Visible seulement si loop 1, loop finale, ou pas de loop detectée)
+          // 0. PHASES DE PROGRESSION (nouvelles — au-dessus de tout)
+          if (phases.length > 0) {
+            displayElements.push(
+              <div key="phase-cards" className="w-full space-y-0.5 mb-2">
+                {phases.map((phase) => (
+                  <PhaseCard key={phase.id} phase={phase} />
+                ))}
+              </div>
+            );
+          }
+
+          // 1. TEXTE
           if (hasTextContent && showText) {
-              displayElements.push(
-                  <pre key="text" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed mb-1 max-w-full overflow-x-hidden">
-                      {finalContentToDisplay} 
-                  </pre>
-              );
+            displayElements.push(
+              <pre key="text" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed mb-1 max-w-full overflow-x-hidden">
+                {finalContentToDisplay}
+              </pre>
+            );
           }
 
-          // 2. NOUVEAU : SAAS TODO LIST (S'affiche dynamiquement)
+          // 2. SAAS TODO LIST
           if (saasProgressComponent) {
-              displayElements.push(saasProgressComponent);
+            displayElements.push(saasProgressComponent);
           }
 
-          // 3. ARTEFACT CODE (En DESSOUS du texte et de la Todo)
+          // 3. ARTEFACT CODE
           if (codeArtifactComponent) {
-              displayElements.push(codeArtifactComponent);
+            displayElements.push(codeArtifactComponent);
           }
 
           // 4. URL ARTIFACT
           if (isUrlArtifact) {
-              const artifactClasses = (hasTextContent && showText) ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
-              displayElements.push(
-                  <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
-                      <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
-                      <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
-                  </div>
-              );
+            const artifactClasses = hasTextContent && showText ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+            displayElements.push(
+              <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
+                <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
+                <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
+              </div>
+            );
           }
-          
-          if (displayElements.length > 0) return displayElements;
-          // Fallback
-          return <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full">{finalContentToDisplay}</pre>;
 
+          if (displayElements.length > 0) return displayElements;
+          return <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full">{finalContentToDisplay}</pre>;
         })()}
       </div>
-      
+
       {/* Fichiers uploadés & Mentions */}
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
-          <div className="flex gap-1 mt-1">
-              {msg.images.map((base64Src, imgIndex) => (
-                  <div key={imgIndex} className="w-[45px] h-[45px] rounded-[8px] overflow-hidden" title="Image utilisateur">
-                      <img src={base64Src} alt="User input" className="w-full h-full object-cover" />
-                  </div>
-              ))}
-          </div>
+        <div className="flex gap-1 mt-1">
+          {msg.images.map((base64Src, imgIndex) => (
+            <div key={imgIndex} className="w-[45px] h-[45px] rounded-[8px] overflow-hidden" title="Image utilisateur">
+              <img src={base64Src} alt="User input" className="w-full h-full object-cover" />
+            </div>
+          ))}
+        </div>
       )}
       {msg.role === "user" && msg.externalFiles && msg.externalFiles.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-1">
-              {msg.externalFiles.map((file, fileIndex) => (
-                   <div key={fileIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#F7F5F3] px-2 text-sm max-w-xs truncate">
-                      {file.fileName}
-                  </div>
-              ))}
-          </div>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {msg.externalFiles.map((file, fileIndex) => (
+            <div key={fileIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#F7F5F3] px-2 text-sm max-w-xs truncate">
+              {file.fileName}
+            </div>
+          ))}
+        </div>
       )}
       {msg.role === "user" && msg.mentionedFiles && msg.mentionedFiles.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-1">
-              {msg.mentionedFiles.map((filePath, mentionIndex) => (
-                  <div key={mentionIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
-                      @{filePath}
-                  </div>
-              ))}
-          </div>
-     )}
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {msg.mentionedFiles.map((filePath, mentionIndex) => (
+            <div key={mentionIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
+              @{filePath}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 })}
