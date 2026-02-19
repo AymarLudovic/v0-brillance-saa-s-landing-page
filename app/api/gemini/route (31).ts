@@ -508,7 +508,7 @@ export async function POST(req: Request) {
               ` }]
             });
 
-            const systemInstruction = `${basePrompt}\n\n=== IDENTITÉ ===\n${agent.prompt}`;
+            const systemInstruction = `=== IDENTITÉ ===\n${agent.prompt}`;
 
             // Blueprint = rigueur maximale / Builder = précision technique
             const temperature = agentKey === "MASTER_BLUEPRINT" ? 0.2 : 0.3;
