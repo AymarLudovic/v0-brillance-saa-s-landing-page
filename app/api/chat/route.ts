@@ -1,59 +1,44 @@
-import { GoogleGenAI, Content } from '@google/genai';
 import { NextRequest, NextResponse } from 'next/server';
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
-
-const tools = [
-  { googleSearch: {} },
-];
-const config = {
-  thinkingConfig: { thinkingBudget: -1 },
-  tools,
-};
-const model = 'gemini-2.5-flash';
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { history, currentMessage } = await req.json() as { history: Content[], currentMessage: string };
+    const { messages, useReasoner } = await request.json();
 
-    if (!currentMessage) {
-      return NextResponse.json({ error: 'Message manquant.' }, { status: 400 });
+    // Choisir le modèle : reasoner pour raisonnement avancé, chat pour vitesse
+    const model = useReasoner ? 'deepseek-reasoner' : 'deepseek-chat';
+
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      return NextResponse.json(
+        { error: 'Erreur DeepSeek API', details: error },
+        { status: response.status }
+      );
     }
 
-    // 🛑 Instruction Système CLÉ : Rôle strict pour la génération d'applications
-    const systemInstruction: Content = {
-        role: "system",
-        parts: [{ 
-            text: `Tu es un développeur Full-stack AI expert en Next.js. Ta mission est de générer des fichiers React/TypeScript et CSS de qualité. 
-            Ton objectif est de créer des structures de VRAIES PAGES D'APPLICATION (Settings, Dashboard, etc.) en t'inspirant uniquement du style (couleurs, polices, ombres) des références fournies par l'utilisateur, mais en utilisant une architecture de logiciel moderne et sémantique.
-            
-            RÈGLES DE SORTIE:
-            1. RÉPOND UNIQUEMENT avec le code des fichiers que tu veux créer/modifier, en utilisant le format Markdown.
-            2. Chaque bloc de code doit être suivi d'un commentaire indiquant le chemin du fichier affecté : // Path: app/mon-composant.tsx
-            3. Si tu dois corriger une erreur (ex: après un log E2B), tu dois donner le code corrigé d'abord, puis t'excuser brièvement.`
-        }]
-    };
-    
-    const contents: Content[] = [
-        systemInstruction, 
-        ...history, 
-        { role: "user", parts: [{ text: currentMessage }] }
-    ];
+    const data = await response.json();
+    const message = data.choices[0].message.content;
 
-    const response = await ai.models.generateContent({
-      model,
-      config,
-      contents,
-    });
-    
-    const generatedResponse = response.text; 
-
-    return NextResponse.json({ generatedResponse });
+    return NextResponse.json({ message });
 
   } catch (error) {
-    console.error('Erreur lors de la génération IA:', error);
-    return NextResponse.json({ error: 'Échec de la génération par l\'IA.' }, { status: 500 });
+    console.error('Erreur:', error);
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    );
   }
-  }
+      }
