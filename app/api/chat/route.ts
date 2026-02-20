@@ -1,44 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
 
-export async function POST(request: NextRequest) {
+const client = new OpenAI({
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  baseURL: "https://api.deepseek.com",
+});
+
+export async function POST(req: NextRequest) {
   try {
-    const { messages, useReasoner } = await request.json();
+    const { messages } = await req.json();
 
-    // Choisir le modèle : reasoner pour raisonnement avancé, chat pour vitesse
-    const model = useReasoner ? 'deepseek-reasoner' : 'deepseek-chat';
-
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 2000
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
+    if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
-        { error: 'Erreur DeepSeek API', details: error },
-        { status: response.status }
+        { error: "Messages invalides" },
+        { status: 400 }
       );
     }
 
-    const data = await response.json();
-    const message = data.choices[0].message.content;
+    const response = await client.chat.completions.create({
+      model: "deepseek-chat", // deepseek-chat = DeepSeek V3 (le plus performant et économique)
+      messages: [
+        {
+          role: "system",
+          content:
+            "Tu es un assistant intelligent, précis et bienveillant. Réponds toujours en français sauf si l'utilisateur écrit dans une autre langue.",
+        },
+        ...messages,
+      ],
+      max_tokens: 2048,
+      temperature: 0.7,
+    });
 
-    return NextResponse.json({ message });
+    const content = response.choices[0]?.message?.content ?? "";
 
-  } catch (error) {
-    console.error('Erreur:', error);
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    );
+    return NextResponse.json({ content });
+  } catch (error: unknown) {
+    console.error("Erreur API DeepSeek:", error);
+    const message =
+      error instanceof Error ? error.message : "Erreur inconnue";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
       }
