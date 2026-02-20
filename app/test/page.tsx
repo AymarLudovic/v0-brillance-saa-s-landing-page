@@ -1,130 +1,432 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, FormEvent } from "react";
+
+type Role = "user" | "assistant";
 
 interface Message {
-  role: 'user' | 'assistant';
+  role: Role;
   content: string;
 }
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showThinking, setShowThinking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const sendMessage = async (useReasoner = false) => {
-    if (!input.trim()) return;
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
-    const userMessage: Message = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height =
+        Math.min(textareaRef.current.scrollHeight, 160) + "px";
+    }
+  }, [input]);
+
+  const sendMessage = async (e?: FormEvent) => {
+    e?.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
+
+    const newMessages: Message[] = [
+      ...messages,
+      { role: "user", content: trimmed },
+    ];
+    setMessages(newMessages);
+    setInput("");
     setLoading(true);
+    setError(null);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-          useReasoner
-        })
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: newMessages }),
       });
 
-      if (!response.ok) throw new Error('Erreur API');
+      const data = await res.json();
 
-      const data = await response.json();
-      
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: data.message 
-      }]);
-    } catch (error) {
-      console.error(error);
-      alert('Erreur lors de l\'envoi du message');
+      if (!res.ok || data.error) {
+        throw new Error(data.error ?? "Erreur serveur");
+      }
+
+      setMessages([
+        ...newMessages,
+        { role: "assistant", content: data.content },
+      ]);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erreur inconnue");
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto p-4 bg-gradient-to-br from-purple-50 to-blue-50">
-      <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-          DeepSeek V3.2 Chat 🧠
-        </h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Modèle Pro puissant • Gratuit • 671B paramètres
-        </p>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto mb-4 space-y-4 bg-white rounded-lg shadow-lg p-4">
-        {messages.length === 0 && (
-          <div className="text-center text-gray-400 mt-10">
-            <p className="text-lg">💬 Commencez une conversation</p>
-            <p className="text-sm">DeepSeek V3.2 est prêt à vous aider</p>
-          </div>
-        )}
-        
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] p-4 rounded-2xl ${
-              msg.role === 'user' 
-                ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white' 
-                : 'bg-gray-100 text-gray-800 border border-gray-200'
-            }`}>
-              <div className="text-xs font-semibold mb-1 opacity-70">
-                {msg.role === 'user' ? '👤 Vous' : '🤖 DeepSeek V3.2'}
-              </div>
-              <div className="whitespace-pre-wrap">{msg.content}</div>
-            </div>
-          </div>
-        ))}
-        
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 p-4 rounded-2xl border border-gray-200">
-              <div className="flex items-center space-x-2">
-                <div className="animate-pulse">🧠</div>
-                <span className="text-gray-600 animate-pulse">
-                  DeepSeek réfléchit...
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
 
-      <div className="bg-white rounded-lg shadow-lg p-4">
-        <div className="flex gap-2 mb-2">
-          <input
-            type="text"
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#0d0d0f",
+        display: "flex",
+        flexDirection: "column",
+        fontFamily: "'Georgia', 'Times New Roman', serif",
+        color: "#e8e2d9",
+      }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          padding: "20px 32px",
+          borderBottom: "1px solid #1e1e24",
+          display: "flex",
+          alignItems: "center",
+          gap: "14px",
+          background: "#0d0d0f",
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #4f8ef7 0%, #a78bfa 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18,
+            flexShrink: 0,
+          }}
+        >
+          ✦
+        </div>
+        <div>
+          <div
+            style={{
+              fontFamily: "'Georgia', serif",
+              fontSize: "1.05rem",
+              fontWeight: 600,
+              letterSpacing: "0.02em",
+              color: "#f0ece4",
+            }}
+          >
+            DeepSeek V3
+          </div>
+          <div
+            style={{
+              fontSize: "0.72rem",
+              color: "#5a5a6e",
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              marginTop: 1,
+            }}
+          >
+            deepseek-chat · via deepseek.com
+          </div>
+        </div>
+      </header>
+
+      {/* Messages */}
+      <main
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "32px 0",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {messages.length === 0 && !loading && (
+          <div
+            style={{
+              margin: "auto",
+              textAlign: "center",
+              color: "#3a3a4a",
+              padding: "0 24px",
+            }}
+          >
+            <div style={{ fontSize: "3rem", marginBottom: 16 }}>✦</div>
+            <div style={{ fontSize: "1.1rem", color: "#4a4a5e" }}>
+              Commencez la conversation
+            </div>
+            <div
+              style={{
+                fontSize: "0.8rem",
+                color: "#2e2e3e",
+                marginTop: 8,
+                fontFamily: "monospace",
+              }}
+            >
+              Entrée pour envoyer · Maj+Entrée pour sauter une ligne
+            </div>
+          </div>
+        )}
+
+        <div
+          style={{
+            maxWidth: 760,
+            width: "100%",
+            margin: "0 auto",
+            padding: "0 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 24,
+          }}
+        >
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                gap: 14,
+                flexDirection: msg.role === "user" ? "row-reverse" : "row",
+                alignItems: "flex-start",
+              }}
+            >
+              {/* Avatar */}
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 13,
+                  background:
+                    msg.role === "user"
+                      ? "#1e2a3a"
+                      : "linear-gradient(135deg, #4f8ef7 0%, #a78bfa 100%)",
+                  color:
+                    msg.role === "user" ? "#6a8ab0" : "rgba(255,255,255,0.9)",
+                  border:
+                    msg.role === "user" ? "1px solid #2a3a4a" : "none",
+                  marginTop: 2,
+                }}
+              >
+                {msg.role === "user" ? "U" : "✦"}
+              </div>
+
+              {/* Bubble */}
+              <div
+                style={{
+                  maxWidth: "78%",
+                  background:
+                    msg.role === "user"
+                      ? "#14141c"
+                      : "#111118",
+                  border:
+                    msg.role === "user"
+                      ? "1px solid #1e1e2a"
+                      : "1px solid #1a1a24",
+                  borderRadius:
+                    msg.role === "user"
+                      ? "18px 4px 18px 18px"
+                      : "4px 18px 18px 18px",
+                  padding: "12px 16px",
+                  lineHeight: 1.7,
+                  fontSize: "0.92rem",
+                  color: msg.role === "user" ? "#b0aac0" : "#ddd7cc",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {msg.content}
+              </div>
+            </div>
+          ))}
+
+          {/* Loading indicator */}
+          {loading && (
+            <div
+              style={{
+                display: "flex",
+                gap: 14,
+                alignItems: "flex-start",
+              }}
+            >
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 13,
+                  background:
+                    "linear-gradient(135deg, #4f8ef7 0%, #a78bfa 100%)",
+                  marginTop: 2,
+                }}
+              >
+                ✦
+              </div>
+              <div
+                style={{
+                  background: "#111118",
+                  border: "1px solid #1a1a24",
+                  borderRadius: "4px 18px 18px 18px",
+                  padding: "14px 20px",
+                  display: "flex",
+                  gap: 6,
+                  alignItems: "center",
+                }}
+              >
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "#4f8ef7",
+                      display: "inline-block",
+                      animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div
+              style={{
+                background: "#1a0a0a",
+                border: "1px solid #4a1a1a",
+                borderRadius: 10,
+                padding: "10px 16px",
+                color: "#f08080",
+                fontSize: "0.85rem",
+              }}
+            >
+              ⚠ {error}
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+      </main>
+
+      {/* Input */}
+      <footer
+        style={{
+          padding: "16px 20px 20px",
+          background: "#0d0d0f",
+          borderTop: "1px solid #1e1e24",
+          position: "sticky",
+          bottom: 0,
+        }}
+      >
+        <form
+          onSubmit={sendMessage}
+          style={{
+            maxWidth: 760,
+            margin: "0 auto",
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-end",
+          }}
+        >
+          <textarea
+            ref={textareaRef}
             value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyPress={e => e.key === 'Enter' && !loading && sendMessage(showThinking)}
-            placeholder="Posez votre question..."
-            className="flex-1 border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 transition"
-            disabled={loading}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Écrivez votre message…"
+            rows={1}
+            style={{
+              flex: 1,
+              background: "#111118",
+              border: "1px solid #2a2a38",
+              borderRadius: 14,
+              padding: "12px 16px",
+              color: "#e8e2d9",
+              fontSize: "0.92rem",
+              fontFamily: "'Georgia', serif",
+              lineHeight: 1.6,
+              resize: "none",
+              outline: "none",
+              minHeight: 48,
+              maxHeight: 160,
+              transition: "border-color 0.2s",
+            }}
+            onFocus={(e) =>
+              (e.currentTarget.style.borderColor = "#4f8ef7")
+            }
+            onBlur={(e) =>
+              (e.currentTarget.style.borderColor = "#2a2a38")
+            }
           />
           <button
-            onClick={() => sendMessage(showThinking)}
-            disabled={loading}
-            className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-8 py-3 rounded-lg hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition font-semibold"
+            type="submit"
+            disabled={loading || !input.trim()}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background:
+                loading || !input.trim()
+                  ? "#1a1a24"
+                  : "linear-gradient(135deg, #4f8ef7 0%, #a78bfa 100%)",
+              border: "none",
+              color:
+                loading || !input.trim() ? "#3a3a4e" : "#fff",
+              fontSize: 18,
+              cursor: loading || !input.trim() ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            Envoyer
+            ↑
           </button>
+        </form>
+        <div
+          style={{
+            maxWidth: 760,
+            margin: "8px auto 0",
+            fontSize: "0.7rem",
+            color: "#2e2e3e",
+            textAlign: "center",
+            fontFamily: "monospace",
+            letterSpacing: "0.04em",
+          }}
+        >
+          Propulsé par DeepSeek V3 · deepseek-chat
         </div>
-        
-        <label className="flex items-center text-sm text-gray-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showThinking}
-            onChange={e => setShowThinking(e.target.checked)}
-            className="mr-2"
-          />
-          🧠 Activer le mode Reasoner (raisonnement avancé)
-        </label>
-      </div>
+      </footer>
+
+      <style>{`
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 2px; }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1); }
+        }
+        textarea::placeholder { color: #3a3a4e; }
+      `}</style>
     </div>
   );
     }
