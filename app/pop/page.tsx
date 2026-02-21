@@ -182,7 +182,7 @@ export default function Page() {
                 onClick={() => fileRef.current?.click()}
                 style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.1)", color: "#818cf8", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
               >📎</button>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingImage({ file: f, url: URL.createObjectURL(f) }); e.target.value = ""; }} />
 
               <textarea
@@ -216,4 +216,4 @@ export default function Page() {
       `}</style>
     </div>
   );
-    }
+                                   }
