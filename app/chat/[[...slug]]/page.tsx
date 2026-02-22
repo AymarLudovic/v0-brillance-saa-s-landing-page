@@ -178,6 +178,50 @@ function parsePhaseBlocks(rawText: string): {
   return { phases: Array.from(phaseMap.values()), cleanText };
 }
 
+function extractColorsByZone(img: HTMLImageElement): { hex: string; frequency: number; zone: string }[] {
+  const canvas = document.createElement("canvas");
+  const MAX = 400;
+  const ratio = Math.min(MAX / img.naturalWidth, MAX / img.naturalHeight);
+  const W = Math.floor(img.naturalWidth * ratio);
+  const H = Math.floor(img.naturalHeight * ratio);
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0, W, H);
+  const { data } = ctx.getImageData(0, 0, W, H);
+
+  const zones = [
+    { name: "sidebar-gauche",    x1: 0,        y1: 0,        x2: W * 0.22, y2: H },
+    { name: "header-top",        x1: 0,        y1: 0,        x2: W,        y2: H * 0.12 },
+    { name: "contenu-principal", x1: W * 0.22, y1: H * 0.12, x2: W,        y2: H },
+    { name: "coin-haut-gauche",  x1: 0,        y1: 0,        x2: W * 0.22, y2: H * 0.12 },
+    { name: "bas-page",          x1: 0,        y1: H * 0.85, x2: W,        y2: H },
+    { name: "milieu-centre",     x1: W * 0.3,  y1: H * 0.3,  x2: W * 0.7,  y2: H * 0.7 },
+    { name: "colonne-droite",    x1: W * 0.75, y1: 0,        x2: W,        y2: H },
+  ];
+
+  const results: { hex: string; frequency: number; zone: string }[] = [];
+  for (const zone of zones) {
+    const colorMap: Record<string, number> = {};
+    for (let y = Math.floor(zone.y1); y < Math.floor(zone.y2); y += 3) {
+      for (let x = Math.floor(zone.x1); x < Math.floor(zone.x2); x += 3) {
+        const i = (y * W + x) * 4;
+        if (data[i + 3] < 120) continue;
+        const r = Math.round(data[i] / 8) * 8;
+        const g = Math.round(data[i + 1] / 8) * 8;
+        const b = Math.round(data[i + 2] / 8) * 8;
+        const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+        colorMap[hex] = (colorMap[hex] || 0) + 1;
+      }
+    }
+    Object.entries(colorMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .forEach(([hex, frequency]) => results.push({ hex, frequency, zone: zone.name }));
+  }
+  return results;
+    }
+
 // ─── Composant React d'une phase — respecte ta charte #37322F / #f6f4ec ─────
 function PhaseCard({ phase }: { phase: PhaseInfo }) {
   const isProcessing = phase.status === "processing";
@@ -3185,12 +3229,7 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
 
 
   
-  
-
-       
-  
-    
- const sendChat = async (promptOverride?: string, projectContext?: any): Promise<string | undefined> => {
+const sendChat = async (promptOverride?: string, projectContext?: any) => {
   const userPrompt = promptOverride || chatInput;
   const activeProject = projectContext || currentProject;
 
@@ -3214,14 +3253,14 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
     artifactData: { type: null, rawJson: "", parsedList: [] },
     images: uploadedImages,
     externalFiles: uploadedFiles,
-    mentionedFiles,
+    mentionedFiles
   };
 
   const assistantPlaceholder: Message = {
     id: assistantMsgId,
     role: "assistant",
     content: "",
-    artifactData: { type: null, rawJson: "", parsedList: [] },
+    artifactData: { type: null, rawJson: "", parsedList: [] }
   };
 
   const baseHistory = projectContext ? [] : messages;
@@ -3234,19 +3273,19 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
 
   const currentProjectFiles = activeProject.files.map((f: any) => ({
     filePath: f.filePath,
-    content: f.content,
+    content: f.content
   }));
 
   const filesList: string[] = [];
   const filesContentSnapshots: string[] = [];
   let filesExcludedCount = 0;
 
-  currentProjectFiles.forEach((file) => {
+  currentProjectFiles.forEach(file => {
     const content = file.content || "";
     const size = content.length;
     if (size > 0 && size <= CONTENT_SNAPSHOT_LIMIT) {
-      const lines = content.split("\n");
-      const contentWithLineNumbers = lines.map((line, index) => `${index + 1}: ${line}`).join("\n");
+      const lines = content.split('\n');
+      const contentWithLineNumbers = lines.map((line, index) => `${index + 1}: ${line}`).join('\n');
       filesContentSnapshots.push(`<file_content_snapshot path="${file.filePath}" totalLines="${lines.length}">\n${contentWithLineNumbers}\n</file_content_snapshot>`);
       filesList.push(`<project_file path="${file.filePath}" (Content snapshot INCLUDED: ${size} chars)/>`);
     } else if (size > CONTENT_SNAPSHOT_LIMIT) {
@@ -3259,22 +3298,70 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
 
   const systemFileContext: Message = {
     role: "system",
-    content:
-      `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
-      `[Use the <fetch_file path="..."/> artifact to read content for files excluded.]\n` +
-      (filesExcludedCount > 0 ? `⚠️ ${filesExcludedCount} files were EXCLUDED.\n` : "") +
-      filesList.join("\n") +
-      (filesContentSnapshots.length > 0
-        ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS\n` + filesContentSnapshots.join("\n\n")
-        : ""),
+    content: `# PROJECT FILES (${currentProjectFiles.length} files total)\n` +
+             `[Use the <fetch_file path="..."/> artifact to read content for files excluded.]\n` +
+             (filesExcludedCount > 0 ? `⚠️ ${filesExcludedCount} files were EXCLUDED.\n` : '') +
+             filesList.join("\n") +
+             (filesContentSnapshots.length > 0 ? `\n\n# INJECTED FILE CONTENT SNAPSHOTS\n` + filesContentSnapshots.join("\n\n") : "")
   };
 
   let historyForApi = [systemFileContext, ...currentHistory];
   const readFilesCache = new Set<string>();
 
   setLoading(true);
-  addLog(`Sending prompt to Gemini...`);
 
+  // ── ÉTAPE 1 : Appel /api/chat → récupérer le HTML/CSS de référence ────────
+  let clonedHtmlCss: string | null = null;
+
+  if (uploadedImages.length > 0) {
+    try {
+      addLog("🎨 Génération du HTML/CSS de référence...");
+
+      // Résolution de l'image selon le format stocké dans uploadedImages
+      // Adapte ce bloc selon ta structure réelle (data URL, File, ou objet {file, url})
+      const firstImage = uploadedImages[0];
+      let imageFile: File | null = null;
+
+      if (typeof firstImage === "string" && firstImage.startsWith("data:")) {
+        const blob = await (await fetch(firstImage)).blob();
+        imageFile = new File([blob], "reference.png", { type: blob.type });
+      } else if (firstImage instanceof File) {
+        imageFile = firstImage;
+      } else if (firstImage?.file instanceof File) {
+        imageFile = firstImage.file;
+      }
+
+      if (imageFile) {
+        // Extraction des couleurs via Canvas (même logique que ta page UI Cloner)
+        const imgUrl = URL.createObjectURL(imageFile);
+        const imgEl = new Image();
+        imgEl.src = imgUrl;
+        await new Promise<void>((res) => { imgEl.onload = () => res(); });
+        const colors = extractColorsByZone(imgEl);
+        URL.revokeObjectURL(imgUrl);
+
+        const fd = new FormData();
+        fd.append("image",   imageFile);
+        fd.append("message", userPrompt || "Clone cette interface en HTML/CSS pixel-perfect.");
+        fd.append("history", JSON.stringify([]));
+        fd.append("mode",    "clone");
+        fd.append("colors",  JSON.stringify(colors));
+
+        const chatRes  = await fetch("/api/chat", { method: "POST", body: fd });
+        const chatData = await chatRes.json();
+
+        if (chatData.htmlCode) {
+          clonedHtmlCss = chatData.htmlCode;
+          addLog(`✅ HTML/CSS de référence prêt (${clonedHtmlCss.length} chars)`);
+        }
+      }
+    } catch (e: any) {
+      addLog(`⚠️ Clonage skipped: ${e.message}`);
+      // On continue normalement même si ça échoue
+    }
+  }
+
+  // ── ÉTAPE 2 : Ressources design (inchangé) ────────────────────────────────
   let shopImages: string[] = [];
   let inspirationCSS = "";
 
@@ -3299,10 +3386,62 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
   try {
     const dbKey = await getApiKeyFromIDB();
     if (dbKey) apiKey = dbKey;
-  } catch (e) {
-    console.warn("Erreur API Key:", e);
+  } catch (e) { console.warn("Erreur API Key:", e); }
+
+  // ── ÉTAPE 3 : Injection du HTML/CSS dans l'historique pour /api/gemini ────
+  // Si on a un HTML/CSS cloné, on l'injecte comme message système avec
+  // une instruction absolue de l'utiliser sans le modifier.
+  if (clonedHtmlCss) {
+    const htmlDesignContract: Message = {
+      role: "system",
+      content: `
+╔══════════════════════════════════════════════════════════════════════════════╗
+║            ⚠️  DESIGN CONTRACT — INSTRUCTION ABSOLUE — PRIORITÉ MAXIMALE   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Le HTML/CSS ci-dessous a été généré par un moteur de clonage pixel-perfect à partir
+de l'image de référence fournie par l'utilisateur. Il constitue le DESIGN SYSTEM
+officiel de cette application. Tu dois l'utiliser comme fondation INTÉGRALE.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚫  INTERDICTIONS ABSOLUES — AUCUNE EXCEPTION :
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- NE PAS modifier une seule couleur (hex, rgb, hsl, ou variable CSS)
+- NE PAS changer les espacements, paddings, margins, gaps définis
+- NE PAS altérer les border-radius, box-shadow, transitions, animations
+- NE PAS remplacer les polices, les tailles de texte, les font-weight
+- NE PAS renommer ou supprimer les variables CSS déclarées dans :root {}
+- NE PAS "améliorer", simplifier ou réinterpréter le design de ta propre initiative
+- NE PAS utiliser Tailwind, Bootstrap ou tout autre framework CSS à la place du CSS pur fourni
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅  OBLIGATIONS — SANS EXCEPTION :
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Extraire chaque composant du HTML/CSS (sidebar, header, cards, boutons, inputs,
+  badges, tables, avatars...) et les recréer en React/Next.js avec les styles EXACTS
+- Toutes les variables CSS de :root {} doivent être présentes dans le code final
+- La structure des layouts (flex, grid, positions) doit être reproduite à l'identique
+- L'application finale doit être visuellement INDISCERNABLE du design de référence
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄  HTML/CSS DE RÉFÉRENCE (à utiliser INTÉGRALEMENT et OBLIGATOIREMENT) :
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+\`\`\`html
+${clonedHtmlCss}
+\`\`\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Traduis ce HTML/CSS en composants React/Next.js en préservant 100% des styles.
+Respecte la demande de l'utilisateur pour le contenu et les fonctionnalités.
+`.trim(),
+    };
+
+    // Injecté entre le contexte fichiers et l'historique utilisateur
+    historyForApi = [systemFileContext, htmlDesignContract, ...currentHistory];
   }
 
+  // ── ÉTAPE 4 : Appel /api/gemini avec stream (inchangé) ───────────────────
   let urlArtifact: any = null;
   let text = "";
   let retryCount = 0;
@@ -3316,7 +3455,7 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
       try {
         if (retryCount > 0) {
           const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), 5000);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
 
         res = await fetch("/api/gemini", {
@@ -3329,6 +3468,8 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
             uploadedFiles,
             currentPlan,
             allReferenceImages: randomVibes,
+            // HTML cloné transmis aussi directement pour référence de l'agent
+            ...(clonedHtmlCss ? { clonedHtmlCss } : {}),
           }),
         });
 
@@ -3366,9 +3507,9 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
       const urlMatch = text.match(inspirationUrlRegex);
       if (urlMatch) {
         try {
-          const jsonString = urlMatch[0].replace(/```json|```/g, "").trim();
+          const jsonString = urlMatch[0].replace(/```json|```/g, '').trim();
           const parsedUrlData = JSON.parse(jsonString);
-          if (parsedUrlData.type === "inspirationUrl") urlArtifact = { url: parsedUrlData.url };
+          if (parsedUrlData.type === 'inspirationUrl') urlArtifact = { url: parsedUrlData.url };
         } catch (e) {}
       }
 
@@ -3383,102 +3524,72 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
       const artifactList: any[] = [];
 
       if (fileArtifacts.length > 0) {
-        fileArtifacts.forEach((a) => artifactList.push({ path: a.filePath, type: a.type }));
+        fileArtifacts.forEach(a => artifactList.push({ path: a.filePath, type: a.type }));
         if (activeProject) {
           addFilesIfNew(artifactList, activeProject.files, activeFile, setActiveFile, setCurrentProject);
         }
-        newArtifactData = { type: "files", parsedList: artifactList, rawJson: text };
+        newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
       }
 
-      // ── MODIFICATION CLÉ : on conserve les blocs de phases dans `content`
-      // pour que parsePhaseBlocks() puisse les lire au rendu, mais on retire
-      // les balises <script> de remplacement (inutiles côté React) ainsi que
-      // les autres artefacts habituels.
       let textWithoutArtifacts = text
-        .replace(inspirationUrlRegex, "")
-        .replace(/<create_file[\s\S]*?<\/create_file>/gs, "")
-        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, "")
-        .replace(FETCH_FILE_REGEX, "")
-        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, "")
-        .replace(PLAN_REGEX, "")
-        // On retire les <script> de remplacement — inutiles en React
-        .replace(/<script>[\s\S]*?<\/script>/g, "")
-        // On garde les <div data-phase-id="..."> — parsePhaseBlocks les lira
-        .replace(/<saas-pages>[\s\S]*?<\/saas-pages>/gs, "*(Génération du plan d'architecture SaaS validée)*");
+        .replace(inspirationUrlRegex, '')
+        .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+        .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+        .replace(FETCH_FILE_REGEX, '')
+        .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
+        .replace(PLAN_REGEX, '');
 
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId
-            ? { ...msg, content: textWithoutArtifacts, artifactData: newArtifactData || msg.artifactData }
-            : msg
-        )
-      );
+      setMessages((prev) => prev.map(msg =>
+        msg.id === assistantMsgId
+          ? { ...msg, content: textWithoutArtifacts, artifactData: newArtifactData || msg.artifactData }
+          : msg
+      ));
     }
 
-    // ── Nettoyage final : idem, on garde les phase blocks pour le rendu
     let finalCleanText = text
-      .replace(inspirationUrlRegex, "")
-      .replace(/<create_file[\s\S]*?<\/create_file>/gs, "")
-      .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, "")
-      .replace(FETCH_FILE_REGEX, "")
-      .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, "")
-      .replace(PLAN_REGEX, "")
-      .replace(/<script>[\s\S]*?<\/script>/g, "");
+      .replace(inspirationUrlRegex, '')
+      .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+      .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+      .replace(FETCH_FILE_REGEX, '')
+      .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
+      .replace(PLAN_REGEX, '');
 
     const finalArtifacts = extractFileArtifacts(text);
     finalAssistantMessage = {
       role: "assistant",
       content: finalCleanText,
-      artifactData:
-        finalArtifacts.length > 0
-          ? { type: "files", parsedList: finalArtifacts.map((a) => ({ path: a.filePath, type: a.type })), rawJson: text }
-          : urlArtifact
-          ? { type: "inspirationUrl", rawJson: JSON.stringify(urlArtifact), parsedList: [] }
-          : { type: null, rawJson: "", parsedList: [] },
+      artifactData: finalArtifacts.length > 0
+        ? { type: 'files', parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })), rawJson: text }
+        : (urlArtifact
+            ? { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] }
+            : { type: null, rawJson: "", parsedList: [] })
     };
 
     if (urlArtifact) {
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
-      return finalCleanText;
+      return;
     }
-
-    let updatedProjectForLoop = activeProject;
 
     if (finalArtifacts.length > 0) {
       applyArtifactsToProject(finalArtifacts);
-
-      const newFiles = finalArtifacts.map((a) => ({
-        filePath: a.filePath,
-        content: a.content || "",
-        type: a.type,
-      }));
-
-      const existingFilesMap = new Map(activeProject.files.map((f: any) => [f.filePath, f]));
-      newFiles.forEach((nf) => existingFilesMap.set(nf.filePath, nf));
-
-      updatedProjectForLoop = {
-        ...activeProject,
-        files: Array.from(existingFilesMap.values()),
-      };
     }
-
-    return { text: finalCleanText, updatedProject: updatedProjectForLoop };
 
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
-    setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId));
-    return undefined;
+    setMessages((prev) => prev.filter(m => m.id !== assistantMsgId));
   } finally {
     if (finalAssistantMessage) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId ? { ...finalAssistantMessage, id: assistantMsgId } : msg
-        )
-      );
+      setMessages((prev) => prev.map(msg =>
+        msg.id === assistantMsgId ? { ...finalAssistantMessage, id: assistantMsgId } : msg
+      ));
     }
     setLoading(false);
   }
-};
+};  
+
+     
+     
+    
 
       
 
