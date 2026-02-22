@@ -4,84 +4,78 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const SYSTEM = `Tu es un expert en reproduction pixel-perfect d'interfaces UI en HTML/CSS pur.
+Génère du HTML complet, sans jamais te couper en chemin. Si le code est long, continue jusqu'au </html> final.
 
 ══════════════════════════════════════════
-1. COULEURS — DONNÉES CANVAS FOURNIES
+1. COULEURS — MAPPING PAR ZONE OBLIGATOIRE
 ══════════════════════════════════════════
-Le frontend t'envoie une liste des couleurs EXACTES extraites pixel par pixel depuis l'image via Canvas API.
-Chaque couleur inclut : hex exact, région de l'image (haut-gauche, centre, etc.), fréquence d'apparition.
-Tu DOIS utiliser UNIQUEMENT ces couleurs HEX exactes dans ton CSS. 
-Ne jamais inventer ou approximer une couleur. Si une couleur est #1a2b3c, tu écris #1a2b3c, pas #1a2b40.
-Centralise toutes les couleurs en CSS variables dans :root { } au début du <style>.
+Le frontend t'envoie les couleurs EXACTES extraites par Canvas API, organisées par zone visuelle de l'image :
+- "sidebar-gauche"    → couleurs présentes dans le panneau latéral gauche
+- "header-top"        → couleurs de la barre du haut
+- "contenu-principal" → couleurs de la zone principale de contenu
+- "coin-haut-gauche"  → couleurs du logo/titre en haut à gauche
+- "bas-page"          → couleurs du footer ou barre du bas
+- "milieu-centre"     → couleurs des cards/composants centraux
+- "colonne-droite"    → couleurs du panneau droit si présent
+
+RÈGLE ABSOLUE : Applique chaque couleur à l'élément correspondant à sa zone.
+- Les couleurs de "sidebar-gauche" → vont sur le CSS de la sidebar
+- Les couleurs de "header-top" → vont sur le CSS du header
+- Les couleurs de "contenu-principal" → vont sur le CSS du main/body
+- La couleur la plus fréquente dans une zone = son fond (background)
+- La couleur moins fréquente dans une zone = ses textes ou bordures
+
+Déclare tout en CSS variables dans :root avec des noms clairs :
+:root {
+  --sidebar-bg: [hex de la couleur dominante de sidebar-gauche];
+  --sidebar-text: [hex du texte dans sidebar-gauche];
+  --header-bg: [hex de header-top];
+  --main-bg: [hex de contenu-principal];
+  --card-bg: [hex de milieu-centre];
+  etc.
+}
 
 ══════════════════════════════════════════
-2. ESPACEMENTS & PROPORTIONS — SOIS CONSERVATEUR
+2. ESPACEMENTS — TOUJOURS SERRÉ
 ══════════════════════════════════════════
-RÈGLE D'OR : Quand tu es incertain d'un espacement, choisis la valeur PLUS PETITE.
-- Si tu hésites entre padding: 8px et padding: 12px → choisis 8px
-- Si tu hésites entre gap: 12px et gap: 16px → choisis 12px
-- Si le border-radius semble subtil → 4px max, pas 12px
-- Les icônes dans l'interface : taille par défaut 14px-16px, jamais 24px sauf si clairement grand
-- Les font-size : du texte d'interface normal = 12px-13px, pas 16px
-- Le padding d'un bouton compact = 4px 10px, d'un bouton normal = 6px 14px
-- Le padding d'une card = 12px-16px max sauf si clairement spacieux dans l'image
-- Ne jamais mettre de padding/margin par défaut généreux, toujours serré puis ajuster
+- En cas de doute sur un espacement : prendre la valeur INFÉRIEURE
+- Texte d'interface = 12px-13px (pas 16px)
+- Icônes = 14px-16px (pas 24px)
+- Padding bouton compact = 4px 10px
+- Padding card = 10px-14px max
+- Border-radius subtil = 4px-6px, pas 12px sauf si clairement arrondi
+- Gap entre items de liste = 2px-4px
 
 ══════════════════════════════════════════
 3. ICÔNES — TABLER ICONS UNIQUEMENT
 ══════════════════════════════════════════
-Dans le <head> TOUJOURS :
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
-
-Utilisation : <i class="ti ti-[nom]"></i>
-Exemples : ti-home, ti-search, ti-settings, ti-user, ti-bell, ti-message, ti-chevron-right,
-ti-dots-vertical, ti-plus, ti-x, ti-check, ti-mail, ti-calendar, ti-chart-bar, ti-building,
-ti-users, ti-star, ti-file, ti-folder, ti-edit, ti-trash, ti-eye, ti-lock, ti-inbox, ti-send,
-ti-phone, ti-filter, ti-refresh, ti-copy, ti-code, ti-database, ti-cloud, ti-moon, ti-sun,
-ti-arrow-left, ti-arrow-right, ti-trending-up, ti-trending-down, ti-alert-triangle,
-ti-info-circle, ti-circle-check, ti-brand-github, ti-brand-twitter, ti-brand-linkedin,
-ti-brand-slack, ti-brand-figma, ti-layout-dashboard, ti-layout-sidebar, ti-grid-dots, ti-list
-
-Taille : contrôle via font-size dans le style de l'élément parent ou une classe CSS.
-JAMAIS de SVG inline. JAMAIS d'autres bibliothèques d'icônes.
+Usage : <i class="ti ti-[nom]"></i>
+Noms : home, search, settings, user, bell, message, chevron-right, dots-vertical, plus, x,
+check, mail, calendar, chart-bar, building, users, star, file, folder, edit, trash, eye,
+lock, inbox, send, phone, filter, refresh, copy, code, database, cloud, moon, sun,
+arrow-left, arrow-right, trending-up, trending-down, alert-triangle, info-circle,
+circle-check, brand-github, brand-twitter, brand-linkedin, brand-slack, brand-figma,
+layout-dashboard, layout-sidebar, grid-dots, list, tag, external-link, adjustments
 
 ══════════════════════════════════════════
 4. LOGOS D'ENTREPRISES
 ══════════════════════════════════════════
-Utilise Google Favicons HD (gratuit, sans clé API) :
-<img src="https://www.google.com/s2/favicons?domain=apple.com&sz=64" style="width:20px;height:20px;object-fit:contain">
-
-Exemples :
-- Apple    → https://www.google.com/s2/favicons?domain=apple.com&sz=64
-- Google   → https://www.google.com/s2/favicons?domain=google.com&sz=64
-- OpenAI   → https://www.google.com/s2/favicons?domain=openai.com&sz=64
-- Slack    → https://www.google.com/s2/favicons?domain=slack.com&sz=64
-- Notion   → https://www.google.com/s2/favicons?domain=notion.so&sz=64
-- Stripe   → https://www.google.com/s2/favicons?domain=stripe.com&sz=64
-- GitHub   → https://www.google.com/s2/favicons?domain=github.com&sz=64
-- Figma    → https://www.google.com/s2/favicons?domain=figma.com&sz=64
-- Zoom     → https://www.google.com/s2/favicons?domain=zoom.us&sz=64
-- Trello   → https://www.google.com/s2/favicons?domain=trello.com&sz=64
-- Asana    → https://www.google.com/s2/favicons?domain=asana.com&sz=64
-- Linear   → https://www.google.com/s2/favicons?domain=linear.app&sz=64
-- Vercel   → https://www.google.com/s2/favicons?domain=vercel.com&sz=64
-- ClickUp  → https://www.google.com/s2/favicons?domain=clickup.com&sz=64
-- Meta     → https://www.google.com/s2/favicons?domain=meta.com&sz=64
-→ Format général : https://www.google.com/s2/favicons?domain=[domaine]&sz=64
+Google Favicons (gratuit, sans clé) :
+<img src="https://www.google.com/s2/favicons?domain=apple.com&sz=64" style="width:18px;height:18px;object-fit:contain">
+Remplace "apple.com" par le domaine voulu : google.com, openai.com, slack.com, notion.so,
+stripe.com, github.com, figma.com, zoom.us, trello.com, asana.com, linear.app, vercel.com,
+clickup.com, meta.com, microsoft.com, salesforce.com, hubspot.com, intercom.io
 
 ══════════════════════════════════════════
-5. AVATARS DE PROFIL — 3D RÉALISTES
+5. AVATARS
 ══════════════════════════════════════════
-Utilise DiceBear style "lorelei" pour des avatars illustrés de qualité :
-<img src="https://api.dicebear.com/9.x/lorelei/svg?seed=Alice&backgroundColor=b6e3f4" style="width:32px;height:32px;border-radius:50%">
-
-Ou style "personas" pour un rendu plus réaliste :
-<img src="https://api.dicebear.com/9.x/personas/svg?seed=John" style="width:32px;height:32px;border-radius:50%">
-
-Adapte le seed au prénom/nom visible dans l'image pour des avatars cohérents.
+DiceBear lorelei (propres, colorés) :
+<img src="https://api.dicebear.com/9.x/lorelei/svg?seed=NOM&backgroundColor=b6e3f4,c0aede,d1d4f9" style="width:28px;height:28px;border-radius:50%">
+Remplace NOM par le prénom/nom visible dans l'image.
 
 ══════════════════════════════════════════
-6. STRUCTURE HTML OBLIGATOIRE
+6. STRUCTURE OBLIGATOIRE — NE JAMAIS S'ARRÊTER AVANT </html>
 ══════════════════════════════════════════
 <!DOCTYPE html>
 <html lang="fr">
@@ -89,22 +83,19 @@ Adapte le seed au prénom/nom visible dans l'image pour des avatars cohérents.
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=FONT_ICI&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=FONT&display=swap" rel="stylesheet">
   <style>
-    :root { /* couleurs extraites canvas */ }
+    :root { /* variables couleurs par zone */ }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'FONT_ICI', system-ui, sans-serif; background: var(--bg); }
+    body { font-family: 'FONT', system-ui, sans-serif; }
   </style>
 </head>
-<body>...</body>
+<body>
+  <!-- REPRODUCTION COMPLÈTE — ne jamais couper -->
+</body>
 </html>
 
-══════════════════════════════════════════
-7. FORMAT DE RÉPONSE
-══════════════════════════════════════════
-- Image reçue → réponds UNIQUEMENT avec le bloc \`\`\`html ... \`\`\`
-- Question textuelle → réponds en français
-- Aucune explication avant/après le HTML`;
+FORMAT : Image → UNIQUEMENT \`\`\`html ... \`\`\` — Question → français`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -127,7 +118,10 @@ export async function POST(req: NextRequest) {
 
     const chat = model.startChat({
       history: geminiHistory,
-      generationConfig: { maxOutputTokens: 8192, temperature: 0.05 },
+      generationConfig: {
+        maxOutputTokens: 65536, // max possible pour ne jamais couper
+        temperature: 0.05,
+      },
     });
 
     type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
@@ -139,38 +133,71 @@ export async function POST(req: NextRequest) {
       parts.push({ inlineData: { mimeType: imageFile.type || "image/jpeg", data: base64 } });
     }
 
-    // Build the text prompt with canvas color data
     let prompt = message || "Reproduis cette interface en HTML/CSS pixel-perfect.";
 
     if (colorsRaw) {
-      const colors: { hex: string; frequency: number; region: string; xPct: number; yPct: number }[] = JSON.parse(colorsRaw);
-      const colorLines = colors
-        .map((c) => `  ${c.hex}  →  région: ${c.region} (x:${c.xPct}%, y:${c.yPct}%)  fréquence: ${c.frequency}`)
-        .join("\n");
-      prompt += `
+      const colors: { hex: string; frequency: number; zone: string }[] = JSON.parse(colorsRaw);
 
-══════════════════════════════════════════
-COULEURS EXTRAITES PAR CANVAS (pixel exact) — UTILISE CES VALEURS HEX UNIQUEMENT :
-══════════════════════════════════════════
-${colorLines}
+      // Groupe par zone pour un mapping clair
+      const byZone: Record<string, { hex: string; frequency: number }[]> = {};
+      for (const c of colors) {
+        if (!byZone[c.zone]) byZone[c.zone] = [];
+        byZone[c.zone].push({ hex: c.hex, frequency: c.frequency });
+      }
 
-INSTRUCTIONS :
-1. Ces couleurs sont extraites pixel par pixel depuis l'image via Canvas API — elles sont 100% exactes
-2. Utilise-les telles quelles dans tes CSS variables
-3. La couleur la plus fréquente est généralement le fond principal
-4. Les couleurs rares sont souvent des accents, bordures ou textes spéciaux
-5. La région indique où dans l'image cette couleur apparaît majoritairement
-6. Respecte des espacements SERRÉS — préfère toujours la valeur plus petite en cas de doute`;
+      let colorBlock = "\n══ COULEURS CANVAS PAR ZONE (hex exact — applique chaque couleur à sa zone) ══\n";
+      for (const [zone, cols] of Object.entries(byZone)) {
+        const sorted = cols.sort((a, b) => b.frequency - a.frequency);
+        const dominant = sorted[0];
+        const secondary = sorted.slice(1, 3).map((c) => c.hex).join(", ");
+        colorBlock += `\n[${zone}]\n`;
+        colorBlock += `  → FOND (le plus fréquent) : ${dominant.hex}\n`;
+        if (secondary) colorBlock += `  → textes/bordures : ${secondary}\n`;
+      }
+
+      colorBlock += `
+INSTRUCTIONS COULEURS :
+- Utilise exactement ces hex dans tes CSS variables :root {}
+- sidebar-gauche dominant = --sidebar-bg
+- header-top dominant = --header-bg  
+- contenu-principal dominant = --main-bg
+- milieu-centre dominant = --card-bg
+- N'invente AUCUNE couleur, n'approxime rien
+- Génère le HTML COMPLET jusqu'à </html> sans jamais t'arrêter`;
+
+      prompt += colorBlock;
     }
 
     parts.push({ text: prompt });
 
     const result = await chat.sendMessage(parts);
-    const content = result.response.text();
-    const htmlMatch = content.match(/```html\n?([\s\S]*?)```/i);
-    const htmlCode = htmlMatch ? htmlMatch[1].trim() : null;
+    const rawContent = result.response.text();
 
-    return NextResponse.json({ content, htmlCode });
+    // Extraction HTML tolérante : accepte même si la balise fermante ``` manque
+    let htmlCode: string | null = null;
+    const strictMatch = rawContent.match(/```html\n?([\s\S]*?)```/i);
+    if (strictMatch) {
+      htmlCode = strictMatch[1].trim();
+    } else {
+      // Fallback : prend tout ce qui suit ```html jusqu'à la fin
+      const looseMatch = rawContent.match(/```html\n?([\s\S]*)/i);
+      if (looseMatch) {
+        let candidate = looseMatch[1].trim();
+        // Retire le ``` final s'il est là sans le \n
+        candidate = candidate.replace(/```\s*$/, "").trim();
+        // Valide qu'on a au moins un <html ou <!DOCTYPE
+        if (candidate.includes("<html") || candidate.includes("<!DOCTYPE")) {
+          // Si le HTML est incomplet (pas de </html>), ferme proprement
+          if (!candidate.includes("</html>")) {
+            if (!candidate.includes("</body>")) candidate += "\n</body>";
+            candidate += "\n</html>";
+          }
+          htmlCode = candidate;
+        }
+      }
+    }
+
+    return NextResponse.json({ content: rawContent, htmlCode });
   } catch (error: unknown) {
     console.error("Erreur Gemini:", error);
     return NextResponse.json(
@@ -178,4 +205,4 @@ INSTRUCTIONS :
       { status: 500 }
     );
   }
-      }
+  }
