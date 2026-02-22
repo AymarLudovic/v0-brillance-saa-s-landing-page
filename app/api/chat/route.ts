@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 const SHARED_RULES = `
 ══════════════════════════════════════════
@@ -128,35 +128,29 @@ function buildColorPrompt(colorsRaw: string): string {
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const message = formData.get("message") as string;
-    const imageFile = formData.get("image") as File | null;
-    const historyRaw = formData.get("history") as string;
-    const colorsRaw = formData.get("colors") as string | null;
-    const mode = (formData.get("mode") as string) || "clone";
+    const message    = formData.get("message")  as string;
+    const imageFile  = formData.get("image")    as File | null;
+    const historyRaw = formData.get("history")  as string;
+    const colorsRaw  = formData.get("colors")   as string | null;
+    const mode       = (formData.get("mode")    as string) || "clone";
     const history: { role: string; content: string }[] = JSON.parse(historyRaw || "[]");
 
     const systemPrompt = mode === "create" ? SYSTEM_CREATE : SYSTEM_CLONE;
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-      systemInstruction: systemPrompt,
-    });
+    // ── Historique au format @google/genai ──────────────────────────────────
+    type Part    = { text: string } | { inlineData: { mimeType: string; data: string } };
+    type Content = { role: "user" | "model"; parts: Part[] };
 
-    const geminiHistory = history.map((m) => ({
+    const geminiHistory: Content[] = history.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
-    const chat = model.startChat({
-      history: geminiHistory,
-      generationConfig: { maxOutputTokens: 65536, temperature: 0.05 },
-    });
-
-    type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
+    // ── Parts du message courant ────────────────────────────────────────────
     const parts: Part[] = [];
 
     if (imageFile) {
-      const bytes = await imageFile.arrayBuffer();
+      const bytes  = await imageFile.arrayBuffer();
       const base64 = Buffer.from(bytes).toString("base64");
       parts.push({ inlineData: { mimeType: imageFile.type || "image/jpeg", data: base64 } });
     }
@@ -168,10 +162,23 @@ export async function POST(req: NextRequest) {
     if (colorsRaw) prompt += buildColorPrompt(colorsRaw);
     parts.push({ text: prompt });
 
-    const result = await chat.sendMessage(parts);
-    const rawContent = result.response.text();
+    // ── Appel @google/genai — contents = history + message courant ──────────
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [
+        ...geminiHistory,
+        { role: "user", parts },
+      ],
+      config: {
+        systemInstruction: systemPrompt,
+        maxOutputTokens: 65536,
+        temperature: 0.05,
+      },
+    });
 
-    // Extraction HTML tolérante
+    const rawContent = response.text ?? "";
+
+    // ── Extraction HTML tolérante (inchangée) ───────────────────────────────
     let htmlCode: string | null = null;
     const strictMatch = rawContent.match(/```html\n?([\s\S]*?)```/i);
     if (strictMatch) {
@@ -191,6 +198,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ content: rawContent, htmlCode });
+
   } catch (error: unknown) {
     console.error("Erreur Gemini:", error);
     return NextResponse.json(
@@ -198,4 +206,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-        }
+                                                           }
