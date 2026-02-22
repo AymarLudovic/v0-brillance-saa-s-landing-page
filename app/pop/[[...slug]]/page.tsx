@@ -3,11 +3,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { OnMount } from '@monaco-editor/react';
-import type { Chat, ChatMessage, ProjectFile, Artifact, StreamEvent, AttachedFile } from '../../../lib/types';
+import type { Chat, ChatMessage, ProjectFile, Artifact, StreamEvent, AttachedFile } from '@/lib/types';
 import {
   getChats, getMessages, getFiles, addChat, addMessage, updateMessage,
   updateChat, upsertFile, setFiles, deleteChat, deleteMessages, generateId
-} from '../../../lib/db';
+} from '@/lib/db';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
