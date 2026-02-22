@@ -3334,7 +3334,7 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
       if (imageFile) {
         // Extraction des couleurs via Canvas (même logique que ta page UI Cloner)
         const imgUrl = URL.createObjectURL(imageFile);
-        const imgEl = new Image();
+        const imgEl = new window.Image();
         imgEl.src = imgUrl;
         await new Promise<void>((res) => { imgEl.onload = () => res(); });
         const colors = extractColorsByZone(imgEl);
