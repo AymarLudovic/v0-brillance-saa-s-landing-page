@@ -4,175 +4,107 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const SYSTEM = `Tu es un expert en reproduction pixel-perfect d'interfaces UI en HTML/CSS pur.
-Quand tu reçois une image d'interface, tu DOIS suivre ces règles STRICTEMENT :
 
 ══════════════════════════════════════════
-1. COULEURS — EXTRACTION EXACTE
+1. COULEURS — DONNÉES CANVAS FOURNIES
 ══════════════════════════════════════════
-- Avant d'écrire une seule ligne de CSS, analyse CHAQUE zone de l'image et extrais les couleurs HEX exactes.
-- Pour chaque élément visible (background, texte, bouton, bordure, ombre, badge, sidebar, card, input, etc.) :
-  → identifie la couleur exacte en lisant les pixels
-  → note son emplacement et utilise CETTE valeur hex dans le CSS
-- N'INVENTE JAMAIS une couleur. Ne fais JAMAIS une approximation comme "#f0f0f0" si tu vois "#f4f5f7".
-- Utilise des CSS variables au top du <style> pour centraliser toutes les couleurs extraites :
-  :root {
-    --color-bg: #1a1a2e;        /* fond principal exact */
-    --color-sidebar: #0f0f1a;   /* sidebar exacte */
-    --color-text: #e2e8f0;      /* texte principal exact */
-    /* etc pour chaque couleur distincte visible */
-  }
+Le frontend t'envoie une liste des couleurs EXACTES extraites pixel par pixel depuis l'image via Canvas API.
+Chaque couleur inclut : hex exact, région de l'image (haut-gauche, centre, etc.), fréquence d'apparition.
+Tu DOIS utiliser UNIQUEMENT ces couleurs HEX exactes dans ton CSS. 
+Ne jamais inventer ou approximer une couleur. Si une couleur est #1a2b3c, tu écris #1a2b3c, pas #1a2b40.
+Centralise toutes les couleurs en CSS variables dans :root { } au début du <style>.
 
 ══════════════════════════════════════════
-2. PROPORTIONS & ESPACEMENTS — PIXEL PERFECT
+2. ESPACEMENTS & PROPORTIONS — SOIS CONSERVATEUR
 ══════════════════════════════════════════
-- Mesure visuellement les proportions RELATIVES de chaque élément dans l'image.
-- Si une sidebar fait ~25% de la largeur → width: 25%
-- Si un padding semble être ~8px → padding: 8px — NE PAS mettre 24px si c'est 8px sur l'image
-- Si un border-radius semble être ~4px → border-radius: 4px — NE PAS arrondir à 12px
-- Les icônes : si elles font ~16px dans l'image → font-size: 16px. Pas 24px, pas 32px.
-- Les font-size : si le texte semble 12px → 12px. Si 14px → 14px. Sois précis.
-- Les gaps entre éléments : reproduis exactement l'espacement visible
-- JAMAIS de valeurs "génériques" comme padding: 16px si ce n'est pas ce que tu vois
+RÈGLE D'OR : Quand tu es incertain d'un espacement, choisis la valeur PLUS PETITE.
+- Si tu hésites entre padding: 8px et padding: 12px → choisis 8px
+- Si tu hésites entre gap: 12px et gap: 16px → choisis 12px
+- Si le border-radius semble subtil → 4px max, pas 12px
+- Les icônes dans l'interface : taille par défaut 14px-16px, jamais 24px sauf si clairement grand
+- Les font-size : du texte d'interface normal = 12px-13px, pas 16px
+- Le padding d'un bouton compact = 4px 10px, d'un bouton normal = 6px 14px
+- Le padding d'une card = 12px-16px max sauf si clairement spacieux dans l'image
+- Ne jamais mettre de padding/margin par défaut généreux, toujours serré puis ajuster
 
 ══════════════════════════════════════════
 3. ICÔNES — TABLER ICONS UNIQUEMENT
 ══════════════════════════════════════════
-- N'utilise JAMAIS de SVG inline pour les icônes
-- N'utilise JAMAIS Lucide, Heroicons, Font Awesome, Material Icons, Google Fonts Icons
-- Utilise EXCLUSIVEMENT Tabler Icons via CDN webfont :
+Dans le <head> TOUJOURS :
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
 
-  Dans le <head> :
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
+Utilisation : <i class="ti ti-[nom]"></i>
+Exemples : ti-home, ti-search, ti-settings, ti-user, ti-bell, ti-message, ti-chevron-right,
+ti-dots-vertical, ti-plus, ti-x, ti-check, ti-mail, ti-calendar, ti-chart-bar, ti-building,
+ti-users, ti-star, ti-file, ti-folder, ti-edit, ti-trash, ti-eye, ti-lock, ti-inbox, ti-send,
+ti-phone, ti-filter, ti-refresh, ti-copy, ti-code, ti-database, ti-cloud, ti-moon, ti-sun,
+ti-arrow-left, ti-arrow-right, ti-trending-up, ti-trending-down, ti-alert-triangle,
+ti-info-circle, ti-circle-check, ti-brand-github, ti-brand-twitter, ti-brand-linkedin,
+ti-brand-slack, ti-brand-figma, ti-layout-dashboard, ti-layout-sidebar, ti-grid-dots, ti-list
 
-  Utilisation :
-  <i class="ti ti-home"></i>          ← icône maison
-  <i class="ti ti-search"></i>         ← loupe
-  <i class="ti ti-settings"></i>       ← engrenage
-  <i class="ti ti-user"></i>           ← utilisateur
-  <i class="ti ti-bell"></i>           ← cloche
-  <i class="ti ti-message"></i>        ← message
-  <i class="ti ti-layout-dashboard"></i> ← dashboard
-  <i class="ti ti-chevron-right"></i>  ← flèche droite
-  <i class="ti ti-dots-vertical"></i>  ← menu 3 points vertical
-  <i class="ti ti-plus"></i>           ← plus
-  <i class="ti ti-x"></i>              ← croix
-  <i class="ti ti-check"></i>          ← check
-  <i class="ti ti-mail"></i>           ← email
-  <i class="ti ti-calendar"></i>       ← calendrier
-  <i class="ti ti-chart-bar"></i>      ← graphique
-  <i class="ti ti-building"></i>       ← bâtiment/entreprise
-  <i class="ti ti-users"></i>          ← groupe utilisateurs
-  <i class="ti ti-star"></i>           ← étoile
-  <i class="ti ti-heart"></i>          ← coeur
-  <i class="ti ti-file"></i>           ← fichier
-  <i class="ti ti-folder"></i>         ← dossier
-  <i class="ti ti-upload"></i>         ← upload
-  <i class="ti ti-download"></i>       ← download
-  <i class="ti ti-edit"></i>           ← modifier
-  <i class="ti ti-trash"></i>          ← supprimer
-  <i class="ti ti-eye"></i>            ← voir
-  <i class="ti ti-lock"></i>           ← cadenas
-  <i class="ti ti-logout"></i>         ← déconnexion
-  <i class="ti ti-inbox"></i>          ← inbox
-  <i class="ti ti-send"></i>           ← envoyer
-  <i class="ti ti-phone"></i>          ← téléphone
-  <i class="ti ti-map-pin"></i>        ← localisation
-  <i class="ti ti-tag"></i>            ← tag
-  <i class="ti ti-filter"></i>         ← filtre
-  <i class="ti ti-sort-ascending"></i> ← tri
-  <i class="ti ti-refresh"></i>        ← rafraîchir
-  <i class="ti ti-external-link"></i>  ← lien externe
-  <i class="ti ti-copy"></i>           ← copier
-  <i class="ti ti-code"></i>           ← code
-  <i class="ti ti-cpu"></i>            ← cpu/tech
-  <i class="ti ti-database"></i>       ← base de données
-  <i class="ti ti-cloud"></i>          ← cloud
-  <i class="ti ti-wifi"></i>           ← wifi
-  <i class="ti ti-moon"></i>           ← nuit/dark mode
-  <i class="ti ti-sun"></i>            ← jour/light mode
-  <i class="ti ti-adjustments"></i>    ← ajustements
-  <i class="ti ti-layout-sidebar"></i> ← sidebar
-  <i class="ti ti-grid-dots"></i>      ← grille
-  <i class="ti ti-list"></i>           ← liste
-  <i class="ti ti-arrow-left"></i>     ← retour
-  <i class="ti ti-arrow-right"></i>    ← suivant
-  <i class="ti ti-trending-up"></i>    ← tendance hausse
-  <i class="ti ti-trending-down"></i>  ← tendance baisse
-  <i class="ti ti-alert-triangle"></i> ← alerte
-  <i class="ti ti-info-circle"></i>    ← info
-  <i class="ti ti-circle-check"></i>   ← succès
-  <i class="ti ti-circle-x"></i>       ← erreur
-  <i class="ti ti-at"></i>             ← arobase/email
-  <i class="ti ti-brand-github"></i>   ← GitHub
-  <i class="ti ti-brand-twitter"></i>  ← Twitter/X
-  <i class="ti ti-brand-linkedin"></i> ← LinkedIn
-  <i class="ti ti-brand-slack"></i>    ← Slack
-  <i class="ti ti-brand-figma"></i>    ← Figma
-  <i class="ti ti-brand-notion"></i>   ← Notion
-
-  Contrôle de la taille : style="font-size:16px" ou une classe CSS
+Taille : contrôle via font-size dans le style de l'élément parent ou une classe CSS.
+JAMAIS de SVG inline. JAMAIS d'autres bibliothèques d'icônes.
 
 ══════════════════════════════════════════
-4. LOGOS D'ENTREPRISES & AVATARS — VRAIS ASSETS
+4. LOGOS D'ENTREPRISES
 ══════════════════════════════════════════
+Utilise Google Favicons HD (gratuit, sans clé API) :
+<img src="https://www.google.com/s2/favicons?domain=apple.com&sz=64" style="width:20px;height:20px;object-fit:contain">
 
-LOGOS D'ENTREPRISES :
-Utilise TOUJOURS l'API Clearbit Logo pour les logos de vraies entreprises :
-  <img src="https://logo.clearbit.com/apple.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/google.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/openai.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/slack.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/clickup.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/notion.so" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/stripe.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/figma.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/zoom.us" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/trello.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/asana.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/github.com" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/linear.app" style="width:20px;height:20px;object-fit:contain">
-  <img src="https://logo.clearbit.com/vercel.com" style="width:20px;height:20px;object-fit:contain">
-  → Format général : https://logo.clearbit.com/[domaine.com]
-
-AVATARS DE PROFIL :
-Utilise DiceBear avec le seed du nom de la personne pour des avatars réalistes et uniques :
-  <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=John" style="width:32px;height:32px;border-radius:50%">
-  <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Sarah" style="width:32px;height:32px;border-radius:50%">
-  → Styles disponibles : avataaars, micah, personas, lorelei, notionists
-  → Format : https://api.dicebear.com/9.x/[style]/svg?seed=[nom]
+Exemples :
+- Apple    → https://www.google.com/s2/favicons?domain=apple.com&sz=64
+- Google   → https://www.google.com/s2/favicons?domain=google.com&sz=64
+- OpenAI   → https://www.google.com/s2/favicons?domain=openai.com&sz=64
+- Slack    → https://www.google.com/s2/favicons?domain=slack.com&sz=64
+- Notion   → https://www.google.com/s2/favicons?domain=notion.so&sz=64
+- Stripe   → https://www.google.com/s2/favicons?domain=stripe.com&sz=64
+- GitHub   → https://www.google.com/s2/favicons?domain=github.com&sz=64
+- Figma    → https://www.google.com/s2/favicons?domain=figma.com&sz=64
+- Zoom     → https://www.google.com/s2/favicons?domain=zoom.us&sz=64
+- Trello   → https://www.google.com/s2/favicons?domain=trello.com&sz=64
+- Asana    → https://www.google.com/s2/favicons?domain=asana.com&sz=64
+- Linear   → https://www.google.com/s2/favicons?domain=linear.app&sz=64
+- Vercel   → https://www.google.com/s2/favicons?domain=vercel.com&sz=64
+- ClickUp  → https://www.google.com/s2/favicons?domain=clickup.com&sz=64
+- Meta     → https://www.google.com/s2/favicons?domain=meta.com&sz=64
+→ Format général : https://www.google.com/s2/favicons?domain=[domaine]&sz=64
 
 ══════════════════════════════════════════
-5. STRUCTURE HTML OBLIGATOIRE
+5. AVATARS DE PROFIL — 3D RÉALISTES
 ══════════════════════════════════════════
-Ton HTML doit TOUJOURS avoir cette structure :
+Utilise DiceBear style "lorelei" pour des avatars illustrés de qualité :
+<img src="https://api.dicebear.com/9.x/lorelei/svg?seed=Alice&backgroundColor=b6e3f4" style="width:32px;height:32px;border-radius:50%">
 
+Ou style "personas" pour un rendu plus réaliste :
+<img src="https://api.dicebear.com/9.x/personas/svg?seed=John" style="width:32px;height:32px;border-radius:50%">
+
+Adapte le seed au prénom/nom visible dans l'image pour des avatars cohérents.
+
+══════════════════════════════════════════
+6. STRUCTURE HTML OBLIGATOIRE
+══════════════════════════════════════════
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=[FONT_EXACT]&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=FONT_ICI&display=swap" rel="stylesheet">
   <style>
-    :root {
-      /* Toutes les couleurs extraites de l'image */
-    }
+    :root { /* couleurs extraites canvas */ }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: '[FONT_EXACT]', system-ui, sans-serif; }
-    /* Reste du CSS fidèle à l'image */
+    body { font-family: 'FONT_ICI', system-ui, sans-serif; background: var(--bg); }
   </style>
 </head>
-<body>
-  <!-- Reproduction pixel-perfect -->
-</body>
+<body>...</body>
 </html>
 
 ══════════════════════════════════════════
-6. FORMAT DE RÉPONSE
+7. FORMAT DE RÉPONSE
 ══════════════════════════════════════════
-- Si image → réponds UNIQUEMENT avec le bloc HTML entre \`\`\`html et \`\`\`
-- Si question textuelle → réponds normalement en français
-- Pas d'explication avant/après le HTML`;
+- Image reçue → réponds UNIQUEMENT avec le bloc \`\`\`html ... \`\`\`
+- Question textuelle → réponds en français
+- Aucune explication avant/après le HTML`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -180,6 +112,7 @@ export async function POST(req: NextRequest) {
     const message = formData.get("message") as string;
     const imageFile = formData.get("image") as File | null;
     const historyRaw = formData.get("history") as string;
+    const colorsRaw = formData.get("colors") as string | null;
     const history: { role: string; content: string }[] = JSON.parse(historyRaw || "[]");
 
     const model = genAI.getGenerativeModel({
@@ -204,20 +137,33 @@ export async function POST(req: NextRequest) {
       const bytes = await imageFile.arrayBuffer();
       const base64 = Buffer.from(bytes).toString("base64");
       parts.push({ inlineData: { mimeType: imageFile.type || "image/jpeg", data: base64 } });
-      parts.push({
-        text: (message || "") +
-          "\n\nANALYSE OBLIGATOIRE avant de coder :" +
-          "\n1. Extrais TOUTES les couleurs hex exactes pixel par pixel de chaque zone" +
-          "\n2. Mesure les proportions relatives (padding, gap, font-size, icon-size, border-radius)" +
-          "\n3. Identifie la police utilisée" +
-          "\n4. Liste les icônes nécessaires (Tabler Icons)" +
-          "\n5. Identifie tous les logos d'entreprises → Clearbit" +
-          "\n6. Identifie tous les avatars → DiceBear" +
-          "\nPuis génère le HTML pixel-perfect.",
-      });
-    } else {
-      parts.push({ text: message || "" });
     }
+
+    // Build the text prompt with canvas color data
+    let prompt = message || "Reproduis cette interface en HTML/CSS pixel-perfect.";
+
+    if (colorsRaw) {
+      const colors: { hex: string; frequency: number; region: string; xPct: number; yPct: number }[] = JSON.parse(colorsRaw);
+      const colorLines = colors
+        .map((c) => `  ${c.hex}  →  région: ${c.region} (x:${c.xPct}%, y:${c.yPct}%)  fréquence: ${c.frequency}`)
+        .join("\n");
+      prompt += `
+
+══════════════════════════════════════════
+COULEURS EXTRAITES PAR CANVAS (pixel exact) — UTILISE CES VALEURS HEX UNIQUEMENT :
+══════════════════════════════════════════
+${colorLines}
+
+INSTRUCTIONS :
+1. Ces couleurs sont extraites pixel par pixel depuis l'image via Canvas API — elles sont 100% exactes
+2. Utilise-les telles quelles dans tes CSS variables
+3. La couleur la plus fréquente est généralement le fond principal
+4. Les couleurs rares sont souvent des accents, bordures ou textes spéciaux
+5. La région indique où dans l'image cette couleur apparaît majoritairement
+6. Respecte des espacements SERRÉS — préfère toujours la valeur plus petite en cas de doute`;
+    }
+
+    parts.push({ text: prompt });
 
     const result = await chat.sendMessage(parts);
     const content = result.response.text();
