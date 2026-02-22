@@ -14,7 +14,6 @@ interface ZoneColor {
   zone: string;
 }
 
-// Divise l'image en zones nommées et extrait les couleurs dominantes par zone
 function extractColorsByZone(img: HTMLImageElement): ZoneColor[] {
   const canvas = document.createElement("canvas");
   const MAX = 400;
@@ -27,28 +26,23 @@ function extractColorsByZone(img: HTMLImageElement): ZoneColor[] {
   ctx.drawImage(img, 0, 0, W, H);
   const { data } = ctx.getImageData(0, 0, W, H);
 
-  // Zones nommées précises
-  const zones: { name: string; x1: number; y1: number; x2: number; y2: number }[] = [
-    { name: "sidebar-gauche",   x1: 0,         y1: 0,        x2: W * 0.22,  y2: H },
-    { name: "header-top",       x1: 0,         y1: 0,        x2: W,         y2: H * 0.12 },
-    { name: "contenu-principal",x1: W * 0.22,  y1: H * 0.12, x2: W,         y2: H },
-    { name: "coin-haut-gauche", x1: 0,         y1: 0,        x2: W * 0.22,  y2: H * 0.12 },
-    { name: "bas-page",         x1: 0,         y1: H * 0.85, x2: W,         y2: H },
-    { name: "milieu-centre",    x1: W * 0.3,   y1: H * 0.3,  x2: W * 0.7,   y2: H * 0.7 },
-    { name: "colonne-droite",   x1: W * 0.75,  y1: 0,        x2: W,         y2: H },
+  const zones = [
+    { name: "sidebar-gauche",    x1: 0,        y1: 0,        x2: W * 0.22, y2: H },
+    { name: "header-top",        x1: 0,        y1: 0,        x2: W,        y2: H * 0.12 },
+    { name: "contenu-principal", x1: W * 0.22, y1: H * 0.12, x2: W,        y2: H },
+    { name: "coin-haut-gauche",  x1: 0,        y1: 0,        x2: W * 0.22, y2: H * 0.12 },
+    { name: "bas-page",          x1: 0,        y1: H * 0.85, x2: W,        y2: H },
+    { name: "milieu-centre",     x1: W * 0.3,  y1: H * 0.3,  x2: W * 0.7,  y2: H * 0.7 },
+    { name: "colonne-droite",    x1: W * 0.75, y1: 0,        x2: W,        y2: H },
   ];
 
   const results: ZoneColor[] = [];
-
   for (const zone of zones) {
     const colorMap: Record<string, number> = {};
-    const step = 3;
-
-    for (let y = Math.floor(zone.y1); y < Math.floor(zone.y2); y += step) {
-      for (let x = Math.floor(zone.x1); x < Math.floor(zone.x2); x += step) {
+    for (let y = Math.floor(zone.y1); y < Math.floor(zone.y2); y += 3) {
+      for (let x = Math.floor(zone.x1); x < Math.floor(zone.x2); x += 3) {
         const i = (y * W + x) * 4;
         if (data[i + 3] < 120) continue;
-        // Quantize to 8-level for grouping, but keep full hex
         const r = Math.round(data[i] / 8) * 8;
         const g = Math.round(data[i + 1] / 8) * 8;
         const b = Math.round(data[i + 2] / 8) * 8;
@@ -56,19 +50,13 @@ function extractColorsByZone(img: HTMLImageElement): ZoneColor[] {
         colorMap[hex] = (colorMap[hex] || 0) + 1;
       }
     }
-
-    // Top 5 couleurs par zone
-    const top = Object.entries(colorMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-
-    for (const [hex, frequency] of top) {
-      results.push({ hex, frequency, zone: zone.name });
-    }
+    Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .forEach(([hex, frequency]) => results.push({ hex, frequency, zone: zone.name }));
   }
-
   return results;
 }
+
+type Mode = "clone" | "create";
 
 export default function Page() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -77,6 +65,7 @@ export default function Page() {
   const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
   const [iframeHtml, setIframeHtml] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "preview">("chat");
+  const [mode, setMode] = useState<Mode>("clone");
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -89,9 +78,14 @@ export default function Page() {
 
   const send = async () => {
     if (loading || (!input.trim() && !pendingImage)) return;
-    const userText = input.trim() || "Clone cette interface en HTML/CSS pixel-perfect.";
+
+    const defaultText = mode === "clone"
+      ? "Clone cette interface en HTML/CSS pixel-perfect."
+      : "Crée une nouvelle page en utilisant le design system de cette image.";
+    const userText = input.trim() || defaultText;
     const userMsg: Message = { role: "user", text: userText, imageUrl: pendingImage?.url };
     const history = messages.map((m) => ({ role: m.role, content: m.text }));
+
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     const imgToSend = pendingImage;
@@ -102,14 +96,14 @@ export default function Page() {
       const fd = new FormData();
       fd.append("message", userText);
       fd.append("history", JSON.stringify(history));
+      fd.append("mode", mode);
 
       if (imgToSend) {
         fd.append("image", imgToSend.file);
         const imgEl = new Image();
         imgEl.src = imgToSend.url;
         await new Promise<void>((res) => { imgEl.onload = () => res(); });
-        const colors = extractColorsByZone(imgEl);
-        fd.append("colors", JSON.stringify(colors));
+        fd.append("colors", JSON.stringify(extractColorsByZone(imgEl)));
       }
 
       const res = await fetch("/api/chat", { method: "POST", body: fd });
@@ -120,15 +114,21 @@ export default function Page() {
       setMessages((prev) => [...prev, assistantMsg]);
       if (data.htmlCode) setIframeHtml(data.htmlCode);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erreur inconnue";
-      setMessages((prev) => [...prev, { role: "assistant", text: `❌ ${msg}` }]);
+      setMessages((prev) => [...prev, { role: "assistant", text: `❌ ${err instanceof Error ? err.message : "Erreur inconnue"}` }]);
     } finally {
       setLoading(false);
     }
   };
 
+  const modeConfig = {
+    clone:  { label: "🎯 Clone",  desc: "Reproduction pixel-perfect de l'image",           color: "#6366f1" },
+    create: { label: "✨ Créer",  desc: "Nouvelle page avec le design system de l'image",   color: "#f59e0b" },
+  };
+
   return (
     <div style={{ height: "100svh", display: "flex", flexDirection: "column", background: "#111117", color: "#e2ddd6", fontFamily: "system-ui, sans-serif" }}>
+
+      {/* HEADER */}
       <div style={{ padding: "12px 16px", borderBottom: "1px solid #222230", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
         <div style={{ fontWeight: 700, fontSize: "0.9rem", display: "flex", alignItems: "center", gap: 8 }}>
           🖼 UI Cloner
@@ -140,11 +140,39 @@ export default function Page() {
         </div>
       </div>
 
+      {/* MODE SELECTOR */}
+      <div style={{ padding: "10px 16px", borderBottom: "1px solid #1a1a28", background: "#0e0e14", display: "flex", gap: 8, flexShrink: 0 }}>
+        {(["clone", "create"] as Mode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            style={{
+              flex: 1,
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: `1px solid ${mode === m ? modeConfig[m].color : "#222230"}`,
+              background: mode === m ? `${modeConfig[m].color}18` : "transparent",
+              color: mode === m ? modeConfig[m].color : "#404055",
+              cursor: "pointer",
+              fontSize: "0.78rem",
+              fontWeight: mode === m ? 700 : 400,
+              textAlign: "left",
+              transition: "all 0.18s",
+            }}
+          >
+            <div>{modeConfig[m].label}</div>
+            <div style={{ fontSize: "0.62rem", opacity: 0.7, marginTop: 1, fontWeight: 400 }}>{modeConfig[m].desc}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* PREVIEW */}
       {view === "preview" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {iframeHtml
             ? <iframe srcDoc={iframeHtml} style={{ flex: 1, border: "none", width: "100%", background: "#fff" }} sandbox="allow-scripts allow-same-origin" />
-            : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#33334a", fontSize: "0.85rem" }}>Aucun HTML généré.</div>}
+            : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#33334a", fontSize: "0.85rem" }}>Aucun HTML généré.</div>
+          }
           {iframeHtml && (
             <div style={{ padding: "8px 12px", borderTop: "1px solid #222230" }}>
               <button onClick={() => navigator.clipboard.writeText(iframeHtml)} style={{ width: "100%", padding: "9px", borderRadius: 8, border: "1px solid #6366f1", background: "rgba(99,102,241,0.1)", color: "#818cf8", cursor: "pointer", fontSize: "0.78rem" }}>Copier le HTML</button>
@@ -153,14 +181,17 @@ export default function Page() {
         </div>
       )}
 
+      {/* CHAT */}
       {view === "chat" && (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: 16 }}>
             {messages.length === 0 && (
-              <div style={{ margin: "auto", textAlign: "center", color: "#2a2a3e", lineHeight: 2, fontSize: "0.82rem" }}>
-                📎 Uploade une image d&apos;interface<br />
-                Canvas extrait les couleurs par zone<br />
-                Gemini clone en HTML/CSS pixel-perfect
+              <div style={{ margin: "auto", textAlign: "center", color: "#2a2a3e", lineHeight: 2, fontSize: "0.82rem", padding: "0 20px" }}>
+                {mode === "clone" ? (
+                  <>📎 Uploade une image d&apos;interface<br />Gemini la reproduit pixel-perfect en HTML/CSS</>
+                ) : (
+                  <>✨ Uploade une image de référence design<br />Décris la page à créer<br />Gemini construit avec les mêmes composants &amp; couleurs</>
+                )}
               </div>
             )}
             {messages.map((msg, i) => (
@@ -181,27 +212,45 @@ export default function Page() {
               <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
                 <div style={{ fontSize: "0.6rem", color: "#33334a", fontFamily: "monospace" }}>Gemini</div>
                 <div style={{ padding: "12px 16px", borderRadius: "3px 14px 14px 14px", background: "#161622", border: "1px solid #252538", display: "flex", gap: 5, alignItems: "center" }}>
-                  {[0, 1, 2].map((k) => <span key={k} style={{ width: 7, height: 7, borderRadius: "50%", background: "#6366f1", display: "inline-block", animation: `dot 1.2s ease-in-out ${k * 0.2}s infinite` }} />)}
-                  <span style={{ fontSize: "0.72rem", color: "#44445a", marginLeft: 8, fontFamily: "monospace" }}>Génération en cours…</span>
+                  {[0, 1, 2].map((k) => <span key={k} style={{ width: 7, height: 7, borderRadius: "50%", background: mode === "create" ? "#f59e0b" : "#6366f1", display: "inline-block", animation: `dot 1.2s ease-in-out ${k * 0.2}s infinite` }} />)}
+                  <span style={{ fontSize: "0.72rem", color: "#44445a", marginLeft: 8, fontFamily: "monospace" }}>
+                    {mode === "clone" ? "Reproduction pixel-perfect…" : "Création avec le design system…"}
+                  </span>
                 </div>
               </div>
             )}
             <div ref={endRef} />
           </div>
 
+          {/* INPUT */}
           <div style={{ padding: "10px 12px 20px", borderTop: "1px solid #222230", flexShrink: 0, background: "#111117" }}>
             {pendingImage && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <img src={pendingImage.url} alt="" style={{ height: 54, width: "auto", borderRadius: 7, border: "1px solid rgba(99,102,241,0.35)", objectFit: "cover" }} />
-                <span style={{ fontSize: "0.7rem", color: "#6366f1", fontFamily: "monospace" }}>Image prête</span>
+                <img src={pendingImage.url} alt="" style={{ height: 54, width: "auto", borderRadius: 7, border: `1px solid ${modeConfig[mode].color}55`, objectFit: "cover" }} />
+                <span style={{ fontSize: "0.7rem", color: modeConfig[mode].color, fontFamily: "monospace" }}>
+                  {mode === "clone" ? "Image à cloner" : "Design de référence"}
+                </span>
                 <button onClick={() => setPendingImage(null)} style={{ marginLeft: "auto", background: "#ef4444", border: "none", borderRadius: "50%", width: 22, height: 22, color: "#fff", cursor: "pointer", fontSize: 13 }}>×</button>
               </div>
             )}
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-              <button onClick={() => fileRef.current?.click()} style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.1)", color: "#818cf8", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>📎</button>
+              <button onClick={() => fileRef.current?.click()} style={{ width: 44, height: 44, borderRadius: 10, border: `1px solid ${modeConfig[mode].color}44`, background: `${modeConfig[mode].color}18`, color: modeConfig[mode].color, fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>📎</button>
               <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) pickImage(f); e.target.value = ""; }} />
-              <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={pendingImage ? "Instructions spécifiques (optionnel)…" : "Message ou image…"} rows={1} style={{ flex: 1, background: "#1a1a28", border: "1px solid #2a2a3e", borderRadius: 10, padding: "11px 13px", color: "#e2ddd6", fontSize: "0.86rem", fontFamily: "system-ui,sans-serif", resize: "none", outline: "none", minHeight: 44, maxHeight: 120, lineHeight: 1.6 }} onFocus={(e) => e.currentTarget.style.borderColor = "rgba(99,102,241,0.4)"} onBlur={(e) => e.currentTarget.style.borderColor = "#2a2a3e"} />
-              <button onClick={send} disabled={loading || (!input.trim() && !pendingImage)} style={{ width: 44, height: 44, borderRadius: 10, border: "none", background: (!loading && (input.trim() || pendingImage)) ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "#1e1e2e", color: (!loading && (input.trim() || pendingImage)) ? "#fff" : "#333", fontSize: 20, cursor: (!loading && (input.trim() || pendingImage)) ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>↑</button>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                placeholder={
+                  mode === "clone"
+                    ? pendingImage ? "Instructions spécifiques (optionnel)…" : "Envoie une image à cloner…"
+                    : pendingImage ? "Ex: crée une page de profil utilisateur avec ce design…" : "Envoie une image de référence + décris la page à créer…"
+                }
+                rows={1}
+                style={{ flex: 1, background: "#1a1a28", border: "1px solid #2a2a3e", borderRadius: 10, padding: "11px 13px", color: "#e2ddd6", fontSize: "0.86rem", fontFamily: "system-ui,sans-serif", resize: "none", outline: "none", minHeight: 44, maxHeight: 120, lineHeight: 1.6 }}
+                onFocus={(e) => e.currentTarget.style.borderColor = `${modeConfig[mode].color}66`}
+                onBlur={(e) => e.currentTarget.style.borderColor = "#2a2a3e"}
+              />
+              <button onClick={send} disabled={loading || (!input.trim() && !pendingImage)} style={{ width: 44, height: 44, borderRadius: 10, border: "none", background: (!loading && (input.trim() || pendingImage)) ? `linear-gradient(135deg, ${modeConfig[mode].color}, ${mode === "clone" ? "#8b5cf6" : "#ef4444"})` : "#1e1e2e", color: (!loading && (input.trim() || pendingImage)) ? "#fff" : "#333", fontSize: 20, cursor: (!loading && (input.trim() || pendingImage)) ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>↑</button>
             </div>
           </div>
         </>
@@ -216,4 +265,4 @@ export default function Page() {
       `}</style>
     </div>
   );
-      }
+     }
