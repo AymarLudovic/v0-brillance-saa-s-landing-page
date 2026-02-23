@@ -90,6 +90,7 @@ interface CommandResult {
 interface Message {
   role: "user" | "assistant" | "system"
   content: string 
+ htmlCode?: string; // HTML/CSS pixel-perfect renvoyé par /api/chat
   images?: string[]
   externalFiles?: { fileName: string; base64Content: string }[] 
   mentionedFiles?: string[] 
@@ -1304,7 +1305,7 @@ const [cloneUrl, setCloneUrl] = useState("")
   // Dans votre composant principal (e.g., SandboxPage)
 const [copiedFileIndex, setCopiedFileIndex] = useState(null);
 const [isGitHubOpen, setIsGitHubOpen] = useState(false);
-
+const [previewModalHtml, setPreviewModalHtml] = useState<string | null>(null);
 // ... et d'ajouter ces états dans votre composant principal (e.g., SandboxPage)
 const [copiedMessageIndex, setCopiedMessageIndex] = useState(null);
 const [expandedMessageIndex, setExpandedMessageIndex] = useState(null);
@@ -3354,6 +3355,12 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
           clonedHtmlCss = chatData.htmlCode;
           addLog(`✅ HTML/CSS de référence prêt (${clonedHtmlCss.length} chars)`);
         }
+
+        if (clonedHtmlCss) {
+  setMessages(prev => prev.map(msg =>
+    msg.id === assistantMsgId ? { ...msg, htmlCode: clonedHtmlCss } : msg
+  ));
+            }
       }
     } catch (e: any) {
       addLog(`⚠️ Clonage skipped: ${e.message}`);
@@ -4585,7 +4592,51 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
           
               
-           {messages.map((msg, index) => {
+           
+
+          
+  {/* ═══════════════════════════════════════════════════════════ */}
+{/* MODAL PLEIN ÉCRAN — prévisualisation HTML/CSS              */}
+{/* ═══════════════════════════════════════════════════════════ */}
+{previewModalHtml && (
+  <div
+    className="fixed inset-0 z-50 flex flex-col"
+    style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)" }}
+  >
+    {/* Barre de contrôle du modal */}
+    <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a28] border-b border-white/10 flex-shrink-0">
+      <span className="text-xs font-semibold text-white/70 font-mono">
+        👁 Prévisualisation HTML/CSS · Design de référence
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => navigator.clipboard.writeText(previewModalHtml)}
+          className="text-xs px-3 py-1 rounded-md border border-white/20 bg-white/10 text-white/70 hover:bg-white/20 transition-all"
+        >
+          Copier HTML
+        </button>
+        <button
+          onClick={() => setPreviewModalHtml(null)}
+          className="text-xs px-3 py-1 rounded-md border border-white/20 bg-white/10 text-white/70 hover:bg-red-500/30 hover:border-red-400/40 transition-all"
+        >
+          ✕ Fermer
+        </button>
+      </div>
+    </div>
+    {/* Iframe plein écran */}
+    <iframe
+      srcDoc={previewModalHtml}
+      className="flex-1 w-full border-none"
+      style={{ background: "#fff" }}
+      sandbox="allow-scripts allow-same-origin"
+    />
+  </div>
+)}
+
+{/* ═══════════════════════════════════════════════════════════ */}
+{/* MESSAGES                                                    */}
+{/* ═══════════════════════════════════════════════════════════ */}
+{messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
 
@@ -4603,6 +4654,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             </svg>
           </div>
 
+          {/* Indicateur "Thinking..." */}
           {loading && index === messages.length - 1 && (
             <div className="flex items-center gap-[3px]">
               <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
@@ -4622,68 +4674,22 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       >
         {(() => {
           const rawTextContent = msg.content;
-          const isFileArtifact = artifact && artifact.type === "files";
-          const isUrlArtifact = artifact && artifact.type === "url";
+          const isFileArtifact = artifact && (artifact.type === 'files');
+          const isUrlArtifact = artifact && (artifact.type === 'url');
 
-          // ─── PARSING DES PHASES DE PROGRESSION ───────────────────────
-          // On extrait les blocs HTML de phase avant tout autre traitement
-          const { phases, cleanText: textWithoutPhaseBlocks } =
-            msg.role === "assistant"
-              ? parsePhaseBlocks(rawTextContent)
-              : { phases: [], cleanText: rawTextContent };
-
-          // ─── LOGIQUE DETECTION DES LOOPS ─────────────────────────────
-          const hasStartTag = textWithoutPhaseBlocks.includes("[[START]]");
-          const hasFinishTag = textWithoutPhaseBlocks.includes("[[FINISH]]");
+          const hasStartTag = rawTextContent.includes('[[START]]');
+          const hasFinishTag = rawTextContent.includes('[[FINISH]]');
           const isFirstMessageOfChat = index === 1;
           let showText = true;
+
           if (msg.role === "assistant") {
             if (hasStartTag && !hasFinishTag && !isFirstMessageOfChat) {
               showText = false;
             }
           }
 
-          // ─── SAAS TODO LIST ───────────────────────────────────────────
-          let saasProgressComponent = null;
-          if (isSaaSMode && saasTodo.length > 0 && msg.role === "assistant" && index === messages.length - 1) {
-            saasProgressComponent = (
-              <div key="saas-todo-list" className="mt-4 mb-4 p-4 rounded-xl border border-[#37322F]/10 bg-[#f6f4ec]/50 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#37322F]/60 flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                    SaaS Build Progress
-                  </h3>
-                  <span className="text-[10px] font-mono bg-[#37322F] text-white px-2 py-0.5 rounded">
-                    {saasTodo.filter(t => t.status === 'done').length} / {saasTodo.length}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {saasTodo.map((todo, tIdx) => (
-                    <div key={tIdx} className={`flex items-center justify-between p-2 rounded-lg border transition-all ${todo.status === 'building' ? 'bg-white border-[#37322F]/20 shadow-sm scale-[1.02]' : 'bg-transparent border-transparent'}`}>
-                      <div className="flex items-center gap-3">
-                        {todo.status === 'done' ? (
-                          <div className="bg-green-500 rounded-full p-0.5"><svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
-                        ) : todo.status === 'building' ? (
-                          <div className="w-4 h-4 border-2 border-[#37322F]/20 border-t-[#37322F] rounded-full animate-spin"></div>
-                        ) : (
-                          <div className="w-4 h-4 border-2 border-[#37322F]/10 rounded-full"></div>
-                        )}
-                        <span className={`text-sm font-medium ${todo.status === 'pending' ? 'text-[#37322F]/40' : 'text-[#37322F]'}`}>
-                          {todo.name}
-                        </span>
-                      </div>
-                      {todo.status === 'building' && (
-                        <span className="text-[10px] font-bold text-[#37322F] animate-pulse uppercase tracking-tighter">Processing Agents...</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-
-          // ─── ARTEFACT CODE ────────────────────────────────────────────
           let codeArtifactComponent = null;
+
           if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0 && msg.role === "assistant") {
             const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
             const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
@@ -4697,9 +4703,11 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none">
                   <div className="flex items-center gap-2 text-[#37322F]">
                     <span className={`${isBuilding ? 'animate-spin' : ''}`}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41 1.41 1.41z"/></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
                     </span>
-                    <span className="font-semibold text-sm">{isBuilding ? 'Building code...' : 'Code Generated'}</span>
+                    <span className="font-semibold text-sm">
+                      {isBuilding ? 'Building code...' : 'Code Generated'}
+                    </span>
                     <span className="bg-[#f6f4ec] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[rgba(55,50,47,0.1)]">
                       {artifact.parsedList.length} files
                     </span>
@@ -4713,8 +4721,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i: number) => {
                       const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
                       const statusText = item.type === 'create'
-                        ? (isCurrentlyStreaming ? 'Creating' : 'Created')
-                        : (isCurrentlyStreaming ? 'Editing' : 'Edited');
+                        ? (isCurrentlyStreaming ? 'Editing' : 'Edited')
+                        : (isCurrentlyStreaming ? 'Editing' : 'edited');
                       return (
                         <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
                           <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
@@ -4725,10 +4733,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     })}
                     {isBuilding && (
                       <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 mt-2">
-                        <span className="animate-spin text-[#37322F]">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4z"/></svg>
+                        <span className="animate-spin">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM..."/></svg>
                         </span>
-                        <span className="font-semibold text-xs tracking-tight">{currentStatusText}...</span>
+                        <span className="font-semibold">{currentStatusText}...</span>
                       </li>
                     )}
                   </ul>
@@ -4737,43 +4745,41 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             );
           }
 
-          // ─── NETTOYAGE DU TEXTE POUR AFFICHAGE ───────────────────────
-          // On part de textWithoutPhaseBlocks (déjà sans HTML de phases)
-          const contentForTextDisplay = textWithoutPhaseBlocks.split("|||")[0];
+          const contentForTextDisplay = rawTextContent.split('|||')[0];
           let finalContentToDisplay = contentForTextDisplay
-            .replace(/<create_file[\s\S]*?<\/create_file>/gs, "")
-            .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, "")
-            .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, "")
-            .replace(/<plan>[\s\S]*?<\/plan>/g, "")
-            .replace(/<saas-pages>[\s\S]*?<\/saas-pages>/g, "")
-            .replace(/---[\s\S]*?---/g, "")
-            .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, "")
-            .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, "")
-            .replace(/\[PAGE_DONE\]/g, "")
-            .replace(/\n{3,}/g, "\n\n")
+            .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+            .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+            .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
+            .replace(/<plan>[\s\S]*?<\/plan>/g, '')
+            .replace(/---[\s\S]*?---/g, '')
+            .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '')
+            .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '')
+            .replace(/\n{3,}/g, '\n\n')
             .trim();
 
           const hasTextContent = finalContentToDisplay.length > 0;
 
-          // ─── RENDU MESSAGE UTILISATEUR ────────────────────────────────
+          // --- RENDU MESSAGE UTILISATEUR ---
           if (msg.role === "user") {
             const MAX_HEIGHT = 150;
-            const isLongMessage = msg.content.length > 10000 || rawTextContent.split("\n").length > 20;
+            const isLongMessage = msg.content.length > 10000 || rawTextContent.split('\n').length > 20;
+
             const userContent = (
               <pre
                 className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full overflow-hidden"
-                style={{ maxHeight: isExpanded ? "none" : `${MAX_HEIGHT}px` }}
+                style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px` }}
               >
                 {msg.content}
               </pre>
             );
+
             return (
               <div key="user-content-wrapper" className="relative w-full">
                 {userContent}
                 {!isExpanded && isLongMessage && (
                   <div
                     className="absolute inset-x-0 bottom-0 h-[60px] flex flex-col justify-end items-center p-2 rounded-b-xl cursor-pointer z-10"
-                    style={{ background: "linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))" }}
+                    style={{ background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' }}
                     onClick={() => setExpandedMessageIndex(index)}
                   >
                     <button className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
@@ -4792,32 +4798,59 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             );
           }
 
-          // ─── RENDU MESSAGE ASSISTANT (ASSEMBLAGE) ────────────────────
+          // --- RENDU MESSAGE ASSISTANT ---
           const displayElements = [];
 
-          // 0. PHASES DE PROGRESSION (nouvelles — au-dessus de tout)
-          if (phases.length > 0) {
+          // 1. IFRAME PREVIEW HTML/CSS (si présent, affiché EN PREMIER)
+          if (msg.htmlCode && msg.role === "assistant") {
             displayElements.push(
-              <div key="phase-cards" className="w-full space-y-0.5 mb-2">
-                {phases.map((phase) => (
-                  <PhaseCard key={phase.id} phase={phase} />
-                ))}
+              <div key="html-preview" className="w-full mt-1 mb-2 rounded-xl overflow-hidden border border-[rgba(55,50,47,0.12)] bg-white">
+                {/* Barre titre de la preview */}
+                <div className="flex items-center justify-between px-3 py-1.5 bg-[#f6f4ec] border-b border-[rgba(55,50,47,0.08)]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+                    <span className="ml-2 text-[10px] font-semibold text-[#37322F]/50 font-mono select-none">
+                      Design preview · HTML/CSS référence
+                    </span>
+                    {/* Indicateur "en cours de build" si le stream tourne encore */}
+                    {loading && index === messages.length - 1 && (
+                      <span className="ml-1 text-[9px] font-bold text-[#6366f1] animate-pulse">
+                        ● building...
+                      </span>
+                    )}
+                  </div>
+                  {/* Bouton pour ouvrir le modal plein écran */}
+                  <button
+                    onClick={() => setPreviewModalHtml(msg.htmlCode!)}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-[#37322F]/60 hover:text-[#37322F] px-2 py-0.5 rounded-md hover:bg-[rgba(55,50,47,0.08)] transition-all"
+                    title="Agrandir la prévisualisation"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                    Plein écran
+                  </button>
+                </div>
+                {/* Iframe de preview inline */}
+                <iframe
+                  srcDoc={msg.htmlCode}
+                  className="w-full border-none"
+                  style={{ height: "320px", background: "#fff" }}
+                  sandbox="allow-scripts allow-same-origin"
+                />
               </div>
             );
           }
 
-          // 1. TEXTE
+          // 2. TEXTE
           if (hasTextContent && showText) {
             displayElements.push(
               <pre key="text" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed mb-1 max-w-full overflow-x-hidden">
                 {finalContentToDisplay}
               </pre>
             );
-          }
-
-          // 2. SAAS TODO LIST
-          if (saasProgressComponent) {
-            displayElements.push(saasProgressComponent);
           }
 
           // 3. ARTEFACT CODE
@@ -4827,7 +4860,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
           // 4. URL ARTIFACT
           if (isUrlArtifact) {
-            const artifactClasses = hasTextContent && showText ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+            const artifactClasses = (hasTextContent && showText) ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
             displayElements.push(
               <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
                 <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
@@ -4872,7 +4905,6 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
   );
 })}
-
               
 
               
