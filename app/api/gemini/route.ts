@@ -361,7 +361,19 @@ Ton code React/Next.js doit produire EXACTEMENT le même rendu visuel.
 - Les icônes utilisées dans le HTML (<i class="ti ti-..."/>) → même icône en React via le CDN du layout
 - La structure des layouts (flex, grid, positions) reproduite à l'identique
 - L'application finale doit être visuellement INDISCERNABLE du design de référence
+-LOGOS D'ENTREPRISES
+══════════════════════════════════════════
+<img src="https://www.google.com/s2/favicons?domain=apple.com&sz=64" style="width:18px;height:18px;object-fit:contain">
+Format : https://www.google.com/s2/favicons?domain=[domaine]&sz=64
 
+══════════════════════════════════════════
+AVATARS
+══════════════════════════════════════════
+<img src="https://api.dicebear.com/9.x/lorelei/svg?seed=NOM&backgroundColor=b6e3f4,c0aede,d1d4f9" style="width:28px;height:28px;border-radius:50%">
+
+══════════════════════════════════════════
+
+Tout ce que tu vois comme url d'image utilise les
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📄 HTML/CSS DE RÉFÉRENCE (utiliser INTÉGRALEMENT) :
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -457,7 +469,17 @@ export async function POST(req: Request) {
 □ Textes et icônes → couleur noire/neutre (jamais gris bleuté, jamais slate-*, jamais text-blue-gray-*)
 □ Tables → colonnes denses et compactes, cellules small, hauteurs de lignes réduites
 □ Fond de page → transparent ou couleur body, jamais double couche involontaire
-□ Logos de marques sidebar/navbar → logo.clearbit.com/[domain]
+□ Logos de marques LOGOS D'ENTREPRISES
+══════════════════════════════════════════
+<img src="https://www.google.com/s2/favicons?domain=apple.com&sz=64" style="width:18px;height:18px;object-fit:contain">
+Format : https://www.google.com/s2/favicons?domain=[domaine]&sz=64
+
+══════════════════════════════════════════
+AVATARS
+══════════════════════════════════════════
+<img src="https://api.dicebear.com/9.x/lorelei/svg?seed=NOM&backgroundColor=b6e3f4,c0aede,d1d4f9" style="width:28px;height:28px;border-radius:50%">
+
+══════════════════════════════════════════
 □ Ombres → multi-couches (jamais shadow-sm/md/lg basiques)
 □ Transitions → présentes sur chaque élément interactif avec hover
 □ Sidebar items → hauteur 30-32px, texte small semibold, radius petit
