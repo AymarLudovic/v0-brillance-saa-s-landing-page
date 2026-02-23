@@ -3311,62 +3311,86 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
 
   setLoading(true);
 
-  // ── ÉTAPE 1 : Appel /api/chat → récupérer le HTML/CSS de référence ────────
-  let clonedHtmlCss: string | null = null;
+  
 
-  if (uploadedImages.length > 0) {
-    try {
-      addLog("🎨 Génération du HTML/CSS de référence...");
 
-      // Résolution de l'image selon le format stocké dans uploadedImages
-      // Adapte ce bloc selon ta structure réelle (data URL, File, ou objet {file, url})
-      const firstImage = uploadedImages[0];
-      let imageFile: File | null = null;
+// ═══════════════════════════════════════════════════════════════════
+// STAGE 1 — UI Clone / Création via /api/chat (auto-détection mode)
+// ═══════════════════════════════════════════════════════════════════
+let clonedHtmlCss = "";
 
-      if (typeof firstImage === "string" && firstImage.startsWith("data:")) {
-        const blob = await (await fetch(firstImage)).blob();
-        imageFile = new File([blob], "reference.png", { type: blob.type });
-      } else if (firstImage instanceof File) {
-        imageFile = firstImage;
-      } else if (firstImage?.file instanceof File) {
-        imageFile = firstImage.file;
-      }
+if (uploadedImages.length > 0) {
+  try {
+    // Récupération de l'image (gère data URL, File, ou {file} object)
+    const imageSource = uploadedImages[0];
+    let imageFile: File;
+    let imgUrl: string;
 
-      if (imageFile) {
-        // Extraction des couleurs via Canvas (même logique que ta page UI Cloner)
-        const imgUrl = URL.createObjectURL(imageFile);
-        const imgEl = new window.Image();
-        imgEl.src = imgUrl;
-        await new Promise<void>((res) => { imgEl.onload = () => res(); });
-        const colors = extractColorsByZone(imgEl);
-        URL.revokeObjectURL(imgUrl);
-
-        const fd = new FormData();
-        fd.append("image",   imageFile);
-        fd.append("message", userPrompt || "Clone cette interface en HTML/CSS pixel-perfect.");
-        fd.append("history", JSON.stringify([]));
-        fd.append("mode",    "clone");
-        fd.append("colors",  JSON.stringify(colors));
-
-        const chatRes  = await fetch("/api/chat", { method: "POST", body: fd });
-        const chatData = await chatRes.json();
-
-        if (chatData.htmlCode) {
-          clonedHtmlCss = chatData.htmlCode;
-          addLog(`✅ HTML/CSS de référence prêt (${clonedHtmlCss.length} chars)`);
-        }
-
-        if (clonedHtmlCss) {
-  setMessages(prev => prev.map(msg =>
-    msg.id === assistantMsgId ? { ...msg, htmlCode: clonedHtmlCss } : msg
-  ));
-            }
-      }
-    } catch (e: any) {
-      addLog(`⚠️ Clonage skipped: ${e.message}`);
-      // On continue normalement même si ça échoue
+    if (imageSource instanceof File) {
+      imageFile = imageSource;
+      imgUrl = URL.createObjectURL(imageFile);
+    } else if (typeof imageSource === "string" && imageSource.startsWith("data:")) {
+      imgUrl = imageSource;
+      const res = await fetch(imageSource);
+      const blob = await res.blob();
+      imageFile = new File([blob], "reference.jpg", { type: blob.type });
+    } else if (imageSource?.file instanceof File) {
+      imageFile = imageSource.file;
+      imgUrl = URL.createObjectURL(imageFile);
+    } else {
+      throw new Error("Format d'image non reconnu");
     }
+
+    // Extraction des couleurs par zone via Canvas API
+    const colors = await new Promise<{ hex: string; frequency: number; zone: string }[]>((resolve) => {
+      const imgEl = new window.Image();
+      imgEl.crossOrigin = "anonymous";
+      imgEl.onload = () => {
+        resolve(extractColorsByZone(imgEl));
+        if (imgUrl.startsWith("blob:")) URL.revokeObjectURL(imgUrl);
+      };
+      imgEl.onerror = () => resolve([]);
+      imgEl.src = imgUrl;
+    });
+
+    // Appel /api/chat — le modèle détecte lui-même si c'est un clone ou une création
+    const fd = new FormData();
+    fd.append("image", imageFile);
+    fd.append("history", JSON.stringify([]));
+    fd.append(
+      "message",
+      userPrompt?.trim()
+        ? userPrompt.trim()
+        : "Analyse cette interface et reproduis-la en HTML/CSS pixel-perfect."
+    );
+    // ← Plus de fd.append("mode", ...) — auto-détection dans l'agent
+    if (colors.length > 0) {
+      fd.append("colors", JSON.stringify(colors));
+    }
+
+    const chatRes = await fetch("/api/chat", { method: "POST", body: fd });
+    if (!chatRes.ok) throw new Error(`/api/chat erreur ${chatRes.status}`);
+
+    const { htmlCode } = await chatRes.json();
+    if (htmlCode) {
+      clonedHtmlCss = htmlCode;
+
+      // Mise à jour immédiate du message assistant pour afficher l'iframe preview
+      setMessages((prev) =>
+        prev.map((msg, i) =>
+          i === prev.length - 1 && msg.role === "assistant"
+            ? { ...msg, htmlCode: clonedHtmlCss }
+            : msg
+        )
+      );
+    }
+  } catch (err) {
+    console.error("Stage 1 /api/chat error:", err);
+    // On continue quand même — le fullstack builder fonctionnera sans référence HTML
   }
+  }
+
+    
 
   // ── ÉTAPE 2 : Ressources design (inchangé) ────────────────────────────────
   let shopImages: string[] = [];
