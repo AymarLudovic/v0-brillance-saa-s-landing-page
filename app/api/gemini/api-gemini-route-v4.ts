@@ -181,10 +181,11 @@ const FIX_RULES: FixRule[] = [
       .replace(/\bopacity-([\d]+)\b(?=\s*[,}])/g, (_, n) => `opacity: ${+n / 100}`),
   },
   // ── cn() sans import ───────────────────────────────────────────────────────
+// ── cn() sans import ───────────────────────────────────────────────────────
   {
     name: "missing-cn-import",
     detect: (_, c) => c.includes("cn(") && !c.includes("function cn") && !c.includes("const cn")
-      && !c.includes("from '@/lib/utils'") && !c.includes('from "@/lib/utils"'),
+      && !/import\s+{[^}]*cn[^}]*}\s+from\s+['"].*?\/lib\/utils['"]/.test(c),
     fix: (_, c) => {
       const line = `import { cn } from "@/lib/utils";`;
       return (c.includes('"use client"') || c.includes("'use client'"))
@@ -193,10 +194,12 @@ const FIX_RULES: FixRule[] = [
     },
   },
   // ── Next.js 15 — params Promise ───────────────────────────────────────────
+// ── Next.js 15 — params Promise ───────────────────────────────────────────
   {
     name: "nextjs15-params-promise",
     detect: (p, c) => (p.includes("route.ts") || p.includes("["))
-      && /\{\s*params\s*\}\s*:\s*\{\s*params\s*:\s*\{[^}]+\}\s*\}/.test(c) && !c.includes("Promise<{"),
+      && /\{\s*params\s*\}\s*:\s*\{\s*params\s*:\s*\{[^}]+\}\s*\}/.test(c) 
+      && !c.includes("Promise<"),
     fix: (_, c) => {
       let f = c.replace(/\{\s*params\s*\}\s*:\s*\{\s*params\s*:\s*(\{[^}]+\})\s*\}/g,
         (_, t) => `{ params }: { params: Promise<${t}> }`);
@@ -247,11 +250,12 @@ const FIX_RULES: FixRule[] = [
     fix: (_, c) => c.replace(/from ['"]\.\.\/\.\.\/\.\.\//g, 'from "@/'),
   },
   // ── key= manquant dans .map() ─────────────────────────────────────────────
+// ── key= manquant dans .map() ─────────────────────────────────────────────
   {
     name: "missing-key-map",
-    detect: (p, c) => p.endsWith(".tsx") && /\.map\(\s*\([^)]+\)\s*=>\s*\(?\s*<[A-Za-z](?![^>]*key=)/.test(c),
+    detect: (p, c) => p.endsWith(".tsx") && /\.map\(\s*\([^)]+\)\s*=>\s*\(?\s*<[A-Za-z](?![^>]*\skey=)/.test(c),
     fix: (_, c) => c.replace(
-      /\.map\(\s*\((\w+)(?:,\s*(\w+))?\)\s*=>\s*\(?\s*<([A-Za-z]\w*)(?![^>]*key=)/g,
+      /\.map\(\s*\((\w+)(?:,\s*(\w+))?\)\s*=>\s*\(?\s*<([A-Za-z]\w*)(?![^>]*\skey=)/g,
       (m, item, idx, tag) => m.replace(`<${tag}`, `<${tag} key={${idx ? idx : `${item}.id ?? ${item}`}}`)
     ),
   },
