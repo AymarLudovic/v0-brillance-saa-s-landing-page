@@ -1019,7 +1019,7 @@ PARTIE B — Corps du create() (OBJET LITTÉRAL JavaScript) :
 CRIME ABSOLU — CAUSE DE CRASH BUILD IMMÉDIAT :
   setCount: () => void;       ← INTERDIT dans le corps du create()
   fetchItems: () => void;     ← INTERDIT dans le corps du create()
-  Explication: dans un objet JS, `: () => void;` signifie "assigner le type void à la propriété"
+  Explication: dans un objet JS, ': () => void;' signifie "assigner le type void à la propriété"
                ce qui est syntaxiquement invalide. JAMAIS.
 
 DEUXIÈME CRIME — semicolons dans le corps du create() :
