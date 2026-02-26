@@ -1607,7 +1607,7 @@ Corrige UNIQUEMENT ces fichiers. Renvoie le fichier COMPLET corrigé.
             name: "app", version: "1.0.0", private: true,
             scripts: { dev: "next dev", build: "next build", start: "next start", lint: "next lint" },
             dependencies: {},
-            devDependencies: {},
+            devDependencies: { autoprefixer: "10.4.27", },
           };
           if (existPkgFile) {
             try { existingPkg = JSON.parse(existPkgFile.content); } catch {}
@@ -1621,7 +1621,7 @@ Corrige UNIQUEMENT ces fichiers. Renvoie le fichier COMPLET corrigé.
           };
 
           const baseDev: Record<string, string> = {
-            typescript: "^5", "@types/node": "^20", "@types/react": "^19", "@types/react-dom": "^19",
+            typescript: "^5", "@types/node": "^20", "@types/react": "^19", "@types/react-dom": "^19", autoprefixer: "10.4.27",
             postcss: "^8", tailwindcss: "^3.4.1", eslint: "^8", "eslint-config-next": "15.0.3",
           };
 
