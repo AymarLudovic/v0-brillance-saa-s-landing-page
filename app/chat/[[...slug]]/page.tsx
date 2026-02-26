@@ -88,18 +88,23 @@ interface CommandResult {
 
 // Interfaces fournies par l'utilisateur (utilisées ici pour le contexte)
 interface Message {
+    id?: string;
   role: "user" | "assistant" | "system"
   content: string 
  htmlCode?: string; // HTML/CSS pixel-perfect renvoyé par /api/chat
   images?: string[]
   externalFiles?: { fileName: string; base64Content: string }[] 
-  mentionedFiles?: string[] 
+  mentionedFiles?: string[],
+phases?: AgentPhase[];
+  activePhaseId?: number;
   artifactData?: { 
     type: 'files' | 'url' | 'fileChanges' | null
     rawJson: string
     parsedList: any[] // Changement pour refléter le type { path, type }
   }
 }
+
+
 
 interface ProjectFile { filePath: string; content: string }
 interface Project {
@@ -419,7 +424,70 @@ interface ConsolePanelProps {
 
 
 
+// ─── Parsing des phases agents depuis le stream ───────────────────────────────
 
+const PHASE_LABELS: Record<string, string> = {
+  PRODUCT_THINKING:  "Analyse du produit",
+  FEATURE_INVENTORY: "Inventaire des fonctionnalités",
+  CODE_FOUNDATION:   "Génération — Fondation",
+  CODE_UI:           "Génération — Composants",
+  CODE_VIEWS:        "Génération — Vues",
+  WIRE_VERIFICATION: "Vérification du câblage",
+  SELF_AUDIT:        "Audit TypeScript",
+  FIXER:             "Corrections finales",
+};
+
+interface AgentPhase {
+  id: number;
+  name: string;
+  label: string;
+  content: string;
+}
+
+function parsePhases(text: string): {
+  phases: AgentPhase[];
+  preText: string;
+  activePhaseId: number;
+} {
+  const rx = /\[PHASE:(\d+)\/([A-Z_]+)\]/g;
+  const positions: Array<{ index: number; end: number; id: number; name: string }> = [];
+  let m;
+  while ((m = rx.exec(text)) !== null) {
+    positions.push({ index: m.index, end: m.index + m[0].length, id: parseInt(m[1]), name: m[2] });
+  }
+
+  if (positions.length === 0) return { phases: [], preText: text, activePhaseId: 0 };
+
+  const preText = text.slice(0, positions[0].index)
+    .replace(/\[\[START\]\]/g, '')
+    .replace(/\[\[FINISH\]\]/g, '')
+    .trim();
+
+  const phases: AgentPhase[] = positions.map((pos, i) => {
+    const contentStart = pos.end;
+    const contentEnd = positions[i + 1]?.index ?? text.length;
+    const raw = text.slice(contentStart, contentEnd);
+    const content = raw
+      .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+      .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+      .replace(/\[PAGE_DONE\]/g, '')
+      .replace(/\[RETRY[^\]]*\]/g, '')
+      .trim();
+
+    return {
+      id: pos.id,
+      name: pos.name,
+      label: PHASE_LABELS[pos.name] ?? pos.name,
+      content,
+    };
+  });
+
+  return {
+    phases,
+    preText,
+    activePhaseId: positions[positions.length - 1].id,
+  };
+    }
 
 
 // Ces codes sont temporaires. Vous les remplacerez par vos propres SVGs.
@@ -3562,6 +3630,24 @@ Respecte la demande de l'utilisateur pour le contenu et les fonctionnalités.
       ));
     }
 
+
+      // Dans le while(true), après avoir calculé textWithoutArtifacts :
+const { phases, preText, activePhaseId } = parsePhases(text);
+
+setMessages((prev) => prev.map(msg =>
+  msg.id === assistantMsgId
+    ? {
+        ...msg,
+        content: phases.length > 0
+          ? preText  // si on a des phases, le contenu texte = seulement l'intro
+          : textWithoutArtifacts,
+        phases,
+        activePhaseId,
+        artifactData: newArtifactData || msg.artifactData
+      }
+    : msg
+));
+
     let finalCleanText = text
       .replace(inspirationUrlRegex, '')
       .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
@@ -3571,15 +3657,22 @@ Respecte la demande de l'utilisateur pour le contenu et les fonctionnalités.
       .replace(PLAN_REGEX, '');
 
     const finalArtifacts = extractFileArtifacts(text);
+      const { phases: finalPhases, preText: finalPreText, activePhaseId: finalActiveId } = parsePhases(text);
     finalAssistantMessage = {
       role: "assistant",
-      content: finalCleanText,
+      content: finalPhases.length > 0 ? finalPreText : finalCleanText,
+  phases: finalPhases,
+  activePhaseId: 0, 
       artifactData: finalArtifacts.length > 0
         ? { type: 'files', parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })), rawJson: text }
         : (urlArtifact
             ? { type: 'inspirationUrl', rawJson: JSON.stringify(urlArtifact), parsedList: [] }
             : { type: null, rawJson: "", parsedList: [] })
     };
+
+
+
+
 
     if (urlArtifact) {
       await runAutomatedAnalysis(urlArtifact.url, userPrompt, false);
@@ -4641,165 +4734,62 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     />
   </div>
 )}
+ 
+          
+          
 
-{/* ═══════════════════════════════════════════════════════════ */}
+
+                {/* ═══════════════════════════════════════════════════════════ */}
 {/* MESSAGES                                                    */}
 {/* ═══════════════════════════════════════════════════════════ */}
 {messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
+  const isLastAssistant = msg.role === "assistant" && index === messages.length - 1;
 
   return (
     <div
       key={index}
-      className={`flex flex-col gap-3 max-w-full ${msg.role === "user" ? "items-end" : "items-start"}`}
+      className={`flex flex-col gap-2 max-w-full ${msg.role === "user" ? "items-end" : "items-start"}`}
     >
-      {/* Affichage de l'icône de l'assistant */}
-      {msg.role === "assistant" && (
-        <div className="flex items-center gap-3 select-none">
-          <div className="h-3 w-3 bg-[#37322F] rounded-full hidden items-center justify-center">
-            <svg className="h-[18px] w-[18px] hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="10" />
-            </svg>
-          </div>
-
-          {/* Indicateur "Thinking..." */}
-          {loading && index === messages.length - 1 && (
-            <div className="flex items-center gap-[3px]">
-              <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
-              <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
-            </div>
-          )}
-        </div>
+      {/* Thinking indicator */}
+      {msg.role === "assistant" && loading && isLastAssistant && (!msg.phases || msg.phases.length === 0) && (
+        <p className="text-sm text-[#37322F]/60 animate-pulse">Thinking...</p>
       )}
 
       {/* Conteneur du message */}
-      <div
-        className={`p-2 rounded-xl w-full max-w-full relative overflow-hidden ${
-          msg.role === "user"
-            ? "bg-[#f6f4ec] text-[#212121] self-end border-[#37322F]"
-            : "bg-none text-[#37322F] self-start"
-        }`}
-      >
+      <div className={`rounded-xl w-full max-w-full ${
+        msg.role === "user"
+          ? "bg-[#f6f4ec] text-[#212121] p-2"
+          : "bg-none text-[#37322F] p-0"
+      }`}>
         {(() => {
-          const rawTextContent = msg.content;
-          const isFileArtifact = artifact && (artifact.type === 'files');
-          const isUrlArtifact = artifact && (artifact.type === 'url');
-
-          const hasStartTag = rawTextContent.includes('[[START]]');
-          const hasFinishTag = rawTextContent.includes('[[FINISH]]');
-          const isFirstMessageOfChat = index === 1;
-          let showText = true;
-
-          if (msg.role === "assistant") {
-            if (hasStartTag && !hasFinishTag && !isFirstMessageOfChat) {
-              showText = false;
-            }
-          }
-
-          let codeArtifactComponent = null;
-
-          if (isFileArtifact && artifact.parsedList && artifact.parsedList.length > 0 && msg.role === "assistant") {
-            const isCreating = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
-            const isEditing = rawTextContent.includes('<file_changes') && !rawTextContent.includes('</file_changes>');
-            const isBuilding = isCreating || isEditing;
-            const totalItems = artifact?.parsedList?.length || 0;
-            const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
-            const currentStatusText = isCreating ? 'Creating' : (isEditing ? 'Editing' : 'Building');
-
-            codeArtifactComponent = (
-              <details key="code-artifact-dropdown" className="group w-full mt-2 rounded-lg border border-[rgba(55,50,47,0.1)] bg-white/50 open:bg-white/80 transition-all duration-200" open={isBuilding}>
-                <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none">
-                  <div className="flex items-center gap-2 text-[#37322F]">
-                    <span className={`${isBuilding ? 'animate-spin' : ''}`}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
-                    </span>
-                    <span className="font-semibold text-sm">
-                      {isBuilding ? 'Building code...' : 'Code Generated'}
-                    </span>
-                    <span className="bg-[#f6f4ec] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[rgba(55,50,47,0.1)]">
-                      {artifact.parsedList.length} files
-                    </span>
-                  </div>
-                  <svg className="w-4 h-4 transform group-open:rotate-180 transition-transform duration-200 text-[#37322F]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </summary>
-                <div className="px-3 pb-3 pt-0 border-t border-[rgba(55,50,47,0.05)]">
-                  <ul className="list-disc pl-5 w-[100%] space-y-1 mt-2">
-                    {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i: number) => {
-                      const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
-                      const statusText = item.type === 'create'
-                        ? (isCurrentlyStreaming ? 'Editing' : 'Edited')
-                        : (isCurrentlyStreaming ? 'Editing' : 'edited');
-                      return (
-                        <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
-                          <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
-                          <p className="font-semibold">{statusText}</p>
-                          <span className="bg-[#f6f4ec] py-[3px] rounded-[8px] font-semibold px-[12px] truncate max-w-[200px]" title={item.path}>{item.path}</span>
-                        </li>
-                      );
-                    })}
-                    {isBuilding && (
-                      <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 mt-2">
-                        <span className="animate-spin">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-[14px] w-[14px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM..."/></svg>
-                        </span>
-                        <span className="font-semibold">{currentStatusText}...</span>
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </details>
-            );
-          }
-
-          const contentForTextDisplay = rawTextContent.split('|||')[0];
-          let finalContentToDisplay = contentForTextDisplay
-            .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
-            .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
-            .replace(/```json[\s\S]*?"type"\s*:\s*"inspirationUrl"[\s\S]*?```/g, '')
-            .replace(/<plan>[\s\S]*?<\/plan>/g, '')
-            .replace(/---[\s\S]*?---/g, '')
-            .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '')
-            .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '')
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
-
-          const hasTextContent = finalContentToDisplay.length > 0;
-
-          // --- RENDU MESSAGE UTILISATEUR ---
+          // ── MESSAGE UTILISATEUR ──────────────────────────────────────────
           if (msg.role === "user") {
-            const MAX_HEIGHT = 150;
-            const isLongMessage = msg.content.length > 10000 || rawTextContent.split('\n').length > 20;
-
-            const userContent = (
-              <pre
-                className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full overflow-hidden"
-                style={{ maxHeight: isExpanded ? 'none' : `${MAX_HEIGHT}px` }}
-              >
-                {msg.content}
-              </pre>
-            );
-
+            const isLong = msg.content.length > 10000 || msg.content.split('\n').length > 20;
             return (
-              <div key="user-content-wrapper" className="relative w-full">
-                {userContent}
-                {!isExpanded && isLongMessage && (
+              <div className="relative w-full">
+                <pre
+                  className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full overflow-hidden"
+                  style={{ maxHeight: isExpanded ? 'none' : '150px' }}
+                >
+                  {msg.content}
+                </pre>
+                {!isExpanded && isLong && (
                   <div
-                    className="absolute inset-x-0 bottom-0 h-[60px] flex flex-col justify-end items-center p-2 rounded-b-xl cursor-pointer z-10"
-                    style={{ background: 'linear-gradient(to top, rgba(55,50,47,1) 50%, rgba(55,50,47,0))' }}
+                    className="absolute inset-x-0 bottom-0 h-14 flex items-end justify-center pb-1 cursor-pointer"
+                    style={{ background: 'linear-gradient(to top, #f6f4ec 40%, transparent)' }}
                     onClick={() => setExpandedMessageIndex(index)}
                   >
-                    <button className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
-                      <svg className="h-3 w-3 inline-block mr-1 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 9l-7 7-7-7" /></svg> Expand
+                    <button className="text-xs text-[#37322F]/70 border border-[#37322F]/20 rounded-full px-3 py-0.5">
+                      Afficher tout
                     </button>
                   </div>
                 )}
-                {isExpanded && isLongMessage && (
-                  <div className="flex justify-center mt-2">
-                    <button onClick={() => setExpandedMessageIndex(null)} className="text-white text-xs font-semibold px-2 py-1 rounded-full border border-white/50 bg-[#37322F]/80">
-                      <svg className="h-3 w-3 inline-block mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 9l-7 7-7-7" /></svg> Collapse
+                {isExpanded && isLong && (
+                  <div className="flex justify-center mt-1">
+                    <button onClick={() => setExpandedMessageIndex(null)} className="text-xs text-[#37322F]/70 border border-[#37322F]/20 rounded-full px-3 py-0.5">
+                      Réduire
                     </button>
                   </div>
                 )}
@@ -4807,116 +4797,191 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             );
           }
 
-          // --- RENDU MESSAGE ASSISTANT ---
-          const displayElements = [];
+          // ── MESSAGE ASSISTANT ────────────────────────────────────────────
+          const rawText = msg.content;
+          const hasPhases = msg.phases && msg.phases.length > 0;
 
-          // 1. IFRAME PREVIEW HTML/CSS (si présent, affiché EN PREMIER)
-          if (msg.htmlCode && msg.role === "assistant") {
-            displayElements.push(
-              <div key="html-preview" className="w-full mt-1 mb-2 rounded-xl overflow-hidden border border-[rgba(55,50,47,0.12)] bg-white">
-                {/* Barre titre de la preview */}
-                <div className="flex items-center justify-between px-3 py-1.5 bg-[#f6f4ec] border-b border-[rgba(55,50,47,0.08)]">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-                    <span className="ml-2 text-[10px] font-semibold text-[#37322F]/50 font-mono select-none">
-                      Design preview · HTML/CSS référence
-                    </span>
-                    {/* Indicateur "en cours de build" si le stream tourne encore */}
-                    {loading && index === messages.length - 1 && (
-                      <span className="ml-1 text-[9px] font-bold text-[#6366f1] animate-pulse">
-                        ● building...
+          // Texte intro (avant les phases) ou texte normal
+          let introText = rawText;
+          if (hasPhases) {
+            introText = msg.content; // déjà le preText si parsePhases a tourné
+          } else {
+            introText = rawText
+              .replace(/<create_file[\s\S]*?<\/create_file>/gs, '')
+              .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, '')
+              .replace(/\[\[START\]\][\s\S]*?(\n|$)/g, '')
+              .replace(/\[\[FINISH\]\][\s\S]*?(\n|$)/g, '')
+              .replace(/\n{3,}/g, '\n\n')
+              .trim();
+          }
+
+          const isBuilding = hasPhases && loading && isLastAssistant;
+          const totalFiles = artifact?.parsedList?.length ?? 0;
+
+          return (
+            <div className="flex flex-col gap-2 w-full">
+
+              {/* HTML Preview si présent */}
+              {msg.htmlCode && (
+                <div className="w-full rounded-xl overflow-hidden border border-[rgba(55,50,47,0.12)]">
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-[#f6f4ec] border-b border-[rgba(55,50,47,0.08)]">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-[#ff5f57]" />
+                      <div className="w-2 h-2 rounded-full bg-[#febc2e]" />
+                      <div className="w-2 h-2 rounded-full bg-[#28c840]" />
+                      <span className="ml-2 text-[10px] text-[#37322F]/50 font-mono select-none">
+                        Design preview
                       </span>
-                    )}
+                      {loading && isLastAssistant && (
+                        <span className="ml-1 text-[9px] text-[#6366f1] animate-pulse">● building...</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setPreviewModalHtml(msg.htmlCode!)}
+                      className="text-[10px] text-[#37322F]/50 hover:text-[#37322F] px-2 py-0.5 rounded hover:bg-[rgba(55,50,47,0.06)] transition-all"
+                    >
+                      Plein écran
+                    </button>
                   </div>
-                  {/* Bouton pour ouvrir le modal plein écran */}
-                  <button
-                    onClick={() => setPreviewModalHtml(msg.htmlCode!)}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-[#37322F]/60 hover:text-[#37322F] px-2 py-0.5 rounded-md hover:bg-[rgba(55,50,47,0.08)] transition-all"
-                    title="Agrandir la prévisualisation"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                    Plein écran
-                  </button>
+                  <iframe
+                    srcDoc={msg.htmlCode}
+                    className="w-full border-none"
+                    style={{ height: "300px", background: "#fff" }}
+                    sandbox="allow-scripts allow-same-origin"
+                  />
                 </div>
-                {/* Iframe de preview inline */}
-                <iframe
-                  srcDoc={msg.htmlCode}
-                  className="w-full border-none"
-                  style={{ height: "320px", background: "#fff" }}
-                  sandbox="allow-scripts allow-same-origin"
-                />
-              </div>
-            );
-          }
+              )}
 
-          // 2. TEXTE
-          if (hasTextContent && showText) {
-            displayElements.push(
-              <pre key="text" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed mb-1 max-w-full overflow-x-hidden">
-                {finalContentToDisplay}
-              </pre>
-            );
-          }
+              {/* Texte intro */}
+              {introText.length > 0 && (
+                <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full overflow-x-hidden">
+                  {introText}
+                </pre>
+              )}
 
-          // 3. ARTEFACT CODE
-          if (codeArtifactComponent) {
-            displayElements.push(codeArtifactComponent);
-          }
+              {/* ── PHASES AGENTS ────────────────────────────────────────── */}
+              {hasPhases && (
+                <div className="flex flex-col gap-1 w-full">
+                  {msg.phases!.map((phase) => {
+                    const isActive = loading && isLastAssistant && phase.id === msg.activePhaseId;
+                    const isDone = !isActive && (msg.activePhaseId === 0 || phase.id < (msg.activePhaseId ?? 0));
 
-          // 4. URL ARTIFACT
-          if (isUrlArtifact) {
-            const artifactClasses = (hasTextContent && showText) ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
-            displayElements.push(
-              <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
-                <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
-                <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
-              </div>
-            );
-          }
+                    return (
+                      <details
+                        key={phase.id}
+                        open={isActive}
+                        className="w-full group"
+                        style={{ borderRadius: '8px', border: '1px solid rgba(55,50,47,0.08)', overflow: 'hidden' }}
+                      >
+                        <summary className="flex items-center justify-between px-3 py-2 cursor-pointer select-none list-none bg-[#faf9f7] hover:bg-[#f6f4ec] transition-colors">
+                          <div className="flex items-center gap-2">
+                            {/* Indicateur état */}
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
+                              background: isActive ? '#6366f1' : isDone ? '#22c55e' : 'rgba(55,50,47,0.2)',
+                              boxShadow: isActive ? '0 0 0 3px rgba(99,102,241,0.2)' : 'none',
+                            }} />
+                            <span className="text-xs font-medium text-[#37322F]/80">
+                              {phase.label}
+                            </span>
+                            {isActive && (
+                              <span className="text-[10px] text-[#6366f1] animate-pulse">en cours...</span>
+                            )}
+                          </div>
+                          <svg className="w-3 h-3 text-[#37322F]/40 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </summary>
+                        {phase.content && (
+                          <div className="px-3 py-2 border-t border-[rgba(55,50,47,0.06)] bg-white">
+                            <pre className="whitespace-pre-wrap break-words font-sans text-xs text-[#37322F]/70 leading-relaxed max-h-64 overflow-y-auto">
+                              {phase.content}
+                            </pre>
+                          </div>
+                        )}
+                      </details>
+                    );
+                  })}
+                </div>
+              )}
 
-          if (displayElements.length > 0) return displayElements;
-          return <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full">{finalContentToDisplay}</pre>;
+              {/* ── FICHIERS GÉNÉRÉS ─────────────────────────────────────── */}
+              {artifact?.type === 'files' && artifact.parsedList?.length > 0 && (
+                <details
+                  className="group w-full"
+                  style={{ borderRadius: '8px', border: '1px solid rgba(55,50,47,0.1)', overflow: 'hidden' }}
+                  open={isBuilding}
+                >
+                  <summary className="flex items-center justify-between px-3 py-2 cursor-pointer select-none list-none bg-[#f6f4ec]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-[#37322F]">
+                        {isBuilding ? 'Génération en cours...' : `${totalFiles} fichier${totalFiles > 1 ? 's' : ''} généré${totalFiles > 1 ? 's' : ''}`}
+                      </span>
+                    </div>
+                    <svg className="w-3 h-3 text-[#37322F]/40 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </summary>
+                  <div className="px-3 py-2 border-t border-[rgba(55,50,47,0.06)]">
+                    <div className="flex flex-col gap-0.5">
+                      {artifact.parsedList.map((item: { path: string; type: string }, i: number) => {
+                        const isCurrentFile = isBuilding && i === totalFiles - 1;
+                        return (
+                          <div
+                            key={i}
+                            className={`flex items-center gap-2 text-xs py-0.5 ${isCurrentFile ? 'text-[#6366f1] animate-pulse' : 'text-[#37322F]/60'}`}
+                          >
+                            <span className="font-mono truncate">{item.path}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </details>
+              )}
+
+              {/* Conclusion — résumé final quand tout est généré */}
+              {!loading && hasPhases && totalFiles > 0 && (
+                <p className="text-sm text-[#37322F]/70 mt-1">
+                  Projet généré — {totalFiles} fichier{totalFiles > 1 ? 's' : ''} prêt{totalFiles > 1 ? 's' : ''}.
+                </p>
+              )}
+
+            </div>
+          );
         })()}
       </div>
 
-      {/* Fichiers uploadés & Mentions */}
+      {/* Images & fichiers uploadés */}
       {msg.role === "user" && msg.images && msg.images.length > 0 && (
         <div className="flex gap-1 mt-1">
-          {msg.images.map((base64Src, imgIndex) => (
-            <div key={imgIndex} className="w-[45px] h-[45px] rounded-[8px] overflow-hidden" title="Image utilisateur">
-              <img src={base64Src} alt="User input" className="w-full h-full object-cover" />
+          {msg.images.map((src: string, i: number) => (
+            <div key={i} className="w-10 h-10 rounded-lg overflow-hidden">
+              <img src={src} alt="" className="w-full h-full object-cover" />
             </div>
           ))}
         </div>
       )}
       {msg.role === "user" && msg.externalFiles && msg.externalFiles.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          {msg.externalFiles.map((file, fileIndex) => (
-            <div key={fileIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#F7F5F3] px-2 text-sm max-w-xs truncate">
+        <div className="flex flex-wrap gap-1 mt-1">
+          {msg.externalFiles.map((file: any, i: number) => (
+            <span key={i} className="text-xs border border-black rounded-lg bg-[#F7F5F3] px-2 py-0.5">
               {file.fileName}
-            </div>
+            </span>
           ))}
         </div>
       )}
       {msg.role === "user" && msg.mentionedFiles && msg.mentionedFiles.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          {msg.mentionedFiles.map((filePath, mentionIndex) => (
-            <div key={mentionIndex} className="flex items-center h-[24px] border border-black rounded-[8px] bg-[#E3F5E3] px-2 text-sm max-w-xs truncate">
-              @{filePath}
-            </div>
+        <div className="flex flex-wrap gap-1 mt-1">
+          {msg.mentionedFiles.map((path: string, i: number) => (
+            <span key={i} className="text-xs border border-black rounded-lg bg-[#E3F5E3] px-2 py-0.5">
+              @{path}
+            </span>
           ))}
         </div>
       )}
     </div>
   );
 })}
-              
-
-              
 
                 
 
