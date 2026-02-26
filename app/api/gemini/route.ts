@@ -1822,7 +1822,7 @@ Alternative : textarea stylise
 REGLE ABSOLUE N°4 — globals.css + tailwind.config.ts CORRECT
 ════════════════════════════════════════════════════════════
 
-ERREUR FATALE LA PLUS COURANTE : "The `border-border` class does not exist"
+ERREUR FATALE LA PLUS COURANTE : "The \`border-border\` class does not exist"
 
 Cette erreur se produit quand globals.css utilise @apply avec des classes qui
 referencent des CSS variables (shadcn pattern) sans que tailwind.config.ts
@@ -1968,7 +1968,7 @@ CHECKLIST D'AUDIT EXHAUSTIVE
 
 □ GLOBALS.CSS + TAILWIND.CONFIG — ERREUR FATALE LA PLUS COURANTE :
   
-  ERREUR : "The `border-border` class does not exist"
+  ERREUR : "The \`border-border\` class does not exist"
   Cause : globals.css utilise @apply border-border (et autres classes shadcn)
           MAIS tailwind.config.ts n'a pas extend.colors avec les mappings CSS variables
   
@@ -2083,7 +2083,7 @@ REGLE 3 : Une correction = un fichier. N'invente pas de corrections supplementai
 CORRECTIONS TYPE PAR TYPE
 ════════════════════════════════════════════════════════════
 
-ERREUR "The `border-border` class does not exist" ou similaire (bg-background, text-foreground...) :
+ERREUR "The \`border-border\` class does not exist" ou similaire (bg-background, text-foreground...) :
   Cause : globals.css utilise @apply border-border sans que tailwind.config.ts ne definisse la couleur.
   Fix 1 (CSS pur — recommande) : dans globals.css, remplace @apply border-border; par border-color: hsl(var(--border));
   Fix 2 (tailwind config) : dans tailwind.config.ts, ajoute dans extend.colors :
