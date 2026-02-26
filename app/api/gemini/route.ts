@@ -4,7 +4,7 @@ import { basePrompt } from "@/lib/prompt";
 import packageJson from "package-json";
 import sharp from "sharp";
 
-const BATCH_SIZE = 128;
+const BATCH_SIZE = 263;
 const MODEL_ID = "gemini-3-flash-preview";
 
 // =============================================================================
