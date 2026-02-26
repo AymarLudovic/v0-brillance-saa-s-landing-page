@@ -3244,26 +3244,43 @@ const PLAN_REGEX = /<plan>([\s\S]*?)<\/plan>/;
 
     
 
-
-
-      
-     
-     const PHASE_LABELS: Record<string, string> = {
+const PHASE_LABELS: Record<string, string> = {
   PRODUCT_THINKING:  "Analyse du produit",
   FEATURE_INVENTORY: "Inventaire des fonctionnalités",
   CODE_FOUNDATION:   "Génération — Fondation",
-  CODE_UI:           "Génération — Composants UI",
+  CODE_UI:           "Génération — Composants",
   CODE_VIEWS:        "Génération — Vues",
   WIRE_VERIFICATION: "Vérification du câblage",
   SELF_AUDIT:        "Audit TypeScript",
-  FIXER:             "Corrections finales",
+  POLISH:            "Finitions & ajustements",
 };
 
-function extractPhases(text: string) {
+function extractPhases(text: string): {
+  presenterIntro: string;
+  phases: { id: number; name: string; label: string; content: string }[];
+  presenterOutro: string;
+  activePhaseId: number;
+} {
+  const introMatch = text.match(/\[PRESENTER:INTRO\]([\s\S]*?)(?:\[\/PRESENTER:INTRO\]|\[PHASE:)/);
+  const presenterIntro = introMatch
+    ? introMatch[1].replace(/\[PAGE_DONE\]/g, "").replace(/\[RETRY[^\]]*\]/g, "").trim()
+    : "";
+
+  const outroMatch = text.match(/\[PRESENTER:OUTRO\]([\s\S]*?)(?:\[\/PRESENTER:OUTRO\]|\[PAGE_DONE\]|$)/);
+  const presenterOutro = outroMatch
+    ? outroMatch[1].replace(/\[PAGE_DONE\]/g, "").replace(/\[RETRY[^\]]*\]/g, "").trim()
+    : "";
+
   const markers = [...text.matchAll(/\[PHASE:(\d+)\/([A-Z_]+)\]/g)];
-  return markers.map((m, i) => {
+  const phases = markers.map((m, i) => {
     const start = (m.index ?? 0) + m[0].length;
-    const end = markers[i + 1]?.index ?? text.length;
+    const nextMarker = markers[i + 1]?.index;
+    const outroStart = text.indexOf("[PRESENTER:OUTRO]");
+    const end = Math.min(
+      nextMarker ?? Infinity,
+      outroStart >= 0 ? outroStart : Infinity,
+      text.length
+    );
     const content = text.slice(start, end)
       .replace(/<create_file[\s\S]*?<\/create_file>/gs, "")
       .replace(/<file_changes[\s\S]*?<\/file_changes>/gs, "")
@@ -3272,6 +3289,13 @@ function extractPhases(text: string) {
       .trim();
     return { id: parseInt(m[1]), name: m[2], label: PHASE_LABELS[m[2]] ?? m[2], content };
   });
+
+  return {
+    presenterIntro,
+    phases,
+    presenterOutro,
+    activePhaseId: markers.length > 0 ? parseInt(markers[markers.length - 1][1]) : 0,
+  };
 }
 
 const sendChat = async (promptOverride?: string, projectContext?: any) => {
@@ -3306,6 +3330,9 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
     role: "assistant",
     content: "",
     phases: [],
+    presenterIntro: "",
+    presenterOutro: "",
+    activePhaseId: 0,
     artifactData: { type: null, rawJson: "", parsedList: [] }
   };
 
@@ -3394,14 +3421,13 @@ const sendChat = async (promptOverride?: string, projectContext?: any) => {
           : "Clone cette interface en HTML/CSS pixel-perfect."
         );
 
-        const chatRes  = await fetch("/api/chat", { method: "POST", body: fd });
+        const chatRes = await fetch("/api/chat", { method: "POST", body: fd });
         if (!chatRes.ok) throw new Error(`/api/chat HTTP ${chatRes.status}`);
         const chatData = await chatRes.json();
 
         if (chatData.htmlCode) {
           clonedHtmlCss = chatData.htmlCode;
           addLog(`✅ HTML/CSS de référence prêt (${clonedHtmlCss.length} chars)`);
-
           setMessages(prev => prev.map(msg =>
             msg.id === assistantMsgId ? { ...msg, htmlCode: clonedHtmlCss } : msg
           ));
@@ -3453,26 +3479,23 @@ de l'image de référence fournie par l'utilisateur. Il constitue le DESIGN SYST
 officiel de cette application. Tu dois l'utiliser comme fondation INTÉGRALE.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚫  INTERDICTIONS ABSOLUES — AUCUNE EXCEPTION :
+🚫  INTERDICTIONS ABSOLUES :
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - NE PAS modifier une seule couleur (hex, rgb, hsl, ou variable CSS)
 - NE PAS changer les espacements, paddings, margins, gaps définis
 - NE PAS altérer les border-radius, box-shadow, transitions, animations
 - NE PAS remplacer les polices, les tailles de texte, les font-weight
 - NE PAS renommer ou supprimer les variables CSS déclarées dans :root {}
-- NE PAS "améliorer", simplifier ou réinterpréter le design de ta propre initiative
 - NE PAS utiliser Tailwind, Bootstrap ou tout autre framework CSS à la place du CSS pur fourni
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅  OBLIGATIONS — SANS EXCEPTION :
+✅  OBLIGATIONS :
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - Extraire chaque composant du HTML/CSS et les recréer en React/Next.js avec les styles EXACTS
 - Toutes les variables CSS de :root {} doivent être présentes dans le code final
 - L'application finale doit être visuellement INDISCERNABLE du design de référence
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📄  HTML/CSS DE RÉFÉRENCE :
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 \`\`\`html
 ${clonedHtmlCss}
@@ -3481,7 +3504,6 @@ ${clonedHtmlCss}
 Traduis ce HTML/CSS en composants React/Next.js en préservant 100% des styles.
 `.trim(),
     };
-
     historyForApi = [systemFileContext, htmlDesignContract, ...currentHistory];
   }
 
@@ -3574,9 +3596,8 @@ Traduis ce HTML/CSS en composants React/Next.js en préservant 100% des styles.
         newArtifactData = { type: 'files', parsedList: artifactList, rawJson: text };
       }
 
-      // ── Parsing des phases ────────────────────────────────────────────────
-      const phases = extractPhases(text);
-      const firstPhaseIdx = text.search(/\[PHASE:\d+\/[A-Z_]+\]/);
+      // ── Parsing des phases + presenter ────────────────────────────────────
+      const { presenterIntro, phases, presenterOutro, activePhaseId } = extractPhases(text);
 
       let textWithoutArtifacts = text
         .replace(inspirationUrlRegex, '')
@@ -3586,15 +3607,24 @@ Traduis ce HTML/CSS en composants React/Next.js en préservant 100% des styles.
         .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
         .replace(PLAN_REGEX, '');
 
-      // Si on a des phases, le texte visible = uniquement l'intro avant la 1ère phase
-      const visibleText = phases.length > 0
-        ? textWithoutArtifacts.slice(0, firstPhaseIdx < 0 ? undefined : firstPhaseIdx)
+      // Texte visible = uniquement ce qui précède [PRESENTER:INTRO] ou [PHASE:]
+      const firstMarkerIdx = text.search(/\[PRESENTER:INTRO\]|\[PHASE:\d+/);
+      const visibleText = phases.length > 0 || presenterIntro
+        ? textWithoutArtifacts.slice(0, firstMarkerIdx < 0 ? undefined : firstMarkerIdx)
             .replace(/\[\[START\]\]/g, '').replace(/\[\[FINISH\]\]/g, '').trim()
         : textWithoutArtifacts;
 
       setMessages((prev) => prev.map(msg =>
         msg.id === assistantMsgId
-          ? { ...msg, content: visibleText, phases, artifactData: newArtifactData || msg.artifactData }
+          ? {
+              ...msg,
+              content: visibleText,
+              phases,
+              presenterIntro,
+              presenterOutro,
+              activePhaseId,
+              artifactData: newArtifactData || msg.artifactData,
+            }
           : msg
       ));
     }
@@ -3608,10 +3638,10 @@ Traduis ce HTML/CSS en composants React/Next.js en préservant 100% des styles.
       .replace(/<file_content_snapshot[\s\S]*?<\/file_content_snapshot>/gs, '')
       .replace(PLAN_REGEX, '');
 
-    const finalPhases = extractPhases(text);
-    const finalFirstPhaseIdx = text.search(/\[PHASE:\d+\/[A-Z_]+\]/);
-    const finalVisibleText = finalPhases.length > 0
-      ? finalCleanText.slice(0, finalFirstPhaseIdx < 0 ? undefined : finalFirstPhaseIdx)
+    const { presenterIntro: fi, phases: fp, presenterOutro: fo } = extractPhases(text);
+    const fFirstIdx = text.search(/\[PRESENTER:INTRO\]|\[PHASE:\d+/);
+    const finalVisibleText = fp.length > 0 || fi
+      ? finalCleanText.slice(0, fFirstIdx < 0 ? undefined : fFirstIdx)
           .replace(/\[\[START\]\]|\[\[FINISH\]\]/g, '').trim()
       : finalCleanText;
 
@@ -3619,7 +3649,10 @@ Traduis ce HTML/CSS en composants React/Next.js en préservant 100% des styles.
     finalAssistantMessage = {
       role: "assistant",
       content: finalVisibleText,
-      phases: finalPhases,
+      phases: fp,
+      presenterIntro: fi,
+      presenterOutro: fo,
+      activePhaseId: 0,
       artifactData: finalArtifacts.length > 0
         ? { type: 'files', parsedList: finalArtifacts.map(a => ({ path: a.filePath, type: a.type })), rawJson: text }
         : (urlArtifact
@@ -4684,27 +4717,58 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     />
   </div>
 )}
- 
-          
-          
+                 
 
+      
+                
+{/* Asterisk spinner animation */}
+<style>{`
+  @keyframes ast-bubble {
+    0%, 65%, 100% { opacity: 1; transform: scale(1); }
+    32% { opacity: 0; transform: scale(2.4); }
+  }
+  .ast-b { animation: ast-bubble 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .ast-b-0 { animation-delay: 0s; }
+  .ast-b-1 { animation-delay: 0.267s; }
+  .ast-b-2 { animation-delay: 0.533s; }
+  .ast-b-3 { animation-delay: 0.8s; }
+  .ast-b-4 { animation-delay: 1.067s; }
+  .ast-b-5 { animation-delay: 1.333s; }
+`}</style>
 
-
-                     {messages.map((msg, index) => {
+{messages.map((msg, index) => {
   const artifact = msg.artifactData;
   const isExpanded = expandedMessageIndex === index;
   const isLastMsg = index === messages.length - 1;
+  const isStreamingThis = loading && isLastMsg && msg.role === "assistant";
+
+  const hasPhases = msg.phases && msg.phases.length > 0;
+  const hasPresenter = !!(msg.presenterIntro || msg.presenterOutro);
 
   return (
     <div
       key={index}
       className={`flex flex-col gap-3 max-w-full ${msg.role === "user" ? "items-end" : "items-start"}`}
     >
-      {/* Thinking indicator */}
-      {msg.role === "assistant" && loading && isLastMsg && !msg.phases?.length && (
-        <div className="flex items-center gap-[3px]">
-          <p className="text-sm font-medium text-[#37322F]/80 animate-pulse">Thinking...</p>
-          <svg className="h-[17px] w-[17px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#37322F"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg>
+      {/* Thinking indicator — avant les phases */}
+      {msg.role === "assistant" && isStreamingThis && !hasPhases && !hasPresenter && (
+        <div className="flex items-center gap-2">
+          <svg width="22" height="22" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="20" y1="20" x2="20" y2="9" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+            <line x1="20" y1="20" x2="29.6" y2="14.5" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+            <line x1="20" y1="20" x2="29.6" y2="25.5" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+            <line x1="20" y1="20" x2="20" y2="31" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+            <line x1="20" y1="20" x2="10.4" y2="25.5" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+            <line x1="20" y1="20" x2="10.4" y2="14.5" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+            <circle className="ast-b ast-b-0" cx="20" cy="6" r="2.8" fill="#1a1a1a"/>
+            <circle className="ast-b ast-b-1" cx="31.4" cy="12.5" r="2.8" fill="#1a1a1a"/>
+            <circle className="ast-b ast-b-2" cx="31.4" cy="27.5" r="2.8" fill="#1a1a1a"/>
+            <circle className="ast-b ast-b-3" cx="20" cy="34" r="2.8" fill="#1a1a1a"/>
+            <circle className="ast-b ast-b-4" cx="8.6" cy="27.5" r="2.8" fill="#1a1a1a"/>
+            <circle className="ast-b ast-b-5" cx="8.6" cy="12.5" r="2.8" fill="#1a1a1a"/>
+            <circle cx="20" cy="20" r="2.8" fill="#1a1a1a"/>
+          </svg>
+          <p className="text-sm font-bold text-[#1a1a1a]">Thinking...</p>
         </div>
       )}
 
@@ -4718,12 +4782,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       >
         {(() => {
           const rawTextContent = msg.content;
-          const isFileArtifact = artifact && artifact.type === 'files';
-          const isUrlArtifact = artifact && artifact.type === 'url';
-          const hasPhases = msg.phases && msg.phases.length > 0;
-
-          // Vrai uniquement si on stream encore ce message ET qu'il a des phases
-          const isStreamingPhases = loading && isLastMsg && hasPhases;
+          const isFileArtifact = artifact && (artifact.type === 'files');
+          const isUrlArtifact = artifact && (artifact.type === 'url');
 
           // ── RENDU UTILISATEUR ──────────────────────────────────────────────
           if (msg.role === "user") {
@@ -4761,7 +4821,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           }
 
           // ── RENDU ASSISTANT ────────────────────────────────────────────────
-          const displayElements = [];
+          const displayElements: React.ReactNode[] = [];
 
           // 1. HTML PREVIEW
           if (msg.htmlCode && msg.role === "assistant") {
@@ -4775,7 +4835,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     <span className="ml-2 text-[10px] font-semibold text-[#37322F]/50 font-mono select-none">
                       Design preview · HTML/CSS référence
                     </span>
-                    {loading && isLastMsg && (
+                    {isStreamingThis && (
                       <span className="ml-1 text-[9px] font-bold text-[#6366f1] animate-pulse">● building...</span>
                     )}
                   </div>
@@ -4799,7 +4859,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             );
           }
 
-          // 2. TEXTE INTRO (avant les phases, ou texte normal si pas de phases)
+          // 2. TEXTE pré-phases (texte normal non-pipeline)
           if (rawTextContent && rawTextContent.trim().length > 0) {
             displayElements.push(
               <pre key="text" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed mb-1 max-w-full overflow-x-hidden">
@@ -4808,69 +4868,90 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             );
           }
 
-          // 3. PHASES AGENTS — un <details> par phase
-          if (hasPhases) {
-            const activePhaseId = msg.phases![msg.phases!.length - 1].id;
+          // 3. PRESENTER INTRO — visible, hors des phases
+          if (msg.presenterIntro) {
             displayElements.push(
-              <div key="phases" className="flex flex-col gap-1 w-full mt-1">
+              <pre key="presenter-intro" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-[#37322F] mb-2 max-w-full">
+                {msg.presenterIntro}
+              </pre>
+            );
+          }
+
+          // 4. PHASES — affichées pendant et après la génération
+          if (hasPhases) {
+            const activeId = msg.activePhaseId ?? 0;
+            const isDone = !isStreamingThis;
+
+            displayElements.push(
+              <div key="phases" className="flex flex-col gap-0.5 w-full my-1">
                 {msg.phases!.map((phase) => {
-                  const isActive = isStreamingPhases && phase.id === activePhaseId;
-                  const fileArtifactsInPhase = isFileArtifact && phase.id === activePhaseId
-                    ? artifact.parsedList ?? []
-                    : [];
+                  const isActive = isStreamingThis && phase.id === activeId;
 
                   return (
                     <details
                       key={phase.id}
                       open={isActive}
-                      className="w-full rounded-lg border border-[rgba(55,50,47,0.1)] overflow-hidden"
+                      className="w-full group"
                     >
-                      <summary className="flex items-center justify-between px-3 py-2 cursor-pointer select-none list-none bg-[#faf9f7] hover:bg-[#f6f4ec] transition-colors">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                            style={{
-                              background: isActive ? '#6366f1' : 'rgba(55,50,47,0.25)',
-                              boxShadow: isActive ? '0 0 0 3px rgba(99,102,241,0.15)' : 'none',
-                              transition: 'all 0.3s',
-                            }}
-                          />
-                          <span className="text-xs font-medium text-[#37322F]/80 select-none">
+                      <summary
+                        className="flex items-center justify-between px-2 py-1.5 cursor-pointer select-none list-none rounded-md transition-colors"
+                        style={{
+                          background: isActive
+                            ? 'rgba(55,50,47,0.06)'
+                            : 'rgba(55,50,47,0.025)',
+                        }}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {/* Asterisk spinner si phase active, sinon point statique */}
+                          {isActive ? (
+                            <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                              <line x1="20" y1="20" x2="20" y2="9" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+                              <line x1="20" y1="20" x2="29.6" y2="14.5" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+                              <line x1="20" y1="20" x2="29.6" y2="25.5" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+                              <line x1="20" y1="20" x2="20" y2="31" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+                              <line x1="20" y1="20" x2="10.4" y2="25.5" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+                              <line x1="20" y1="20" x2="10.4" y2="14.5" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round"/>
+                              <circle className="ast-b ast-b-0" cx="20" cy="6" r="2.8" fill="#1a1a1a"/>
+                              <circle className="ast-b ast-b-1" cx="31.4" cy="12.5" r="2.8" fill="#1a1a1a"/>
+                              <circle className="ast-b ast-b-2" cx="31.4" cy="27.5" r="2.8" fill="#1a1a1a"/>
+                              <circle className="ast-b ast-b-3" cx="20" cy="34" r="2.8" fill="#1a1a1a"/>
+                              <circle className="ast-b ast-b-4" cx="8.6" cy="27.5" r="2.8" fill="#1a1a1a"/>
+                              <circle className="ast-b ast-b-5" cx="8.6" cy="12.5" r="2.8" fill="#1a1a1a"/>
+                              <circle cx="20" cy="20" r="2.8" fill="#1a1a1a"/>
+                            </svg>
+                          ) : (
+                            <span
+                              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                              style={{ background: isDone ? 'rgba(55,50,47,0.35)' : 'rgba(55,50,47,0.18)' }}
+                            />
+                          )}
+                          <span className="text-xs font-semibold text-[#37322F]" style={{ fontWeight: isActive ? 700 : 500 }}>
                             {phase.label}
                           </span>
-                          {isActive && (
-                            <span className="text-[10px] text-[#6366f1] animate-pulse font-medium">en cours</span>
-                          )}
                         </div>
-                        <svg className="w-3 h-3 text-[#37322F]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg
+                          className="w-3 h-3 text-[#37322F]/30 group-open:rotate-180 transition-transform duration-200"
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </summary>
 
-                      <div className="border-t border-[rgba(55,50,47,0.06)] bg-white">
-                        {/* Texte de la phase */}
-                        {phase.content && phase.content.trim().length > 0 && (
-                          <pre className="px-3 py-2 whitespace-pre-wrap break-words font-sans text-xs text-[#37322F]/70 leading-relaxed max-h-60 overflow-y-auto">
+                      {/* Contenu déroulé */}
+                      <div style={{ background: 'rgba(55,50,47,0.02)' }} className="rounded-b-md">
+                        {phase.content && phase.content.length > 0 && (
+                          <pre className="px-3 py-2 whitespace-pre-wrap break-words font-sans text-xs text-[#37322F]/65 leading-relaxed max-h-56 overflow-y-auto">
                             {phase.content}
                           </pre>
                         )}
-
-                        {/* Fichiers générés dans cette phase (si phase active) */}
-                        {fileArtifactsInPhase.length > 0 && (
-                          <div className="px-3 pb-2 border-t border-[rgba(55,50,47,0.05)]">
-                            <div className="flex flex-col gap-0.5 mt-1.5">
-                              {fileArtifactsInPhase.map((item: { path: string }, i: number) => {
-                                const isCurrentFile = isActive && i === fileArtifactsInPhase.length - 1;
-                                return (
-                                  <span
-                                    key={i}
-                                    className={`text-[10px] font-mono truncate ${isCurrentFile ? 'text-[#6366f1] animate-pulse' : 'text-[#37322F]/50'}`}
-                                  >
-                                    {item.path}
-                                  </span>
-                                );
-                              })}
-                            </div>
+                        {/* Fichiers en cours dans cette phase */}
+                        {isActive && isFileArtifact && artifact.parsedList?.length > 0 && (
+                          <div className="px-3 pb-2 flex flex-col gap-0.5">
+                            {artifact.parsedList.slice(-5).map((item: { path: string }, i: number) => (
+                              <span key={i} className="text-[10px] font-mono text-[#37322F]/50 truncate animate-pulse">
+                                {item.path}
+                              </span>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -4881,24 +4962,18 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             );
           }
 
-          // 4. FICHIERS GÉNÉRÉS (si pas de phases, fallback affichage normal)
-          if (!hasPhases && isFileArtifact && artifact.parsedList?.length > 0) {
-            const isBuilding = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
+          // 5. FICHIERS GÉNÉRÉS — résumé compact (si pas de phases actives, ou après)
+          if (isFileArtifact && artifact.parsedList?.length > 0 && (!hasPhases || !isStreamingThis)) {
             const totalItems = artifact.parsedList.length;
+            const isBuilding = rawTextContent.includes('<create_file') && !rawTextContent.includes('</create_file>');
             const svgPath = "M560-80v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-300L683-80H560Zm300-263-37-37 37 37ZM620-140h38l121-122-18-19-19-18-122 121v38ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v120h-80v-80H520v-200H240v640h240v80H240Zm280-400Zm241 199-19-18 37 37-18-19Z";
 
             displayElements.push(
-              <details key="code-artifact-dropdown" className="group w-full mt-2 rounded-lg border border-[rgba(55,50,47,0.1)] bg-white/50 open:bg-white/80 transition-all duration-200" open={isBuilding}>
+              <details key="code-artifact-dropdown" className="group w-full mt-1 rounded-lg border border-[rgba(55,50,47,0.1)] bg-white/50 open:bg-white/80 transition-all duration-200" open={isBuilding}>
                 <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none">
                   <div className="flex items-center gap-2 text-[#37322F]">
-                    <span className={`${isBuilding ? 'animate-spin' : ''}`}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="#37322F"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm0-15V7h2V4zM8.47 4.93l1.41 1.41-1.41 1.41-1.41-1.41zM19.07 15.53l-1.41-1.41 1.41-1.41 1.41 1.41zM20 12h-3v2h3zM15.53 19.07l-1.41-1.41 1.41-1.41 1.41 1.41zM12 20v-3h2v3zM4.93 15.53l1.41-1.41-1.41-1.41-1.41 1.41zM4 12h3v2H4zM8.47 19.07l1.41 1.41-1.41-1.41-1.41 1.41z"/></svg>
-                    </span>
                     <span className="font-semibold text-sm">
-                      {isBuilding ? 'Building code...' : 'Code Generated'}
-                    </span>
-                    <span className="bg-[#f6f4ec] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[rgba(55,50,47,0.1)]">
-                      {totalItems} files
+                      {isBuilding ? 'Écriture des fichiers...' : `${totalItems} fichiers générés`}
                     </span>
                   </div>
                   <svg className="w-4 h-4 transform group-open:rotate-180 transition-transform duration-200 text-[#37322F]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -4906,31 +4981,36 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                   </svg>
                 </summary>
                 <div className="px-3 pb-3 pt-0 border-t border-[rgba(55,50,47,0.05)]">
-                  <ul className="list-disc pl-5 w-[100%] space-y-1 mt-2">
+                  <ul className="space-y-1 mt-2">
                     {artifact.parsedList.map((item: {path: string, type: 'create' | 'changes'}, i: number) => {
                       const isCurrentlyStreaming = isBuilding && i === totalItems - 1;
                       return (
-                        <li key={i} className={`text-xs w-full list-style-none flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
+                        <li key={i} className={`text-xs flex items-center gap-1 text-[#37322F]/80 ${isCurrentlyStreaming ? 'animate-pulse' : ''}`}>
                           <span><svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="#37322F"><path d={svgPath}/></svg></span>
                           <span className="bg-[#f6f4ec] py-[3px] rounded-[8px] font-semibold px-[12px] truncate max-w-[200px]" title={item.path}>{item.path}</span>
                         </li>
                       );
                     })}
-                    {isBuilding && (
-                      <li className="text-xs text-[#37322F]/60 italic flex items-center gap-1 mt-2">
-                        <span className="font-semibold animate-pulse">Building...</span>
-                      </li>
-                    )}
                   </ul>
                 </div>
               </details>
             );
           }
 
-          // 5. URL ARTIFACT
-          if (isUrlArtifact) {
+          // 6. PRESENTER OUTRO — visible après toutes les phases, hors des phases
+          if (msg.presenterOutro) {
             displayElements.push(
-              <div key="url-artifact" className="p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full">
+              <pre key="presenter-outro" className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-[#37322F] mt-2 max-w-full">
+                {msg.presenterOutro}
+              </pre>
+            );
+          }
+
+          // 7. URL ARTIFACT
+          if (isUrlArtifact) {
+            const artifactClasses = (rawTextContent && rawTextContent.trim().length > 0) ? "mt-3 pt-3 border-t border-[rgba(55,50,47,0.1)]" : "pt-0";
+            displayElements.push(
+              <div key="url-artifact" className={`p-3 bg-[#F7F5F3] border border-[rgba(55,50,47,0.1)] rounded-lg w-full ${artifactClasses}`}>
                 <p className="text-sm font-semibold mb-1 flex items-center gap-1 text-[#37322F]">Designing process</p>
                 <div className="h-[8px] w-full rounded-[8px] bg-[#E3DFDB]"></div>
               </div>
@@ -4972,9 +5052,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       )}
     </div>
   );
-})}     
-                
-
+})}
             
           
                 
