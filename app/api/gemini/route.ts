@@ -269,6 +269,15 @@ INTERDIT :
 // =============================================================================
 
 const ERROR_PREVENTION_BIBLE = `
+
+
+J'EN AI MARRE QUE QUAND TU REDIGE LES FICHIERS TU NE FAIT QUE LAISSER UN TAS D'ERREURS COMME CELLES LISTER CI DESSOUS 
+obtenu cette erreur pendant l’action 'build'. Corrige-la :
+
+
+Failed to compile.
+
+./components/views/DashboardView.tsx
 ══════════════════════════════════════════════════════════════════════
 ⚠️  BIBLE DES ERREURS — LIS CHAQUE LIGNE AVANT D'ÉCRIRE UNE SEULE LIGNE DE CODE
 Tu n'as AUCUN correcteur automatique après toi. Tu es la seule ligne de défense.
@@ -645,6 +654,9 @@ Pour CHAQUE composant UI (Button, Card, Badge, etc.) → vérifie que tous les p
 ══════════════════════════════════════════════════════════════════════
 PRENDS LE TEMPS. UN CODE LENT ET CORRECT VAUT MIEUX QU'UN CODE RAPIDE ET CASSÉ.
 ══════════════════════════════════════════════════════════════════════
+
+JE TE RASSURE QUE JE NE VEUX MÊME PAS QUE TU GÉNÈRE UN FICHIERS QUI À DES PROBLÈMES DE TYPES MAL IMPORTER, DE TYPES INEXISTANTS ET AUTRES. SI TU DOIS DÉFINIR DES TYPES, DEFINI LES DIRECTEMENT DANS LE FICHIER QUI LES REQUIERT.
+PAS DANS UN FICHIER TIERCE. NON JE NE VEUX VOIR ABSOLUMENT AUCUNE ERREUR LIER AU TYPE INEXISTANT, MAL IMPORTER OU EXPORTÉ, N'ÉTANT PAS DANS LE FORMAT ATTENDU, ET TOUT AUTRE ERREUR POSSIBLE LIER À TYPESCRIPT REACT NEXTJS.
 `;
 
 // =============================================================================
@@ -662,110 +674,17 @@ ${ERROR_PREVENTION_BIBLE}
 FICHIERS À GÉNÉRER (couche fondation UNIQUEMENT)
 ══════════════════════════════════════════════════════════════════════
 
-1. types/index.ts
-   - TOUTES les interfaces et types de l'application
-   - Les champs doivent être PRÉCIS et COMPLETS (incluant tous les champs qui seront utilisés dans les vues)
-   - Convention de nommage : choisis UN nom par concept et utilise-le PARTOUT
-     Ex : si tu choisis qty, TOUTES les vues écriront pos.qty — pas pos.quantity, pas pos.amount
-   - Exemple :
-     export interface Position {
-       id: string;
-       symbol: string;
-       qty: number;          // ← ce nom EXACT sera utilisé dans les vues
-       avgPrice: number;     // ← ce nom EXACT sera utilisé dans les vues
-       pnl: number;          // ← ce nom EXACT sera utilisé dans les vues
-       side: 'long' | 'short';
-     }
+   JE TE RASSURE QUE JE NE VEUX MÊME PAS QUE TU GÉNÈRE UN FICHIERS QUI À DES PROBLÈMES DE TYPES MAL IMPORTER, DE TYPES INEXISTANTS ET AUTRES. SI TU DOIS DÉFINIR DES TYPES, DEFINI LES DIRECTEMENT DANS LE FICHIER QUI LES REQUIERT.
+PAS DANS UN FICHIER TIERCE. NON JE NE VEUX VOIR ABSOLUMENT AUCUNE ERREUR LIER AU TYPE INEXISTANT, MAL IMPORTER OU EXPORTÉ, N'ÉTANT PAS DANS LE FORMAT ATTENDU, ET TOUT AUTRE ERREUR POSSIBLE LIER À TYPESCRIPT REACT NEXTJS.
 
-2. lib/utils.ts
-   - Fonction cn() pour fusionner les classes Tailwind (utilise clsx + tailwind-merge)
-   - Fonctions de formatage (formatCurrency, formatDate, formatNumber, etc.)
-   - Helpers génériques utiles à l'application
-
-3. lib/env.ts
-   - Variables d'environnement typées et validées
-   - Valeurs par défaut sensées
-
-4. services/*.ts
-   - Logique métier et appels API
-   - Fonctions async avec gestion d'erreur try/catch
-   - Données mock réalistes pour le développement (pas de "TODO: implement")
-
-5. stores/*.ts — Stores Zustand
-   IMPÉRATIF — STRUCTURE CORRECTE :
-   \`\`\`typescript
-   "use client";  // ← PAS ici pour les stores, ils sont importés par les views qui ont "use client"
-   
-   // CORRECT pour un store :
-   import { create } from 'zustand';
-   import type { TradeState } from '@/types';
-   
-   interface StoreState extends TradeState {
-     // Ici les types — POINTS-VIRGULES
-     loading: boolean;
-     error: string | null;
-     fetchData: () => Promise<void>;
-     setSymbol: (s: string) => void;
-   }
-   
-   export const useTradeStore = create<StoreState>()((set, get) => ({
-     // Ici les IMPLÉMENTATIONS — VIRGULES
-     loading: false,
-     error: null,
-     fetchData: async () => {
-       set({ loading: true });    // point-virgule DANS le corps de la fn
-       try {
-         const data = await fetchApi();
-         set({ data, loading: false });  // point-virgule DANS le corps
-       } catch (e) {
-         set({ error: String(e), loading: false });
-       }
-     },                          // ← virgule APRÈS la fn (séparateur de propriété)
-     setSymbol: (s) => set({ symbol: s }),  // ← virgule
-   }));
-   \`\`\`
-   
-   Les stores ne nécessitent PAS "use client" — ce sont les components qui les importent qui l'ont.
-
-6. tailwind.config.ts
-   OBLIGATOIRE — génère TOUJOURS ce fichier.
-   Si globals.css utilisera des CSS variables (--border, --background, etc.),
-   tu DOIS les mapper ici pour éviter "The border-border class does not exist".
-   
-   \`\`\`typescript
-   import type { Config } from "tailwindcss";
-   const config: Config = {
-     darkMode: ["class"],
-     content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}"],
-     theme: {
-       extend: {
-         colors: {
-           border: "hsl(var(--border))",
-           input: "hsl(var(--input))",
-           ring: "hsl(var(--ring))",
-           background: "hsl(var(--background))",
-           foreground: "hsl(var(--foreground))",
-           primary: { DEFAULT: "hsl(var(--primary))", foreground: "hsl(var(--primary-foreground))" },
-           secondary: { DEFAULT: "hsl(var(--secondary))", foreground: "hsl(var(--secondary-foreground))" },
-           destructive: { DEFAULT: "hsl(var(--destructive))", foreground: "hsl(var(--destructive-foreground))" },
-           muted: { DEFAULT: "hsl(var(--muted))", foreground: "hsl(var(--muted-foreground))" },
-           accent: { DEFAULT: "hsl(var(--accent))", foreground: "hsl(var(--accent-foreground))" },
-           card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
-           popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
-         },
-       },
-     },
-     plugins: [],
-   };
-   export default config;
-   \`\`\`
+OU TOUT AUTRE ERREUR LISTER DANS CE ERROR_PREVENTION_BIBLE
 
 ══════════════════════════════════════════════════════════════════════
 FORMAT DE SORTIE — IMPÉRATIF
 ══════════════════════════════════════════════════════════════════════
 
 Utilise UNIQUEMENT ce format. JAMAIS de blocs markdown autour.
-<create_file path="types/index.ts">
+<create_file path="app/page.tsx">
 ... code complet ...
 </create_file>
 
@@ -780,7 +699,8 @@ Avant de finaliser chaque store :
 □ Chaque propriété dans create() est séparée par une VIRGULE ?
 □ Aucune propriété n'a : () => void; dans l'objet create() ?
 □ Les corps de fonctions async utilisent des POINTS-VIRGULES ?
-□ Tous les noms de champs dans types/index.ts correspondent à ceux utilisés partout ?
+JE TE RASSURE QUE JE NE VEUX MÊME PAS QUE TU GÉNÈRE UN FICHIERS QUI À DES PROBLÈMES DE TYPES MAL IMPORTER, DE TYPES INEXISTANTS ET AUTRES. SI TU DOIS DÉFINIR DES TYPES, DEFINI LES DIRECTEMENT DANS LE FICHIER QUI LES REQUIERT.
+PAS DANS UN FICHIER TIERCE. NON JE NE VEUX VOIR ABSOLUMENT AUCUNE ERREUR LIER AU TYPE INEXISTANT, MAL IMPORTER OU EXPORTÉ, N'ÉTANT PAS DANS LE FORMAT ATTENDU, ET TOUT AUTRE ERREUR POSSIBLE LIER À TYPESCRIPT REACT NEXTJS.
 
 NE PAS generer : hooks, composants UI, vues, globals.css, layout.tsx, page.tsx.
 `;
@@ -842,6 +762,10 @@ FORMAT DE SORTIE
 ... code complet ...
 </create_file>
 
+JE TE RASSURE QUE JE NE VEUX MÊME PAS QUE TU GÉNÈRE UN FICHIERS QUI À DES PROBLÈMES DE TYPES MAL IMPORTER, DE TYPES INEXISTANTS ET AUTRES. SI TU DOIS DÉFINIR DES TYPES, DEFINI LES DIRECTEMENT DANS LE FICHIER QUI LES REQUIERT.
+PAS DANS UN FICHIER TIERCE. NON JE NE VEUX VOIR ABSOLUMENT AUCUNE ERREUR LIER AU TYPE INEXISTANT, MAL IMPORTER OU EXPORTÉ, N'ÉTANT PAS DANS LE FORMAT ATTENDU, ET TOUT AUTRE ERREUR POSSIBLE LIER À TYPESCRIPT REACT NEXTJS.
+
+
 À la fin :
 DEPENDENCIES: ["package1", "package2"]
 
@@ -873,6 +797,8 @@ ${ERROR_PREVENTION_BIBLE}
 ══════════════════════════════════════════════════════════════════════
 FICHIERS À GÉNÉRER
 ══════════════════════════════════════════════════════════════════════
+JE TE RASSURE QUE JE NE VEUX MÊME PAS QUE TU GÉNÈRE UN FICHIERS QUI À DES PROBLÈMES DE TYPES MAL IMPORTER, DE TYPES INEXISTANTS ET AUTRES. SI TU DOIS DÉFINIR DES TYPES, DEFINI LES DIRECTEMENT DANS LE FICHIER QUI LES REQUIERT.
+PAS DANS UN FICHIER TIERCE. NON JE NE VEUX VOIR ABSOLUMENT AUCUNE ERREUR LIER AU TYPE INEXISTANT, MAL IMPORTER OU EXPORTÉ, N'ÉTANT PAS DANS LE FORMAT ATTENDU, ET TOUT AUTRE ERREUR POSSIBLE LIER À TYPESCRIPT REACT NEXTJS.
 
 1. components/views/*View.tsx — une par section/page principale
    - "use client"; LIGNE 1 ABSOLUMENT (les vues utilisent toujours des stores)
@@ -984,7 +910,9 @@ DEPENDENCIES: ["framer-motion", "recharts", "date-fns"]
 ══════════════════════════════════════════════════════════════════════
 AUTO-REVUE FINALE OBLIGATOIRE
 ══════════════════════════════════════════════════════════════════════
-
+JE TE RASSURE QUE JE NE VEUX MÊME PAS QUE TU GÉNÈRE UN FICHIERS QUI À DES PROBLÈMES DE TYPES MAL IMPORTER, DE TYPES INEXISTANTS ET AUTRES. SI TU DOIS DÉFINIR DES TYPES, DEFINI LES DIRECTEMENT DANS LE FICHIER QUI LES REQUIERT.
+PAS DANS UN FICHIER TIERCE. NON JE NE VEUX VOIR ABSOLUMENT AUCUNE ERREUR LIER AU TYPE INEXISTANT, MAL IMPORTER OU EXPORTÉ, N'ÉTANT PAS DANS LE FORMAT ATTENDU, ET TOUT AUTRE ERREUR POSSIBLE LIER À TYPESCRIPT REACT NEXTJS.
+ OU TOUT ERREURS AUTRES QUELCONQUES.
 Avant d'émettre, relis chaque fichier et vérifie :
 □ "use client" ligne 1 sur toutes les vues et page.tsx ?
 □ Named exports (export function NomView) sur toutes les vues ?
@@ -1210,7 +1138,7 @@ export async function POST(req: Request) {
             emitOutput?: boolean;
           } = {}
         ): Promise<string> {
-          const { temperature = 1.0, maxTokens = 65536, useChatHistory = false, emitOutput = true } = opts;
+          const { temperature = 1.4, maxTokens = 65536, useChatHistory = false, emitOutput = true } = opts;
 
           let contents: { role: "user" | "model"; parts: Part[] }[];
 
@@ -1228,7 +1156,7 @@ export async function POST(req: Request) {
               contents,
               tools: [{ functionDeclarations: [readFileDecl] }],
               config: {
-                systemInstruction: `${basePrompt}\n\n${systemPrompt}`,
+                systemInstruction: `${systemPrompt}`,
                 temperature,
                 maxOutputTokens: maxTokens,
               },
@@ -1252,7 +1180,7 @@ export async function POST(req: Request) {
                   contents,
                   tools: [{ functionDeclarations: [readFileDecl] }],
                   config: {
-                    systemInstruction: `${basePrompt}\n\n${systemPrompt}`,
+                    systemInstruction: `${systemPrompt}`,
                     temperature,
                     maxOutputTokens: maxTokens,
                   },
@@ -1278,7 +1206,7 @@ export async function POST(req: Request) {
                   contents,
                   tools: [{ functionDeclarations: [readFileDecl] }],
                   config: {
-                    systemInstruction: `${basePrompt}\n\n${systemPrompt}`,
+                    systemInstruction: `${systemPrompt}`,
                     temperature,
                     maxOutputTokens: maxTokens,
                   },
@@ -1318,9 +1246,9 @@ export async function POST(req: Request) {
                 model: MODEL_ID,
                 contents: presenterContents,
                 config: {
-                  systemInstruction: `${basePrompt}\n\n${PRESENTER_PROMPT}`,
-                  temperature: 1.2,
-                  maxOutputTokens: 512,
+                  systemInstruction: `${PRESENTER_PROMPT}`,
+                  temperature: 1.4,
+                  maxOutputTokens: 65536,
                 },
               }),
               presenterCollector.collect, // ← SILENCIEUX, jamais dans onChunk
