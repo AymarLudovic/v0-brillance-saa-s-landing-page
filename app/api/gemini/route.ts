@@ -5,7 +5,7 @@ import packageJson from "package-json";
 import sharp from "sharp";
 import { Sandbox } from "@e2b/code-interpreter";
 
-const BATCH_SIZE = 128;
+const BATCH_SIZE = 256;
 const MODEL_ID = "gemini-3-flash-preview";
 
 // =============================================================================
