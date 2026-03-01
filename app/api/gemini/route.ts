@@ -5,7 +5,7 @@ import packageJson from "package-json";
 import sharp from "sharp";
 import { Sandbox } from "@e2b/code-interpreter";
 
-const BATCH_SIZE = 128;
+const BATCH_SIZE = 256;
 const MODEL_ID = "gemini-3-flash-preview";
 
 // =============================================================================
@@ -78,7 +78,7 @@ LOI 5 — Images réelles : favicons.google / dicebear / picsum UNIQUEMENT
 
 HTML/CSS DE RÉFÉRENCE :
 \`\`\`html
-${htmlRef.slice(0, 12000)}
+${htmlRef.slice(0, 120000)}
 \`\`\`
 `;
 }
@@ -1657,7 +1657,7 @@ export async function POST(req: Request) {
                 config: {
                   systemInstruction: `${basePrompt}\n\n${PRESENTER_PROMPT}`,
                   temperature: 1.2,
-                  maxOutputTokens: 2048, // augmenté : 512 coupait la réponse
+                  maxOutputTokens: 65536, // augmenté : 512 coupait la réponse
                 },
               }),
               presenterAndEmit,
