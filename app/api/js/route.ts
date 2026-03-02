@@ -244,7 +244,7 @@ Données simulées volumineuses et réalistes. Zéro erreur console. window.App 
       async start(controller) {
         try {
           const response = await ai.models.generateContentStream({
-            model: "gemini-2.5-flash-preview-05-20",
+            model: "gemini-3-flash-preview",
             contents: [...gemHist, { role: "user", parts }],
             config: {
               systemInstruction: SYSTEM_JS,
