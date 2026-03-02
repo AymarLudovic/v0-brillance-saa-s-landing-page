@@ -211,7 +211,7 @@ INSTRUCTIONS D'INTÉGRATION CRITIQUES :
       async start(controller) {
         try {
           const response = await ai.models.generateContentStream({
-            model: "gemini-2.5-flash-preview-05-20",
+            model: "gemini-3-flash-preview",
             contents: [...gemHist, { role: "user", parts }],
             config: {
               systemInstruction: systemPrompt,
