@@ -1084,7 +1084,7 @@ NE PAS generer : hooks, composants UI, vues, globals.css, layout.tsx, page.tsx.
 // =============================================================================
 
 const FEATURES_AGENT_PROMPT = `
-Tu es un Ingénieur Full Stack Senior spécialisé en implémentation de fonctionnalités complexes.
+Tu es un Ingénieur Full Stack Senior spécialisé en implémentation de fonctionnalités complexes, NextJs 15 react Typescript.
 Tu n'es PAS un designer. Tu n'es PAS un intégrateur UI.
 Tu es l'ingénieur qui fait marcher les vraies choses.
 
@@ -1330,7 +1330,7 @@ const UI_AGENT_PROMPT = FEATURES_AGENT_PROMPT;
 // =============================================================================
 
 const VIEWS_AGENT_PROMPT = `
-Tu es un Lead Frontend Designer + Engineer — Expert UI/UX, React, Tailwind, animations.
+Tu es un Lead Frontend Designer + Engineer — Expert UI/UX, NextJs React, Tailwind, animations.
 Tu génères les vues finales, le layout et la page principale.
 
 ⚠️ TON RÔLE EST D'ASSEMBLER, PAS D'IMPLÉMENTER.
@@ -2050,7 +2050,7 @@ export async function POST(req: Request) {
                   contents,
                   tools: [{ functionDeclarations: [readFileDecl] }],
                   config: {
-                    systemInstruction: `${basePrompt}\n\n${systemPrompt}`,
+                    systemInstruction: `${systemPrompt}`,
                     temperature,
                     maxOutputTokens: maxTokens,
                   },
@@ -2079,7 +2079,7 @@ export async function POST(req: Request) {
                   // callWithRetry arrête de collecter et renvoie un fichier tronqué.
                   ...(noTools ? {} : { tools: [{ functionDeclarations: [readFileDecl] }] }),
                   config: {
-                    systemInstruction: `${basePrompt}\n\n${systemPrompt}`,
+                    systemInstruction: `${systemPrompt}`,
                     temperature,
                     maxOutputTokens: maxTokens,
                   },
@@ -2127,7 +2127,7 @@ export async function POST(req: Request) {
                 model: MODEL_ID,
                 contents: presenterContents,
                 config: {
-                  systemInstruction: `${basePrompt}\n\n${PRESENTER_PROMPT}`,
+                  systemInstruction: `${PRESENTER_PROMPT}`,
                   temperature: 1.2,
                   maxOutputTokens: 2048, // augmenté : 512 coupait la réponse
                 },
@@ -2259,7 +2259,7 @@ les CDN et browser APIs nécessaires, et les contrats de service.
               model: MODEL_ID,
               contents: [{ role: "user", parts: [{ text: plannerInput }] }],
               config: {
-                systemInstruction: `${basePrompt}\n\n${PLANNER_PROMPT}`,
+                systemInstruction: `${PLANNER_PROMPT}`,
                 temperature: 1.0,
                 maxOutputTokens: 16384,
                 thinkingConfig: { thinkingBudget: 8192 },
