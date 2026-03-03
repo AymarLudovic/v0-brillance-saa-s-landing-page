@@ -1546,6 +1546,12 @@ FORMAT :
 ... fichier entier corrigé ...
 </create_file>
 
+Surtout suis toujours ce format sans markdown quand tu dois corriger l'erreur dans un fichier quelconque, c'est pour que ta modification soit bien capturé 
+FORMAT :
+<create_file path="chemin/fichier.tsx">
+... fichier entier corrigé ...
+</create_file>
+
 Rapport de correction en 2-3 lignes.
 `;
 
@@ -2026,7 +2032,7 @@ export async function POST(req: Request) {
               contents,
               tools: [{ functionDeclarations: [readFileDecl] }],
               config: {
-                systemInstruction: `${basePrompt}\n\n${systemPrompt}`,
+                systemInstruction: `${systemPrompt}`,
                 temperature,
                 maxOutputTokens: maxTokens,
               },
@@ -2465,7 +2471,7 @@ Corrige UNIQUEMENT ces fichiers. Renvoie le fichier COMPLET corrigé.
 `;
 
             const polishOutput = await runAgent(FIXER_PROMPT, polishInput, {
-              temperature: 0.4,
+              temperature: 1,
               maxTokens: 32768,
             });
             flushBuffer();
@@ -2601,7 +2607,7 @@ PATTERNS FRÉQUENTS :
               // Sans noTools, le model appelle readFile, chunk.text devient vide,
               // callWithRetry arrête de collecter → fichier tronqué → 0 fichier parsé → break.
               const tscFixOutput = await runAgent(FIXER_PROMPT, tscFixInput, {
-                temperature: 0.2,
+                temperature: 1,
                 maxTokens: 65536, // augmenté : 32768 pouvait couper les gros fichiers
                 emitOutput: true,
                 noTools: true, // ← CRITIQUE : empêche l'interruption mid-stream par tool call
