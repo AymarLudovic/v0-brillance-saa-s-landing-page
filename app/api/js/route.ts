@@ -174,7 +174,7 @@ Données simulées réalistes. window.App exposé. IDs DOM prévisibles.`,
       async start(controller) {
         try {
           const response = await ai.models.generateContentStream({
-            model: "gemini-3-flash-preview",
+            model: "gemini-3.1-flash-lite-preview",
             contents: [...gemHist, { role: "user", parts }],
             config: {
               systemInstruction: SYSTEM_JS,
