@@ -442,7 +442,7 @@ Règles :
           }));
 
           const genResponse = await ai.models.generateContentStream({
-            model: "gemini-3-flash-lite-preview",
+            model: "gemini-3.1-flash-lite-preview",
             contents: [...gemHist, { role: "user", parts: genParts }],
             config: {
               systemInstruction: mode === "clone" ? SYSTEM_CLONE_GEN : SYSTEM_CREATE_GEN,
