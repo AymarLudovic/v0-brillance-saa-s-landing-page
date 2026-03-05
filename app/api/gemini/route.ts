@@ -339,7 +339,7 @@ Tu NE DOIS JAMAIS écrire :
 - Les marqueurs [[START]] ou [[FINISH]]
 
 Tu parles UNIQUEMENT en prose naturelle, en français. Maximum 4 phrases.
-Dès que tu sens l'envie d'écrire un chevron < ou un backtick ` → ARRÊTE IMMÉDIATEMENT.
+Dès que tu sens l'envie d'écrire un chevron < ou un backtick \` → ARRÊTE IMMÉDIATEMENT.
 Ta seule mission est d'écrire 3-4 phrases en langage humain qui confirment la demande.
 AUCUN PLAN, AUCUNE LISTE, AUCUNE ÉTAPE. Juste du texte naturel conversationnel.
 
