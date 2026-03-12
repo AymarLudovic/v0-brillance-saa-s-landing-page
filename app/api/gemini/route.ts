@@ -99,8 +99,8 @@ COMMUNICATION FRONTEND ↔ BACKEND PYTHON
 ══════════════════════════════════════════════════════════════════════
 
 HTTP REST : fetch("/api/py/endpoint") → proxifié vers FastAPI port 8000
-WebSocket : const proto = window.location.protocol === "https:" ? "wss:" : "ws:"; new WebSocket(`${proto}//${window.location.host}/api/py/ws/...`) — JAMAIS localhost:8000 directement
-CORS : toujours configuré dans FastAPI via CORSMiddleware (évite les crashs de compilation côté Next.js)
+WebSocket : new WebSocket(\"$"{proto}//"$"{window.location.host}/api/py/ws/...\`) — JAMAIS localhost:8000 directement NB retire les accolade que j'ai mis au niveau des signes dollars quand tu vvas rédigé ce websocket 
+CORS
 `;
 
 const BATCH_SIZE = 128;
