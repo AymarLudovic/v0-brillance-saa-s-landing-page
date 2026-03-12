@@ -1664,7 +1664,7 @@ FICHIERS À GÉNÉRER
    → Tes hooks appellent /api/py/<endpoint> pour les données réelles
    → Exemple useTradeData.ts : fetch("/api/py/positions") → vrai ccxt
    → JAMAIS de mock si Python peut fournir les vraies données
-   → Pour WebSocket temps réel : const proto = window.location.protocol==="https:"?"wss:":"ws:"; new WebSocket(`${proto}//${window.location.host}/api/py/ws/stream`)
+   → Pour WebSocket temps réel : const proto = window.location.protocol==="https:"?"wss:":"ws:"; new WebSocket("$"{proto}//"$"{window.location.host}/api/py/ws/stream) NB: tu vas retirer les accolade (") que j'ai entouré les signes dollars la Quand tu vas coder
    
    Pattern hook Python :
    const { data } = useSWR("/api/py/positions", fetcher)
