@@ -1626,6 +1626,12 @@ AUTO-REVUE OBLIGATOIRE
 
 NE PAS générer : hooks/, components/, vues, globals.css, layout.tsx, page.tsx.
 Ces fichiers sont la responsabilité des agents suivants.
+Pour que tu créer les fichiers, écrire leurs code tu dois mettre cela sous cette forme : 
+<create_file path="chemin/nouveau.tsx">
+... contenu ...
+</create_file>
+
+Sans mardiwn à l'intérieur et l'extérieur.
 `;
 
 // =============================================================================
