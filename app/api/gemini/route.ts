@@ -99,8 +99,8 @@ COMMUNICATION FRONTEND ↔ BACKEND PYTHON
 ══════════════════════════════════════════════════════════════════════
 
 HTTP REST : fetch("/api/py/endpoint") → proxifié vers FastAPI port 8000
-WebSocket : new WebSocket(`${proto}//${window.location.host}/api/py/ws/...`) — JAMAIS localhost:8000 directement
-CORS : configuré dans FastAPI (middleware déjà dans main.py de base)
+WebSocket : new WebSocket(\"$"{proto}//"$"{window.location.host}/api/py/ws/...\`) — JAMAIS localhost:8000 directement NB retire les accolade que j'ai mis au niveau des signes dollars quand tu vvas rédigé ce websocket 
+CORS :configuré dans FastAPI (middleware déjà dans main.py de base)
 `;
 
 const BATCH_SIZE = 256;
