@@ -2968,7 +2968,7 @@ async function handleFixAction(ctx: FixActionCtx): Promise<void> {
       try {
         tscFixOut = await runAgent(FIXER_PROMPT,
           "ERREURS TSC restantes:\n" + tscResult.errors + "\n\n" + projectContext,
-          { temperature: 0.4, maxTokens: 65536, agentName: "TSC_FIXER2" }
+          { temperature: 1.0, maxTokens: 65536, agentName: "TSC_FIXER2" }
         );
       } catch {}
       flushBuffer();
