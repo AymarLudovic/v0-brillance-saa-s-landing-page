@@ -103,7 +103,7 @@ WebSocket : new WebSocket(\"$"{proto}//"$"{window.location.host}/api/py/ws/...\`
 CORS :configuré dans FastAPI (middleware déjà dans main.py de base)
 `;
 
-const BATCH_SIZE = 256;
+const BATCH_SIZE = 126;
 const MODEL_ID = "gemini-3-flash-preview";
 
 // =============================================================================
@@ -1626,6 +1626,12 @@ AUTO-REVUE OBLIGATOIRE
 
 NE PAS générer : hooks/, components/, vues, globals.css, layout.tsx, page.tsx.
 Ces fichiers sont la responsabilité des agents suivants.
+
+N'oublie pas que quand tu veux créer les fichiers voici le format que tu vas utiliser, sans markdown : 
+<create_file path="chemin/nouveau.tsx">
+... contenu ...
+</create_file>
+
 `;
 
 // =============================================================================
