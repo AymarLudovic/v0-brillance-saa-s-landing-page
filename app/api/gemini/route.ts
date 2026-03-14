@@ -177,10 +177,10 @@ WASM (si calcul intensif) :
 ══════════════════════════════════════════════════════════════════════
 COMMUNICATION FRONTEND ↔ BACKEND PYTHON
 ══════════════════════════════════════════════════════════════════════
-
 HTTP REST : fetch("/api/py/endpoint") → proxifié vers FastAPI port 8000
-WebSocket : new WebSocket(`${proto}//${window.location.host}/api/py/ws/...`) — JAMAIS localhost:8000 directement
-CORS : configuré dans FastAPI (middleware déjà dans main.py de base)
+WebSocket : new WebSocket(\"$"{proto}//"$"{window.location.host}/api/py/ws/...\`) — JAMAIS localhost:8000 directement NB retire les accolade que j'ai mis au niveau des signes dollars quand tu vvas rédigé ce websocket 
+CORS :configuré dans FastAPI (middleware déjà dans main.py de base)
+
 `;
 
 const BATCH_SIZE = 256;
@@ -1791,6 +1791,12 @@ AUTO-REVUE OBLIGATOIRE
   (Si l'utilisateur a demandé 8 features et tu as 2 endpoints → tu as oublié 6 fonctionnalités)
 □ Aucune logique métier n'a été placée dans les stores React au lieu de Python ?
 
+
+N'oublie pas que quand tu veux créer les fichiers voici le format que tu vas utiliser, sans markdown : 
+<create_file path="chemin/nouveau.tsx">
+... contenu ...
+</create_file>
+
 NE PAS générer : hooks/, components/, vues, globals.css, layout.tsx, page.tsx.
 Ces fichiers sont la responsabilité des agents suivants.
 `;
@@ -1990,10 +1996,7 @@ FORMAT DE SORTIE
 ══════════════════════════════════════════════════════════════════════
 
 Corrections de fichiers existants :
-<str_replace path="backend/main.py">
-<old_str>code exact à remplacer</old_str>
-<new_str>code corrigé</new_str>
-</str_replace>
+${EDIT_FILE_FORMAT_RULES}
 
 Nouveaux fichiers :
 ---
@@ -2299,11 +2302,6 @@ PRÉFÈRE edit_file — NE RÉÉCRIS PAS tout le fichier :
 
 ${EDIT_FILE_FORMAT_RULES}
 
-Ou en dernier recours str_replace (moins fiable sur grands fichiers) :
-<str_replace path="app/globals.css">
-<old_str>code exact à remplacer</old_str>
-<new_str>nouveau code</new_str>
-</str_replace>
 
 À la fin :
 DEPENDENCIES: ["framer-motion", "recharts", "date-fns"]
