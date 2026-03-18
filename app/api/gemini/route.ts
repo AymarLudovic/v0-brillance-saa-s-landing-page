@@ -1447,9 +1447,9 @@ DEPENDENCIES: ["tone", "howler", "recharts", "date-fns"]
 DEVDEPENDENCIES: ["@types/howler"]
 
 EXEMPLES INCORRECTS :
-```json
+\`\`\`json
 { "dependencies": { "tone": "latest" } }   ← FAUX
-```
+\`\`\`
 Pour CHAQUE fichier .tsx avec hooks → vérifie "use client" ligne 1
 Pour CHAQUE store Zustand → vérifie virgules dans create(), pas de void; dans l'objet
 Pour CHAQUE view → vérifie export function NomView() (named, pas default)
