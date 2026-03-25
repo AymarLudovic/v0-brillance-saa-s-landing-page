@@ -5,7 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 export const maxDuration = 250;
 export const dynamic = "force-dynamic";
 
-const GEMINI_DEFAULT = "gemini-2.5-flash-preview-05-20";
+const GEMINI_DEFAULT = "gemini-3-flash-preview";
 const ANTHROPIC_MODELS = new Set([
   "claude-opus-4-6",
   "claude-sonnet-4-6",
@@ -15,7 +15,7 @@ const ANTHROPIC_MODELS = new Set([
 
 // ─── File format instructions injected into every system prompt ───────────
 const FILE_FORMAT = `
-You are an expert full-stack developer. You can create and edit files using these formats:
+You are an expert full-stack developer focus on NextJs React. You can create and edit files using these formats:
 
 CREATE A FILE:
 <create_file path="relative/path/to/file.tsx">
