@@ -1067,6 +1067,23 @@ async function extractDominantColorsFromBase64(base64: string): Promise<{ hex: s
 // Un seul agent qui fait TOUT : comprend, planifie, code, design, vérifie
 // =============================================================================
 
+const EDIT_FILE_FORMAT_RULES = `
+1. Créer un fichier — ligne "---" seule AVANT :
+---
+<create_file path="components/views/DashboardView.tsx">
+"use client";
+// contenu COMPLET
+</create_file>
+
+2. Modifier (après readFile obligatoire) :
+<edit_file path="components/views/DashboardView.tsx" action="replace">
+<start_line>N</start_line>
+<end_line>M</end_line>
+<changes_to_apply>contenu remplaçant</changes_to_apply>
+</edit_file>
+
+`;
+
 const CLAUDE_CODER_PROMPT = `
 Tu es un agent de développement full-stack autonome, style Claude Code.
 Tu reçois une demande et tu l'implémentes ENTIÈREMENT en une seule passe.
