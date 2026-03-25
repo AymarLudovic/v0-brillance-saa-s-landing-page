@@ -9,7 +9,7 @@ import { Sandbox } from "@e2b/code-interpreter";
 
 // ─── Vercel streaming config ──────────────────────────────────────────────
 // maxDuration: prevent Next.js / Vercel from cutting the stream during TSC
-export const maxDuration = 800;  // seconds — Vercel Pro/Enterprise supports up to 800s
+export const maxDuration = 250;  // seconds — Vercel Pro/Enterprise supports up to 800s
 export const dynamic = "force-dynamic";
 
 
