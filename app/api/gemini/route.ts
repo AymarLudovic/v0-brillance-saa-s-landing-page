@@ -23,7 +23,7 @@ RÈGLE DE LANGUE : Réponds toujours dans la langue exacte de l'utilisateur.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PRINCIPE D'EFFICIENCE ABSOLUE (ZÉRO "UI THEATER")
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Tu es un ingénieur logiciel de niveau "Staff". Ton but n'est pas de faire des maquettes visuelles (UI), mais des FONCTIONNALITÉS RÉELLES ET EXÉCUTABLES. 
+Tu es un ingénieur logiciel de niveau "Staff" / "Principal Architect". Ton but n'est pas de faire des maquettes visuelles (UI), mais des FONCTIONNALITÉS RÉELLES ET EXÉCUTABLES. 
 Il est STRICTEMENT INTERDIT de simuler (mock), stuber, ou utiliser des setTimeout pour imiter des actions asynchrones. TOUT DOIT ÊTRE RÉEL.
 
 EXEMPLES DE RÉFLEXION EFFICIENTE EXIGÉE :
@@ -34,15 +34,17 @@ EXEMPLES DE RÉFLEXION EFFICIENTE EXIGÉE :
 - L'utilisateur veut "acheter des cryptos/trader" ? Tu intègres ethers.js, connexion MetaMask ou API Coinbase réelle.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ÉTAPE 1 OBLIGATOIRE : LE PLAN D'EFFICIENCE (<efficiency_planning>)
+ÉTAPE 1 OBLIGATOIRE : LE PLAN D'EFFICIENCE PROFOND (<efficiency_planning>) - THINKING LEVEL: MAX
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Avant d'écrire ou de modifier le moindre fichier, tu DOIS écrire un bloc de planification pour t'assurer que tu ne fais aucune simulation.
+Avant d'écrire ou de modifier le moindre fichier, tu DOIS écrire un bloc de planification exhaustif. Pousse ta réflexion au maximum (Thinking Level: High). Ne te contente pas de la surface, anticipe la gestion des erreurs, le flux de données réel et les cas limites.
 
 <efficiency_planning>
 1. Feature: [Nom]
-2. Risque de Mock: [Comment un dev junior simulerait ça ? ex: "utiliser un setTimeout de 2s"]
-3. VRAIE Implémentation: [L'API ou le vrai mécanisme technique que JE VAIS coder. ex: "Appel fetch vers api/stripe/checkout"]
-4. Dépendances requises: [ex: stripe, @stripe/stripe-js]
+2. Objectif & Valeur: [Quel est le but réel pour l'utilisateur ?]
+3. Risque de Mock (UI Theater): [Comment un dev paresseux simulerait ça ? ex: "utiliser un setTimeout de 2s"]
+4. Architecture Réelle & Exécution Exhaustive: [Décris précisément et techniquement comment tu vas créé la fonctionnalité, l'implémenter de bout en bout : appels API réels, gestion d'état complète, persistance des données, et surtout la GESTION DES ERREURS (try/catch, edge cases). Mais surtout comment tu vas créé la fonctionnalité de façon integral, réel, efficiente et parfait]
+5. Dépendances requises: [ex: stripe, @stripe/stripe-js]
+6. Dépendances à supprimer: [si un package n'est plus utilisé]
 </efficiency_planning>
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -75,23 +77,20 @@ APRÈS avoir généré le code, tu dois expliquer ce que tu as fait à l'utilisa
 RÈGLE D'OR : INTERDICTION ABSOLUE de parler de code ou de technique (ZÉRO mention de "useState", "useEffect", "API", "composant", "React", "état"). 
 Parle UNIQUEMENT de ce que le produit accompli réellement pour lui et de ce qu'il peut faire avec.
 
-❌ EXEMPLE INTERDIT (Trop technique) : 
-"J'ai utilisé useState pour le lecteur vidéo. La fonction handleTranscribe fait un appel API. J'ai ajouté Tailwind pour le style."
-
 ✅ EXEMPLE EXIGÉ (Centré utilisateur & Preuve d'efficience) : 
 "J'ai créé et intégré votre propre lecteur vidéo de bout en bout. 
 1. **Lecteur Vidéo** : Vous pouvez lire votre vidéo, et une timeline connectée à la durée réelle progresse avec celle-ci. Ce player vous affiche même des miniatures des différentes étapes de la vidéo en cours de lecture pour que vous puissiez savoir ce qui se passera dans la suite.
 2. **Transcription en temps réel** : J'ai rajouté une fonctionnalité de transcription IA basée sur Gemini. Si vous appuyez sur le bouton 'Traduire' que j'ai créé, l'IA écoute la vidéo et vous donne les sous-titres traduits dans la langue de votre choix, parfaitement synchronisés avec l'image.
-3. **Paiement** : J'ai connecté le système d'abonnement. Les utilisateurs devront désormais passer par la fenêtre de paiement sécurisée avant d'accéder à ce contenu.
 
 Testez-le tout de suite en appuyant sur le bouton Play ou en cliquant sur la barre temporelle !"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 GESTION DES DÉPENDANCES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Si de vraies bibliothèques sont nécessaires (stripe, ethers, @e2b/code-interpreter), déclare-les à la TOUTE FIN de ta réponse :
+Si de vraies bibliothèques sont nécessaires (stripe, ethers, etc.) ou doivent être supprimées, déclare-les à la TOUTE FIN de ta réponse selon ce format strict :
 DEPENDENCIES: ["nom-du-package"]
 DEVDEPENDENCIES: ["@types/nom"]
+REMOVEDEPENDENCIES: ["ancien-package"]
 `;
 
 function extractDeps(output: string, key = "DEPENDENCIES"): string[] {
@@ -114,8 +113,9 @@ async function buildPackageJson(
 ): Promise<{ path: string; content: string } | null> {
   const toAdd = extractDeps(aiOutput, "DEPENDENCIES");
   const toAddDev = extractDeps(aiOutput, "DEVDEPENDENCIES");
+  const toRemove = extractDeps(aiOutput, "REMOVEDEPENDENCIES");
 
-  if (toAdd.length === 0 && toAddDev.length === 0) return null;
+  if (toAdd.length === 0 && toAddDev.length === 0 && toRemove.length === 0) return null;
 
   const pkgFile = existing.find(f => f.path === "package.json");
   let pkg: any = pkgFile
@@ -124,13 +124,27 @@ async function buildPackageJson(
         name: "app", version: "1.0.0", private: true,
         scripts: { dev: "next dev", build: "next build", start: "next start" },
         dependencies: { next: "14.2.16", react: "^18", "react-dom": "^18" },
-        devDependencies: { typescript: "^5", "@types/node": "^20", "@types/react": "^19" },
+        devDependencies: { 
+          typescript: "^5", 
+          "@types/node": "^20", 
+          "@types/react": "^19",
+          tailwindcss: "^3.4.1",
+          postcss: "^8",
+          autoprefixer: "^10.0.1"
+        },
       };
 
+  // Ajout des nouvelles dépendances
   await Promise.all([
     ...toAdd.map(async p => { if (!pkg.dependencies?.[p]) pkg.dependencies[p] = await resolveVersion(p); }),
     ...toAddDev.map(async p => { if (!pkg.devDependencies?.[p]) pkg.devDependencies[p] = await resolveVersion(p); }),
   ]);
+
+  // Suppression des dépendances demandées
+  toRemove.forEach(p => {
+    if (pkg.dependencies && pkg.dependencies[p]) delete pkg.dependencies[p];
+    if (pkg.devDependencies && pkg.devDependencies[p]) delete pkg.devDependencies[p];
+  });
 
   return { path: "package.json", content: JSON.stringify(pkg, null, 2) };
 }
@@ -204,7 +218,7 @@ export async function POST(req: Request) {
               if (text) { emit(text); fullOutput += text; }
             }
             const pkgResult = await buildPackageJson(fullOutput, currentProjectFiles || []);
-            if (pkgResult) emit(`\n\n<create_file path="${pkgResult.path}">\n${pkgResult.content}\n</create_file>`);
+            if (pkgResult) emit(`\n\n<edit_file path="${pkgResult.path}" action="replace">\n<start_line>1</start_line>\n<end_line>999</end_line>\n<changes_to_apply>\n${pkgResult.content}\n</changes_to_apply>\n</edit_file>`);
           } catch (err: any) { emit(`\n[ERROR] ${err.message}`); }
           controller.close();
         },
@@ -213,7 +227,7 @@ export async function POST(req: Request) {
       return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Transfer-Encoding": "chunked", "Connection": "keep-alive" } });
     }
 
-    // Anthropic Stream (Identique dans l'idée, juste adapté SDK Anthropic)
+    // Anthropic Stream
     const anthropic = new Anthropic({ apiKey: anthropicKey });
     const messages: any[] = [];
     
@@ -247,7 +261,7 @@ export async function POST(req: Request) {
             if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") { emit(chunk.delta.text); fullOutput += chunk.delta.text; }
           }
           const pkgResult = await buildPackageJson(fullOutput, currentProjectFiles || []);
-          if (pkgResult) emit(`\n\n<create_file path="${pkgResult.path}">\n${pkgResult.content}\n</create_file>`);
+          if (pkgResult) emit(`\n\n<edit_file path="${pkgResult.path}" action="replace">\n<start_line>1</start_line>\n<end_line>999</end_line>\n<changes_to_apply>\n${pkgResult.content}\n</changes_to_apply>\n</edit_file>`);
         } catch (err: any) { emit(`\n[ERROR] ${err.message}`); }
         controller.close();
       },
@@ -257,4 +271,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? "Unknown error" }, { status: 500 });
   }
-  }
+      }
