@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 // ─── Dependency helpers ───────────────────────────────────────────────────
 
-const GEMINI_DEFAULT = "gemini-2.5-flash-preview-05-20";
+const GEMINI_DEFAULT = "gemini-3-flash-preview";
 const ANTHROPIC_MODELS = new Set([
   "claude-opus-4-6",
   "claude-sonnet-4-6",
