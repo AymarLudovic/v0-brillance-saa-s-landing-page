@@ -145,12 +145,12 @@ async function thinkBeforeBuilding(
     if (geminiKey) {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
       const res = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3-flash-preview",
         contents: [{ role: "user", parts: [{ text: input }] }],
         config: {
           systemInstruction: THINKING_SYSTEM_PROMPT,
           temperature: 0.2,
-          maxOutputTokens: 4000,
+          maxOutputTokens: 8000,
         },
       });
       return res.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
