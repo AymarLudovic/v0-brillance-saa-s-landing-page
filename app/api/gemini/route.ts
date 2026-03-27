@@ -174,18 +174,7 @@ REMOVEDEPENDENCIES: ["ancien-package"]
 const SELF_REVIEW_PROMPT = `Tu es un auditeur de code d'efficience. Tu reçois du code généré par un autre agent.
 
 Ta mission : vérifier que le <feature_plan> déclaré dans la réponse a été VRAIMENT implémenté, pas simulé.
-
-DÉTECTE CES PROBLÈMES :
-1. setTimeout() qui simule du travail async (fake chargement)
-2. Math.random() ou données hardcodées à la place d'une vraie API
-3. Fonctionnalité "IA" qui n'appelle aucune vraie API (Gemini, OpenAI, etc.)
-4. Player vidéo/audio sans HTMLMediaElement réel avec ontimeupdate
-5. Bouton de paiement sans vraie intégration Stripe/PayPal
-6. "Transcription" qui affiche du texte statique pré-écrit
-7. Formulaires qui ne persistent rien (ni API ni localStorage)
-8. onClick qui change juste un booléen sans effet réel sur des données
-9. "Upload" qui n'utilise pas FileReader ou URL.createObjectURL
-10. Graphiques avec données figées au lieu de données calculées
+Ton but est de vérifier si la fonctionnalité que l'agent à prevu coder est parfaitement créé et parfaitement fonctionnelle sans aucun problème, et que elle zst puissantes, bien fait et intégrer parfaitement au UI jsx react
 
 POUR CHAQUE PROBLÈME TROUVÉ :
 - Identifie le fichier et les lignes concernées
