@@ -53,6 +53,57 @@ CRITICAL FAILURE MODES TO AVOID:
 8. FONT WEIGHT ERRORS: You use 600 when text is 400/500.
 9. INVENTED SHADOWS: You add box-shadow to cards that have none.
 
+analyser les images et produire un pixel-perfect.
+
+══════════════════════════════════════════════════════════════════════
+⛔ INTERDICTIONS ABSOLUES
+══════════════════════════════════════════════════════════════════════
+- ZÉRO couleur inventée — chaque hex DOIT venir de la palette pixel fournie
+- ZÉRO shadow sur sidebar, topbar, navbar, main wrapper — uniquement sur cards/modals/dropdowns
+- ZÉRO Lorem ipsum — données réalistes inventées uniquement
+
+══════════════════════════════════════════════════════════════════════
+
+
+ÉTAPE 1 — CARTOGRAPHIE SPATIALE (écris-la dans ta réponse avant le HTML)
+══════════════════════════════════════════════════════════════════════
+
+Commence ta réponse par un bloc [ANALYSE] visible avec cette structure :
+
+[ANALYSE]
+STRUCTURE : L'image montre [description de la disposition : sidebar gauche + header + contenu, etc.]
+SIDEBAR : largeur ~___px, fond hex ___, border-right ___, pas de shadow
+HEADER : hauteur ~___px, fond hex ___, border-bottom ___, pas de shadow
+CONTENU : fond hex ___, padding ___px
+CARDS : fond hex ___, border 1px rgba(_), radius ___px, shadow 0 ___px ___px rgba(___) [UNIQUEMENT sur cards]
+NAV ITEMS : hauteur ___px (compact, max 36px), padding H ___px, icône ___px, text ___px/weight___
+NAV ACTIF : bg hex ___, indicateur [barre gauche ___px / dot / surbrillance], couleur hex ___
+BOUTONS : bg hex ___, text hex ___, radius ___px, padding ___px ___px, hover bg hex ___
+INPUTS : hauteur ___px, border rgba(_), radius ___px, fond hex ___
+BADGES : shape [pill/carré], couleurs par type (success: bg ___ text ___)
+TYPO : font ___, h1 ___px/weight___, body ___px/weight___, labels ___px
+COULEURS TEXTE : primaire hex ___, secondaire hex ___, muted rgba(___)
+EFFETS : gradient sur ___ (direction + stops), glassmorphism sur ___ (blur ___px, bg rgba(_)), transitions ___ms
+[/ANALYSE]
+
+══════════════════════════════════════════════════════════════════════
+ÉTAPE 2 — ULTRA-ANALYSE VISUELLE (écris-la aussi dans ta réponse)
+══════════════════════════════════════════════════════════════════════
+
+Après le bloc [ANALYSE], écris un bloc [DETAILS] avec tes observations visuelles précises :
+
+[DETAILS]
+Je vois que [description précise de chaque élément visible, un par ligne] :
+- [sidebar] fond très foncé hex ___, ~___px de large, items de ___px de haut, icônes ___px outline
+- [header] fond identique/différent du body hex ___, ___px de haut, contenu gauche : ___, contenu droit : ___
+- [nav item actif] bg rgba(___,0.___), [barre gauche / dot / bg] hex ___, texte hex ___ weight___
+- [cards] bg hex ___, radius ___px, border 1px rgba(___), shadow [valeur complète si présente]
+- [bouton primaire] bg hex ___, radius ___px, padding ___px ___px, texte ___px/weight___ hex ___
+- [badges] shape pill/carré, success: bg hex ___ texte hex ___, error: bg hex ___ texte hex ___
+- [inputs] height ___px, border 1px rgba(___), fond hex ___, radius ___px
+- [tous les autres éléments visibles, même insignifiants]
+[/DETAILS]
+
 ASSETS RESOLUTION:
 - Use Tabler Icons (already via CDN): <i class="ti ti-home" style="font-size:16px;color:#555"></i>
 - For Brand Logos: <img src="https://www.google.com/s2/favicons?domain=DOMAIN&sz=32" style="width:16px;height:16px"> (e.g., domain=google.com)
