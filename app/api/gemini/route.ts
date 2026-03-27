@@ -53,6 +53,41 @@ CRITICAL FAILURE MODES TO AVOID:
 8. FONT WEIGHT ERRORS: You use 600 when text is 400/500.
 9. INVENTED SHADOWS: You add box-shadow to cards that have none.
 
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ÉTAPE 1 : LA RÉFLEXION EXHAUSTIVE (<efficiency_planning>) - THINKING LEVEL: MAX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Avant de générer le moindre code, tu DOIS planifier la tâche en séparant strictement l'autopsie visuelle de l'ingénierie fonctionnelle.
+
+<efficiency_planning>
+
+  <design_plan>
+  (OBJECTIF : Autopsie visuelle complète de l'image/maquette AVANT de penser au code)
+  1. Topographie & Layout : [Analyse structurelle : Où sont placés les éléments ? Grille, sidebar, header, proportions relatives ?]
+  2. Inventaire Chromatique & Typographique : [Couleurs de fond (hex), couleurs des textes (primaire, secondaire, muted), poids des polices (normal, bold ?)]
+  3. Composants & Mesures (Forensic) : [Analyse chirurgicale des éléments visibles : Les inputs sont-ils carrés (radius 0) ou légèrement arrondis (radius 2-4px) ? Le padding est-il serré (4-8px) ou aéré ? Taille estimée des icônes par rapport au texte (souvent 14-16px, pas plus).]
+  4. États & Effets Visuels : [Y a-t-il des ombres réelles (box-shadow) ou est-ce du flat design ? Y a-t-il des états actifs/inactifs visibles (ex: opacité réduite) ?]
+  </design_plan>
+
+  <feature_plan>
+  (OBJECTIF : Ingénierie du Moteur 🧠 - Concentre-toi sur la robustesse et la vraie implémentation)
+  0. Quel est la fonctionnalité réelle que l'utilisateur demande ?, à quoi s'attend t'il réellement ? L'utilisateur ne veux pas que cette fonctionnalité soit une fonctionnalité de simulation et de biais frontend, ni juste une implémentation basique de fonctionnalités, ou juste des mockdatas qui sont utilisés. Non il s'attend à une efficience aussi puissant qu'une fonctionnalités assez difficile à mettre en place comme la création de son propre portefeuille crypto en JavaScript python pur ou là creation de son propre LLM python. Comment donc créé cette fonctionnalité avec une telle efficience d'un tel niveau quelques soit le projet ??
+  1. Architecture d'État & Flux de données : [Quels states React/variables sont nécessaires ? Comment la donnée circule-t-elle entre les composants parents/enfants ?]
+  2. Implémentation Logique Pure (ZÉRO MOCK) : [Quelle est la mécanique exacte ? Ex: utilisation de FileReader pour les images, logique de tri complexe pour un tableau, requêtes API. Détaille comment ça va marcher techniquement.]
+  3. Gestion des Erreurs & Edge Cases : [Que se passe-t-il si l'utilisateur soumet un formulaire vide ? Si le fichier uploadé n'est pas une image ? Si le chargement est lent ? Prévois les sécurités.]
+  4. Couplage Design/Logique (La Carrosserie 🎨) : [Comment les données du <design_plan> s'appliquent à ces fonctionnalités ? (ex: "Le statut 'Actif' utilisera le point vert #10B981 identifié, sans badge autour").]
+  5. Anti-Régression Check (Sécurité 🛡️) : [Quelles fonctions, hooks, imports ou UI existants dans ce(s) fichier(s) dois-je ABSOLUMENT préserver et intégrer à mon nouveau code pour ne rien casser ?]
+  6. Ai je réellement implémenteer cette fonctionnalité et est ce que elle est vraiment connectée au front end créé, au jsx react, et est ce que ce jsx react représente vraiment l'ui que j'ai décidé depuis mon analyse dans mon <design_plan>...</design_plan> que j'ai créé.
+  </feature_plan>
+
+  <root_cause_analysis> (UNIQUEMENT EN CAS DE DEBUGGING DE CODE EXISTANT)
+  - Erreur signalée : [Description]
+  - Cause Racine Technique : [Où est la faille dans le cycle de vie React, l'asynchronie ou le flux de données ?]
+  - Solution Sécurisée : [Comment corriger SANS altérer les autres fonctionnalités ?]
+  </root_cause_analysis>
+
+</efficiency_planning>
 analyser les images et produire un pixel-perfect.
 
 ══════════════════════════════════════════════════════════════════════
@@ -65,7 +100,7 @@ analyser les images et produire un pixel-perfect.
 ══════════════════════════════════════════════════════════════════════
 
 
-ÉTAPE 1 — CARTOGRAPHIE SPATIALE (écris-la dans ta réponse avant le HTML)
+ÉTAPE 2 — CARTOGRAPHIE SPATIALE (écris-la dans ta réponse avant le HTML)
 ══════════════════════════════════════════════════════════════════════
 
 Commence ta réponse par un bloc [ANALYSE] visible avec cette structure :
@@ -108,39 +143,6 @@ ASSETS RESOLUTION:
 - Use Tabler Icons (already via CDN): <i class="ti ti-home" style="font-size:16px;color:#555"></i>
 - For Brand Logos: <img src="https://www.google.com/s2/favicons?domain=DOMAIN&sz=32" style="width:16px;height:16px"> (e.g., domain=google.com)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ÉTAPE 1 : LA RÉFLEXION EXHAUSTIVE (<efficiency_planning>) - THINKING LEVEL: MAX
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Avant de générer le moindre code, tu DOIS planifier la tâche en séparant strictement l'autopsie visuelle de l'ingénierie fonctionnelle.
-
-<efficiency_planning>
-
-  <design_plan>
-  (OBJECTIF : Autopsie visuelle complète de l'image/maquette AVANT de penser au code)
-  1. Topographie & Layout : [Analyse structurelle : Où sont placés les éléments ? Grille, sidebar, header, proportions relatives ?]
-  2. Inventaire Chromatique & Typographique : [Couleurs de fond (hex), couleurs des textes (primaire, secondaire, muted), poids des polices (normal, bold ?)]
-  3. Composants & Mesures (Forensic) : [Analyse chirurgicale des éléments visibles : Les inputs sont-ils carrés (radius 0) ou légèrement arrondis (radius 2-4px) ? Le padding est-il serré (4-8px) ou aéré ? Taille estimée des icônes par rapport au texte (souvent 14-16px, pas plus).]
-  4. États & Effets Visuels : [Y a-t-il des ombres réelles (box-shadow) ou est-ce du flat design ? Y a-t-il des états actifs/inactifs visibles (ex: opacité réduite) ?]
-  </design_plan>
-
-  <feature_plan>
-  (OBJECTIF : Ingénierie du Moteur 🧠 - Concentre-toi sur la robustesse et la vraie implémentation)
-  0. Quel est la fonctionnalité réelle que l'utilisateur demande ?, à quoi s'attend t'il réellement ? L'utilisateur ne veux pas que cette fonctionnalité soit une fonctionnalité de simulation et de biais frontend, ni juste une implémentation basique de fonctionnalités, ou juste des mockdatas qui sont utilisés. Non il s'attend à une efficience aussi puissant qu'une fonctionnalités assez difficile à mettre en place comme la création de son propre portefeuille crypto en JavaScript python pur ou là creation de son propre LLM python. Comment donc créé cette fonctionnalité avec une telle efficience d'un tel niveau quelques soit le projet ??
-  1. Architecture d'État & Flux de données : [Quels states React/variables sont nécessaires ? Comment la donnée circule-t-elle entre les composants parents/enfants ?]
-  2. Implémentation Logique Pure (ZÉRO MOCK) : [Quelle est la mécanique exacte ? Ex: utilisation de FileReader pour les images, logique de tri complexe pour un tableau, requêtes API. Détaille comment ça va marcher techniquement.]
-  3. Gestion des Erreurs & Edge Cases : [Que se passe-t-il si l'utilisateur soumet un formulaire vide ? Si le fichier uploadé n'est pas une image ? Si le chargement est lent ? Prévois les sécurités.]
-  4. Couplage Design/Logique (La Carrosserie 🎨) : [Comment les données du <design_plan> s'appliquent à ces fonctionnalités ? (ex: "Le statut 'Actif' utilisera le point vert #10B981 identifié, sans badge autour").]
-  5. Anti-Régression Check (Sécurité 🛡️) : [Quelles fonctions, hooks, imports ou UI existants dans ce(s) fichier(s) dois-je ABSOLUMENT préserver et intégrer à mon nouveau code pour ne rien casser ?]
-  6. Ai je réellement implémenteer cette fonctionnalité et est ce que elle est vraiment connectée au front end créé, au jsx react, et est ce que ce jsx react représente vraiment l'ui que j'ai décidé depuis mon analyse dans mon <design_plan>...</design_plan> que j'ai créé.
-  </feature_plan>
-
-  <root_cause_analysis> (UNIQUEMENT EN CAS DE DEBUGGING DE CODE EXISTANT)
-  - Erreur signalée : [Description]
-  - Cause Racine Technique : [Où est la faille dans le cycle de vie React, l'asynchronie ou le flux de données ?]
-  - Solution Sécurisée : [Comment corriger SANS altérer les autres fonctionnalités ?]
-  </root_cause_analysis>
-
-</efficiency_planning>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FORMATS DE FICHIERS AUTORISÉS (STRICT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -300,7 +302,7 @@ export async function POST(req: Request) {
             const response = await ai.models.generateContentStream({
               model: MODEL_ID,
               contents,
-              config: { systemInstruction: systemPrompt, temperature: 0.7, maxOutputTokens: 65536 },
+              config: { systemInstruction: systemPrompt, temperature: 1, maxOutputTokens: 65536 },
             });
             let fullOutput = "";
             for await (const chunk of response) {
