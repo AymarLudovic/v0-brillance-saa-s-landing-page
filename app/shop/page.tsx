@@ -306,8 +306,8 @@ ${userMsg}`;
       ]}],
       config: {
         systemInstruction: SYSTEM_PROMPT,
-        thinkingConfig: { thinkingLevel: 'medium' as any },
-        temperature: 0.01,
+        thinkingConfig: { thinkingLevel: 'high' as any },
+        temperature: 0.8,
         maxOutputTokens: 65536,
         topP: 0.85,
       },
@@ -525,7 +525,7 @@ REMINDER: Use ONLY selectors that exist in the HTML above. Match the design syst
       config: {
         systemInstruction: JS_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.05,
+        temperature: 1,
         maxOutputTokens: 32768,
         topP: 0.9,
       },
@@ -720,7 +720,7 @@ Output ONLY <script>...</script> tags.`;
       config: {
         systemInstruction: FEATURES_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.1,
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.95,
       },
