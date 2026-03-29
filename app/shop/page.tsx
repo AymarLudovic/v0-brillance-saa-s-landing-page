@@ -324,8 +324,8 @@ ${userMsg}`;
       ]}],
       config: {
         systemInstruction: SYSTEM_PROMPT,
-        thinkingConfig: { thinkingLevel: 'medium' as any },
-        temperature: 0.01,
+        thinkingConfig: { thinkingLevel: 'high' as any },
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.85,
       },
@@ -543,7 +543,7 @@ REMINDER: Use ONLY selectors that exist in the HTML above. Match the design syst
       config: {
         systemInstruction: JS_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.05,
+        temperature: 1,
         maxOutputTokens: 32768,
         topP: 0.9,
       },
@@ -738,7 +738,7 @@ Output ONLY <script>...</script> tags.`;
       config: {
         systemInstruction: FEATURES_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.1,
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.95,
       },
@@ -1000,7 +1000,7 @@ REMINDER:
       config: {
         systemInstruction: NEXTJS_SYSTEM_PROMPT,
         thinkingConfig: {thinkingLevel: 'high' as any},
-        temperature: 0.1, maxOutputTokens: 65536, topP: 0.9,
+        temperature: 1, maxOutputTokens: 65536, topP: 0.9,
       },
     });
     onProgress('Parsing Next.js files...');
@@ -1045,7 +1045,7 @@ Output complete corrected JSON files array. Raw JSON only, no markdown.`;
       config: {
         systemInstruction: NEXTJS_SYSTEM_PROMPT,
         thinkingConfig: {thinkingLevel: 'high' as any},
-        temperature: 0.05, maxOutputTokens: 65536, topP: 0.85,
+        temperature: 1, maxOutputTokens: 65536, topP: 0.85,
       },
     });
     onProgress('Parsing fixed files...');
@@ -1091,7 +1091,7 @@ async function callGeminiManager(
       config: {
         systemInstruction: MANAGER_PROMPT,
         thinkingConfig: { thinkingLevel: 'medium' as any },
-        temperature: 0.1, maxOutputTokens: 512, topP: 0.9,
+        temperature: 1, maxOutputTokens: ,8545, topP: 0.9,
       },
     });
     const raw = extractText(response);
@@ -1134,7 +1134,7 @@ async function callGeminiChat(
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL,
     contents: [...historyParts, { role: 'user', parts: [{ text: userMessage }] }] as any,
-    config: { systemInstruction: systemMsg, temperature: 0.7, maxOutputTokens: 1024 },
+    config: { systemInstruction: systemMsg, temperature: 1, maxOutputTokens: 6524 },
   });
   return extractText(response);
 }
