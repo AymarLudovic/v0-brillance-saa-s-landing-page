@@ -317,8 +317,8 @@ ${userMsg}`;
       ]}],
       config: {
         systemInstruction: SYSTEM_PROMPT,
-        thinkingConfig: { thinkingLevel: 'medium' as any },
-        temperature: 0.01,
+        thinkingConfig: { thinkingLevel: 'high' as any },
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.85,
       },
@@ -502,7 +502,7 @@ SECTION 4 — TECHNICAL RULES
 - CDNs available: GSAP, Chart.js, SortableJS, flatpickr, Toastify, Hammer.js
 - Use only what the detected app type actually needs
 
-OUTPUT: Raw <script>...</script> blocks ONLY. Zero prose before or after.`;
+OUTPUT: Raw <script>...</script> blocks ONLY. Zero prose before or after. No markdown, no backticks, no explanation`;
 
 /* ── Gemini JS Call ── */
 async function callGeminiJS(
@@ -536,7 +536,7 @@ REMINDER: Use ONLY selectors that exist in the HTML above. Match the design syst
       config: {
         systemInstruction: JS_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.05,
+        temperature: 1,
         maxOutputTokens: 32768,
         topP: 0.9,
       },
@@ -718,7 +718,7 @@ ABSOLUTE RULES:
 - Persist all data to localStorage with "ppai_feat_" prefix
 - Reload and render persisted data on DOMContentLoaded
 
-Output ONLY <script>...</script> tags.`;
+Output ONLY <script>...</script> tags. No markdown, no backticks, no explanation`;
 
   return withGeminiRetry(async () => {
     const ai = getAI(apiKey);
@@ -731,7 +731,7 @@ Output ONLY <script>...</script> tags.`;
       config: {
         systemInstruction: FEATURES_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.1,
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.95,
       },
@@ -748,7 +748,7 @@ Output ONLY <script>...</script> tags.`;
 }
 /* ── Next.js System Prompt ── */
 const NEXTJS_SYSTEM_PROMPT = `You are a Next.js 15 TypeScript conversion engineer. Convert a complete HTML/CSS/JavaScript page into a Next.js 15 App Router TypeScript project.
-
+No markdown, no backticks, no explanation
 THE FUNDAMENTAL ARCHITECTURE RULE:
   JSX = HTML STRUCTURE ONLY — no event handlers, no behavior, no state
   useEffect = ALL interactivity, ALL event listeners, ALL DOM behavior
@@ -993,7 +993,7 @@ REMINDER:
       config: {
         systemInstruction: NEXTJS_SYSTEM_PROMPT,
         thinkingConfig: {thinkingLevel: 'high' as any},
-        temperature: 0.1, maxOutputTokens: 65536, topP: 0.9,
+        temperature: 1, maxOutputTokens: 65536, topP: 0.9,
       },
     });
     onProgress('Parsing Next.js files...');
@@ -1038,7 +1038,7 @@ Output complete corrected JSON files array. Raw JSON only, no markdown.`;
       config: {
         systemInstruction: NEXTJS_SYSTEM_PROMPT,
         thinkingConfig: {thinkingLevel: 'high' as any},
-        temperature: 0.05, maxOutputTokens: 65536, topP: 0.85,
+        temperature: 1, maxOutputTokens: 65536, topP: 0.85,
       },
     });
     onProgress('Parsing fixed files...');
