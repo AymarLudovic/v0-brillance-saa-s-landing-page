@@ -1090,8 +1090,8 @@ async function callGeminiManager(
       contents: [{ role: 'user', parts: [{ text: userMsg }] }],
       config: {
         systemInstruction: MANAGER_PROMPT,
-        thinkingConfig: { thinkingLevel: 'medium' as any },
-        temperature: 1, maxOutputTokens: ,8545, topP: 0.9,
+        thinkingConfig: { thinkingLevel: 'high' as any },
+        temperature: 1, maxOutputTokens: 8545, topP: 0.9,
       },
     });
     const raw = extractText(response);
