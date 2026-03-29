@@ -317,8 +317,8 @@ ${userMsg}`;
       ]}],
       config: {
         systemInstruction: SYSTEM_PROMPT,
-        thinkingConfig: { thinkingLevel: 'medium' as any },
-        temperature: 0.01,
+        thinkingConfig: { thinkingLevel: 'high' as any },
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.85,
       },
@@ -502,7 +502,7 @@ SECTION 4 — TECHNICAL RULES
 - CDNs available: GSAP, Chart.js, SortableJS, flatpickr, Toastify, Hammer.js
 - Use only what the detected app type actually needs
 
-OUTPUT: Raw <script>...</script> blocks ONLY. Zero prose before or after.`;
+OUTPUT: Raw <script>...</script> blocks ONLY. Zero prose before or after. No markdown, no backticks, no explanation`;
 
 /* ── Gemini JS Call ── */
 async function callGeminiJS(
@@ -536,7 +536,7 @@ REMINDER: Use ONLY selectors that exist in the HTML above. Match the design syst
       config: {
         systemInstruction: JS_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.05,
+        temperature: 1,
         maxOutputTokens: 32768,
         topP: 0.9,
       },
@@ -718,7 +718,7 @@ ABSOLUTE RULES:
 - Persist all data to localStorage with "ppai_feat_" prefix
 - Reload and render persisted data on DOMContentLoaded
 
-Output ONLY <script>...</script> tags.`;
+Output ONLY <script>...</script> tags. No markdown, no backticks, no explanation`;
 
   return withGeminiRetry(async () => {
     const ai = getAI(apiKey);
@@ -731,7 +731,7 @@ Output ONLY <script>...</script> tags.`;
       config: {
         systemInstruction: FEATURES_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.1,
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.95,
       },
@@ -909,7 +909,7 @@ SECTION 5 — FINAL CHECKLIST (verify before outputting)
 □ (window as any) used for all CDN library globals
 □ reactStrictMode: false in next.config.mjs
 □ Output is valid parseable JSON (properly escape template literals and backslashes)
-□ No TypeScript error that blocks compilation (use 'as any' everywhere needed)`;
+□ No TypeScript error that blocks compilation (use 'as any' everywhere needed) No markdown, no backticks, no explanation`;
 
 function parseNextjsFiles(raw: string): NextJSFile[] {
   const clean = raw.replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/i,'').trim();
@@ -951,7 +951,7 @@ async function callGeminiNextJS(
   const userMsg = `TASK: Convert this page to a Next.js 15 TypeScript project.
 
 IMPORTANT — Follow these steps in order:
-
+No markdown, no backticks, no explanation
 STEP 1: Scan Script #1 and Script #2. List every querySelector/getElementById selector used.
 STEP 2: Generate the JSX. Verify every selector from Step 1 has its target element with the exact original class/id.
 STEP 3: Generate useEffect with all JS. Verify CDN scripts are awaited before any main code.
@@ -993,7 +993,7 @@ REMINDER:
       config: {
         systemInstruction: NEXTJS_SYSTEM_PROMPT,
         thinkingConfig: {thinkingLevel: 'high' as any},
-        temperature: 0.1, maxOutputTokens: 65536, topP: 0.9,
+        temperature: 1, maxOutputTokens: 65536, topP: 0.9,
       },
     });
     onProgress('Parsing Next.js files...');
@@ -1150,7 +1150,7 @@ Generate ONLY the HTML snippet for this feature. Match the existing design exact
       config: {
         systemInstruction: FEATURE_HTML_SNIPPET_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.1, maxOutputTokens: 16384, topP: 0.9,
+        temperature: 1, maxOutputTokens: 16384, topP: 0.9,
       },
     });
     onProgress('Snippet ready');
@@ -1225,7 +1225,7 @@ Return ONLY the files that need to be created or modified. Raw JSON only.`;
       config: {
         systemInstruction: NEXTJS_PATCH_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.15, maxOutputTokens: 65536, topP: 0.9,
+        temperature: 1, maxOutputTokens: 65536, topP: 0.9,
       },
     });
     onProgress('Parsing patch files...');
