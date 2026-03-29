@@ -318,7 +318,7 @@ ${userMsg}`;
       config: {
         systemInstruction: SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'medium' as any },
-        temperature: 0.01,
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.85,
       },
@@ -502,7 +502,7 @@ SECTION 4 — TECHNICAL RULES
 - CDNs available: GSAP, Chart.js, SortableJS, flatpickr, Toastify, Hammer.js
 - Use only what the detected app type actually needs
 
-OUTPUT: Raw <script>...</script> blocks ONLY. Zero prose before or after.`;
+OUTPUT: Raw <script>...</script> blocks ONLY. Zero prose before or after.  No markdown, no backticks, no explanation`;
 
 /* ── Gemini JS Call ── */
 async function callGeminiJS(
@@ -536,7 +536,7 @@ REMINDER: Use ONLY selectors that exist in the HTML above. Match the design syst
       config: {
         systemInstruction: JS_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.05,
+        temperature: 1,
         maxOutputTokens: 32768,
         topP: 0.9,
       },
@@ -558,7 +558,7 @@ const FEATURES_SYSTEM_PROMPT = `You are a senior full-stack JavaScript architect
 ══════════════════════════════════════════════════════════════
 SECTION 1 — ABSOLUTE DOM SAFETY RULES (NEVER VIOLATE THESE)
 ══════════════════════════════════════════════════════════════
-
+ No markdown, no backticks, no explanation
 These rules prevent CSS breakage. Violating them destroys the visual design.
 
 ❌ NEVER use innerHTML/outerHTML to replace the content of any EXISTING element in the page.
@@ -731,7 +731,7 @@ Output ONLY <script>...</script> tags.`;
       config: {
         systemInstruction: FEATURES_SYSTEM_PROMPT,
         thinkingConfig: { thinkingLevel: 'high' as any },
-        temperature: 0.1,
+        temperature: 1,
         maxOutputTokens: 65536,
         topP: 0.95,
       },
@@ -872,7 +872,7 @@ Output raw JSON only. No markdown fences.`;
       config:{
         systemInstruction: NEXTJS_SYSTEM_PROMPT,
         thinkingConfig:{thinkingLevel:'high' as any},
-        temperature:0.1, maxOutputTokens:65536, topP:0.9,
+        temperature: 1, maxOutputTokens:65536, topP:0.9,
       },
     });
     onProgress('Parsing Next.js files...');
@@ -907,7 +907,7 @@ Output complete corrected JSON files array. Raw JSON only.`;
       config:{
         systemInstruction: NEXTJS_SYSTEM_PROMPT,
         thinkingConfig:{thinkingLevel:'high' as any},
-        temperature:0.05, maxOutputTokens:65536, topP:0.85,
+        temperature: 1, maxOutputTokens:65536, topP:0.85,
       },
     });
     onProgress('Parsing fixed files...');
