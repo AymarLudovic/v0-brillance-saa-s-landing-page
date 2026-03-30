@@ -915,16 +915,61 @@ SECTION 5 — FINAL CHECKLIST (verify before outputting)
 □ DOMContentLoaded/IIFE wrappers all removed from JS
 □ (window as any) used for all CDN library globals
 □ reactStrictMode: false in next.config.mjs
-□ Output is valid parseable JSON (properly escape template literals and backslashes)
+□ Output is valid parseable JSON — CRITICAL JSON ESCAPING RULES:
+    • Every backslash in the content string MUST be doubled: \\ → \\\\
+    • Every double-quote inside content MUST be escaped: " → \\"
+    • Every newline inside content MUST be written as the two chars \\n (not a literal newline)
+    • Template literal backticks (\`) inside content need no escaping but are safest as \\u0060
+    • After writing the JSON, mentally parse each "content": "..." value to verify it is valid
 □ No TypeScript error that blocks compilation (use 'as any' everywhere needed)`;
 
 function parseNextjsFiles(raw: string): NextJSFile[] {
   const clean = raw.replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/i,'').trim();
   const match = clean.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('No JSON found in NextJS response');
-  const parsed = JSON.parse(match[0]);
-  if (!Array.isArray(parsed.files)) throw new Error('Invalid response: missing files array');
-  return parsed.files as NextJSFile[];
+
+  // First attempt: standard JSON.parse
+  try {
+    const parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed.files)) throw new Error('Invalid response: missing files array');
+    return parsed.files as NextJSFile[];
+  } catch (e1) {
+    // Second attempt: extract individual file objects with regex
+    // This handles cases where LLM produces unescaped backslashes or template literals
+    try {
+      const files: NextJSFile[] = [];
+      // Match each { "path": "...", "content": "..." } block
+      const fileBlockRe = /"path"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"([\s\S]*?)(?<!\\)"\s*(?:,|\})/g;
+      let m: RegExpExecArray | null;
+      while ((m = fileBlockRe.exec(match[0])) !== null) {
+        const path = m[1];
+        // Unescape common sequences the LLM may have written
+        const content = m[2]
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\r/g, '\r')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+        if (path && content) files.push({ path, content });
+      }
+      if (files.length > 0) return files;
+    } catch { /* ignore */ }
+
+    // Third attempt: try fixing common LLM JSON mistakes then re-parse
+    try {
+      const fixed = match[0]
+        // Replace literal (unescaped) newlines inside string values with \n
+        .replace(/("(?:[^"\\]|\\.)*")|(\n)/g, (_, str, nl) => str ? str : '\\n')
+        // Remove trailing commas before ] or }
+        .replace(/,(\s*[}\]])/g, '$1');
+      const parsed = JSON.parse(fixed);
+      if (!Array.isArray(parsed.files)) throw new Error('Invalid response: missing files array');
+      return parsed.files as NextJSFile[];
+    } catch (e3) {
+      // Re-throw original parse error with position info
+      throw new Error(`JSON parse failed: ${e1 instanceof Error ? e1.message : String(e1)}`);
+    }
+  }
 }
 
 async function callGeminiNextJS(
@@ -1154,34 +1199,70 @@ async function callGeminiManager(
   }, onProgress, 3, 10000);
 }
 
-/* ── Chat responder (when route = 'chat') ── */
-async function callGeminiChat(
+/* ── Smart Chat Agent (routing + response in one call) ── */
+async function callGeminiSmartChat(
   apiKey: string,
   history: { role: 'user'|'ai'; content: string }[],
   userMessage: string,
   hasProject: boolean,
   hasImage: boolean,
-): Promise<string> {
+): Promise<ManagerDecision & { reply: string }> {
   const systemMsg = `You are the AI assistant of Pixel Perfect AI — an AI-powered vibe-coding platform that builds full web apps (HTML, JavaScript, and Next.js TypeScript) from UI screenshots.
 
 Your personality: friendly, direct, enthusiastic about design and code, never robotic.
 
+══════════════════════════════════════════════════════════════
+YOUR DUAL ROLE — CRITICAL
+══════════════════════════════════════════════════════════════
+
+You do TWO things simultaneously:
+1. RESPOND to the user naturally and helpfully
+2. DECIDE whether to trigger a development pipeline
+
+Always append this exact tag at the very end of your reply:
+<ROUTE>{"route":"...","reasoning":"one sentence"}</ROUTE>
+
+Route values:
+  "chat"        → You answered fully above. No pipeline needed. DEFAULT for anything conversational.
+  "generate"    → Build a new app from scratch. Only if image is attached AND user explicitly says build/create/reproduce.
+  "html_js"     → Add a client-side feature to an existing project (dark mode, modal, carousel, chart, filter, etc.)
+  "html_nextjs" → Add a server-side feature to an existing project (email, auth, real API, database, file upload).
+  "nextjs"      → Pure server infrastructure on existing project (API route, middleware, server action, DB migration).
+
+══════════════════════════════════════════════════════════════
+ROUTING RULES — APPLY IN ORDER
+══════════════════════════════════════════════════════════════
+
+1. Conversational message, question, greeting, feedback, unclear intent → "chat" (respond fully, append tag)
+2. Image attached AND user explicitly says build/create/generate/reproduce AND no project exists → "generate"
+3. Project exists AND user describes a new client-side feature → "html_js"
+4. Project exists AND feature needs server logic → "html_nextjs"
+5. Project exists AND user wants pure server infra → "nextjs"
+
+WHEN IN DOUBT → "chat". Never trigger pipelines on ambiguous messages.
+"generate" requires BOTH an image AND an explicit build request. One without the other → "chat".
+
+══════════════════════════════════════════════════════════════
+RESPONSE STYLE
+══════════════════════════════════════════════════════════════
+
 Current context:
-- ${hasProject ? 'The user has a generated app. They can ask to add features, modify it, or just chat.' : 'No app generated yet.'}
+- ${hasProject ? 'User has a generated app. They can add features, modify it, or just chat.' : 'No app generated yet.'}
 - ${hasImage ? 'An image is currently attached/uploaded.' : 'No image attached.'}
-
-What you can help with:
-- Answer questions about web development, React, Next.js, HTML/CSS/JS
-- Explain how the platform works (screenshot → HTML → JS → Features → Next.js pipeline)
-- Give advice on UI design, color, layout, animations
-- Help the user decide what to build
-- Chat freely about anything
-
-If the user wants to build something: tell them to describe their app AND attach a screenshot, then type their message.
-If they already have an image attached: encourage them to describe what they want to build from it, or add a feature.
 ${hasImage && !hasProject ? '\nThey have an image attached — gently suggest they describe what they want to build from it.' : ''}
 
-Be concise (2-4 sentences max unless they ask something complex). Never be preachy.`;
+For "chat" route: respond fully (2-4 sentences max unless complex). Then append <ROUTE> tag.
+For development routes: write one short enthusiastic acknowledgment sentence, then append <ROUTE> tag.
+
+What you can help with:
+- Answer questions about web dev, React, Next.js, HTML/CSS/JS
+- Explain how the platform works (screenshot → HTML → JS → Features → Next.js)
+- Give UI/design advice
+- Help decide what to build
+- Chat freely
+
+Be concise. Never be preachy.`;
+
   const historyParts = history.slice(-8).map(m => ({
     role: m.role === 'user' ? 'user' : 'model',
     parts: [{ text: m.content }],
@@ -1192,7 +1273,25 @@ Be concise (2-4 sentences max unless they ask something complex). Never be preac
     contents: [...historyParts, { role: 'user', parts: [{ text: userMessage }] }] as any,
     config: { systemInstruction: systemMsg, temperature: 0.75, maxOutputTokens: 1024 },
   });
-  return extractText(response);
+  const raw = extractText(response);
+
+  // Extract the ROUTE tag
+  const routeMatch = raw.match(/<ROUTE>([\s\S]*?)<\/ROUTE>/);
+  let route: PipelineRoute = 'chat';
+  let reasoning = '';
+  if (routeMatch) {
+    try {
+      const parsed = JSON.parse(routeMatch[1].trim());
+      route = (['chat','generate','html_js','html_nextjs','nextjs'] as PipelineRoute[]).includes(parsed.route)
+        ? parsed.route : 'chat';
+      reasoning = parsed.reasoning || '';
+    } catch { /* fallback to chat */ }
+  }
+
+  // Reply is everything before the ROUTE tag (trimmed)
+  const reply = raw.replace(/<ROUTE>[\s\S]*?<\/ROUTE>/g, '').trim();
+
+  return { route, reasoning, reply };
 }
 
 /* ── Feature HTML Snippet prompt ── */
@@ -1771,29 +1870,30 @@ export default function PixelPerfectAI() {
     const progress = (s: string) => { setPatchProgress(s); updateLastAiMsg(s); };
 
     try {
-      // Manager decides intent first
-      addMsg({ role:'ai', type:'step', content:'Analyzing your request…', meta:'manager' });
-      const decision = await callGeminiManager(apiKey, userRequest, !!imgB64, !!code, progress);
+      // Single agent call: decides route AND responds in one shot
+      addMsg({ role:'ai', type:'step', content:'Thinking…', meta:'manager' });
+      const decision = await callGeminiSmartChat(
+        apiKey,
+        messages.map(m=>({role:m.role,content:m.content})),
+        userRequest,
+        !!code,
+        !!imgB64,
+      );
       setManagerDecision(decision); setPatchRoute(decision.route);
 
-      addMsg({ role:'ai', type:'decision',
-        content: decision.route === 'html_js'     ? `🎨 HTML + JS pipeline — ${decision.reasoning}` :
-                 decision.route === 'html_nextjs'  ? `🎨⚙️ HTML + Next.js pipeline — ${decision.reasoning}` :
-                 decision.route === 'nextjs'        ? `⚙️ Next.js pipeline — ${decision.reasoning}` :
-                 decision.route === 'chat'          ? `💬 ${decision.reasoning}` :
-                                                     `🔄 Full generation — ${decision.reasoning}`,
-        meta: decision.route });
+      // Show routing decision for development routes; for chat just show the reply directly
+      if (decision.route !== 'chat') {
+        addMsg({ role:'ai', type:'decision',
+          content: decision.route === 'html_js'     ? `🎨 HTML + JS pipeline — ${decision.reasoning}` :
+                   decision.route === 'html_nextjs'  ? `🎨⚙️ HTML + Next.js pipeline — ${decision.reasoning}` :
+                   decision.route === 'nextjs'        ? `⚙️ Next.js pipeline — ${decision.reasoning}` :
+                                                       `🔄 Full generation — ${decision.reasoning}`,
+          meta: decision.route });
+      }
 
-      // Route: pure chat
+      // Route: pure chat — reply already generated, just show it
       if (decision.route === 'chat') {
-        const reply = await callGeminiChat(
-          apiKey,
-          messages.map(m=>({role:m.role,content:m.content})),
-          userRequest,
-          !!code,
-          !!imgB64,
-        );
-        addMsg({ role:'ai', type:'text', content: reply });
+        addMsg({ role:'ai', type:'text', content: decision.reply || '…' });
         return;
       }
 
