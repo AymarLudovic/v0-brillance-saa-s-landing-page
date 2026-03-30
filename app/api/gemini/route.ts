@@ -2623,11 +2623,13 @@ SECTION 5 — FINAL CHECKLIST
 □ reactStrictMode: false in next.config.mjs
 □ Output is valid parseable JSON (properly escape template literals and backslashes)
 
-Utilise create_file UNIQUEMENT pour les nouveaux fichiers :
+Utilise create_file xml suivant sans markdown ni bacticks pour créer les différents fichiers du projet NextJs fichiers ,  Voici le format suivant que tu dois absolument respecter. pas de format json ou autre, non juste ce xml:
 ---
 <create_file path="chemin/nouveau.tsx">
 ... contenu ...
 </create_file>
+
+De plus ${EDIT_FILE_FORMAT_RULES}
 `;
 
 // Helper to parse NextJS files from agent JSON output
