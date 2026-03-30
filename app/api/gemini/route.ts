@@ -1858,7 +1858,7 @@ produce the HTML inside this exact tag:
 </html>
 </design_reference>
 
-⛔ AFTER </design_reference>: Write NOTHING.
+⛔ AFTER </design_reference>: Write NOTHING. don't produce any tsx foles. just stay focus on your html please
 `;
 
 // =============================================================================
@@ -2148,7 +2148,7 @@ SECTION 5 — ANALYSIS PROTOCOL
   7. All effects/animations reproduced
   8. Renders perfectly standalone in an iframe at 100% width
 
-OUTPUT RULE: Raw HTML only. <!DOCTYPE html> to </html>. No markdown, no backticks, no explanation.
+OUTPUT RULE: Raw HTML only. <!DOCTYPE html> to </html>. No markdown, no backticks, no explanation. don't produce any tsx or jsx files, just stay focus on what you have to do.
 `;
 
 
@@ -2511,9 +2511,7 @@ THE FUNDAMENTAL ARCHITECTURE RULE:
   useEffect = ALL interactivity, ALL event listeners, ALL DOM behavior
 This guarantees every querySelector in the JS finds the exact element it expects.
 
-OUTPUT FORMAT — raw JSON only, no markdown fences:
-{ "files": [ { "path": "app/page.tsx", "content": "..." }, ... ] }
-
+${EDIT_FILE_FORMAT_RULES}
 Always include: app/page.tsx · app/globals.css · app/layout.tsx · next.config.mjs
 
 ══════════════════════════════════════════════════════════════
@@ -2640,6 +2638,12 @@ SECTION 5 — FINAL CHECKLIST
 □ (window as any) used for all CDN library globals
 □ reactStrictMode: false in next.config.mjs
 □ Output is valid parseable JSON (properly escape template literals and backslashes)
+
+Utilise create_file UNIQUEMENT pour les nouveaux fichiers :
+---
+<create_file path="chemin/nouveau.tsx">
+... contenu ...
+</create_file>
 `;
 
 // Helper to parse NextJS files from agent JSON output
