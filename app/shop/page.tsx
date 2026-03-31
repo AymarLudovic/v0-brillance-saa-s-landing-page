@@ -244,6 +244,8 @@ SECTION 4 — ANALYSIS PROTOCOL
   Table rows: height, border, cell padding
   Nav items: height, spacing, active state
 
+// BLOC 1 : Remplace la section "▸ STEP 6 — GENERATE HTML" dans ton SYSTEM_PROMPT (vers la ligne 65)
+
 ▸ STEP 6 — GENERATE HTML
   1. <!DOCTYPE html> — complete, no truncation
   2. html,body: margin:0; padding:0; width:100%; min-height:100vh
@@ -253,6 +255,7 @@ SECTION 4 — ANALYSIS PROTOCOL
   6. All text verbatim
   7. All effects/animations reproduced
   8. Renders perfectly standalone in an iframe at 100% width
+  9. FEATURE HOOKS (CRITICAL): Adapt the UI realistically to the user's request. Add explicit, semantic \`id\` and \`class\` attributes (e.g., \`id="user-form"\`, \`class="delete-btn"\`) to all elements that will require JavaScript interactivity so the JS agents can easily target them.
 
 OUTPUT RULE: Raw HTML only. <!DOCTYPE html> to </html>. No markdown, no backticks, no explanation.`;
 
@@ -587,25 +590,28 @@ SECTION 5 — TECHNICAL RULES
 OUTPUT: Raw <script>...</script> blocks ONLY. Zero prose before or after.`;
 
 /* ── Gemini JS Call ── */
+// BLOC 2 : Remplace intégralement la fonction callGeminiJS (vers la ligne 124)
+
+/* ── Gemini JS Call ── */
 async function callGeminiJS(
   apiKey: string, imageB64: string, mimeType: string, htmlCode: string,
   onProgress: (s: string) => void,
+  userRequest?: string,
+  userBrief?: string,
 ): Promise<string> {
   onProgress('Analyzing UI for JS generation...');
-
-  const userMsg = `STEP 1 — IDENTIFY THE APP TYPE from the screenshot. Name it explicitly (dashboard / CRM / kanban / e-commerce / chat / calendar / etc.).
-
+  const contextSection = userRequest ? `\nUSER ORIGINAL REQUEST:\n${userRequest}\n${userBrief ? `\nUSER APP BRIEF:\n${userBrief}\n` : ''}` : '';
+  const userMsg = `${contextSection}\nSTEP 1 — IDENTIFY THE APP TYPE from the screenshot and the request. Name it explicitly.
 STEP 2 — LIST every interactive element you see in BOTH the screenshot AND the HTML code.
 For each element, state EXACTLY what it must do in this specific app — not generically, but for THIS app type.
 Include: every button, every nav/sidebar/menu item, every tab, every dropdown option, every form field,
 every toggle, every card click zone, every icon-button, every filter chip, every sortable header.
 Do NOT skip secondary elements. Every single one must appear in your list.
-
 STEP 3 — Write <script>...</script> tags that implement ALL items from Step 2.
 IMPORTANT RULES FOR STEP 3:
+- Target the specific IDs and classes the HTML agent prepared for these features.
 - Each item in your Step 2 list MUST have corresponding JavaScript code. No exceptions.
-- Do NOT use a toast, alert(), or console.log() as a substitute for real behavior.
-  A toast saying "Menu clicked" is a stub, not an implementation. Build the real action.
+- Do NOT use a toast, alert(), or console.log() as a substitute for real behavior. Build the real action.
 - Nav/sidebar/menu items MUST navigate, show/hide sections, or trigger a real state change.
 - Dropdown options MUST apply their filter/sort/value to the actual visible UI.
 - Forms MUST validate fields and visibly update the UI on submit.
@@ -618,7 +624,9 @@ Here is the complete HTML/CSS:
 ${htmlCode}
 \`\`\`
 
-REMINDER: Use ONLY selectors that exist in the HTML above. Match the design system for any new injected elements — read CSS variables from :root and cross-check against the screenshot image to ensure your injected elements feel native to the app. Output ONLY <script>...</script> tags.`;
+REMINDER: Use ONLY selectors that exist in the HTML above.
+Match the design system for any new injected elements — read CSS variables from :root and cross-check against the screenshot image to ensure your injected elements feel native to the app.
+Output ONLY <script>...</script> tags.`;
 
   return withGeminiRetry(async () => {
     const ai = getAI(apiKey);
@@ -645,8 +653,7 @@ REMINDER: Use ONLY selectors that exist in the HTML above. Match the design syst
     }
     return raw.trim();
   }, onProgress, 5, 20000);
-}
-
+      }
 /* ── Features System Prompt ── */
 const FEATURES_SYSTEM_PROMPT = `You are a senior full-stack JavaScript architect. Your role is to build REAL, WORKING application features on top of an existing HTML/CSS/JS page — without ever breaking its visual design.
 
@@ -805,35 +812,37 @@ YOUR role is the NEXT LAYER: actual product features and data operations.
 OUTPUT ONLY <script> tags. Nothing else. No prose, no CSS outside scripts, no HTML outside scripts.`;
 
 /* ── Gemini Features Call ── */
+ // BLOC 3 : Remplace intégralement la fonction callGeminiFeatures (vers la ligne 180)
+
+/* ── Gemini Features Call ── */
 async function callGeminiFeatures(
   apiKey: string, imageB64: string, mimeType: string,
   htmlCode: string, jsScript1: string,
   onProgress: (s: string) => void,
+  userRequest?: string,
   userBrief?: string,
 ): Promise<string> {
   onProgress('Analyzing features to build...');
-
-  const briefSection = userBrief ? `
+  const briefSection = userRequest ? `
 ══════════════════════════════════════════════════════════════
-USER'S ACTUAL APP BRIEF — THIS IS WHAT YOU MUST BUILD
+USER'S ACTUAL DEMAND & BRIEF — THIS IS WHAT YOU MUST BUILD
 ══════════════════════════════════════════════════════════════
+USER ORIGINAL REQUEST:
+${userRequest}
 
-The image is a DESIGN REFERENCE only. The user wants a REAL WORKING APP described below.
+${userBrief ? `APP BRIEF:\n${userBrief}\n` : ''}
+The image is a DESIGN REFERENCE only. The user wants a REAL WORKING APP described above.
 Build features that make this app actually work for its stated purpose — not just what you see in the screenshot.
 
-${userBrief}
-
-IMPORTANT: If the brief describes features not visible in the image (data persistence, CRUD operations,
-file handling, real workflows, etc.) — BUILD THEM ANYWAY. The design gives you the UI shell,
-the brief gives you what must actually work inside it.
+IMPORTANT: If the brief/request describes features not visible in the image (data persistence, CRUD operations,
+file handling, real workflows, etc.) — BUILD THEM ANYWAY. Use the specific semantic IDs and classes the HTML agent prepared for you.
+The design gives you the UI shell, the brief gives you what must actually work inside it.
 ══════════════════════════════════════════════════════════════
-
 ` : '';
 
-  const userMsg = `${briefSection}STEP 1 — Identify the application type from the screenshot AND the brief above. State it explicitly.
-
+  const userMsg = `${briefSection}\nSTEP 1 — Identify the application type from the screenshot AND the brief above. State it explicitly.
 STEP 2 — List EVERY feature to build, combining:
-  a) What the user's brief explicitly requests (PRIORITY — these must be built even if not visible in image)
+  a) What the user explicitly requests (PRIORITY — these must be built even if not visible in image)
   b) Feature-implying elements visible in the screenshot AND the HTML:
   - Every action button ("Create", "Add", "Delete", "Upload", "Save", "Invite", "Export", "Import", etc.)
   - Every form that should submit data and affect state
@@ -845,7 +854,8 @@ STEP 2 — List EVERY feature to build, combining:
 
 STEP 3 — For each item listed in Step 2, build the complete JavaScript feature.
 Do NOT simulate features. Build real working implementations using localStorage, real DOM manipulation,
-real file handling, real data structures. If a feature is complex, build a solid v1 rather than a fake simulation.
+real file handling, real data structures. Target the explicit IDs/classes provided in the HTML.
+If a feature is complex, build a solid v1 rather than a fake simulation.
 
 Here is the HTML/CSS (read the CSS variables, colors, fonts, spacing — your injected elements MUST match):
 
@@ -1780,14 +1790,17 @@ export default function PixelPerfectAI() {
     finally { setGenerating(false); setProgress(''); }
   };
 
+  // BLOC 6 : Mise à jour de ton bouton  (si appelé manuellement, vers la ligne 422)
+
   const generateJs = async () => {
     if (!apiKey) { setShowModal(true); return; }
     if (!code) { setJsError('Generate the HTML/CSS first.'); return; }
     if (!imgB64) { setJsError('Image required for JS generation.'); return; }
     setGeneratingJs(true); setJsError(''); setFeaturesCode('');
     try {
-      const scripts = await callGeminiJS(apiKey, imgB64, imgMime, code, setJsProgress);
+      const scripts = await callGeminiJS(apiKey, imgB64, imgMime, code, setJsProgress, chatInput, userBrief);
       const merged = injectScripts(code, scripts);
+
       setJsCode(scripts);
       setFullCode(merged);
       setViewMode('full');
@@ -1999,41 +2012,43 @@ export default function PixelPerfectAI() {
   };
 
   /* ── Full generation pipeline (HTML → JS → Features → NextJS) ── */
-  const fullGenerate = async (brief?: string) => {
+// BLOC 4 : Remplace intégralement la fonction fullGenerate (vers la ligne 487)
+
+  /* ── Full generation pipeline (HTML → JS → Features → NextJS) ── */
+  const fullGenerate = async (userRequest: string, brief?: string) => {
     if (!imgB64 || !colorData) { addMsg({ role:'ai', type:'error', content:'Please attach a screenshot first.' }); return; }
     if (!apiKey) { setShowModal(true); return; }
 
     // Store brief for this project session
     const activeBrief = brief || userBrief;
 
-    // Build the HTML prompt: if a brief exists, use the image as a design system reference
-    // but instruct the agent to build the actual application structure from the brief.
-    // If no brief, fall back to pure pixel-perfect reproduction.
+    // Build the HTML prompt: pass the raw user request and brief
     const htmlPrompt = activeBrief
       ? `${prompt}
 
 ══════════════════════════════════════════════════════════════
-APPLICATION BRIEF — THIS IS WHAT YOU ARE BUILDING
+USER'S EXACT REQUEST:
+${userRequest}
+
+APPLICATION BRIEF — THIS IS WHAT YOU ARE BUILDING:
+${activeBrief}
 ══════════════════════════════════════════════════════════════
 
 IMPORTANT: The image above is your DESIGN SYSTEM REFERENCE.
 Extract from it: color palette (use canvas data), typography, spacing scale, component style, visual effects, layout density, border-radius values, shadow style, and overall aesthetic.
-
-Then use that extracted design language to build THIS application — described below.
+Then use that extracted design language to build THIS application — described in the user request and brief.
 Do NOT limit the HTML structure to only what is visible in the image.
-Build ALL the sections, pages, navigation items, components, and content areas described in the brief — using the image's visual design language as your CSS/style foundation.
-
-${activeBrief}
+Build ALL the sections, pages, navigation items, components, and content areas described.
 
 EXECUTION RULES:
-- CSS colors → use ONLY the canvas-extracted hex values above (they match the design palette exactly)
+- CSS colors → use ONLY the canvas-extracted hex values above
 - Typography, spacing, radius, shadows → extract from the image visually
-- Page structure, sections, nav items, card types, data layouts → follow the brief
-- If the brief describes multiple pages: implement them as sections with JS routing (show/hide via nav), NOT as separate HTML files
-- Full-width layout, no artificial centering unless the brief specifies it
-- Every section described in the brief must have real placeholder content that reflects the actual use case (not generic "Lorem ipsum")
+- Page structure, sections, nav items, card types, data layouts → follow the user request
+- FEATURE HOOKS (CRITICAL): Prepare the UI for the JavaScript agents by adding explicit, semantic \`id\` and \`class\` attributes (e.g., \`id="upload-btn"\`, \`class="delete-item"\`) to all elements that correspond to the requested features.
+- Full-width layout, no artificial centering unless specified
+- Every section described must have real placeholder content reflecting the use case
 ══════════════════════════════════════════════════════════════`
-      : prompt;
+      : `${prompt}\n\nUSER REQUEST: ${userRequest}\nAdapt the design to the request and add clear semantic IDs/classes for future JavaScript interactivity.`;
 
     setGenerating(true); setCode(''); setJsCode(''); setFullCode(''); setFeaturesCode('');
     setNextjsFiles([]); setActiveProjectId(null); setViewMode('html'); setSandbox(SANDBOX_INIT);
@@ -2042,7 +2057,7 @@ EXECUTION RULES:
     const progress = (s: string) => { setProgress(s); updateLastAiMsg(s); };
 
     try {
-      // Step 1 — HTML (brief-driven: uses image as design system, builds actual app structure)
+      // Step 1 — HTML
       addMsg({ role:'ai', type:'step', content:'Generating HTML/CSS from your brief…', meta:'html' });
       const html = await callGemini(apiKey, htmlPrompt, imgB64, imgMime, colorData, progress);
       setCode(html); setTab('preview');
@@ -2053,15 +2068,15 @@ EXECUTION RULES:
 
       // Step 2 — JS Interactions
       addMsg({ role:'ai', type:'step', content:'Wiring all interactions…', meta:'js' });
-      const scripts = await callGeminiJS(apiKey, imgB64, imgMime, html, progress);
+      const scripts = await callGeminiJS(apiKey, imgB64, imgMime, html, progress, userRequest, activeBrief);
       const merged = injectScripts(html, scripts);
       setJsCode(scripts); setFullCode(merged); setViewMode('full');
       updateLastAiMsg('✓ JavaScript interactions ready');
       await dbPatchProjectJs(id, scripts, merged);
 
-      // Step 3 — Features (brief-driven: builds what the user actually asked for)
+      // Step 3 — Features
       addMsg({ role:'ai', type:'step', content:'Building application features…', meta:'features' });
-      const featScripts = await callGeminiFeatures(apiKey, imgB64, imgMime, html, scripts, progress, activeBrief || undefined);
+      const featScripts = await callGeminiFeatures(apiKey, imgB64, imgMime, html, scripts, progress, userRequest, activeBrief);
       const featMerged = injectScripts(merged, featScripts);
       setFeaturesCode(featMerged); setViewMode('features');
       updateLastAiMsg('✓ Features & functionality built');
@@ -2080,7 +2095,8 @@ EXECUTION RULES:
       setError(msg);
       addMsg({ role:'ai', type:'error', content:`Error: ${msg}` });
     } finally {
-      setGenerating(false); setProgress('');
+      setGenerating(false);
+      setProgress('');
     }
   };
 
@@ -2127,15 +2143,17 @@ EXECUTION RULES:
       }
 
       // Route: full generation (new app from scratch)
-      if (decision.route === 'generate') {
+      
+
+    if (decision.route === 'generate') {
         if (!imgB64 || !colorData) {
           addMsg({ role:'ai', type:'text', content:'To build a new app, please attach a screenshot first, then describe what you want.' });
           return;
         }
-        await fullGenerate(activeBrief || undefined);
+        await fullGenerate(userRequest, activeBrief || undefined);
         return;
-      }
-
+          }
+        
       // Routes below require an existing project base HTML
       if (!code) {
         addMsg({ role:'ai', type:'text', content:'No project exists yet. Attach a screenshot and describe what you want to build first!' });
@@ -2143,21 +2161,24 @@ EXECUTION RULES:
       }
 
       const baseHtml = code;
-
       if (decision.route === 'html_js' || decision.route === 'html_nextjs') {
         // Step A — Feature HTML snippet (brief-aware)
         addMsg({ role:'ai', type:'step', content:'Designing feature UI (matching your design system)…', meta:'html' });
         const snippet = await callGeminiFeatureSnippet(apiKey, imgB64, imgMime, baseHtml, userRequest, progress, activeBrief || undefined);
         const enrichedHtml = baseHtml.includes('</body>')
-          ? baseHtml.replace('</body>', `\n<!-- FEATURE: ${userRequest} -->\n${snippet}\n</body>`)
+          ? baseHtml.replace('</body>', `\n\n${snippet}\n</body>`)
           : baseHtml + `\n${snippet}`;
         updateLastAiMsg('✓ Feature UI designed');
-
         if (decision.route === 'html_js') {
           // Step B — JS Interactions on full enriched HTML
           addMsg({ role:'ai', type:'step', content:'Wiring interactions on new elements…', meta:'js' });
-          const newJs1 = await callGeminiJS(apiKey, imgB64, imgMime, enrichedHtml, progress);
+          const newJs1 = await callGeminiJS(apiKey, imgB64, imgMime, enrichedHtml, progress, userRequest, activeBrief || undefined);
           updateLastAiMsg('✓ Interactions wired');
+          updateLastAiMsg('✓ Feature logic ready');
+
+          // Step C — JS Features (brief-driven)
+          addMsg({ role:'ai', type:'step', content:'Building feature logic…', meta:'features' });
+          const newJs2 = await callGeminiFeatures(apiKey, imgB64, imgMime, enrichedHtml, newJs1, progress, userRequest, activeBrief || undefined);
 
           // Step C — JS Features (brief-driven)
           addMsg({ role:'ai', type:'step', content:'Building feature logic…', meta:'features' });
