@@ -2181,9 +2181,7 @@ EXECUTION RULES:
           const newJs2 = await callGeminiFeatures(apiKey, imgB64, imgMime, enrichedHtml, newJs1, progress, userRequest, activeBrief || undefined);
 
           // Step C — JS Features (brief-driven)
-          addMsg({ role:'ai', type:'step', content:'Building feature logic…', meta:'features' });
-          const newJs2 = await callGeminiFeatures(apiKey, imgB64, imgMime, enrichedHtml, newJs1, progress, activeBrief || undefined);
-          updateLastAiMsg('✓ Feature logic ready');
+          
 
           // Step D — Convert enriched HTML + both JS layers to Next.js (page.tsx + globals only)
           addMsg({ role:'ai', type:'step', content:'Integrating into Next.js project…', meta:'nextjs' });
