@@ -26,280 +26,34 @@ export const dynamic = "force-dynamic";
 
 const DESIGN_RULES = `
 ══════════════════════════════════════════════════════════════════════
-SUPPRESSION DE L'ESPRIT DESIGN STYLE LLM — RÈGLES ABSOLUES DE DESIGN
-S'appliquent à chaque ligne de code UI — aucune exception
-Inspirées des meilleurs sites Framer et des patterns Mobbin (top apps mondiales)
-══════════════════════════════════════════════════════════════════════
+══════════════════════════════════════════════════════════════
+SECTION 3 — CRITICAL FAILURE MODES (DO NOT REPEAT THESE)
+══════════════════════════════════════════════════════════════
 
-I — LES LAYOUTS, COMPONENTS, COMPOSANTS DE NAVIGATION
+1. BADGE SYNDROME: "Finance" with dot = dot + plain text. NOT a pill/chip with background.
+   Only add badge background if you CLEARLY SEE a filled shape around the text.
 
-Cette section concerne absolument tous les types de layouts, components et composants de navigation.
-Ces règles aident chaque agent à produire de belles versions de ces éléments.
-Ce qui rend les sites Framer et les apps Mobbin si beaux : hiérarchie visuelle forte,
-espacement calculé et cohérent, typographie précise avec des tailles différenciées,
-transitions fluides sur chaque interaction, couleurs issues d'un système rigoureux, jamais au hasard.
+2. ICON SIZE INFLATION: Icons in most UIs are 14-16px relative to text. NOT 20-24px.
+   Measure: icon height ≈ text line-height → 14-16px.
 
-─────────────────────────────────────────────────────────
-1) LES NAVBARS — règle générale (s'applique à TOUTES les navbars)
-─────────────────────────────────────────────────────────
+3. ROW HEIGHT INFLATION: Count rows visible / divide table height.
+   12 rows in 400px = ~33px/row. DO NOT default to 44-48px.
 
-Ne pas utiliser des effets shadow ou d'ombre quelconques, même infimes, sur les navbars.
-Les effets shadow sont uniquement utilisés si la navbar est en forme de pilule, c'est-à-dire avec des bordures suffisamment arrondies.
-Mais plutôt favoriser de légers effets blur/liquid glass au lieu des effets shadow.
-Les meilleurs sites Framer utilisent des navbars fines, quasi transparentes avec un léger backdrop-blur,
-pas de shadow agressive — juste une subtilité visuelle qui donne de la profondeur sans alourdir.
+4. BORDER-RADIUS CREEP: Professional UIs often have 0-4px radius on inputs/cells.
+   Only round things that LOOK visually round. Do not auto-add rounded corners.
 
-a-1) NAVBARS DE LANDING PAGES — règles :
+5. PADDING INFLATION: If text is close to its container edge → padding is 4-8px.
+   Do not inflate to 12-16px unless clearly visible.
 
-• Les menus de navigation, le texte de ceux-ci et même les boutons ne doivent jamais être en bloc quand la largeur n'est pas la bonne. Ils doivent toujours être en no-white-space et la largeur du menu doit avoir une bonne largeur adaptative au texte. La navbar doit s'adapter à celle-ci sans qu'aucun élément ne soit en bloc.
+6. COLOR GUESSING: USE ONLY canvas-extracted hex values. Zero approximation.
 
-• Le texte des menus doit toujours avoir un bon font bold, généralement font-semibold, et une taille moyenne, c'est-à-dire ni trop grand ni trop petit. Sur Framer et Mobbin, les navbars utilisent typiquement text-sm (14px) à text-base (15-16px) en font-medium ou font-semibold — jamais text-lg qui est trop imposant.
+7. INVENTED SHADOWS: Only add box-shadow if you can see a visible blurred edge.
 
-• Les éléments dans ce type de navbar doivent toujours être bien alignés et bien agencés afin qu'aucun élément ne soit décalé par rapport à l'autre. Le logo est toujours parfaitement centré verticalement, les items de navigation ont le même line-height, les CTA buttons sont alignés au centre de la barre.
+8. GENERIC LAYOUT: Do NOT wrap content in a centered 800px box when the original is full-width.
 
-• La hauteur de la navbar ne doit jamais être trop grande. 50px est le maximum. Les meilleurs sites Framer utilisent des navbars entre 44px et 48px — compactes, élégantes, qui ne prennent pas l'espace de la page.
-
-• Les items de navigation doivent avoir un hover state clair : soit un léger changement de couleur (opacity de 0.6 → 1.0), soit un background pill arrondi subtil. Le transition doit être rapide : duration-150 maximum.
-
-• Les navbars de landing pages doivent utiliser des effets de flou si elles sont sticky : backdrop-blur-md avec un bg semi-transparent (bg-white/80 ou bg-black/80) — jamais un bg totalement opaque qui écrase visuellement la page.
-
-a-2) NAVBARS DE PAGES D'APPLICATIONS :
-
-Ce type de navbar est divisé en deux catégories :
-- Quand la page possède un layout sidebar + layout main content : la navbar se place dans le main content et s'appelle la top navbar.
-- Quand il n'y a pas de layout sidebar : la navbar prend toute la largeur de la page.
-
-Dans les deux cas, toutes les règles de la section a-1) s'appliquent exactement.
-La top navbar dans un layout sidebar+content doit avoir une hauteur identique au header de la sidebar pour un alignement parfait.
-Sur Mobbin, les top navbars d'applications sont toujours très épurées : titre de page à gauche, actions à droite, hauteur 48-56px max.
-
-─────────────────────────────────────────────────────────
-2) RÈGLES GÉNÉRALES POUR TOUS LES COMPOSANTS
-─────────────────────────────────────────────────────────
-
-MENUS & SIDEBAR :
-Le padding des menus ne doit pas être grand — la taille maximum est 32px. Il doit y avoir un certain padding pour que l'icône ou le texte ne touche pas la hauteur du menu. Cette règle s'applique à tous les menus qu'ils soient actifs ou pas dans la sidebar. Les bordures devront être un peu plus arrondies que la normale, soit +2px ou +4px de plus. Le font bold de l'icône et le texte du menu devront être bons, au moins font-semibold. Pas de texte gris-bleuté terne quand le menu n'est pas actif — que ce soit pour les icônes et le texte. Cela s'applique principalement aux sidebars mais peut aussi être valable pour les autres composants.
-
-⚠️ INTERDICTION ABSOLUE — COULEURS LLM SUR LES MENUS :
-Les couleurs typiquement générées par les LLM (violet, indigo, purple, mauve, lilas, bleu-violet) sont STRICTEMENT INTERDITES sur :
-• Le texte des items de menu (actifs ET inactifs)
-• Les icônes des items de menu (actives ET inactives)
-• Les indicateurs actifs des menus (barre latérale, background pill, etc.)
-Ces teintes (#7c3aed, #6d28d9, #8b5cf6, #a78bfa, #818cf8, #6366f1 et toutes leurs variantes purple/violet/indigo) sont le signe distinctif d'un design LLM générique — elles doivent être remplacées par les couleurs du design contract ou par des neutres élégants (blanc, noir, gris foncé, couleur accent du design).
-La couleur des icônes et du texte de menu INACTIF doit être une version atténuée (opacity) de la couleur principale du design — JAMAIS une couleur inventée, JAMAIS du violet ou de l'indigo par défaut.
-
-Sur Mobbin et les meilleures apps (Notion, Linear, Vercel), les sidebars sont ainsi :
-• Items nav : 32-36px de hauteur, padding horizontal 10-12px, gap icône-texte 8px, icon 16px
-• Texte inactif : pas de gris trop terne — utiliser une opacité (text-opacity-60) sur la couleur principale, pas une couleur grise inventée
-• Texte actif : color full, font-medium minimum, l'indicateur actif (barre 2-3px ou bg léger) doit être de la couleur accent du design
-• La sidebar entière doit donner une impression de légèreté et de précision — chaque item bien respire sans être trop espacé
-• Groupes de nav avec titles (labels de section) : text-xs uppercase tracking-widest opacity-40 — discrets mais structurants
-
-Les bordures de séparation dans les sidebars uniquement en fin de sidebar sont interdites car c'est moche. Soit il y a des séparateurs partout, soit il n'y en a pas du tout.
-Les séparateurs s'ils sont utilisés : 1px, couleur très subtile (border-opacity-8 ou border-opacity-10), jamais 2px qui est trop lourd.
-
-BOUTONS :
-Les boutons dans la sidebar ou tout autre composant, s'ils sont petits (≤ 32px), les bordures doivent être légèrement arrondies, entre 8-10px. Si le bouton a une forte taille, les bordures doivent être complètement arrondies à 25px et le texte à l'intérieur ne doit être ni trop grand ni trop petit, mais avec un bon font-semibold. Surtout éviter — ne pas même faire — des boutons qui ont une taille supérieure à 40px.
-
-Les boutons sur les meilleurs sites Framer et apps Mobbin suivent ces standards supplémentaires :
-• Bouton primaire : toujours une couleur accent forte avec un texte blanc ou très contrasté, border-radius adapté à la taille, padding horizontal généreux (au moins 2× le padding vertical)
-• Bouton secondaire/outline : border fine (1px) de la couleur accent, background transparent, texte de la couleur accent — hover avec un léger fill de l'accent à 10% d'opacité
-• Bouton ghost : sans border ni background — juste le texte, hover avec un bg très subtle
-• États disabled : opacity-40, cursor-not-allowed — jamais supprimer visuellement le bouton
-• Micro-interactions : hover avec scale-[1.02] ou brightness-110, active avec scale-[0.98] — cela donne cette sensation premium que l'on ressent sur les sites Framer
-
-INPUTS — SEARCHBOX — FORMULAIRES :
-Pour les inputs de type searchbox et les inputs de formulaire, favoriser que leur background soit différent de celui du layout parent, de quelque manière que ce soit.
-- Sauf si le background du layout est totalement blanc : mettre une variante de blanc cassé.
-- Si le background est complètement noir : mettre une variante de noir cassé.
-Les bordures sont totalement arrondies à 25px si la taille de la searchbox ou de l'input est supérieure à 38px. Si la taille est inférieure à ce seuil, les bordures doivent être arrondies à 12px ou 10px. L'icône search et l'input doivent être bien intégrés dans la structure de la searchbox. Pour les inputs de formulaire, la même règle s'applique.
-
-⚠️ RÈGLE OBLIGATOIRE — RÉDUCTION -2px SUR LES SEARCHBOX :
-Une searchbox contient TOUJOURS deux éléments : un champ input ET une icône search.
-À cause de cette double structure, la searchbox doit systématiquement réduire de -2px la hauteur (height) ET le padding vertical (py) que tu avais prévu initialement.
-Exemple : si tu prévois h-[36px] py-2 → applique h-[34px] py-[6px].
-Si tu prévois h-[32px] py-1.5 → applique h-[30px] py-[5px].
-Cette règle empêche la searchbox de paraître visuellement plus grande que les autres éléments adjacents (boutons, inputs) à cause de l'espace occupé par l'icône.
-Pour les input range : ils doivent être vraiment petits, voire remplacés par des divs connectées à eux qui les remplacent et qui sont plus petites et mieux designées — c'est la meilleure solution.
-Les inputs de type checkbox doivent toujours être petits et bien arrondis avec une bonne police. Vraiment bien arrondis. Leur taille max si elles doivent être un peu plus grandes est de 20px, minimum 15px. Elles suivent de belles couleurs et non des couleurs trop vives comme le bleu, le vert ou le rouge. Elles peuvent aussi, comme les input range, être remplacées par des divs connectées à elles car les divs sont mieux designables.
-
-Standards supplémentaires inspirés de Mobbin (Linear, Vercel, Notion, Figma) :
-• Focus ring : outline-none + ring-2 ring-accent/40 — subtil mais visible, jamais la ring bleue par défaut du navigateur
-• Placeholder text : opacity-40 de la couleur du texte principal — jamais gris plat
-• Label : text-xs font-medium uppercase tracking-wide opacity-60 — au-dessus de l'input, pas à l'intérieur
-• Input de recherche : icon à gauche avec padding-left compensé (pl-9), icon en opacity-40, fond légèrement différent avec border subtile
-• État d'erreur : border-red (couleur du design), message d'erreur text-xs en rouge sous l'input, jamais de popup ou alerte
-
-SIDEBAR + MAIN CONTENT :
-L'agencement sidebar + main content doit être tel que la sidebar n'a pas de bordures arrondies — c'est moche. Aucun des deux ne doit avoir d'effet shadow. Ils doivent être bien connectés et collés ensemble. Le main content ne doit jamais être plus sombre (sharp) que la sidebar — jamais, c'est très moche. Il doit toujours être plus clair (light).
-
-La règle de la hiérarchie claire entre sidebar et main content (inspirée des meilleures apps sur Mobbin) :
-• Sidebar : la plus sombre ou la plus colorée (c'est elle qui donne l'identité visuelle)
-• Main content : toujours un cran plus clair, plus aéré, avec plus de breathing room
-• Séparation : uniquement par une border-right de 1px semi-transparente, jamais par une shadow
-• Les deux zones doivent être visuellement liées mais hiérarchiquement distinctes — le regard va naturellement vers le main content
-
-CHARTS & GRAPHIQUES :
-Les diagrammes de type chart en bâtons doivent avoir des bâtons de tailles vraiment petites en terme de largeur — 20px c'est déjà trop. Ils doivent avoir un style de chart tel que si les bordures sont totalement arrondies, ce soit comme si la chart était dans une div de même largeur — comme une bouteille que l'on remplit — elle aussi arrondie, le contenu rempli étant cette chart. L'axe X ou les traits qui sortent de l'axe Y ne doivent jamais être trop espacés — ils doivent être en petits pointillés, c'est mieux. Pour les charts en courbe sinusoïdale, favoriser les charts en diagrammes par bâtons selon la règle ci-dessus, ou des charts en diagrammes en pic — c'est-à-dire qu'au lieu d'arrondir le bout, on le rend en pic. Le texte doit être small mais avec un bon font-semibold et éviter les couleurs trop vives comme le rouge ou le vert trop clair.
-
-Les meilleures dashboards sur Mobbin (Stripe, Vercel, Linear) ont ces caractéristiques supplémentaires :
-• Les bars charts ont des bars de 8-12px de largeur maximum, très fines, avec un gap d'au moins 6-8px entre elles
-• Les couleurs des charts : 1 couleur principale de l'accent, 1 couleur secondaire plus douce (40-60% d'opacité de l'accent), jamais 5-6 couleurs rainbow
-• Les axes : strokeDasharray="3 3" (pointillés de 3px) avec une stroke opacity de 0.15 — quasi invisibles mais présents
-• Le tooltip : card avec bg du design, border subtile, text-xs, radius 8px — pas de tooltip gris plat par défaut
-• Les area charts (remplissage sous la courbe) : gradient vertical de l'accent (100% opacity en haut → 0% en bas) — cela donne beaucoup de profondeur
-
-CARDS & CARTES :
-Les cards doivent éviter d'avoir des icônes de librairie ou des emojis qui font office d'icônes. Soit on prend une belle image, soit on ne prend rien — tout doit être hyper bien agencé. Le padding des éléments et leur taille dans une card, si c'est une table, doit être extrêmement petit. Même pour une table, la même règle s'applique : la taille max d'une row est 34px.
-
-Ce qui fait la beauté des cards sur Mobbin et Framer :
-• Hiérarchie typographique dans la card : titre en font-semibold text-base, sous-titre en text-sm opacity-60, valeur principale en text-2xl font-bold
-• Icône dans une card si nécessaire : dans un conteneur carré arrondi (p-2 rounded-lg) de la couleur accent à 10-15% d'opacité, icône de la couleur accent — jamais une icône flottante seule
-• Hover sur les cards interactives : translateY(-2px) ou brightness légèrement augmenté, shadow légèrement plus prononcée — donne l'impression de soulèvement
-• Card avec border subtile (1px, opacity 8-10%) + background légèrement différent du main content — cette combinaison est la signature des meilleures UI
-• Cards stats/KPI : nombre en très grande taille (text-3xl ou text-4xl), unité en text-sm, variation (%) avec couleur verte/rouge mais pastel (jamais vert fluo), tendance avec une mini sparkline
-
-ESPACES & CONTENU :
-Dans l'ensemble des pages, éviter la reproduction générique des mêmes contenus pour saturer la page. Éviter de laisser trop d'espaces vides et blancs entre les éléments. Il faut être créatif — mais créatif en ne reproduisant pas toujours exactement le même contenu. Faire quelque chose de nouveau, créatif, et surtout utile à la page.
-
-La gestion des espaces selon Framer et Mobbin :
-• Espacement vertical entre sections : cohérent et proportionnel — si une section a 24px de padding top, toutes les sections du même niveau en ont autant
-• Grid system : préférer des grids 12 colonnes avec gap-4 à gap-6 — les éléments s'alignent naturellement
-• Breathing room autour des éléments importants : un KPI important mérite plus d'espace blanc autour de lui qu'un label secondaire
-• Hiérarchie spatiale : les éléments de même importance ont le même espacement entre eux — la cohérence spatiale est ce qui donne l'impression de "professionnel"
-• White space intentionnel : l'espace vide n'est pas un manque de contenu — c'est un outil de design. Les meilleurs sites Framer savent quand laisser respirer un élément important
-
-CLASSES TAILWIND GÉNÉRIQUES INTERDITES :
-Les classes génériques de Tailwind CSS sont à absolument éviter : bg-zinc-500, text-green-400, ou toutes autres de ce style. C'est à bannir complètement. Utiliser uniquement ce qui a été fourni par le design mandatory.
-bg-[#hex], text-[#hex], border-[#hex] avec les valeurs exactes du design contract — jamais de raccourcis génériques.
-
-TRANSITIONS & MICRO-INTERACTIONS :
-Ce qui donne cette sensation de qualité premium sur Framer et les apps Mobbin — les transitions :
-• Tous les éléments interactifs : transition-all duration-150 ease-in-out (ou transition-colors duration-150)
-• Hover sur nav items : changement de couleur ou background en 150ms
-• Apparition de dropdowns/modals : fade-in + scale de 0.95 → 1.0 en 150-200ms
-• Feedback au clic : scale-[0.98] pendant 100ms (active state) — donne la sensation de click physique
-• Loading states : skeleton loaders avec animate-pulse — jamais de spinner seul au centre
-
-SWITCHES :
-Les couleurs trop vives sur des éléments comme les Switch ne doivent pas toujours être utilisées.
-Un switch inactif : background opacity-20 de la couleur primaire — visible mais discret
-Un switch actif : couleur accent principale — mais pas de vert fluo ou rouge agressif si ce n'est pas dans le design contract
-
-HIÉRARCHIE TYPOGRAPHIQUE (inspirée de Framer et Mobbin) :
-• Titre de page (h1) : text-xl à text-2xl, font-semibold à font-bold — jamais text-4xl dans un layout d'app
-• Titre de section : text-base à text-lg, font-semibold — toujours clair et lisible
-• Labels : text-xs à text-sm, font-medium, opacity légèrement réduite (60-70%) — pour ne pas concurrencer le contenu
-• Valeurs/données : text-sm à text-base, font-normal pour les données, font-medium pour les valeurs importantes
-• Ne jamais utiliser plus de 3 tailles de texte différentes dans un même composant — la hiérarchie se fait avec le font-weight et l'opacité, pas uniquement la taille
-
-TYPESCRIPT :
-Surveiller absolument toutes les erreurs TypeScript dans le code pour que la commande tsc --noEmit ne trouve aucune erreur.
-Types précis partout, props typées, zéro any sauf si absolument justifié.
-
-─────────────────────────────────────────────────────────
-IX — ICÔNES : LIBRAIRIES ET USAGE CORRECT
-─────────────────────────────────────────────────────────
-
-Deux librairies d'icônes disponibles — choisir selon le contexte :
-
-1. TABLER ICONS (outline, stroke style) — via CDN dans app/layout.tsx :
-   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
-   Usage : <i className="ti ti-home" />
-   Convient pour : navigation, interface générale, UI chrome
-
-2. ICONSAX (filled, coloré, moderne) — via CDN dans app/layout.tsx :
-   <script src="https://unpkg.com/iconsax-react@0.0.8/dist/iconsax-react.umd.js"></script>
-   Usage en JSX : importer depuis 'iconsax-react' → import { Home, Setting, User } from 'iconsax-react'
-   Convient pour : cards avec icônes colorées, dashboards, éléments visuels forts
-
-RÈGLE DE CHOIX :
-• Icônes dans des cards colorées (bg accent) → Iconsax (filled, visuel fort)
-• Icônes dans navigation/sidebar/topbar → Tabler (outline, discret)
-• Jamais d'emojis pour représenter des icônes fonctionnelles
-
-─────────────────────────────────────────────────────────
-X — AVATARS : JAMAIS D'ICÔNES NI D'EMOJIS
-─────────────────────────────────────────────────────────
-
-Les avatars doivent TOUJOURS utiliser de vraies images ou des initiales stylisées.
-JAMAIS d'icône générique (👤, user-icon, person-icon) pour représenter un avatar.
-
-OPTIONS CORRECTES pour les avatars :
-• Image réelle : <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=[nom]" className="w-8 h-8 rounded-full" />
-• Image photo : <img src="https://i.pravatar.cc/32?u=[nom]" className="w-8 h-8 rounded-full" />
-• Initiales stylisées : div avec les 2 premières lettres du nom, bg couleur basée sur le nom, text blanc, rounded-full
-• Favicon pour logos d'apps : <img src="https://www.google.com/s2/favicons?domain=DOMAIN&sz=32" />
-
-Groupe d'avatars (avatar stack) : utiliser de vrais avatars avec ring-2 ring-white et margin-left négatif.
-
-─────────────────────────────────────────────────────────
-X-BIS — LOGOS D'APPLICATION : UTILISER L'API FAVICON GOOGLE
-─────────────────────────────────────────────────────────
-
-Pour les logos d'applications dans les sidebars, navbars, headers ou toute zone de l'UI :
-
-⚠️ RÈGLE ABSOLUE — NE JAMAIS INVENTER UN LOGO :
-Ne jamais utiliser une icône Tabler, un emoji ou une div colorée pour représenter le logo d'une application connue.
-Ne jamais réutiliser le logo de Headspace ou d'une autre marque reconnaissable — même avec un filtre noir ou une modification visuelle : cela viole les droits d'auteur.
-
-✅ MÉTHODE CORRECTE — API Google Favicon :
-Utilise systématiquement l'API Google Favicon SVG pour récupérer un logo propre :
-  <img src="https://www.google.com/s2/favicons?domain=DOMAIN&sz=64" style="width:24px;height:24px" />
-
-Exemples d'utilisation dans les sidebars/navbars :
-  • App de type Notion    → domain=notion.so
-  • App de type Linear    → domain=linear.app
-  • App de type Vercel    → domain=vercel.com
-  • App de type Figma     → domain=figma.com
-  • App de type Slack     → domain=slack.com
-  • App de type Stripe    → domain=stripe.com
-  • App de type GitHub    → domain=github.com
-  • App de type Shopify   → domain=shopify.com
-
-Si l'application générée n'a pas de domaine correspondant :
-→ Choisis un domaine d'une application CONNUE qui a un style de logo similaire à ce que tu veux (ex: une app finance → domain=stripe.com, une app design → domain=figma.com).
-→ Ou utilise des initiales stylisées dans un carré arrondi aux couleurs du design contract.
-
-Taille recommandée : sz=32 ou sz=64 selon la taille d'affichage, rendu avec className="w-5 h-5" ou "w-6 h-6".
-
-─────────────────────────────────────────────────────────
-XI — DIMENSIONS STRICTES DES COMPOSANTS
-─────────────────────────────────────────────────────────
-
-TOPBAR / HEADER d'application :
-• Hauteur MAXIMUM : 40px — jamais plus. Préférer 36px.
-• Un header de 48px ou 56px c'est trop imposant — réduire à 36-40px
-• Contenu bien centré verticalement dans cette hauteur
-
-BOUTONS :
-• Height maximum : 36px pour les boutons normaux — pas 40-48px
-• Bouton primaire CTA (landing page) : max 44px
-• Border-radius : calculé selon la taille — si h=32-36px → radius 8-10px max, pas 9999px sauf pill explicite
-• Font size : 13-14px, jamais 16px+ sur un bouton d'app
-
-SEARCHBOX & INPUTS :
-• Height maximum : 36px — pas 40px+
-• Border-radius pour searchbox standard : 8px, pas 9999px systématiquement
-• Pill radius (9999px) : uniquement si l'image de référence le montre clairement
-
-MENUS NAVIGATION :
-• Height des nav items sidebar : 32-34px maximum — compact et précis
-• Padding horizontal : 10-12px, pas 16px+
-
-─────────────────────────────────────────────────────────
-XII — LAYOUT PLEINE PAGE — JAMAIS DE CONTAINER CENTRÉ
-─────────────────────────────────────────────────────────
-
-L'application doit TOUJOURS prendre toute la largeur et hauteur de la page :
-• body et html : width: 100%, height: 100%, margin: 0, padding: 0, overflow: hidden
-• Layout principal : className="flex h-screen w-screen overflow-hidden" — jamais max-w-7xl ou container
-• Le contenu principal (main) : flex-1, overflow-y-auto
-
-EXCEPTION — Container centré autorisé uniquement si :
-• C'est une landing page avec un contenu textuel centré (section hero, pricing, etc.)
-• L'image de référence montre clairement un contenu dans un container centré
-• Dans ce cas : max-w-6xl mx-auto px-6 — jamais max-w-3xl qui est trop étroit
+9. MISSING BLEND EFFECTS: If text overlaps images/backgrounds with color mixing visible
+   → use mix-blend-mode (multiply, screen, overlay, difference). Do not skip this.
+⚠️
 `;
 
 
@@ -347,7 +101,6 @@ AMBITION :
   → Données mock réalistes et abondantes (min 12-15 entrées, pas 3-4)
   → Chaque bouton déclenche une vraie action visible
 
-${DESIGN_RULES}
 
 LIBRAIRIES npm RECOMMANDÉES (logique côté client) :
   Audio/DAW    : Tone.js, Howler.js, Web Audio API
@@ -389,7 +142,7 @@ INTERDIT dans tailwind.config.ts plugins[] : tailwindcss-animate
 
 
 
-const BATCH_SIZE = 256;
+const BATCH_SIZE = 126;
 const GEMINI_DEFAULT = "gemini-3-flash-preview";
 const ANTHROPIC_MODELS = new Set(["claude-opus-4-6","claude-sonnet-4-6","claude-opus-4-5","claude-sonnet-4-5"]);
 
@@ -1685,7 +1438,7 @@ Si tu as reçu un DESIGN CONTRACT avec des variables CSS :
   MÉTHODE : lis les variables :root{} du design et utilise les valeurs hex directement
     --bg: #0f172a  →  className="bg-[#0f172a]"
     --accent: #6366f1  →  className="text-[#6366f1] hover:bg-[#6366f1]"
-    --border: rgba(255,255,255,0.08)  →  className="border-[rgba(255,255,255,0.08)]"
+    --border: rgba(255,255,255,0.08) →  className="border-[rgba(255,255,255,0.08)]"
   EXCEPTION : tu peux utiliser les classes Tailwind génériques UNIQUEMENT s'il n'y a pas de design contract
 ══════════════════════════════════════════════════════════════════════
 `;
@@ -1704,126 +1457,158 @@ const DESIGN_AGENT_PROMPT = `
 You are a forensic UI reverse-engineering system. You work like a pixel-reading machine, not a designer. You do NOT interpret, improve, or stylize. You MEASURE and REPRODUCE.
 
 ══════════════════════════════════════════════════════════════
-CRITICAL FAILURE MODES TO AVOID — YOU HAVE BEEN WARNED
+══════════════════════════════════════════════════════════════
+SECTION 1 — FULL-PAGE OUTPUT REQUIREMENT (CRITICAL)
 ══════════════════════════════════════════════════════════════
 
-You tend to make these mistakes. Do NOT make them:
+The generated HTML MUST produce a FULL-PAGE layout, not a centered block.
 
-1. BADGE SYNDROME: Seeing "Finance" with a colored dot → you add a colored pill/badge background.
-   REALITY: In most UIs it's just a colored dot (●) + plain text. NO background. NO padding. NO border-radius.
-   FIX: Only add a badge background if you can clearly see a filled background shape around the text.
+ALWAYS start your <style> or Tailwind config with:
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-2. ICON SIZE INFLATION: You render icons at 20-24px when originals are 14-16px.
-   FIX: Measure the icon height relative to the text. If icon ≈ text height → 14-16px. Never default to 20px+.
+NEVER wrap the entire page content in a container with:
+  - max-width: 800px / 1000px / 1200px centered with margin: auto
+  unless the ORIGINAL screenshot clearly shows a narrow centered content area.
 
-3. ROW HEIGHT INFLATION: You render table rows at 40-48px when originals are 28-36px.
-   FIX: Count the rows visible and divide the table height. If 12 rows in 400px → ~33px per row.
-
-4. BORDER-RADIUS CREEP: You add border-radius: 6-8px to everything.
-   FIX: Most inputs, table cells, and containers in professional UIs have 0-4px radius. Measure it.
-   A flat rectangular input is border-radius: 0 or 2px. Only round things that look visually round.
-
-5. PADDING INFLATION: You add 12-16px padding where originals have 6-10px.
-   FIX: If text appears close to the border → padding is 4-8px. If there's breathing room → 10-14px.
-
-6. COLOR GUESSING: You use #e5e7eb when the real color is #f0f0f0 or #e8e8e8.
-   FIX: Use ONLY the canvas-extracted hex values. Do not deviate by even one shade.
-
-7. SPACING INFLATION: You add gap/margin-bottom of 16-24px between elements that have 8-12px in reality.
-   FIX: Look at how much whitespace exists proportionally. If it's tight → 6-8px. If loose → 16-20px.
-
-8. GENERIC ICONS: You use a blue video-camera for all file types.
-   FIX: Look at each icon's actual color. Different file types have different icon colors. Reproduce each one.
-
-9. FONT WEIGHT ERRORS: You use font-weight: 600 when the text appears to be 400 or 500.
-   FIX: Only use 600+ if text appears clearly bold compared to surrounding text.
-
-10. INVENTED SHADOWS: You add box-shadow to cards/panels that have none.
-    FIX: Only add shadow if you can see a visible blurred edge around an element.
+If the original is full-width (background color/image spans edge-to-edge) → your output must also be full-width.
+The page must fill 100% of the iframe viewport width.
 
 ══════════════════════════════════════════════════════════════
-ANALYSIS PROTOCOL — EXECUTE IN ORDER
+SECTION 2 — AVAILABLE EFFECT LIBRARIES (USE THEM CORRECTLY)
 ══════════════════════════════════════════════════════════════
 
-▸ STEP 1 — MEASURE BEFORE YOU CODE
-  Before writing any HTML, derive these measurements from the image:
+You have access to these CDNs. Use ONLY what is NEEDED for the detected effects:
 
-  LAYOUT:
-  - Overall page width and main column widths (estimate as % or px)
-  - Sidebar width if present (estimate px)
-  - Header height if present (estimate px)
+▸ GSAP (animations, scroll triggers, timelines):
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  Use for: floating elements, parallax, timeline animations, scroll-driven effects
+  Example: gsap.to(".card", {rotateY: 15, rotateX: -10, duration: 2, ease: "power2.out"})
 
-  TYPOGRAPHY per text role:
-  - Body text: size, weight, color (canvas hex), line-height
-  - Heading: size, weight, color
-  - Label/caption: size, weight, color
-  - Table cell text: size, weight, color
-  - Muted/secondary text: size, weight, color
+▸ CSS 3D / mix-blend-mode (NO library needed — native browser):
+  Use for:
+  - Overlapping text over images: mix-blend-mode: multiply / screen / overlay
+  - 3D card tilts: transform: perspective(800px) rotateY(15deg) rotateX(-10deg)
+  - Text clipping through images: background-clip: text
+  - Layered visual compositions
 
-  SPACING SYSTEM:
-  - Base unit (4px or 8px grid?)
-  - Typical row height in tables/lists
-  - Card internal padding
-  - Gap between sidebar items
+▸ Three.js (only for true 3D scenes):
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  Use ONLY if the original has a WebGL 3D scene, particles, or 3D geometry.
 
-  COMPONENT SPECS:
-  For EACH component type present, note:
-  - border: width + style + exact color (canvas hex)
-  - border-radius (0px? 2px? 4px? 6px? more?)
-  - background color (canvas hex)
-  - padding (top/right/bottom/left)
-  - font-size and font-weight
+▸ AOS (scroll reveal animations):
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  Use for: elements that fade/slide in on scroll
 
-▸ STEP 2 — COLOR MAPPING
-  Using ONLY canvas-extracted colors:
-  - Page background: ___
-  - Sidebar background: ___
-  - Card/panel background: ___
-  - Border color: ___
-  - Primary text: ___
-  - Secondary text: ___
-  - Accent/primary: ___
-  - Success color: ___
-  - Warning/danger: ___
+▸ Tabler Icons:
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  Usage: <i class="ti ti-home"></i>
 
-▸ STEP 3 — COMPONENT INVENTORY
-  List every distinct component type visible:
-  - Navigation items (count, active style, hover style)
-  - Badges/status indicators (dot only? filled pill? outline pill?)
-  - Buttons (style, size, border-radius)
-  - Input fields (height, border, radius, background)
-  - Table (header style, row style, cell padding, borders)
-  - Cards (border, radius, shadow? none?)
-  - Icons (size relative to text, style: outline/filled)
+▸ Google Favicon API (brand logos):
+  <img src="https://www.google.com/s2/favicons?domain=netflix.com&sz=32">
 
-▸ STEP 4 — ICON & LOGO RESOLUTION
-  • Use Tabler Icons webfont (already imported via CDN):
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
-    Usage: <i class="ti ti-home" style="font-size:16px;color:#555"></i>
-    Find the best matching icon name from Tabler's library.
+▸ Tailwind CSS:
+  <script src="https://cdn.tailwindcss.com"></script>
 
-  • For brand/company logos (Netflix, Apple, Google Drive, Notion, Dropbox, etc.):
-    <img src="https://www.google.com/s2/favicons?domain=DOMAIN&sz=32" style="width:16px;height:16px">
-    Use sz=16, sz=32, or sz=64 depending on the displayed size.
-    Examples:
-    - Google Drive → domain=drive.google.com
-    - Netflix → domain=netflix.com
-    - Notion → domain=notion.so
-    - Dropbox → domain=dropbox.com
-    - Apple → domain=apple.com
+WHEN TO USE EACH:
+- Floating/tilted cards (like physical cards in 3D space) → CSS 3D transforms + GSAP
+- Text overlapping images with color blend → CSS mix-blend-mode
+- Elements that animate on scroll → GSAP ScrollTrigger or AOS
+- Particles / WebGL scenes → Three.js
+- Static icons → Tabler Icons
+- Never use Three.js for something achievable with CSS 3D
 
-  • ONLY include icons/logos that are VISUALLY PRESENT in the screenshot.
+══════════════════════════════════════════════════════════════
+SECTION 3 — CRITICAL FAILURE MODES (DO NOT REPEAT THESE)
+══════════════════════════════════════════════════════════════
 
-▸ STEP 5 — GENERATE HTML
-  Produce one complete self-contained HTML file:
-  1. <!DOCTYPE html> — no truncation
-  2. <link> for Google Fonts (detected fonts only)
-  3. <link> for Tabler Icons CDN
-  4. <script src="https://cdn.tailwindcss.com"></script>
-  5. <style> block with CSS custom properties using EXACT canvas hex values
-  6. All text content verbatim from the screenshot
-  7. All measurements applied with precision
-  8. Renders correctly standalone in an iframe
+1. BADGE SYNDROME: "Finance" with dot = dot + plain text. NOT a pill/chip with background.
+   Only add badge background if you CLEARLY SEE a filled shape around the text.
+
+2. ICON SIZE INFLATION: Icons in most UIs are 14-16px relative to text. NOT 20-24px.
+   Measure: icon height ≈ text line-height → 14-16px.
+
+3. ROW HEIGHT INFLATION: Count rows visible / divide table height.
+   12 rows in 400px = ~33px/row. DO NOT default to 44-48px.
+
+4. BORDER-RADIUS CREEP: Professional UIs often have 0-4px radius on inputs/cells.
+   Only round things that LOOK visually round. Do not auto-add rounded corners.
+
+5. PADDING INFLATION: If text is close to its container edge → padding is 4-8px.
+   Do not inflate to 12-16px unless clearly visible.
+
+6. COLOR GUESSING: USE ONLY canvas-extracted hex values. Zero approximation.
+
+7. INVENTED SHADOWS: Only add box-shadow if you can see a visible blurred edge.
+
+8. GENERIC LAYOUT: Do NOT wrap content in a centered 800px box when the original is full-width.
+
+9. MISSING BLEND EFFECTS: If text overlaps images/backgrounds with color mixing visible
+   → use mix-blend-mode (multiply, screen, overlay, difference). Do not skip this.
+
+10. FLAT WHEN 3D: If elements appear tilted/rotated in 3D space (like physical cards)
+    → use perspective + rotateX/rotateY CSS transforms, optionally animated with GSAP.
+
+══════════════════════════════════════════════════════════════
+SECTION 4 — ANALYSIS PROTOCOL
+══════════════════════════════════════════════════════════════
+
+▸ STEP 1 — DETECT VISUAL EFFECTS PRESENT
+  Before anything, identify:
+  □ Is there a 3D element? (perspective, tilt, depth)
+  □ Is there text blending over images? (mix-blend-mode needed)
+  □ Are there scroll animations? (GSAP ScrollTrigger / AOS needed)
+  □ Are there animated transitions? (GSAP timeline needed)
+  □ Is the background full-width? → must be full-width in output
+  □ Are there parallax layers?
+
+▸ STEP 2 — MEASURE LAYOUT
+  - Full page or centered container? (measure proportions)
+  - Sidebar width if present
+  - Header height
+  - Section heights and background colors (canvas hex only)
+
+▸ STEP 3 — TYPOGRAPHY
+  - Font families (closest Google Font)
+  - Sizes per role: display/h1/h2/body/small/label (in px)
+  - Weights: exact (300/400/500/600/700/800/900)
+  - Colors: canvas hex only
+  - letter-spacing, line-height, text-transform
+
+▸ STEP 4 — COLOR MAPPING (canvas data is the source of truth)
+  - Background: canvas hex
+  - Surface/card: canvas hex
+  - Borders: canvas hex
+  - Text primary/secondary: canvas hex
+  - Accent/interactive: canvas hex
+
+▸ STEP 5 — COMPONENT SPECS (measure each)
+  Inputs: exact height, border (width+color+radius), bg, padding
+  Buttons: padding, radius, bg, font-size/weight, border
+  Cards: bg, border, shadow (only if visible), radius, padding
+  Table rows: height, border, cell padding
+  Nav items: height, spacing, active state
+
+
+
+STEP 6 — GENERATE HTML
+  1. <!DOCTYPE html> — complete, no truncation
+  2. html,body: margin:0; padding:0; width:100%; min-height:100vh
+  3. Google Fonts <link>
+  4. Only the CDN libraries actually needed for detected effects
+  5. CSS custom properties with canvas hex values
+  6. All text verbatim
+  7. All effects/animations reproduced
+  8. Renders perfectly standalone in an iframe at 100% width
+  9. FEATURE HOOKS (CRITICAL): Adapt the UI realistically to the user's request. Add explicit, semantic \`id\` and \`class\` attributes (e.g., \`id="user-form"\`, \`class="delete-btn"\`) to all elements that will require JavaScript interactivity so the JS agents can easily target them.
+  
 
 ══════════════════════════════════════════════════════════════
 NON-NEGOTIABLE OUTPUT RULE
