@@ -52,7 +52,7 @@ Chaque fichier .tsx contient TOUT ce dont il a besoin :
 
 ARCHITECTURE DES FICHIERS :
   app/page.tsx              → Layout principal + navigation (useState activeView)
-  components/views/*.tsx    → Vues principales (DashboardView, EditorView...)
+  
   components/ui/*.tsx       → Composants réutilisables simples (Button, Card, Modal...)
   app/globals.css           → Variables CSS, styles globaux
   app/layout.tsx            → Metadata, fonts, CDN links
@@ -119,6 +119,185 @@ DEPENDENCIES: ["nom-du-package", "autre-package"]
 DEVDEPENDENCIES: ["@types/nom"]
 REMOVE_DEPENDENCIES: ["ancien-package-à-supprimer"]
 
+
+
+À la fin de chaque réponse qui installe des packages, déclare-les EXACTEMENT ainsi :
+
+DEPENDENCIES: ["nom-package1", "nom-package2"]
+DEVDEPENDENCIES: ["nom-dev-package"]
+REMOVE_DEPENDENCIES: ["package-problematique"]
+
+RÈGLES :
+✅ Texte brut sur une seule ligne chacun
+✅ Noms de packages npm exacts (comme sur npmjs.com)
+✅ DEPENDENCIES pour les packages runtime
+✅ DEVDEPENDENCIES pour les packages dev uniquement
+✅ REMOVE_DEPENDENCIES pour retirer une dépendance problématique du package.json
+
+QUAND UTILISER REMOVE_DEPENDENCIES :
+→ tailwindcss-animate est utilisé dans tailwind.config.ts mais non installé
+→ une librairie cause des conflits de types ou des erreurs de build
+→ un package a été importé par erreur et n'est pas utilisé
+→ une dépendance est remplacée par une autre
+
+❌ NEVER multiline JSON:
+  {
+    "dependencies": { ... }   ← WRONG
+  }
+❌ NEVER a JSON object
+❌ NEVER markdown or code block around it
+
+CORRECT EXAMPLES:
+DEPENDENCIES: ["tone", "howler", "recharts", "date-fns"]
+DEVDEPENDENCIES: ["@types/howler"]
+REMOVE_DEPENDENCIES: ["tailwindcss-animate", "bad-package"]
+
+INCORRECT EXAMPLES (these will be ignored):
+{ "dependencies": { "tone": "latest" } }   ← WRONG
+
+
+pour le design de l'application que tu dois construire tu dois suivre ceci ════════════════════════════════════════════════════════════
+══════════════════════════════════════════════════════════════
+SECTION 1 — FULL-PAGE OUTPUT REQUIREMENT (CRITICAL)
+══════════════════════════════════════════════════════════════
+
+The generated HTML MUST produce a FULL-PAGE layout, not a centered block.
+
+ALWAYS start your <style> or Tailwind config with:
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+NEVER wrap the entire page content in a container with:
+  - max-width: 800px / 1000px / 1200px centered with margin: auto
+  unless the ORIGINAL screenshot clearly shows a narrow centered content area.
+
+If the original is full-width (background color/image spans edge-to-edge) → your output must also be full-width.
+The page must fill 100% of the iframe viewport width.
+
+══════════════════════════════════════════════════════════════
+SECTION 2 — AVAILABLE EFFECT LIBRARIES (USE THEM CORRECTLY)
+══════════════════════════════════════════════════════════════
+
+You have access to these CDNs. Use ONLY what is NEEDED for the detected effects:
+
+▸ GSAP (animations, scroll triggers, timelines):
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  Use for: floating elements, parallax, timeline animations, scroll-driven effects
+  Example: gsap.to(".card", {rotateY: 15, rotateX: -10, duration: 2, ease: "power2.out"})
+
+▸ CSS 3D / mix-blend-mode (NO library needed — native browser):
+  Use for:
+  - Overlapping text over images: mix-blend-mode: multiply / screen / overlay
+  - 3D card tilts: transform: perspective(800px) rotateY(15deg) rotateX(-10deg)
+  - Text clipping through images: background-clip: text
+  - Layered visual compositions
+
+▸ Three.js (only for true 3D scenes):
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  Use ONLY if the original has a WebGL 3D scene, particles, or 3D geometry.
+
+▸ AOS (scroll reveal animations):
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  Use for: elements that fade/slide in on scroll
+
+▸ Tabler Icons:
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  Usage: <i class="ti ti-home"></i>
+
+▸ Google Favicon API (brand logos):
+  <img src="https://www.google.com/s2/favicons?domain=netflix.com&sz=32">
+
+▸ Tailwind CSS:
+  <script src="https://cdn.tailwindcss.com"></script>
+
+WHEN TO USE EACH:
+- Floating/tilted cards (like physical cards in 3D space) → CSS 3D transforms + GSAP
+- Text overlapping images with color blend → CSS mix-blend-mode
+- Elements that animate on scroll → GSAP ScrollTrigger or AOS
+- Particles / WebGL scenes → Three.js
+- Static icons → Tabler Icons
+- Never use Three.js for something achievable with CSS 3D
+
+══════════════════════════════════════════════════════════════
+SECTION 3 — CRITICAL FAILURE MODES (DO NOT REPEAT THESE)
+══════════════════════════════════════════════════════════════
+
+1. BADGE SYNDROME: "Finance" with dot = dot + plain text. NOT a pill/chip with background.
+   Only add badge background if you CLEARLY SEE a filled shape around the text.
+
+2. ICON SIZE INFLATION: Icons in most UIs are 14-16px relative to text. NOT 20-24px.
+   Measure: icon height ≈ text line-height → 14-16px.
+
+3. ROW HEIGHT INFLATION: Count rows visible / divide table height.
+   12 rows in 400px = ~33px/row. DO NOT default to 44-48px.
+
+4. BORDER-RADIUS CREEP: Professional UIs often have 0-4px radius on inputs/cells.
+   Only round things that LOOK visually round. Do not auto-add rounded corners.
+
+5. PADDING INFLATION: If text is close to its container edge → padding is 4-8px.
+   Do not inflate to 12-16px unless clearly visible.
+
+6. COLOR GUESSING: USE ONLY canvas-extracted hex values. Zero approximation.
+
+7. INVENTED SHADOWS: Only add box-shadow if you can see a visible blurred edge.
+
+8. GENERIC LAYOUT: Do NOT wrap content in a centered 800px box when the original is full-width.
+
+9. MISSING BLEND EFFECTS: If text overlaps images/backgrounds with color mixing visible
+   → use mix-blend-mode (multiply, screen, overlay, difference). Do not skip this.
+
+10. FLAT WHEN 3D: If elements appear tilted/rotated in 3D space (like physical cards)
+    → use perspective + rotateX/rotateY CSS transforms, optionally animated with GSAP.
+
+══════════════════════════════════════════════════════════════
+SECTION 4 — ANALYSIS PROTOCOL
+══════════════════════════════════════════════════════════════
+
+▸ STEP 1 — DETECT VISUAL EFFECTS PRESENT
+  Before anything, identify:
+  □ Is there a 3D element? (perspective, tilt, depth)
+  □ Is there text blending over images? (mix-blend-mode needed)
+  □ Are there scroll animations? (GSAP ScrollTrigger / AOS needed)
+  □ Are there animated transitions? (GSAP timeline needed)
+  □ Is the background full-width? → must be full-width in output
+  □ Are there parallax layers?
+
+▸ STEP 2 — MEASURE LAYOUT
+  - Full page or centered container? (measure proportions)
+  - Sidebar width if present
+  - Header height
+  - Section heights and background colors (canvas hex only)
+
+▸ STEP 3 — TYPOGRAPHY
+  - Font families (closest Google Font)
+  - Sizes per role: display/h1/h2/body/small/label (in px)
+  - Weights: exact (300/400/500/600/700/800/900)
+  - Colors: canvas hex only
+  - letter-spacing, line-height, text-transform
+
+▸ STEP 4 — COLOR MAPPING (canvas data is the source of truth)
+  - Background: canvas hex
+  - Surface/card: canvas hex
+  - Borders: canvas hex
+  - Text primary/secondary: canvas hex
+  - Accent/interactive: canvas hex
+
+▸ STEP 5 — COMPONENT SPECS (measure each)
+  Inputs: exact height, border (width+color+radius), bg, padding
+  Buttons: padding, radius, bg, font-size/weight, border
+  Cards: bg, border, shadow (only if visible), radius, padding
+  Table rows: height, border, cell padding
+  Nav items: height, spacing, active state
+
+
+
 Note: le système scanne aussi automatiquement tes imports pour détecter les nouvelles dépendances.
 `;
 
@@ -127,30 +306,150 @@ const DESIGN_MANDATORY_INSTRUCTION = `
 DESIGN MEMORY — OBLIGATOIRE POUR TOUT NOUVEAU PROJET
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Si tu crées un nouveau projet OU changes significativement le design, émets OBLIGATOIREMENT :
+════════════════════════════════════════════════════════════
+══════════════════════════════════════════════════════════════
+SECTION 1 — FULL-PAGE OUTPUT REQUIREMENT (CRITICAL)
+══════════════════════════════════════════════════════════════
 
+The generated HTML MUST produce a FULL-PAGE layout, not a centered block.
+
+ALWAYS start your <style> or Tailwind config with:
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+NEVER wrap the entire page content in a container with:
+  - max-width: 800px / 1000px / 1200px centered with margin: auto
+  unless the ORIGINAL screenshot clearly shows a narrow centered content area.
+
+If the original is full-width (background color/image spans edge-to-edge) → your output must also be full-width.
+The page must fill 100% of the iframe viewport width.
+
+══════════════════════════════════════════════════════════════
+SECTION 2 — AVAILABLE EFFECT LIBRARIES (USE THEM CORRECTLY)
+══════════════════════════════════════════════════════════════
+
+You have access to these CDNs. Use ONLY what is NEEDED for the detected effects:
+
+▸ GSAP (animations, scroll triggers, timelines):
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  Use for: floating elements, parallax, timeline animations, scroll-driven effects
+  Example: gsap.to(".card", {rotateY: 15, rotateX: -10, duration: 2, ease: "power2.out"})
+
+▸ CSS 3D / mix-blend-mode (NO library needed — native browser):
+  Use for:
+  - Overlapping text over images: mix-blend-mode: multiply / screen / overlay
+  - 3D card tilts: transform: perspective(800px) rotateY(15deg) rotateX(-10deg)
+  - Text clipping through images: background-clip: text
+  - Layered visual compositions
+
+▸ Three.js (only for true 3D scenes):
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  Use ONLY if the original has a WebGL 3D scene, particles, or 3D geometry.
+
+▸ AOS (scroll reveal animations):
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  Use for: elements that fade/slide in on scroll
+
+▸ Tabler Icons:
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  Usage: <i class="ti ti-home"></i>
+
+▸ Google Favicon API (brand logos):
+  <img src="https://www.google.com/s2/favicons?domain=netflix.com&sz=32">
+
+▸ Tailwind CSS:
+  <script src="https://cdn.tailwindcss.com"></script>
+
+WHEN TO USE EACH:
+- Floating/tilted cards (like physical cards in 3D space) → CSS 3D transforms + GSAP
+- Text overlapping images with color blend → CSS mix-blend-mode
+- Elements that animate on scroll → GSAP ScrollTrigger or AOS
+- Particles / WebGL scenes → Three.js
+- Static icons → Tabler Icons
+- Never use Three.js for something achievable with CSS 3D
+
+══════════════════════════════════════════════════════════════
+SECTION 3 — CRITICAL FAILURE MODES (DO NOT REPEAT THESE)
+══════════════════════════════════════════════════════════════
+
+1. BADGE SYNDROME: "Finance" with dot = dot + plain text. NOT a pill/chip with background.
+   Only add badge background if you CLEARLY SEE a filled shape around the text.
+
+2. ICON SIZE INFLATION: Icons in most UIs are 14-16px relative to text. NOT 20-24px.
+   Measure: icon height ≈ text line-height → 14-16px.
+
+3. ROW HEIGHT INFLATION: Count rows visible / divide table height.
+   12 rows in 400px = ~33px/row. DO NOT default to 44-48px.
+
+4. BORDER-RADIUS CREEP: Professional UIs often have 0-4px radius on inputs/cells.
+   Only round things that LOOK visually round. Do not auto-add rounded corners.
+
+5. PADDING INFLATION: If text is close to its container edge → padding is 4-8px.
+   Do not inflate to 12-16px unless clearly visible.
+
+6. COLOR GUESSING: USE ONLY canvas-extracted hex values. Zero approximation.
+
+7. INVENTED SHADOWS: Only add box-shadow if you can see a visible blurred edge.
+
+8. GENERIC LAYOUT: Do NOT wrap content in a centered 800px box when the original is full-width.
+
+9. MISSING BLEND EFFECTS: If text overlaps images/backgrounds with color mixing visible
+   → use mix-blend-mode (multiply, screen, overlay, difference). Do not skip this.
+
+10. FLAT WHEN 3D: If elements appear tilted/rotated in 3D space (like physical cards)
+    → use perspective + rotateX/rotateY CSS transforms, optionally animated with GSAP.
+
+══════════════════════════════════════════════════════════════
+SECTION 4 — ANALYSIS PROTOCOL
+══════════════════════════════════════════════════════════════
+
+▸ STEP 1 — DETECT VISUAL EFFECTS PRESENT
+  Before anything, identify:
+  □ Is there a 3D element? (perspective, tilt, depth)
+  □ Is there text blending over images? (mix-blend-mode needed)
+  □ Are there scroll animations? (GSAP ScrollTrigger / AOS needed)
+  □ Are there animated transitions? (GSAP timeline needed)
+  □ Is the background full-width? → must be full-width in output
+  □ Are there parallax layers?
+
+▸ STEP 2 — MEASURE LAYOUT
+  - Full page or centered container? (measure proportions)
+  - Sidebar width if present
+  - Header height
+  - Section heights and background colors (canvas hex only)
+
+▸ STEP 3 — TYPOGRAPHY
+  - Font families (closest Google Font)
+  - Sizes per role: display/h1/h2/body/small/label (in px)
+  - Weights: exact (300/400/500/600/700/800/900)
+  - Colors: canvas hex only
+  - letter-spacing, line-height, text-transform
+
+▸ STEP 4 — COLOR MAPPING (canvas data is the source of truth)
+  - Background: canvas hex
+  - Surface/card: canvas hex
+  - Borders: canvas hex
+  - Text primary/secondary: canvas hex
+  - Accent/interactive: canvas hex
+
+▸ STEP 5 — COMPONENT SPECS (measure each)
+  Inputs: exact height, border (width+color+radius), bg, padding
+  Buttons: padding, radius, bg, font-size/weight, border
+  Cards: bg, border, shadow (only if visible), radius, padding
+  Table rows: height, border, cell padding
+  Nav items: height, spacing, active state
+
+
+Ce sont ces règles qje tu devras suivre pour faire le dzsign de l'application par rapport à l'image reçu ou autre
 <create_file path="design.md">
-# Design System
-
-## Colors
-- bg: #hex — background principal
-- sidebar: #hex — fond sidebar/panel
-- accent: #hex — couleur d'action principale
-- text: #hex — texte principal
-- textMuted: #hex — texte secondaire
-- border: #hex — bordures
-
-## Typography
-- fontFamily: 'Nom de la Police', sans-serif
-- googleFontsUrl: https://fonts.googleapis.com/css2?family=...
-
-## Spacing & Shape
-- borderRadius.input: Xpx
-- navItemHeight: Xpx
-- sidebarWidth: Xpx
-
-## Icons
-- library: tabler (ex: <i className="ti ti-home" />)
-- cdnUrl: https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css
+ce fichier devra contenir toute ces règles là 
 </create_file>
 
 Ce fichier est la MÉMOIRE DESIGN du projet. Toute modification future devra respecter ces tokens.
