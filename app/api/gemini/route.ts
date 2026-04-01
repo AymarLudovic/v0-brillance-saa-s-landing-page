@@ -2193,7 +2193,7 @@ RÈGLES DE SORTIE
 ${EDIT_FILE_FORMAT_RULES}
 
 DEPENDENCIES: ["packages", "npm", "nécessaires"]
-`;
+(pour installer les package nécessaire)
 
 ══════════════════════════════════════════════════════════════
 SECTION 2 — DESIGN CONSISTENCY (CRITICAL)
