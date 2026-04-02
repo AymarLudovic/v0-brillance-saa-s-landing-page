@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import Anthropic from "@anthropic-ai/sdk";
 
 // ─── Vercel config ─────────────────────────────────────────────────────────────
-export const maxDuration = 60;
+export const maxDuration = 150;
 export const dynamic = "force-dynamic";
 
 const ANTHROPIC_MODELS = new Set([
