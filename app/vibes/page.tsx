@@ -12,12 +12,13 @@ import { openDB } from "idb";
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 const _fbApp = getApps().length ? getApps()[0] : initializeApp({
-  apiKey: "AIzaSyCXpAhtaaQsBrNcMBMvKaGRgYQkYg88buY",
-  authDomain: "studio-code-4c7d1.firebaseapp.com",
-  projectId: "studio-code-4c7d1",
-  storageBucket: "studio-code-4c7d1.firebasestorage.app",
-  messagingSenderId: "988099987755",
-  appId: "1:988099987755:web:49848934cfdb81ed3d1d6e",
+  apiKey: "AIzaSyAVoDcDQJyPkHj5SAzdeUDqg3GbSV3Xu1U",
+    authDomain: "myapp-cbf8d.firebaseapp.com",
+    projectId: "myapp-cbf8d",
+    storageBucket: "myapp-cbf8d.firebasestorage.app",
+    messagingSenderId: "215809852481",
+    appId: "1:215809852481:web:32035e4ac0a4700b0d32c0",
+    measurementId: "G-C49XQRMEQL"
 });
 const _auth = getAuth(_fbApp);
 const _db   = getFirestore(_fbApp);
