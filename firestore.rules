@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── vibes_selection : images sélectionnées par l'admin ────────────────────
+    // Lecture : tout le monde (pour que les visiteurs puissent charger les vibes)
+    // Écriture : uniquement l'admin authentifié
+    match /vibes_selection/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.token.email == "ludovicaymar8@gmail.com";
+    }
+
+    // ── config/vibes_categories : catégories définies par l'admin ────────────
+    // Lecture : tout le monde
+    // Écriture : uniquement l'admin
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.token.email == "ludovicaymar8@gmail.com";
+    }
+
+    // ── Tout le reste : bloqué ────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
