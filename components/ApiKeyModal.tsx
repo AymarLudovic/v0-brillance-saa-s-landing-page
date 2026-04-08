@@ -5,7 +5,7 @@ import { X, ArrowUp, Copy } from 'lucide-react'
 // --- INDEXEDDB UTILS ---
 const DB_NAME = 'StudioCodeDB';
 const STORE_NAME = 'settings';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
