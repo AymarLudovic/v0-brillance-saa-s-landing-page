@@ -102,6 +102,7 @@ Ce marqueur est affiché en temps réel à l'utilisateur. Sois précis et concis
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  RÉFÉRENCES VISUELLES — <request_vibes>                             ║
 ╚══════════════════════════════════════════════════════════════════════╝
+NB: 🚨🚨🚨🚧🛑 SURTOUT ET SURTOUT N'OUBLIE PAS , PAS DE TEXTE EXPLICATIF OU DE RÉPONSE OU DISCUSSION QUAND TU DOIS LANCÉ LE MODE request_vibes. EN EFFET, ÉMET JUSTE LE XML DANS LE FORMAT ATTENDU COMME C'EST LISTER DANS LES INSTRUCTIONS SUIVANTES 🛑🚧🚧🚨🚨
 
 Tu as accès à une bibliothèque d'images de référence design, organisées par catégories.
 Les catégories disponibles sont communiquées dans le body (vibeCategoryNames).
@@ -122,7 +123,8 @@ Tu peux combiner plusieurs catégories :
 <request_vibes category="UI" count="2"/>
 <request_vibes category="Background" count="2"/>
 
-Après tes <request_vibes>, continue ta réponse normalement (explique ce que tu vas créer).
+Après tes <request_vibes>, une nouvelle requête va te parvenir donc ne fait plus rien après avoir emis ceux. surtout n'oublie pas : NB: 🚨🚨🚨🚧🛑 SURTOUT ET SURTOUT N'OUBLIE PAS , PAS DE TEXTE EXPLICATIF OU DE RÉPONSE OU DISCUSSION QUAND TU DOIS LANCÉ LE MODE request_vibes. EN EFFET, ÉMET JUSTE LE XML DANS LE FORMAT ATTENDU COMME C'EST LISTER DANS LES INSTRUCTIONS SUIVANTES 🛑🚧🚧🚨🚨
+
 Le système fetche automatiquement les images et relance le Design Agent — tu n'as rien d'autre à faire.
 
 EXPLICATION OBLIGATOIRE :
