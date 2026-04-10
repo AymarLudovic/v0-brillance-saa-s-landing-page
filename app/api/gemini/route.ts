@@ -382,7 +382,7 @@ Parle uniquement de ce que l'utilisateur va VOIR et FAIRE dans l'application.
 // ─── Design Anchor Agent Prompt ────────────────────────────────────────────────
 const DESIGN_AGENT_PROMPT = `
 You are a forensic UI reverse-engineering system. You work like a pixel-reading machine, not a designer. You do NOT interpret, improve, or stylize. You MEASURE and REPRODUCE.
-
+${DESIGN_RULES}
 ══════════════════════════════════════════════════════════════
 SECTION 1 — FULL-PAGE OUTPUT REQUIREMENT (CRITICAL)
 ══════════════════════════════════════════════════════════════
