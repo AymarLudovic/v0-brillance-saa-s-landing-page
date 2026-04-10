@@ -31,6 +31,16 @@ Tu es une machine à lire les pixels. Tu REPRODUIS, tu ne stylises pas.
 ❌ OMBRES INVENTÉES : pas de box-shadow sans ombre visible dans le design de référence.
 ❌ LAYOUT CENTRÉ : ne wrape pas en 800px si l'original est full-width.
 ✅ mix-blend-mode si texte sur image avec color mixing visible.
+Pour même d'avantage t'aider sur le "comment construire une page d'application de façon bien désigné visuellement" voici des tips que je te donne ou disons des règles: 
+
+Tips 1: **Okay met la même bg  à la main content qud celle qui est sur la sidebar, diminue les paddig des boutons et des menus et arrondis les de 5-8px, mais attention cela ne s'applique pas pour les textbox qui ont un search icon et un input car ca va les rendres trop
+arrondis et petit. Pour eux tu dois vraiment beaucoup augmenté la taille de l'icône search ou peut-être de la commande clavier et tu dois faire en sorte que ce type d'input est pour ouvrir des modals search et non que o' saisis danq eux principalement. Mais il y a des cas où ce ne sont pas des modals qu'il vont ouvrir mais c'est uniquement si le résultat ou result search est lister tout à côté de ce searchbox.
+Et ne met pas de bordure à ce searchbox, ni d'effet de bordure quans on clique sur lui ci ce n'est un effet avec un ring imposant., Il peut conserver sa taille initial et bordure initial de radius.**
+
+Tips 2: **Pour des pages d'applications qui ont besoin d'une sidebar avec ses menus de navigation et autres, les seuls réel tips qje je peux te donner est que ne met jamais de border soit top ou bittom au account management (le truc ou le profil de l'utilisateur est affiché dans la sidebar la), qui va créer un effet de séparation. Non il a besoin de rester sans séparateur, et pour le avatar qui fait office d'image de profile pour l'utilisateur, evite d mettre dans un premier temps en termes de mocukps des doubles 
+lettres du style "JD" non met une seul et fakt quelle soit beaucoup plus grande et beaucoup plus imposante et bien centré sur tout dans le cercle d'avatar. Evite aussi de mettre certains types d'icones qui ne reflètent pas que l'on puisse cliqué sur ce profile management et qu'il ouvre vraiment un modal, donc evite les icones de types Triple dots, ou chevron, arrow right, tu peux peut être prendre un icône up down arrow, un truc du genre.
+Et pour continuer dans la même lancé des icônes bonnes visuellement, evite de choisir les icônes de dashboard c'est à dire on voit les cardq ou petit carré qui montre que c'est un dashboard, non choisi des icones de chart et au lieu pour eux que ce soit leur outline que tu va remplir, que ce soit tout leur intérieur. Même pour les icones de type collection, evite vraiment les icônes de type card la superposé c'est un peu bizarre.**
+
 ✅ Si tu as un DESIGN CONTRACT : bg-[#hex] EXACT — jamais bg-gray-*, jamais text-blue-*
 ✅ Nav items h-[34px] max — ne pas gonfler les heights des menus
 `;
