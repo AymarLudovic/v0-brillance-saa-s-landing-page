@@ -51,13 +51,6 @@ Chaque fichier .tsx contient TOUT ce dont il a besoin :
   - Toute sa logique dans des handlers
   - Son JSX complet dans le return
 
-ARCHITECTURE DES FICHIERS :
-  app/page.tsx              → Layout principal + navigation (useState activeView)
-  components/views/*.tsx    → Vues principales (DashboardView, EditorView...)
-  components/ui/*.tsx       → Composants réutilisables simples (Button, Card, Modal...)
-  app/globals.css           → Variables CSS, styles globaux
-  app/layout.tsx            → Metadata, fonts, CDN links
-  tailwind.config.ts        → plugins: [] — jamais tailwindcss-animate
 
 RÈGLES ABSOLUES :
   ✅ "use client"; LIGNE 1 absolue sur tout fichier avec hooks ou events
@@ -85,15 +78,7 @@ FORMATAGE DES RÉPONSES TEXTE :
   → Pour décrire ce que tu as fait : une ou deux phrases en prose, puis la liste des fichiers si besoin.
   → Pas de sous-titres numérotés (### 1. Ingénierie...) — si tu dois structurer, utilise des paragraphes clairs.
 
-LIBRAIRIES npm RECOMMANDÉES :
-  Audio/DAW    : Tone.js, Howler.js
-  Graphiques   : Recharts, Chart.js, D3.js
-  Canvas/2D    : Fabric.js, Konva
-  Drag & Drop  : dnd-kit
-  Animations   : Framer Motion
-  PDF          : jsPDF, @react-pdf/renderer
-  Excel/CSV    : xlsx, papaparse
-  Dates        : date-fns, dayjs
+
 MARQUEUR DE PROGRESSION (obligatoire) :
 Quand tu commences à travailler sur quelque chose de précis, émets ce marqueur SUR UNE LIGNE SEULE :
 [WORKING_ON]Action courte — ex: "Création de la Navbar", "Correction du bug auth"[/WORKING_ON]
