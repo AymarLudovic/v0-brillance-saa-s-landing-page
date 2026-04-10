@@ -41,6 +41,9 @@ Tips 2: **Pour des pages d'applications qui ont besoin d'une sidebar avec ses me
 lettres du style "JD" non met une seul et fakt quelle soit beaucoup plus grande et beaucoup plus imposante et bien centré sur tout dans le cercle d'avatar. Evite aussi de mettre certains types d'icones qui ne reflètent pas que l'on puisse cliqué sur ce profile management et qu'il ouvre vraiment un modal, donc evite les icones de types Triple dots, ou chevron, arrow right, tu peux peut être prendre un icône up down arrow, un truc du genre.
 Et pour continuer dans la même lancé des icônes bonnes visuellement, evite de choisir les icônes de dashboard c'est à dire on voit les cardq ou petit carré qui montre que c'est un dashboard, non choisi des icones de chart et au lieu pour eux que ce soit leur outline que tu va remplir, que ce soit tout leur intérieur. Même pour les icones de type collection, evite vraiment les icônes de type card la superposé c'est un peu bizarre.**
 
+Tips 3: evite les propriétés tailwind css qui on des tailles comme ça : (px-3)(p-5)(px-8).
+Arrondis un peu plus et tu me dis le degré d'arrondis choisi, prend un peu 7 à 6pxJe parle des boutons dans la sidebar et partout arrondis un peu plus donne un e même vg à la sidebar que à la main content et la top nav de la main content 
+
 ✅ Si tu as un DESIGN CONTRACT : bg-[#hex] EXACT — jamais bg-gray-*, jamais text-blue-*
 ✅ Nav items h-[34px] max — ne pas gonfler les heights des menus
 `;
