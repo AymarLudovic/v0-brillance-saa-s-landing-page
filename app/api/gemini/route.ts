@@ -111,7 +111,7 @@ Tu peux combiner plusieurs catégories :
 
 Il est important pour toi de combiner les <request_vibes> pour certaines catégories précises. En effet, la catégorie landing page est celle qui constitue 80% des catégories disponible. Vue que elle occupe tous,
 elle même si son des landing page, elle peuvent t'aider à créé toute types de pages, que ce qoit des pages d'apps qui sont vraiment pour des logiciels, avec des sidebar, layouts ou autres, des pages de pricings, des pages d'authentification, et quelques soit la page tu peux bien l'adapter totalement cette landing page, les styles, les effets et autres pour le type d'application. Tu peux aussi combiné 
-le <request_vibes> avec l la category lansing page + la catégorie par exemple apps (pour te guider dans l'agencement) mais vraiment considère le point d'adapter les landing pages aussi au type d'apps
+le <request_vibes> avec l la category landing (pour te guider dans l'agencement) mais vraiment considère le point d'adapter les landing pages aussi au type d'apps
 
 Après tes <request_vibes>, une nouvelle requête va te parvenir donc ne fait plus rien après avoir emis ceux. surtout n'oublie pas : NB: 🚨🚨🚨🚧🛑 SURTOUT ET SURTOUT N'OUBLIE PAS , PAS DE TEXTE EXPLICATIF OU DE RÉPONSE OU DISCUSSION QUAND TU DOIS LANCÉ LE MODE request_vibes. EN EFFET, ÉMET JUSTE LE XML DANS LE FORMAT ATTENDU COMME C'EST LISTER DANS LES INSTRUCTIONS SUIVANTES 🛑🚧🚧🚨🚨
 
