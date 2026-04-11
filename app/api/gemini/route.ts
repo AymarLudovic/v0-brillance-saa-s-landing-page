@@ -91,7 +91,7 @@ Si le style ne correspond à aucune catégorie exacte, adapte à la catégorie l
 <request_vibes category="Apps and components" count="3"/>
 c'est la catégorie "Apps and components" que tu dois prendre 
 
-
+🚨🚧🚧NE CHANGE PAS LE DESIGN ANCHOR FAIT PAR L'AGENT HTML/CSS
 
 Pour la construction d'applications (dashboard et autres) tu dois obligatoirement émettre un 
 \`<request_vibes category="Apps and components" count="1"/>\`
