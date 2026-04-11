@@ -155,7 +155,9 @@ Bref c'est vers ce niveau que je veux t'amener quelques soit l'application. Et s
 MODÈLES LLM ACTUELS (utilise ces versions exactes sans chercher à les remplacer par celle que tu connais. Considère juste que ton entraînement c'est arrêter quand ils sont sortis) 
   Gemini  → gemini-3-flash-preview (fast) | gemini-3.1-pro-preview (quality)
   Claude  → claude-sonnet-4-6 (default)   | claude-opus-4-6 (quality)
-  OpenAI  → gpt-4o (default)              
+  OpenAI  → gpt-4o (default)      
+
+  N'oublie pas que tu reçois le html css du design, c'est sur eux quz tu fais ton jsx de tes fichiers 
  `;
 
 const FILE_FORMAT = `
@@ -455,7 +457,7 @@ Return ONLY raw HTML inside this exact tag:
 </html>
 </design_reference>
 
-${DESIGN_RULES}
+
 
 ⛔ AFTER </design_reference>: Write NOTHING. No TSX files. Focus only on the HTML.
 `;
@@ -1067,37 +1069,95 @@ MISSION : ULTRA-ANALYSE PUIS HTML/CSS PIXEL-PERFECT
 ÉTAPE 1 — ULTRA-ANALYSE EXHAUSTIVE (dans ta réflexion — OBLIGATOIRE avant tout code)
 Analyse CHAQUE élément visible dans les images, même les plus insignifiants :
 
-COULEURS :
-  • Fond body/page : hex exact
-  • Sidebar background : hex exact
-  • Header/topbar : hex exact
-  • Cards/panels : hex exact
-  • Texte primaire, secondaire, désactivé : hex exact
-  • Accents, CTA, boutons actifs : hex exact
-  • Bordures, séparateurs : hex exact + opacité si semi-transparent
-  • Aucune couleur inventée — extraire pixel par pixel
 
-LAYOUT & PROPORTIONS :
-  • Width sidebar (ex: 240px ou 20%)
-  • Height header (ex: 56px)
-  • Padding interne de chaque zone
-  • Grid/Flex: colonnes, gaps, justification
+ÉTAPE 2 — GÉNÈRE ces instructions en anglais ci dessous vont t'aider à faire un très bon design: 
+You are a forensic UI reverse-engineering system. You work like a pixel-reading machine, not a designer. You do NOT interpret, improve, or stylize. You MEASURE and REPRODUCE.
 
-TYPOGRAPHIE :
-  • Font-family (nom Google Font reconnaissable)
-  • Tailles h1/h2/h3/body/caption en px
-  • Font-weight des éléments importants
+══════════════════════════════════════════════════════════════
+SECTION 1 — FULL-PAGE OUTPUT REQUIREMENT (CRITICAL)
+══════════════════════════════════════════════════════════════
 
-COMPOSANTS (un par un) :
-  • Sidebar : items nav, icônes, indicateur actif, spacing
-  • Header : logo, titre, actions, border-bottom
-  • Cards : radius exact, shadow exact, border, padding
-  • Boutons : filled/outline/ghost, radius, padding, shadow hover
-  • Inputs : border-style, radius, focus-ring
-  • Badges/tags : shape, taille, couleurs
-  • Icônes : style, taille en px
+The generated HTML MUST produce a FULL-PAGE layout, not a centered block.
 
-ÉTAPE 2 — GÉNÈRE LE HTML/CSS avec variables :root{} + tous les composants pixel-perfect
+ALWAYS start your <style> or Tailwind config with:
+  html, body {
+    margin: 0; padding: 0; width: 100%; min-height: 100vh; overflow-x: hidden;
+  }
+
+NEVER wrap the entire page content in a container with max-width centered with margin: auto
+unless the ORIGINAL screenshot clearly shows a narrow centered content area.
+
+If the original is full-width → your output must also be full-width.
+
+══════════════════════════════════════════════════════════════
+SECTION 2 — AVAILABLE EFFECT LIBRARIES
+══════════════════════════════════════════════════════════════
+
+▸ GSAP: <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  Use for: floating elements, parallax, timeline animations
+▸ CSS 3D / mix-blend-mode (native browser): overlapping text, 3D card tilts, text clipping
+▸ Three.js: ONLY for true 3D/WebGL scenes
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+▸ AOS: <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+▸ Tabler Icons: <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+▸ Google Favicon API: <img src="https://www.google.com/s2/favicons?domain=netflix.com&sz=32">
+▸ Tailwind CSS: <script src="https://cdn.tailwindcss.com"></script>
+
+══════════════════════════════════════════════════════════════
+SECTION 3 — CRITICAL FAILURE MODES (DO NOT REPEAT THESE)
+══════════════════════════════════════════════════════════════
+
+1. BADGE SYNDROME: dot + plain text ≠ badge. Only add badge background if you CLEARLY SEE a filled shape.
+2. ICON SIZE INFLATION: Icons 14-16px. NOT 20-24px.
+3. ROW HEIGHT INFLATION: 12 rows in 400px = ~33px/row. DO NOT default to 44-48px.
+4. BORDER-RADIUS CREEP: Professional UIs often have 0-4px radius on inputs/cells.
+5. PADDING INFLATION: If text is close to container edge → padding is 4-8px.
+6. COLOR GUESSING: USE ONLY canvas-extracted hex values. Zero approximation.
+7. INVENTED SHADOWS: Only add box-shadow if you can see a visible blurred edge.
+8. GENERIC LAYOUT: Do NOT wrap content in 800px box when original is full-width.
+9. MISSING BLEND EFFECTS: If text overlaps images → use mix-blend-mode.
+10. FLAT WHEN 3D: If elements appear tilted → use perspective + rotateX/rotateY.
+
+══════════════════════════════════════════════════════════════
+SECTION 4 — ANALYSIS PROTOCOL
+══════════════════════════════════════════════════════════════
+
+▸ STEP 1 — DETECT VISUAL EFFECTS
+  □ Is there a 3D element?
+  □ Is there text blending over images? (mix-blend-mode needed)
+  □ Are there scroll animations? (GSAP ScrollTrigger / AOS needed)
+  □ Is the background full-width?
+  □ Are there parallax layers?
+
+▸ STEP 2 — MEASURE LAYOUT
+  - Full page or centered container?
+  - Sidebar width if present; Header height; Section heights and background colors (hex only)
+
+▸ STEP 3 — TYPOGRAPHY
+  - Font families (closest Google Font); Sizes per role (display/h1/h2/body/small/label in px)
+  - Weights: exact (300/400/500/600/700/800/900); Colors: canvas hex only
+
+▸ STEP 4 — COLOR MAPPING (canvas data is source of truth)
+  - Background, Surface/card, Borders, Text primary/secondary, Accent/interactive — canvas hex only
+
+▸ STEP 5 — COMPONENT SPECS (measure each)
+  Inputs: height, border (width+color+radius), bg, padding
+  Buttons: padding, radius, bg, font-size/weight
+  Cards: bg, border, shadow (only if visible), radius, padding
+  Table rows: height, border, cell padding
+  Nav items: height, spacing, active state
+
+▸ STEP 6 — GENERATE HTML
+  1. <!DOCTYPE html> — complete, no truncation
+  2. html,body: margin:0; padding:0; width:100%; min-height:100vh
+  3. Google Fonts <link>
+  4. Only CDN libraries actually needed
+  5. CSS custom properties with canvas hex values
+  6. All text verbatim; All effects/animations reproduced
+  7. Renders perfectly standalone in an iframe at 100% width
+  8. FEATURE HOOKS: Add explicit id and class attributes to all interactive elements
+
+
 `;
 
             const designContents: any[] = [];
@@ -1132,7 +1192,7 @@ COMPOSANTS (un par un) :
           // ═════════════════════════════════════════════════════════════════
           // Build systemPrompt for Phase 1
           // ═════════════════════════════════════════════════════════════════
-          let systemPrompt = BASE_SYSTEM_PROMPT + "\n\n" + FILE_FORMAT + "\n\n" + DESIGN_MANDATORY_INSTRUCTION;
+          let systemPrompt = BASE_SYSTEM_PROMPT + "\n\n" + FILE_FORMAT + "\n\n";
 
           // Inject vibe categories context (admin-curated design references)
           if (vibeCategoryNames && vibeCategoryNames.length > 0) {
@@ -1143,7 +1203,7 @@ COMPOSANTS (un par un) :
               `Catégories disponibles : ${vibeCategoryNames.join(", ")}\n\n` +
               `Quand tu émets [IMAGE_IS_DESIGN_REF] pour activer le Design Agent, tu DOIS aussi\n` +
               `préciser quelles images tu veux en ajoutant ce XML sur une ligne seule :\n` +
-              `<request_vibes category="Background" count="3"/>\n` +
+              `<request_vibes category="catégorie" count="3"/>\n` +
               `Tu peux émettre plusieurs <request_vibes> pour des catégories différentes.\n` +
               `Si tu n'émets pas de <request_vibes>, toutes les catégories seront envoyées (2 par catégorie).\n`;
           }
