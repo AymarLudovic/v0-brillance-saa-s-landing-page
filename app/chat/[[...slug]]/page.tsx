@@ -7632,7 +7632,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                       disabled={loading}
                       variant="outline"
                       size="sm"
-                      className="border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-white"
+                      className="border-[rgba(55,50,47,0.12)] hidden text-[#37322F] hover:bg-white"
                     >
                       Create
                     </Button>
@@ -7641,7 +7641,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                       disabled={loading || !sandboxId}
                       variant="outline"
                       size="sm"
-                      className="border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-white"
+                      className="border-[rgba(55,50,47,0.12)] hidden text-[#37322F] hover:bg-white"
                     >
                       Install
                     </Button>
@@ -7650,7 +7650,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                       disabled={loading || !sandboxId}
                       variant="outline"
                       size="sm"
-                      className="border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-white"
+                      className="border-[rgba(55,50,47,0.12)] hidden text-[#37322F] hover:bg-white"
                     >
                       Build
                     </Button>
@@ -7659,7 +7659,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                       disabled={loading || !sandboxId}
                       variant="outline"
                       size="sm"
-                      className="border-[rgba(55,50,47,0.12)] text-[#37322F] hover:bg-white"
+                      className="border-[rgba(55,50,47,0.12)] hidden text-[#37322F] hover:bg-white"
                     >
                       Start
                     </Button>
@@ -7688,7 +7688,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 </div>
                 
                 {/* Contenu des logs bruts */}
-                <ScrollArea className="w-full" style={{ height: "calc(100% - 48px)" }}>
+                <ScrollArea className="w-full" style={{ height: "calc(100% - 18px)" }}>
                   {/* Ici, on réutilise l'ancien affichage simple de logs */}
                   <p className="text-xs  whitespace-pre-wrap p-4">{logs.join("\n")}</p>
                 </ScrollArea>
@@ -7703,7 +7703,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                     onClick={() => runAction("addFiles")}
                     disabled={loading || !sandboxId}
                     size="sm"
-                    className="bg-[#37322F] hover:bg-[rgba(55,50,47,0.90)] text-white rounded-[25px]"
+                    className="bg-[#37322F] hidden hover:bg-[rgba(55,50,47,0.90)] text-white rounded-[25px]"
                   >
                     <HardDrive className="h-4 w-4 mr-2" />
                     
@@ -7783,7 +7783,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 </div>
 
                 {/* 2. L'ÉDITEUR MONACO — lecture seule, contenu piloté par le stream */}
-                <div className="flex-grow relative"> 
+                <div className="flex-grow pointer-events-none relative"> 
+                    <div className="h-[32px] w-[150px] rounded-[25px] text-white flex items-center justify-center">
+                        Read only for now 🙊
+                    </div>
                   <Editor
                     key={`editor-${currentProject?.id ?? "no-project"}`}
                     
@@ -7982,7 +7985,7 @@ ll
                         <div className="flex items-center gap-4">
                             {/* REMPLACEMENT DE L'IMAGE PAR LE CERCLE */}
                             {/* Le container est plus grand (w-12 h-12) */}
-                            <div className="w-12 h-12 bg-white border border-[rgba(55,50,47,0.12)] rounded-xl shadow-sm flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 bg-white border border-[rgba(55,50,47,0.12)] rounded-xl shadow-sm hidden items-center justify-center shrink-0">
                                 {/* LOGIQUE DE VARIANTES : Si index pair = Noir, sinon = Blanc avec bordure */}
                                 <div className={`rounded-full transition-all ${
                                     index % 2 === 0 
