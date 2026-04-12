@@ -51,9 +51,8 @@ Tips 3: evite les propriétés tailwind css qui on des tailles comme ça : (px-3
 Arrondis un peu plus et tu me dis le degré d'arrondis choisi, prend un peu 7 à 6pxJe parle des boutons dans la sidebar et partout arrondis un peu plus donne un e même vg à la sidebar que à la main content et la top nav de la main content 
 
 
-
-
-
+tips 4: ** pour les pages de dashboard je veux que tu fasses bien certain composants colme les cartes des analytiques: premièrement génère toi même tes propres graphique comme une vraie librairie. Pourquoi je dis ça ? parceque je veux que tu produisent des graphiques hyper beau et minimaliste c'est 
+à dire des largeurs ne dépassant pas les 25px pour éviter des bar trop grande en largeur du fait qu'il y ait peut être moins de données et elle essaie donc de prendre toutes la largeur du canvas, C'est le principal problème que j'ai avec les librairies de charts comme recharts et toute autre, mais si tu parviens à résoudre ça va.
 
 ✅ Si tu as un DESIGN CONTRACT : bg-[#hex] EXACT — jamais bg-gray-*, jamais text-blue-*
 ✅ Nav items h-[34px] max — ne pas gonfler les heights des menus
@@ -62,7 +61,7 @@ Arrondis un peu plus et tu me dis le degré d'arrondis choisi, prend un peu 7 à
 const BASE_SYSTEM_PROMPT = `
 Tu es un Principal Full-Stack Architect Next.js 15 / React 19 / TypeScript.
 
-
+${DESIGN_RULES}
 
 
 MARQUEUR DE PROGRESSION (obligatoire) :
