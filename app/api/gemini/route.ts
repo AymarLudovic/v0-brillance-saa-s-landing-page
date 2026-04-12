@@ -70,7 +70,8 @@ N'enlève ou n'oublie absolument aucun élément, ton rôle c'est de te concentr
 Ensuite, bien que tu rend fonctionnelle l'application avzc tes données mock data quand tu conçois une application, cela ne convainc pas l'utilisateur car il ne sais pas ce qui est fonctionnel ou pas si ce qu'il voit n'est juste que un résultat écrit. Même si
 tu créé toute les fonctionnalités nécessaire et qu'il ne reste que l'intégration d'une BD, et que tu as utilisé des mock data, ça ne montee en rien pour l'utilisateur que ça marche, il doit tester de lui même, d'où tu dois faire que l'application via son fonctionnement lui permet de tester, par exemple il peut "rajouter sa donnée et derrière un calcul sonc que tu as mis en place va se faire" , "il peut supprimer des choses, ajouter des choses etc"
 c'est ça que tu dois comprendre, car l'utilisateur aura toujours tendance à vouloir tester lui même son application.
-
+La searchbox doit ouvrir un modals qu'il soit en dropdown , au milieu de la page ou pas.
+L'application par défaut est en anglais.
 MARQUEUR DE PROGRESSION (obligatoire) :
 Quand tu commences à travailler sur quelque chose de précis, émets ce marqueur SUR UNE LIGNE SEULE :
 [WORKING_ON]Action courte — ex: "Création de la Navbar", "Correction du bug auth"[/WORKING_ON]
@@ -471,7 +472,62 @@ Return ONLY raw HTML inside this exact tag:
 Additional rules design: **For dashboard pages, for components searchbox, thier max height must be **32px**, thier radius must be contain between **8px and 10px**.
 **For the top bar of the section **main content** of an dashboard page or application page, thier max height must be **34px**, and not up to that. Same for buttons on them, they have to match height size of the top bar without touching his top and bottom so **32-33px** is good, and must be rounded up to **12px** or **24px** . Same for the Nav menu links in sidebar
 of an dashboard page or app pages, the max height is **32-33px**. The text of those mebus and icons must be **font-weight: semibold**. For **Dashboard icon** don't ever use "layout-dashboard icon" find another one. Even for bell icon for aler or notification use another one than the original bell icon of tabler icons
+**For the logo of the app, or dashboard pages, you must generate a logo base on this svg code: 
+**
 
+                        <svg
+  width="300"
+  height="240"
+  viewBox="0 0 1200 240"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+    
+>
+  <rect width="100%" height="100%" fill="transparent" />
+
+  {/* Text: Studi */}
+  <text
+    x="120"
+    y="150"
+    fontSize="100"
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fontWeight="400"
+    fill="#000000"
+    letterSpacing="-4"
+  >
+    
+  </text>
+
+  {/* Black tilted ellipse replacing the "o" */}
+  <ellipse
+    cx="420"
+    cy="120"
+    rx="58"
+    ry="32"
+    fill="#000000"
+    transform="rotate(-18 430 120)"
+  />
+
+  {/* Text: code */}
+  <text
+    x="500"
+    y="150"
+    fontSize="100"
+    fontFamily="Inter, Helvetica, Arial, sans-serif"
+    fontWeight="400"
+    fill="#000000"
+    letterSpacing="-4"
+  >
+    Studio.
+  </text>
+</svg>
+**
+It's in react but use it in html. You must avoid texte name for the logo to long like **Patrimoine**. The svg logo show you how long the text must be long, and de svg code path circle for ellipse, you must create 
+variants of that base on this one.
+
+**For table and tab in tableau, the tabs must be not so High in terms of height: 32 to 34px is enough. Text must be in inline and not in block, or collapse because the text is so long. They could use **...** if they are too long.
+Top bar of the main content section must gives some padding to is insode elements , to not be not separated to thzm in term of top and bottom. And the color of the top bar must also match with all the sidebar and rest of main content page.
+The default langage for the page is **English**.
 ${DESIGN_RULES}
 
 ⛔ AFTER </design_reference>: Write NOTHING. No TSX files. Focus only on the HTML.
