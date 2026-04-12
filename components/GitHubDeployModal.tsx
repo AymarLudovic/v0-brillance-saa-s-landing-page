@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader, Check, ArrowUp } from 'lucide-react';
 
 const DB_NAME = 'StudioCodeDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
