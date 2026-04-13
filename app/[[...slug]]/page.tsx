@@ -6437,9 +6437,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {!currentProject && (
     <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center">
-      <h2 className="text-5xl font-semibold text-[#37322F]">Build native web apps, fast.</h2>
+      <h2 className="text-5xl font-semibold text-[#37322F]">Build powerful web app (Fixing vibe coding issue bro 🙃).</h2>
       <p className="text-[rgba(55,50,47,0.6)] mt-2">
-        Rork builds complete, cross-platform mobile apps using AI and Expo (React Native).
+        Fixing some vibe coding issues that vibe coders have. Starting with design, build beautiful 
+          web app with an without image references
       </p>
       {/* Tu peux même mettre un bouton ici si tu veux */}
     </div>
@@ -6636,7 +6637,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               Modèle surchargé — retry {msg.streamRetrying.attempt}/{msg.streamRetrying.max}
             </span>
             <span style={{ fontSize: 11, color: "rgba(99,102,241,0.7)" }}>
-              Nouvelle tentative dans {msg.streamRetrying.delaySecs}s…
+              New retry in {msg.streamRetrying.delaySecs}s…
             </span>
           </div>
         </div>
