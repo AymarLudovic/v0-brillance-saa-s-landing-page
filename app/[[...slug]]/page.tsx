@@ -6342,9 +6342,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {!currentProject && (
     <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center">
-      <h2 className="text-5xl font-semibold text-[#37322F]">Build native web apps, fast.</h2>
+      <h2 className="text-5xl font-semibold text-[#37322F]">Build veautiful and powerful apps(Fixing vibe coding issues).</h2>
       <p className="text-[rgba(55,50,47,0.6)] mt-2">
-        Rork builds complete, cross-platform mobile apps using AI and Expo (React Native).
+        Build beautiful web apps without limits
       </p>
       {/* Tu peux même mettre un bouton ici si tu veux */}
     </div>
@@ -6541,7 +6541,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               Modèle surchargé — retry {msg.streamRetrying.attempt}/{msg.streamRetrying.max}
             </span>
             <span style={{ fontSize: 11, color: "rgba(99,102,241,0.7)" }}>
-              Nouvelle tentative dans {msg.streamRetrying.delaySecs}s…
+              retry in {msg.streamRetrying.delaySecs}s…
             </span>
           </div>
         </div>
@@ -7127,7 +7127,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
   
-  <label className="w-[30px] relative p-1 h-[30px] border border-[rgba(55,50,47,0.12)] rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-100">
+  <label className="w-[30px] relative p-1 h-[30px] border border-[rgba(55,50,47,0.12)] rounded-full hidden items-center justify-center cursor-pointer hover:bg-gray-100">
                 <Plus size={16} />
                 <input 
                     type="file" 
@@ -7224,42 +7224,12 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 <div className="flex items-center justify-between mb-2 px-1">
   <div className="flex items-center gap-2">
     <ModelSelector selected={selectedModel} onChange={setSelectedModel} />
-    <button
-      onClick={() => {
-        if (!isSaaSMode) {
-          // Si on l'active, on prévient l'utilisateur
-          addLog("🛠 Mode Architecte SaaS activé.");
-          startBuildSaasMode(chatInput);
-        } else {
-          setIsSaaSMode(false);
-          addLog("⏹ Mode SaaS interrompu.");
-        }
-      }}
-      disabled={loading}
-      className={`
-        flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-200
-        ${isSaaSMode 
-          ? 'bg-[#37322F] text-[#f6f4ec] border-[#37322F] shadow-md' 
-          : 'bg-white/50 text-[#37322F]/60 border-[rgba(55,50,47,0.1)] hover:border-[#37322F]/40'}
-      `}
-    >
-      {/* Petit indicateur d'état */}
-      <span className="relative flex h-2 w-2">
-        {isSaaSMode && (
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-        )}
-        <span className={`relative inline-flex rounded-full h-2 w-2 ${isSaaSMode ? 'bg-orange-500' : 'bg-gray-300'}`}></span>
-      </span>
-      
-      <span className="text-[10px] font-bold uppercase tracking-wider">
-        {isSaaSMode ? 'SaaS Build en cours...' : 'Activer Mode SaaS'}
-      </span>
-    </button>
+    
   </div>
 
   {/* Affichage discret du nombre de fichiers si un projet est chargé */}
   {currentProject && (
-    <span className="text-[10px] text-[#37322F]/40 font-medium">
+    <span className="text-[10px] hidden text-[#37322F]/40 font-medium">
       Projet: {currentProject.name} ({currentProject.files.length} fichiers)
     </span>
   )}
@@ -7275,7 +7245,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           if (reader) { try { reader.cancel(); } catch {} }
           isAiStreamingRef.current = false;
           setIsAiStreaming(false);
-          setLoading(false);
+          
           isStreamingRef.current = false;
         } else {
           handleSmartSend();
@@ -7625,7 +7595,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                       ? <Loader className="h-3 w-3 animate-spin" />
                       : <Zap className="h-3 w-3" />
                     }
-                    Create
+                  1-  Create
                     <ChevronRight className={`h-3 w-3 transition-transform duration-200 ${actionDropdownOpen ? 'rotate-90' : ''}`} />
                   </Button>
                   {actionDropdownOpen && (
@@ -7634,11 +7604,11 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                       onMouseLeave={() => setActionDropdownOpen(false)}
                     >
                       {([
-                        { action: 'create',   label: '⚡ Create',    disabled: loading },
-                        { action: 'addFiles', label: '📂 Add Files', disabled: loading || !sandboxId },
-                        { action: 'install',  label: '📦 Install',   disabled: loading || !sandboxId },
-                        { action: 'build',    label: '🔨 Build',     disabled: loading || !sandboxId },
-                        { action: 'start',    label: '▶ Start',      disabled: loading || !sandboxId },
+                        { action: 'create',   label: '1* ⚡ Create',    disabled: loading },
+                        { action: 'addFiles', label: '2* 📂 Add Files', disabled: loading || !sandboxId },
+                        { action: 'install',  label: '3* 📦 Install',   disabled: loading || !sandboxId },
+                        { action: 'build',    label: '4* 🔨 Build',     disabled: loading || !sandboxId },
+                        { action: 'start',    label: '6* ▶ Start',      disabled: loading || !sandboxId },
                       ] as const).map(({ action, label, disabled }) => (
                         <button
                           key={action}
