@@ -7339,7 +7339,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       }}
       disabled={loading}
       className={`
-        flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-200
+        hidden items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-200
         ${isSaaSMode 
           ? 'bg-[#37322F] text-[#f6f4ec] border-[#37322F] shadow-md' 
           : 'bg-white/50 text-[#37322F]/60 border-[rgba(55,50,47,0.1)] hover:border-[#37322F]/40'}
@@ -7361,7 +7361,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {/* Affichage discret du nombre de fichiers si un projet est chargé */}
   {currentProject && (
-    <span className="text-[10px] text-[#37322F]/40 font-medium">
+    <span className="text-[10px] hidden text-[#37322F]/40 font-medium">
       Projet: {currentProject.name} ({currentProject.files.length} fichiers)
     </span>
   )}
