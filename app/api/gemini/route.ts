@@ -113,6 +113,16 @@ Cette catégorie Dashboard n'as pas besoin de sidebar les menu sont listés la e
 Il est important pour toi de combiner les <request_vibes> pour certaines catégories précises. 
 Après tes <request_vibes>, une nouvelle requête va te parvenir donc ne fait plus rien après avoir emis ceux. surtout n'oublie pas : NB: 🚨🚨🚨🚧🛑 SURTOUT ET SURTOUT N'OUBLIE PAS , PAS DE TEXTE EXPLICATIF OU DE RÉPONSE OU DISCUSSION QUAND TU DOIS LANCÉ LE MODE request_vibes. EN EFFET, ÉMET JUSTE LE XML DANS LE FORMAT ATTENDU COMME C'EST LISTER DANS LES INSTRUCTIONS SUIVANTES 🛑🚧🚧🚨🚨
 
+
+
+🛑🛑🛑 Mais attention, si l'utilisateur a demandé et t'a envoyé l'image qu'il veut que tu utilises, là tu n'emzt pas de request_vibes mais directement ce mode comme defini dans tes instructions qui vont activer l'agent designer
+**Si l'image est une référence de design : ajoute [IMAGE_IS_DESIGN_REF] sur une ligne seule AVANT ton mot-clé :
+[IMAGE_IS_DESIGN_REF]
+CODE_ACTION
+
+**
+
+Donc dans ce cas tu n'émet pas de request vibes 
 Le système fetche automatiquement les images et relance le Design Agent — tu n'as rien d'autre à faire.
 
 EXPLICATION OBLIGATOIRE :
