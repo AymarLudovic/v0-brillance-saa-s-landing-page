@@ -6345,7 +6345,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       )}
 
         {/* ── Sidebar bottom: Token usage bar + API key ── */}
-        <div className="mt-auto p-2 border-t border-[rgba(55,50,47,0.07)] flex flex-col gap-2">
+        <div className="mt-auto p-2 border-t border-[rgba(55,50,47,0.07)] hidden flex-col gap-2">
           {/* Token usage bar */}
           <div className="px-1">
             <div className="flex items-center justify-between mb-1">
@@ -6535,11 +6535,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {!currentProject && (
     <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center">
-      <h2 className="text-5xl font-semibold text-[#37322F]">Build powerful web app (Fixing vibe coding issue bro 🙃).</h2>
-      <p className="text-[rgba(55,50,47,0.6)] mt-2">
-        Fixing some vibe coding issues that vibe coders have. Starting with design, build beautiful 
-          web app with an without image references
-      </p>
+      <h2 className="text-5xl font-semibold text-[#37322F]">Build remarkable web apps,<br />without compromise.</h2>
+  <p className="text-[rgba(55,50,47,0.6)] mt-2 max-w-md">
+    Studio handles the complexity so you can focus on the product. Design-first, code-precise — with or without a reference image.
+  </p>
       {/* Tu peux même mettre un bouton ici si tu veux */}
     </div>
   )}
@@ -7503,26 +7502,23 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   </div>
 
   <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
-    <button
-        onClick={() => toggleViewMode("chat")}
-        className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
-            viewMode === "chat" 
-                ? "bg-[#37322F] text-white font-semibold" 
-                : "bg-transparent text-gray-700"
-        }`}
-    >
-        Chat
+    {currentProject && (
+
+<button
+onClick={() => toggleViewMode("chat")}
+className={px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${ viewMode === "chat"  ? "bg-[#37322F] text-white font-semibold"  : "bg-transparent text-gray-700" }}
+>
+Chat
+  </button>
+    
+<button
+onClick={() => toggleViewMode("preview")}
+className={px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${ viewMode === "preview"  ? "bg-[#37322F] text-white font-semibold"  : " text-gray-700" }}
+>
+Preview
+
     </button>
-    <button
-        onClick={() => toggleViewMode("preview")}
-        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
-            viewMode === "preview" 
-                ? "bg-[#37322F] text-white font-semibold" 
-                : " text-gray-700"
-        }`}
-    >
-        Preview
-    </button>
+)}
 </div>
   
 </div>
@@ -8000,27 +7996,23 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
             
   <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
-    <button
-        onClick={() => toggleViewMode("chat")}
-        className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
-            viewMode === "chat" 
-                ? "bg-[#37322F] text-white font-semibold" 
-                : "bg-transparent text-gray-700"
-        }`}
-    >
-        Chat
+    {currentProject && (
+
+<button
+onClick={() => toggleViewMode("chat")}
+className={px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${ viewMode === "chat"  ? "bg-[#37322F] text-white font-semibold"  : "bg-transparent text-gray-700" }}
+>
+Chat
+  </button>
+
+<button
+onClick={() => toggleViewMode("preview")}
+className={px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${ viewMode === "preview"  ? "bg-[#37322F] text-white font-semibold"  : " text-gray-700" }}
+>
+Preview
+
     </button>
-    <button
-        onClick={() => toggleViewMode("preview")}
-        className={`px-1 w-1/2 py-1 rounded-r-lg transition-colors duration-200 ${
-            viewMode === "preview" 
-                ? "bg-[#37322F] text-white font-semibold" 
-                : " text-gray-700"
-        }`}
-    >
-        Preview
-    </button>
-</div>
+)}
       </div>
 
       {/* ---------- SIDEBAR OVERLAY ---------- */}
