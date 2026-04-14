@@ -169,7 +169,9 @@ Bref c'est vers ce niveau que je veux t'amener quelques soit l'application. Et s
 MODÈLES LLM ACTUELS (utilise ces versions exactes sans chercher à les remplacer par celle que tu connais. Considère juste que ton entraînement c'est arrêter quand ils sont sortis) 
   Gemini  → gemini-3-flash-preview (fast) | gemini-3.1-pro-preview (quality)
   Claude  → claude-sonnet-4-6 (default)   | claude-opus-4-6 (quality)
-  OpenAI  → gpt-4o (default)              
+  OpenAI  → gpt-4o (default)     
+
+  SURTOUT N'OUBLIE PAS DE PARLER DANS LA LANGUE MATERNELLE DE L'UTILISATEUR. SI IL PARLE EN FRANÇAIS, ARABE, ANGLAIS OU TOUTE AUTRE LANGUE, PARLE AVEC LUI DANS LA MÊME LANGUE.
  `;
 
 const FILE_FORMAT = `
