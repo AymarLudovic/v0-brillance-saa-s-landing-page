@@ -6345,10 +6345,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       )}
 
         {/* ── Sidebar bottom: Token usage bar + API key ── */}
-        <div className="mt-auto p-2 border-t border-[rgba(55,50,47,0.07)] flex flex-col gap-2">
+        <div className="mt-auto p-2 border-t border-[rgba(55,50,47,0.07)] hidden flex-col gap-2">
           {/* Token usage bar */}
           <div className="px-1">
-            <div className="flex items-center justify-between mb-1">
+            <div className="hidden items-center justify-between mb-1">
               <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(55,50,47,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tokens générés</span>
               <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: "rgba(55,50,47,0.55)", fontVariantNumeric: "tabular-nums" }}>
                 {sessionCandidateTokens > 0
@@ -6360,7 +6360,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               </span>
             </div>
             {/* Progress bar shows daily total usage vs 10M limit */}
-            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(55,50,47,0.08)" }}>
+            <div className="w-full h-1.5 hidden rounded-full overflow-hidden" style={{ background: "rgba(55,50,47,0.08)" }}>
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
@@ -6373,19 +6373,19 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 }}
               />
             </div>
-            <div className="flex items-center justify-between mt-0.5">
+            <div className="hidden items-center justify-between mt-0.5">
               <span style={{ fontSize: 9, color: "rgba(55,50,47,0.3)" }}>total: {dailyTokensUsed > 0 ? dailyTokensUsed.toLocaleString("fr-FR") : "0"}</span>
               <span style={{ fontSize: 9, color: "rgba(55,50,47,0.3)" }}>/ 10M aujourd'hui</span>
             </div>
             {dailyTokensUsed / DAILY_TOKEN_LIMIT > 0.8 && (
-              <p style={{ fontSize: 9, color: "#ef4444", marginTop: 2 }}>Usage élevé — reset à minuit</p>
+              <p className="hidden" style={{ fontSize: 9, color: "#ef4444", marginTop: 2 }}>Usage élevé — reset à minuit</p>
             )}
           </div>
 
           {/* API Key button */}
           <button
             onClick={() => setShowApiKeyPanel(v => !v)}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[rgba(55,50,47,0.06)] transition-colors"
+            className="w-full hidden items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[rgba(55,50,47,0.06)] transition-colors"
             style={{ color: "rgba(55,50,47,0.55)" }}
           >
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
@@ -6535,11 +6535,10 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {!currentProject && (
     <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center">
-      <h2 className="text-5xl font-semibold text-[#37322F]">Build powerful web app (Fixing vibe coding issue bro 🙃).</h2>
-      <p className="text-[rgba(55,50,47,0.6)] mt-2">
-        Fixing some vibe coding issues that vibe coders have. Starting with design, build beautiful 
-          web app with an without image references
-      </p>
+      <h2 className="text-5xl font-semibold text-[#37322F]">Build remarkable web apps,<br />without compromise.</h2>
+  <p className="text-[rgba(55,50,47,0.6)] mt-2 max-w-md">
+    Studio handles the complexity so you can focus on the product. Design-first, code-precise — with or without a reference image.
+  </p>
       {/* Tu peux même mettre un bouton ici si tu veux */}
     </div>
   )}
