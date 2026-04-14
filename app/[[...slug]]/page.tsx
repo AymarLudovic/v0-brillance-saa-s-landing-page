@@ -7083,7 +7083,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         </div>
 
 
-
+    </div>
 )}
 
 
@@ -8030,11 +8030,11 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     currentProject?.id === p.id ? "bg-[#F7F5F3] font-semibold" : "hover:bg-[#F7F5F3]"
   }`}
 >
-ll
-                </button>
-                <div className="text-sm">{p.name}</div>
+<div className="text-sm">{p.name}</div>
                 <div className="text-xs text-[rgba(55,50,47,0.6)]">{new Date(p.createdAt).toLocaleString()}</div>
               
+                </button>
+                
             </li>
           ))}
         </ul>
@@ -8190,7 +8190,7 @@ ll
         />
       )}
 
-            
+         </div>       
     </div>
   )
 }
