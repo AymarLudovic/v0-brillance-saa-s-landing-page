@@ -78,7 +78,7 @@ const PROVIDER_META = {
 };
 
 export default function ApiKeyModal({ provider = 'gemini', onKeySaved }: ApiKeyModalProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const [hasKey, setHasKey] = useState(false)
   const [isInputMode, setIsInputMode] = useState(false)
   const [inputValue, setInputValue] = useState("")
@@ -100,8 +100,9 @@ export default function ApiKeyModal({ provider = 'gemini', onKeySaved }: ApiKeyM
           key = localStorage.getItem("gemini_api_key");
           if (key) await saveApiKeyToIDB(key, 'gemini');
         }
-        if (key) { setHasKey(true); setIsOpen(false); setInputValue(key); onKeySaved?.(); }
-        else { setHasKey(false); }
+        if (key) { setHasKey(true); setInputValue(key); onKeySaved?.(); }
+else { setHasKey(false); }
+setIsOpen(true);
       } catch (e) { console.error("Erreur init Key:", e); }
     };
     checkKey();
