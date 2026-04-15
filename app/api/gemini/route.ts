@@ -993,11 +993,9 @@ export async function POST(req: Request) {
       return "English";
     };
 
-    const userLanguage = detectUserLanguage(lastUserText);
     const LANGUAGE_INSTRUCTION = `CRITICAL INSTRUCTION — LANGUAGE:
-The user is writing in ${userLanguage}. You MUST respond ENTIRELY in ${userLanguage}.
-Do NOT respond in French or any other language. Match the user's language exactly.
-Every single word of your response must be in ${userLanguage}.\n\n`;
+Detect the language the user is writing in and respond ENTIRELY in that same language.
+Never default to French. If the user writes in English, respond in English. If Japanese, respond in Japanese. If Arabic, respond in Arabic. Mirror the user's language exactly, always.\n\n`;
 
     // Collect all images (uploaded + reference)
     const allImages = [...(uploadedImages || []), ...(allReferenceImages || [])].slice(0, 4);
