@@ -7462,8 +7462,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       </div>
     </div>
   </div>
-
-  <div className={`${!currentProject ? "hidden" : "flex"} md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] `}>
+{currentProject && (
+  <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6]">
     <button
         onClick={() => toggleViewMode("chat")}
         className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
@@ -7486,7 +7486,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </button>
 </div>
 
-
+)}
 
 
 
@@ -7957,7 +7957,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           )}
         </div>
 
-            
+          {currentProject && (  
   <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
     <button
         onClick={() => toggleViewMode("chat")}
@@ -7980,6 +7980,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         Preview
     </button>
 </div>
+    )}
       </div>
 
       {/* ---------- SIDEBAR OVERLAY ---------- */}
