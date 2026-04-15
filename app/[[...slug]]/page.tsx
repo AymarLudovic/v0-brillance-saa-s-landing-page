@@ -6384,15 +6384,15 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
           {/* API Key button */}
           <button
-            onClick={() => setShowApiKeyPanel(v => !v)}
-            className="w-full hidden items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[rgba(55,50,47,0.06)] transition-colors"
+            onClick={() => setPendingApiKeyProvider(selectedModel.provider)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[rgba(55,50,47,0.06)] transition-colors"
             style={{ color: "rgba(55,50,47,0.55)" }}
           >
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
               <path d="M9 1L13 5L5 13L1 13L1 9L9 1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
               <circle cx="10.5" cy="3.5" r="0.5" fill="currentColor"/>
             </svg>
-            <span style={{ fontSize: 12, fontWeight: 500 }}>API Key</span>
+            <span style={{ fontSize: 12, fontWeight: 500 }}>Manage API Keys</span>
           </button>
           {showApiKeyPanel && (
             <ApiKeyInlinePanelSidebar onClose={() => setShowApiKeyPanel(false)} />
@@ -6731,7 +6731,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </svg>
           <div className="flex flex-col">
             <span style={{ fontSize: 12, color: "#6366f1", fontWeight: 600 }}>
-              Modèle surchargé — retry {msg.streamRetrying.attempt}/{msg.streamRetrying.max}
+              Model overloaded — retry {msg.streamRetrying.attempt}/{msg.streamRetrying.max}
             </span>
             <span style={{ fontSize: 11, color: "rgba(99,102,241,0.7)" }}>
               New retry in {msg.streamRetrying.delaySecs}s…
