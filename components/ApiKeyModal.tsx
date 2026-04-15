@@ -127,7 +127,7 @@ export default function ApiKeyModal({ provider = 'gemini', onKeySaved }: ApiKeyM
 
   if (!isOpen) {
     return (
-      <button onClick={openModal} className="fixed bottom-4 right-4 z-40 px-4 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg text-xs text-[#e4e4e4] hover:text-white transition-colors flex items-center gap-2">
+      <button onClick={openModal} className="hidden bottom-4 right-4 z-40 px-4 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg text-xs text-[#e4e4e4] hover:text-white transition-colors flex items-center gap-2">
         <ShieldSecurity size={16} variant="Bold" />
         {provider === 'anthropic' ? 'Anthropic API Key' : 'Gemini API Key'}
       </button>
