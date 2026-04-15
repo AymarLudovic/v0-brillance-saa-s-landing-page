@@ -1859,10 +1859,10 @@ function AuthModal({ onClose }: { onClose?: () => void }) {
           {error && <p className="text-xs text-red-500 -mt-2">{error}</p>}
           <button onClick={() => doAuth(() => mode==='login' ? signInWithEmailAndPassword(_fbAuth,email,password) : createUserWithEmailAndPassword(_fbAuth,email,password))}
             disabled={loading||!email||!password} className="w-full h-10 bg-[#37322F] hover:bg-[rgba(55,50,47,0.85)] disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
-            {loading ? 'Chargement...' : mode==='login' ? 'Se connecter' : 'Créer un compte'}
+            {loading ? 'loading...' : mode==='login' ? 'login' : 'Create account'}
           </button>
           <p className="text-center text-xs text-[#37322F]/50">
-            {mode==='login' ? "Pas de compte ? " : "Déjà un compte ? "}
+            {mode==='login' ? "No account ? " : "Already an account? "}
             <button onClick={()=>setMode(mode==='login'?'signup':'login')} className="text-[#37322F] font-semibold hover:underline">{mode==='login'?'S\'inscrire':'Se connecter'}</button>
           </p>
         </div>
