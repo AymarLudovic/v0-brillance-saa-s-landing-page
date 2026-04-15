@@ -7297,7 +7297,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   className="h-full w-full pl-3 text-[18px] font-semibold border-none outline-none resize-none bg-none"
   style={{ opacity: quotaResetAt && quotaResetAt > Date.now() ? 0.3 : 1 }}
   value={chatInput}
-  onChange={(e) => setChatInput(e.target.value)}
+  onChange={async (e) => {
+  setChatInput(e.target.value);
+  if (e.target.value.length === 1 && chatInput.length === 0) {
+    const key = await getApiKeyFromIDB(selectedModel.provider);
+    if (!key) setPendingApiKeyProvider(selectedModel.provider);
+  }
+}}
   onKeyDown={(e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
