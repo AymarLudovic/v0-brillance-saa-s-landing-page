@@ -100,14 +100,12 @@ export default function ApiKeyModal({ provider = 'gemini', onKeySaved }: ApiKeyM
           if (key) await saveApiKeyToIDB(key, 'gemini');
         }
         if (key) {
-          setHasKey(true);
-          setInputValue(key);
-          // Clé déjà présente : on ferme immédiatement (parent démonte)
-          onKeySaved?.();
-        } else {
-          setHasKey(false);
-          // Pas de clé : le modal reste affiché (déjà monté par le parent)
-        }
+  setHasKey(true);
+  setInputValue(key);
+  // On pré-remplit l'input mais on NE ferme PAS — l'utilisateur veut peut-être changer sa clé
+} else {
+  setHasKey(false);
+      }
       } catch (e) { console.error("Erreur init Key:", e); }
     };
     checkKey();
