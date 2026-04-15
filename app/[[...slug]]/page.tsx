@@ -6329,7 +6329,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
             className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-100 text-gray-400 hover:text-red-600 rounded-md transition-all"
             title="Delete project"
           >
-            <Trash2 size={14} />
+            <Trash2 size={14} color="#000" />
           </button>
         </div>
       ))}
@@ -6345,7 +6345,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
       )}
 
         {/* ── Sidebar bottom: Token usage bar + API key ── */}
-        <div className="mt-auto p-2 border-t border-[rgba(55,50,47,0.07)] hidden flex-col gap-2">
+        <div className="mt-auto p-2 border-t border-[rgba(55,50,47,0.07)] flex flex-col gap-2">
           {/* Token usage bar */}
           <div className="px-1">
             <div className="hidden items-center justify-between mb-1">
@@ -6526,7 +6526,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
        
       </div>
           <div className="cursor-pointer">
-            <svg className="h-[20px] w-[20px] fill-[#212121]" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg className="h-[20px] w-[20px] fill-[#000]" width="24" height="24" viewBox="0 0 24 24" fill="#000" xmlns="http://www.w3.org/2000/svg">
 <path d="M2 7.25C2 5.45507 3.45507 4 5.25 4H18.75C20.5449 4 22 5.45507 22 7.25V16.75C22 18.5449 20.5449 20 18.75 20H5.25C3.45508 20 2 18.5449 2 16.75V7.25ZM9.5 5.5V18.5H18.75C19.7165 18.5 20.5 17.7165 20.5 16.75V7.25C20.5 6.2835 19.7165 5.5 18.75 5.5H9.5ZM8 5.5H5.25C4.2835 5.5 3.5 6.2835 3.5 7.25V16.75C3.5 17.7165 4.2835 18.5 5.25 18.5H8V5.5Z" fill="#ffffff"/>
 </svg>
           </div>
@@ -7326,7 +7326,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
   
-  <label className="w-[30px] relative p-1 h-[30px] border border-[rgba(55,50,47,0.12)] rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-100">
+  <label className="w-[30px] relative p-1 h-[30px] border border-[rgba(55,50,47,0.12)] rounded-full hidden items-center justify-center cursor-pointer hover:bg-gray-100">
                 <Plus size={16} />
                 <input 
                     type="file" 
@@ -7495,7 +7495,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   </div>
 
   <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
-    <button
+     {currentProject && (
+      <button
         onClick={() => toggleViewMode("chat")}
         className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
             viewMode === "chat" 
@@ -7515,6 +7516,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     >
         Preview
     </button>
+    )}
 </div>
   
 </div>
@@ -7992,7 +7994,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
             
   <div className="flex md:hidden justify-center items-center border border-[rgba(55,50,47,0.12)]  w-full rounded-[12px] mb-3 bg-[#fffcf6] ">
-    <button
+    {currentProject && (
+      <button
         onClick={() => toggleViewMode("chat")}
         className={`px-1 w-1/2 py-1  rounded-l-[12px] transition-colors duration-200 ${
             viewMode === "chat" 
@@ -8012,6 +8015,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     >
         Preview
     </button>
+        )}
 </div>
       </div>
 <ApiKeyModal />
