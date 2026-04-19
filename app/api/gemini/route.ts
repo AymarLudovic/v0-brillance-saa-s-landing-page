@@ -167,7 +167,7 @@ CRITICAL BUILD RULES — READ BEFORE WRITING ANY CODE
 ❌ NEVER produce a component file that doesn't have "use client" when it uses
    JSX with hooks OR when it uses HTML5 semantic elements like <aside>, <section>,
    <article>, <nav>, <header>, <footer> inside a function that returns JSX.
-   Next.js will fail to compile with: "Unexpected token `aside`. Expected jsx identifier"
+   Next.js will fail to compile with: "Unexpected token \`aside\`. Expected jsx identifier"
    if the file is treated as a Server Component but returns JSX with certain tags.
    - RULE: Any .tsx file with useState, useEffect, useRef, useCallback, or event handlers
      (onClick, onChange, etc.) MUST have "use client" as the very first line.
