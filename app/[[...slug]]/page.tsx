@@ -6718,8 +6718,8 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
   {!currentProject && (
     <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center">
-      <h2 className="text-5xl font-semibold text-[#37322F]">Build remarkable web apps,<br />without compromise.</h2>
-  <p className="text-[rgba(55,50,47,0.6)] mt-2 max-w-md">
+      <h2 className="text-5xl font-semibold text-[#37322F]">Got an Idea ? Build it.</h2>
+  <p className="hidden text-[rgba(55,50,47,0.6)] mt-2 max-w-md">
     Studio handles the complexity so you can focus on the product. Design-first, code-precise — with or without a reference image.
   </p>
       {/* Tu peux même mettre un bouton ici si tu veux */}
@@ -6886,7 +6886,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 <path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
               <span style={{ fontSize: 12, color: "rgba(55,50,47,0.45)", fontStyle: "italic" }}>
-                Selecting design references…
+                Elaborating app design....
               </span>
             </div>
           )}
@@ -7251,7 +7251,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         const mm = Math.floor((remaining % 3600000) / 60000);
         const isAnthropicModel = selectedModel.provider === 'anthropic';
         return (
-          <div className="w-full mt-2 rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(55,50,47,0.10)", background: "#f7f4ed" }}>
+          <div className="w-full mt-2 rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(55,50,47,0.10)", background: "rgba(55,50,47,0.07)" }}>
             <div className="flex items-start gap-3 px-4 py-3">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 mt-0.5" style={{ color: "#37322F", opacity: 0.5 }}>
                 <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4"/>
@@ -7315,7 +7315,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <div className="relative p-2 flex flex-col h-[150px] md:h-[150px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#f7f4ed] w-full">
+    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[rgba(55,50,47,0.07)] w-full">
         
      <div className="w-full h-full flex items-center justify-center">
          {(uploadedImages.length > 0 || uploadedFiles.length > 0 || mentionedFiles.length > 0) && (
@@ -7370,7 +7370,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
 )}
            
-        <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[#f6f3ec] gap-1">
+        <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[rgba(55,50,47,0.07)] gap-1">
         
         {/* BOUTON/INPUT CLONE WEBSITE */}
         {!isCloning ? (
@@ -7501,7 +7501,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
-    <div className="w-full p-4 bg-[#f7f4ed] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[#f6f3ec] p-[2px] flex items-center justify-between gap-1">
+    <div className="w-full p-4 bg-[rgba(55,50,47,0.07)] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[#f6f3ec] p-[2px] flex items-center justify-between gap-1">
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
@@ -7941,7 +7941,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
               {/* SECTION PRÉVISUALISATION (IFRAME) */}
-              <div className="flex-grow bg-[#f6f4ec] w-full rounded-[14px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full overflow-hidden relative">
+              <div className="flex-grow bg-[rgba(55,50,47,0.07)] w-full rounded-[14px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full overflow-hidden relative">
 
                 {/* ── Topbar progress loader (shows during any runSequence) ── */}
                 {isRunning && buildSteps.length > 0 && (
