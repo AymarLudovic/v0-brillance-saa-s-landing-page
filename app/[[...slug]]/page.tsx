@@ -7370,7 +7370,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
 )}
            
-        <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t border-l border-r border-[rgba(55,50,47,0.07)] gap-1">
+        <div className="w-full p-2 pl-1 rounded-t-[25px]  h-full p-[2px] flex items-center border-t-[1.5px] border-l-[1.5px] border-r-[1.5px] border-[#f3f3f1] gap-1">
         
         {/* BOUTON/INPUT CLONE WEBSITE */}
         {!isCloning ? (
@@ -7455,7 +7455,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full bg-[#f7f4ed] min-h-[80px] flex-1 border-b-none border-l border-r border-[#f6f3ec] relative">
+    <div className="w-full bg-[#f7f4ed] min-h-[80px] flex-1 border-b-none border-l-[1.5px] border-r-[1.5px] border-[#f3f3f1] relative">
 
   {/* Hint quota — s'affiche par-dessus le textarea si quota actif */}
   {quotaResetAt && quotaResetAt > Date.now() && (
@@ -7501,7 +7501,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
-    <div className="w-full p-4 bg-[#f7f4ed] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[#f6f3ec] p-[2px] flex items-center justify-between gap-1">
+    <div className="w-full p-4 bg-[#f7f4ed] rounded-b-[25px] h-[20%] border-b-[1.5px] border-l-[1.5px] border-r-[1.5px] border-t-none border-[#f3f3f1] p-[2px] flex items-center justify-between gap-1">
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
@@ -7526,7 +7526,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
                 />
             </label>
   <label className="flex pr-1 items-center gap-1  cursor-pointer">
-    <div className="h-[30px] bg-[rgba(55,50,47,0.12)] w-[30px] rounded-full justify-center  flex text-[17px] items-center gap-[3px]">
+    <div className="h-[30px] left-[3px] relative bottom-[4px] bg-white border-[1.5px] border-[#f3f3f1] w-[30px] rounded-full justify-center  flex text-[17px] items-center gap-[3px]">
         {/* L'icône du bouton d'upload (utiliser un simple SVG ou une icône) */}
         <ImagePlus size={18} />
       
