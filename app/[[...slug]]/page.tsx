@@ -6476,8 +6476,9 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   // LE RETURN DU JSX (ne pas mettre d'accolade fermante avant !)
   // -------------------
   return (
-    <div className={`flex h-screen bg-[#fbfbf9] font-sans text-[#37322F] ${!currentProject ? "flex-col-reverse justify-center items-center gap-6" : "flex-row"}`}
-        >
+    
+<div className="flex flex-row h-screen bg-[#fbfbf9] font-sans text-[#37322F]">
+                
       
         
 
