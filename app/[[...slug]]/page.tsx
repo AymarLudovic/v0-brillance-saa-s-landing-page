@@ -6875,7 +6875,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 
 
   {!currentProject && (
-    <div className="flex-1 w-full flex flex-col items-center justify-center p-8 text-center">
+    <div className="flex-1 h-screen overflow-hidden w-full flex flex-col items-center justify-center p-8 text-center">
       <h2 className="text-5xl font-semibold text-[#37322F]">Got an Idea ? Build it.</h2>
     </div>
   )}
