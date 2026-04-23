@@ -7315,7 +7315,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <div className="relative p-2 flex flex-col h-[150px] md:h-[150px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#fcfbf8] w-full">
+    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#f7f4ed] w-full">
         
      <div className="w-full h-full flex items-center justify-center">
          {(uploadedImages.length > 0 || uploadedFiles.length > 0 || mentionedFiles.length > 0) && (
@@ -7455,7 +7455,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full bg-[#fcfbf8] min-h-[80px] flex-1 border-b-none border-l border-r border-[#f6f3ec] relative">
+    <div className="w-full bg-[#f7f4ed] min-h-[80px] flex-1 border-b-none border-l border-r border-[#f6f3ec] relative">
 
   {/* Hint quota — s'affiche par-dessus le textarea si quota actif */}
   {quotaResetAt && quotaResetAt > Date.now() && (
@@ -7501,13 +7501,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
-    <div className="w-full p-4 bg-[#fcfbf8] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[#f6f3ec] p-[2px] flex items-center justify-between gap-1">
+    <div className="w-full p-4 bg-[#f7f4ed] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[#f6f3ec] p-[2px] flex items-center justify-between gap-1">
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
 <div className="mb-1 pl-1 p-2 flex items-center gap-2">
     <div 
-        className="w-[22px] relative -bottom-[3px] p-1 h-[22px] border border-black rounded-[8px] hidden items-center justify-center cursor-pointer hover:bg-gray-100"
+        className="w-[22px] cursor-pointer left-[3px] relative bottom-[4px] p-1 h-[22px] border border-black rounded-[8px] hidden items-center justify-center cursor-pointer hover:bg-gray-100"
         onClick={() => setIsPlusDropdownOpen(!isPlusDropdownOpen)}
     >
         <Plus size={16} />
@@ -7654,7 +7654,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
 </div>
                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
         <Button
-      className=" bg-[#37322F] mb-1 -ml-[8px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[30px] rounded-full flex items-center justify-center p-1"
+      className=" bg-[#37322F] relative bottom-[4px] right-[3px] hover:bg-[rgba(55,50,47,0.90)] text-white h-[30px] w-[30px] rounded-full flex items-center justify-center p-1"
       onClick={() => {
         if (isAiStreaming) {
           // Cancel AI stream only — does NOT touch runSequence (loading)
@@ -7935,13 +7935,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </div>
         </div>
 
-        <div className="w-full h-[calc(100%-64px)] bg-[#fbfaf7] flex flex-col">
+        <div className="w-full h-[calc(100%-64px)] bg-[#f7f4ed] flex flex-col">
 
         
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
               {/* SECTION PRÉVISUALISATION (IFRAME) */}
-              <div className="flex-grow bg-[#fbfaf7] w-full rounded-[14px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full overflow-hidden relative">
+              <div className="flex-grow bg-[#f7f4ed] w-full rounded-[14px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full overflow-hidden relative">
 
                 {/* ── Topbar progress loader (shows during any runSequence) ── */}
                 {isRunning && buildSteps.length > 0 && (
@@ -8075,7 +8075,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
               </div>
 
               {/* BARRE D'ACTIONS — auto-run actif, bouton Run masqué */}
-              <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-[#fffcf6] border-t border-[rgba(55,50,47,0.06)]">
+              <div className="flex-shrink-0 hidden items-center gap-2 px-3 py-1.5 bg-[#fffcf6] border-t border-[rgba(55,50,47,0.06)]">
                 <Button
                   variant="ghost"
                   size="icon"
