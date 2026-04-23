@@ -7315,7 +7315,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   <div className="relative p-2 flex flex-col h-[150px] md:h-[150px]">
     
     {/* ZONE DES BOUTONS DE COMMANDE / INPUT DE CLONAGE */}
-    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[rgba(55,50,47,0.07)] w-full">
+    <div className="flex flex-col h-[20%] rounded-t-[25px] bg-[#fcfbf8] w-full">
         
      <div className="w-full h-full flex items-center justify-center">
          {(uploadedImages.length > 0 || uploadedFiles.length > 0 || mentionedFiles.length > 0) && (
@@ -7455,7 +7455,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* ZONE DE SAISIE DE CHAT */}
-    <div className="w-full bg-[#f7f4ed] min-h-[80px] flex-1 border-b-none border-l border-r border-[#f6f3ec] relative">
+    <div className="w-full bg-[#fcfbf8] min-h-[80px] flex-1 border-b-none border-l border-r border-[#f6f3ec] relative">
 
   {/* Hint quota — s'affiche par-dessus le textarea si quota actif */}
   {quotaResetAt && quotaResetAt > Date.now() && (
@@ -7476,7 +7476,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   )}
 
   <textarea
-  placeholder={currentProject ? "Describe what to build..." : "Describe a new project to start..."}
+  placeholder={currentProject ? "Describe what to build..." : "Ask to Studio something..."}
   className="h-full w-full pl-3 text-[18px] font-semibold border-none outline-none resize-none bg-none"
   style={{ opacity: quotaResetAt && quotaResetAt > Date.now() ? 0.3 : 1 }}
   value={chatInput}
@@ -7501,7 +7501,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
     </div>
     
     {/* PIED DE PAGE DE CHAT */}
-    <div className="w-full p-4 bg-[rgba(55,50,47,0.07)] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[#f6f3ec] p-[2px] flex items-center justify-between gap-1">
+    <div className="w-full p-4 bg-[#fcfbf8] rounded-b-[25px] h-[20%] border-b border-l border-r border-t-none border-[#f6f3ec] p-[2px] flex items-center justify-between gap-1">
         
 
 {/* 1. BOUTON PLUS (UPLOAD FICHIERS ET SCREENSHOT) */}
@@ -7935,13 +7935,13 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
           </div>
         </div>
 
-        <div className="w-full h-[calc(100%-64px)] bg-[#fffcf6] flex flex-col">
+        <div className="w-full h-[calc(100%-64px)] bg-[#fbfaf7] flex flex-col">
 
         
           {activeTab === "preview" ? (
             <div className="flex-grow flex flex-col overflow-hidden w-full h-full">
               {/* SECTION PRÉVISUALISATION (IFRAME) */}
-              <div className="flex-grow bg-[rgba(55,50,47,0.07)] w-full rounded-[14px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full overflow-hidden relative">
+              <div className="flex-grow bg-[#fbfaf7] w-full rounded-[14px] p-1 border-[rgba(55,50,47,0.12)] m-1 h-full overflow-hidden relative">
 
                 {/* ── Topbar progress loader (shows during any runSequence) ── */}
                 {isRunning && buildSteps.length > 0 && (
