@@ -1904,7 +1904,7 @@ function ShowcaseSlider({ slides }: { slides: ShowcaseSlideItem[] }) {
   );
 
   return (
-    <div style={{ width: '100%', padding: '0 0 24px' }}>
+    <div className="flex mt-3 flex-col gap-2 items-center justify-center" style={{ width: '100%', padding: '0 0 24px' }}>
       <style>{`
         @keyframes sc-fade-in  { from { opacity:0; transform:scale(0.96) translateY(6px) } to { opacity:1; transform:scale(1) translateY(0) } }
         @keyframes sc-fade-out { from { opacity:1; transform:scale(1) translateY(0) } to { opacity:0; transform:scale(0.96) translateY(-6px) } }
@@ -1912,7 +1912,7 @@ function ShowcaseSlider({ slides }: { slides: ShowcaseSlideItem[] }) {
         .sc-card-out { animation: sc-fade-out 0.48s cubic-bezier(0.4,0,0.2,1) forwards; }
       `}</style>
 
-      <p style={{ fontSize: 11, fontWeight: 600, color: 'rgba(55,50,47,0.35)', letterSpacing: '0.09em', textTransform: 'uppercase', marginBottom: 12, paddingLeft: 4 }}>
+      <p style={{ fontSize: 24, fontWeight: 600, color: 'rgba(55,50,47,0.35)', letterSpacing: '0.09em', textTransform: 'uppercase', marginBottom: 12, paddingLeft: 4 }}>
         What you can build
       </p>
 
@@ -1939,11 +1939,11 @@ function ShowcaseSlider({ slides }: { slides: ShowcaseSlideItem[] }) {
                 <img src={slide.imageUrl} alt={slide.title}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               ) : (
-                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,#2a2a2a,#444)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,#2a2a2a,#444)', display: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>{slide.category}</span>
                 </div>
               )}
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: isCenter ? '14px' : '10px' }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%)', display: 'hidden', flexDirection: 'column', justifyContent: 'flex-end', padding: isCenter ? '14px' : '10px' }}>
                 <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{slide.category}</span>
                 <div style={{ fontSize: isCenter ? 14 : 11, fontWeight: 700, color: '#fff', marginTop: 2, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slide.title}</div>
               </div>
@@ -6441,7 +6441,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   className={`
   flex flex-col bg-[#fbfbf9] border-[rgba(55,50,47,0.12)] transition-all duration-300 overflow-x-hidden
   ${!currentProject 
-    ? `h-full w-full flex flex-col items-center justify-center bg-transparent border-none ${showProjectSelect ? "w-full " : "w-full"}`
+    ? `h-full w-full bg-transparent border-none ${showProjectSelect ? "w-full " : "w-full"}`
     : "h-full md:w-[40%] md:flex"
   }
   ${currentProject ? (viewMode === "chat" ? "w-full flex flex-col" : "hidden md:flex md:flex-col") : "flex"}
