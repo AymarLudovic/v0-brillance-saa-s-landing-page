@@ -6441,7 +6441,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
   className={`
   flex flex-col bg-[#fbfbf9] border-[rgba(55,50,47,0.12)] transition-all duration-300 overflow-x-hidden
   ${!currentProject 
-    ? `h-full flex flex-col items-center justify-center bg-transparent border-none ${showProjectSelect ? "w-full pl-[270px]" : "w-full"}`
+    ? `h-full w-full flex flex-col items-center justify-center bg-transparent border-none ${showProjectSelect ? "w-full " : "w-full"}`
     : "h-full md:w-[40%] md:flex"
   }
   ${currentProject ? (viewMode === "chat" ? "w-full flex flex-col" : "hidden md:flex md:flex-col") : "flex"}
