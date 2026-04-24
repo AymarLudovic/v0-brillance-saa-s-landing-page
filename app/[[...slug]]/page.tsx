@@ -1912,7 +1912,7 @@ function ShowcaseSlider({ slides }: { slides: ShowcaseSlideItem[] }) {
         .sc-card-out { animation: sc-fade-out 0.48s cubic-bezier(0.4,0,0.2,1) forwards; }
       `}</style>
 
-      <p style={{ fontSize: 24, fontWeight: 600, color: 'rgba(55,50,47,0.35)', letterSpacing: '0.09em', textTransform: 'uppercase', marginBottom: 12, paddingLeft: 4 }}>
+      <p style={{ fontSize: 24, fontWeight: 600, color: 'rgba(55,50,47,0.35)', letterSpacing: '0.09em', textTransform: 'lowercase', marginBottom: 12, paddingLeft: 4 }}>
         What you can build
       </p>
 
@@ -1944,8 +1944,8 @@ function ShowcaseSlider({ slides }: { slides: ShowcaseSlideItem[] }) {
                 </div>
               )}
               <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%)', display: 'hidden', flexDirection: 'column', justifyContent: 'flex-end', padding: isCenter ? '14px' : '10px' }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{slide.category}</span>
-                <div style={{ fontSize: isCenter ? 14 : 11, fontWeight: 700, color: '#fff', marginTop: 2, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slide.title}</div>
+                <span className="hidden" style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{slide.category}</span>
+                <div className="hidden" style={{ fontSize: isCenter ? 14 : 11, fontWeight: 700, color: '#fff', marginTop: 2, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slide.title}</div>
               </div>
             </div>
           );
@@ -6450,7 +6450,7 @@ const pollVercelLogs = async (deploymentId: string, token: string, url: string) 
         
 
         {showProjectSelect && (
-    <div data-sidebar className="fixed z-50 top-0 left-0 bg-[#fbfbf9]  border border-[rgba(55,50,47,0.08)]   w-[260px] h-full overflow-y-auto flex flex-col p-1">
+    <div data-sidebar className="fixed z-50 top-0 left-0 bg-[#fbfbf9]  border border-[rgba(55,50,47,0.08)] w-[260px]  md:max-w-[260px] h-full overflow-y-auto flex flex-col p-1">
 
     
 <div className="w-full h-auto flex flex-col gap-2">
