@@ -93,7 +93,7 @@ const ANTHROPIC_STEPS = [
 
 const PROVIDER_META = {
   gemini: {
-    badge: 'FREE',
+    badge: 'Gemini api key its free . don't worry ',
     badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     title: 'Connect Gemini',
     subtitle: 'Get started for free in 2 minutes',
