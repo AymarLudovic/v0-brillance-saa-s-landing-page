@@ -93,10 +93,10 @@ const ANTHROPIC_STEPS = [
 
 const PROVIDER_META = {
   gemini: {
-    badge: 'Gemini api key its free . don't worry ',
+    badge: 'Free',
     badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     title: 'Connect Gemini',
-    subtitle: 'Get started for free in 2 minutes',
+    subtitle: 'Get started for free. Gemini api key its free, follow step',
     tagline: '100% Free · No credit card required',
     placeholder: 'AIza...',
     getKeyUrl: 'https://aistudio.google.com/app/apikey',
