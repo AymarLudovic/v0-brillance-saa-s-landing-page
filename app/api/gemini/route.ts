@@ -195,7 +195,7 @@ CRITICAL BUILD RULES — READ BEFORE WRITING ANY CODE
    If app/page.tsx contains: import Navbar from '@/components/Navbar'
    Then components/Navbar.tsx MUST be emitted as a <create_file> block in the SAME response.
    A missing component file = webpack "Module not found" error = broken Vercel build.
-   RULE: For every `import X from '@/components/Y'` or `import X from '../components/Y'`
+   RULE: For every \`import X from '@/components/Y'\` or \`import X from '../components/Y'\`
    in any file you write, you MUST emit a corresponding <create_file path="components/Y.tsx"> block.
    If you are unsure you can create all required files, write everything inline in app/page.tsx instead.
    NEVER reference a component file that you did not explicitly create in the same response.
