@@ -38,32 +38,34 @@ export default function Home() {
   const prevBlobUrl = useRef<string | null>(null)
 
   const buildFullDocument = useCallback((data: AnalyzeResult): string => {
+    let baseHref = ""
+    try { baseHref = new URL(url).href } catch { baseHref = "" }
+
     return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  ${data.viewportTag}
+  ${data.viewportTag ?? '<meta name="viewport" content="width=device-width, initial-scale=1">'}
+  ${baseHref ? `<base href="${baseHref}">` : ""}
   <style>
-    /* Reset box-sizing pour cohérence */
     *, *::before, *::after { box-sizing: border-box; }
-    ${data.fullCSS}
+    ${data.fullCSS ?? ""}
   </style>
 </head>
 <body>
-  ${data.fullHTML}
+  ${data.fullHTML ?? ""}
   <script>
-    // Patch pour éviter les erreurs de navigation
     try {
       window.history.pushState = function() {};
       window.history.replaceState = function() {};
     } catch(e) {}
   </script>
   <script>
-    ${data.fullJS}
+    ${data.fullJS ?? ""}
   </script>
 </body>
 </html>`
-  }, [])
+  }, [url])
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
@@ -190,12 +192,12 @@ export default function Home() {
         <div className="controls-bar">
           <div className="stats-row">
             <span className="stat-chip css">
-              🎨 CSS: {result.stats.cssFilesCount} fichiers + {result.stats.cssInlineCount} inline
-              <em>{result.stats.totalCssSize} KB</em>
+              🎨 CSS: {result.stats?.cssFilesCount ?? 0} fichiers + {result.stats?.cssInlineCount ?? 0} inline
+              <em>{result.stats?.totalCssSize ?? 0} KB</em>
             </span>
             <span className="stat-chip js">
-              ⚙️ JS: {result.stats.jsFilesCount} fichiers + {result.stats.jsInlineCount} inline
-              <em>{result.stats.totalJsSize} KB</em>
+              ⚙️ JS: {result.stats?.jsFilesCount ?? 0} fichiers + {result.stats?.jsInlineCount ?? 0} inline
+              <em>{result.stats?.totalJsSize ?? 0} KB</em>
             </span>
           </div>
 
@@ -331,4 +333,4 @@ export default function Home() {
       `}</style>
     </div>
   )
-}
+  }
