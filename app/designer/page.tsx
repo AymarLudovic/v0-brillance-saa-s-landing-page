@@ -4,11 +4,10 @@ import { useState, useRef, useCallback } from "react"
 
 interface AnalyzeResult {
   success: boolean
-  headContent: string
-  bodyContent: string
+  fullHTML: string
+  fullCSS: string
+  fullJS: string
   viewportTag: string
-  baseUrl: string
-  origin: string
   stats: {
     cssFilesCount: number
     cssFilesFound: number
@@ -43,9 +42,61 @@ export default function Home() {
   const prevBlobUrl = useRef<string | null>(null)
 
   const buildFullDocument = useCallback((data: AnalyzeResult): string => {
-    return `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  ${data.viewportTag ?? '<meta name="viewport" content="width=device-width, initial-scale=1">'}\n  <base href="${data.baseUrl}">\n  ${data.headContent ?? ""}\n</head>\n<body>\n  ${data.bodyContent ?? ""}\n</body>\n</html>`
-  }, [])
+    let baseHref = ""
+    try { baseHref = new URL(url).href } catch { baseHref = "" }
 
+    const safeJS = (data.fullJS ?? "").replace(/<\/script>/gi, "<\\/script>")
+    const safeCSS = (data.fullCSS ?? "").replace(/<\/style>/gi, "<\\/style>")
+
+    // Patches injectés AVANT le JS du site pour éviter les blocages courants :
+    // 1. Détection iframe (window.top !== window.self) → sites comme Pinterest refusent de rendre
+    // 2. window.location → certains SPAs redirigent si le hostname ne correspond pas
+    // 3. console.error silencieux pour éviter les crashs d'erreurs non-fatales
+    const origin = baseHref ? new URL(baseHref).origin : ""
+    const hostname = baseHref ? new URL(baseHref).hostname : ""
+    const patchScript = `
+      (function() {
+        // Patch 1: neutraliser la détection iframe
+        try {
+          Object.defineProperty(window, 'top', { get: function() { return window; }, configurable: true });
+          Object.defineProperty(window, 'parent', { get: function() { return window; }, configurable: true });
+          Object.defineProperty(window, 'frameElement', { get: function() { return null; }, configurable: true });
+        } catch(e) {}
+        // Patch 2: spoofer window.location pour les SPAs qui vérifient le hostname
+        try {
+          var _loc = window.location;
+          Object.defineProperty(window, 'location', {
+            get: function() { return _loc; },
+            configurable: true
+          });
+        } catch(e) {}
+        // Patch 3: navigation sans crash
+        try {
+          window.history.pushState = function() {};
+          window.history.replaceState = function() {};
+        } catch(e) {}
+        // Patch 4: opener null (certains scripts vérifient window.opener)
+        try { window.opener = null; } catch(e) {}
+      })();
+    `
+
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  ${data.viewportTag ?? '<meta name="viewport" content="width=device-width, initial-scale=1">'}
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    ${safeCSS}
+  </style>
+</head>
+<body>
+  ${data.fullHTML ?? ""}
+  <script>${patchScript}</script>
+  <script>${safeJS}</script>
+</body>
+</html>`
+  }, [url])
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
@@ -371,4 +422,3 @@ export default function Home() {
     </div>
   )
   }
-  
