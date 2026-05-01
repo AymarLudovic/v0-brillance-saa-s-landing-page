@@ -6,19 +6,23 @@ import { NextResponse } from "next/server"
 /**
  * Récupère le contenu d'une URL de manière sécurisée. (Inchangée)
  */
-async function fetchUrlContent(url: string, cookies?: string): Promise<{ success: boolean; content: string }> {
+async function fetchUrlContent(url: string, cookies?: string, referer?: string): Promise<{ success: boolean; content: string }> {
   try {
+    const isCss = /\.css(\?|$)/i.test(url)
+    const isJs  = /\.js(\?|$)/i.test(url)
     const headers: Record<string, string> = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept": isCss ? "text/css,*/*;q=0.1" : isJs ? "application/javascript,*/*;q=0.1" : "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.5",
       "Accept-Encoding": "gzip, deflate, br",
-      DNT: "1",
-      Connection: "keep-alive",
+      "DNT": "1",
+      "Connection": "keep-alive",
       "Upgrade-Insecure-Requests": "1",
     }
+    // Referer CRUCIAL : beaucoup de CDNs rejettent les requetes sans Referer
+    if (referer) headers["Referer"] = referer
     if (cookies?.trim()) headers["Cookie"] = cookies.trim()
-    const response = await fetch(url, { headers })
+    const response = await fetch(url, { headers, redirect: "follow" })
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -121,7 +125,7 @@ export async function POST(request: Request) {
             // Fetch tous les imports en parallèle
             const fetched = await Promise.allSettled(
                 imports.map(async ({ url }) => {
-                    const res = await fetchUrlContent(url)
+                    const res = await fetchUrlContent(url, undefined, cssFileUrl)
                     if (!res.success) return { url, content: `/* @import failed: ${url} */` }
                     const rewritten = rewriteCssUrls(res.content, url)
                     const resolved = await resolveImports(rewritten, url, depth + 1)
@@ -143,27 +147,20 @@ ${content}`)
         const viewportTag = viewportMatch ? viewportMatch[0] : '<meta name="viewport" content="width=device-width, initial-scale=1">'
 
         // --- 2. Extraction des sources CSS externes ---
-        // Extraction robuste des CSS : gère tous les patterns courants
-        // 1. <link rel="stylesheet" href="...">            (standard)
-        // 2. <link rel="preload" as="style" href="...">    (chargement async)
-        // 3. <link rel="stylesheet preload" href="...">    (rel multi-valeurs)
-        // 4. attributs sur plusieurs lignes
+        // Gere: standard, preload as=style, rel multi-valeurs, multi-lignes
         const extractCssSources = (html: string): string[] => {
             const found = new Set<string>()
-            // Extraire toutes les balises <link ...> en tolérant les sauts de ligne
-            const linkTagRegex = /<link(\s[^>]*?)>/gi
+            const linkTagRegex = /<link([\s\S]*?)>/gi
             for (const tagMatch of html.matchAll(linkTagRegex)) {
                 const attrs = tagMatch[1]
-                // Extraire rel et vérifier que c'est un stylesheet (ou preload de style)
-                const relMatch = /rel=["']([^"']+)["']/i.exec(attrs)
-                const asMatch = /as=["']style["']/i.exec(attrs)
+                const relMatch = /(?:^|[\s])rel=["']([^"']+)["']/i.exec(attrs)
+                const asMatch  = /(?:^|[\s])as=["']style["']/i.exec(attrs)
                 if (!relMatch) continue
                 const relVal = relMatch[1].toLowerCase()
-                const isStylesheet = relVal.includes("stylesheet")
-                const isPreloadStyle = relVal.includes("preload") && asMatch
+                const isStylesheet   = relVal.includes('stylesheet')
+                const isPreloadStyle = relVal.includes('preload') && !!asMatch
                 if (!isStylesheet && !isPreloadStyle) continue
-                // Extraire href
-                const hrefMatch = /href=["']([^"']+)["']/i.exec(attrs)
+                const hrefMatch = /(?:^|[\s])href=["']([^"']+)["']/i.exec(attrs)
                 if (!hrefMatch) continue
                 const normalized = normalizeUrl(hrefMatch[1])
                 if (normalized) found.add(normalized)
@@ -195,7 +192,7 @@ ${content}`)
         // --- 4. Fetch CSS (en parallèle, ordre preservé) ---
         const cssFetches = await Promise.allSettled(
           cssSources.map(async (href) => {
-            const res = await fetchUrlContent(href, cookies)
+            const res = await fetchUrlContent(href, cookies, urlToAnalyze)
             if (!res.success) throw new Error(`CSS fetch failed: ${href}`)
             const rewritten = rewriteCssUrls(res.content, href)
             // Résoudre les @import (Google Fonts, etc.) récursivement
@@ -206,10 +203,14 @@ ${content}`)
 
         const cssFilesContent: string[] = []
         let cssFilesCount = 0
+        let cssFilesFailed = 0
         for (const r of cssFetches) {
             if (r.status === 'fulfilled') {
                 cssFilesContent.push(`/* From: ${r.value.href} */\n${r.value.content}`)
                 cssFilesCount++
+            } else {
+                cssFilesFailed++
+                console.warn("[CSS] fetch failed:", (r as any).reason?.message)
             }
         }
 
@@ -238,7 +239,7 @@ ${content}`)
         const jsFetchMap = new Map<string, string>()
         await Promise.allSettled(
           externalSrcs.map(async (src) => {
-            const res = await fetchUrlContent(src, cookies)
+            const res = await fetchUrlContent(src, cookies, urlToAnalyze)
             if (res.success) jsFetchMap.set(src, res.content)
           })
         )
@@ -300,6 +301,8 @@ ${content}`)
           viewportTag,
           stats: {
             cssFilesCount,
+            cssFilesFound: cssSources.length,
+            cssFilesFailed,
             cssInlineCount: inlineCssBlocks.length,
             jsFilesCount,
             jsInlineCount,
@@ -318,4 +321,4 @@ ${content}`)
           { status: 500 },
         )
     }
-  }
+                                                                                          }
