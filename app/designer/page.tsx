@@ -30,9 +30,29 @@ export default function Home() {
   const [result, setResult] = useState<AnalyzeResult | null>(null)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop")
+  const [jsEnabled, setJsEnabled] = useState(true)
+  const [jsEnabled, setJsEnabled] = useState(true)
   const [loadingStep, setLoadingStep] = useState("")
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const prevBlobUrl = useRef<string | null>(null)
+
+  const applyBlob = (html: string, withJs: boolean) => {
+    if (prevBlobUrl.current) { URL.revokeObjectURL(prevBlobUrl.current); prevBlobUrl.current = null }
+    // Si JS désactivé : supprimer tous les <script> du HTML avant de créer le blob
+    const finalHtml = withJs ? html : html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    const blob = new Blob([finalHtml], { type: "text/html; charset=utf-8" })
+    const newBlobUrl = URL.createObjectURL(blob)
+    prevBlobUrl.current = newBlobUrl
+    setBlobUrl(newBlobUrl)
+  }
+
+  // Re-créer le blob quand on toggle JS sans refaire la requête
+  const toggleJs = () => {
+    if (!result) return
+    const next = !jsEnabled
+    setJsEnabled(next)
+    applyBlob(result.html, next)
+  }
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
@@ -62,14 +82,7 @@ export default function Home() {
 
       setLoadingStep("Rendu en cours...")
       setResult(data)
-
-      // Créer le blob directement depuis le HTML retourné
-      // Le navigateur charge lui-même CSS/JS/polices depuis les URLs absolues
-      // C'est bien plus fiable que d'essayer d'inliner tout côté serveur
-      const blob = new Blob([data.html], { type: "text/html; charset=utf-8" })
-      const newBlobUrl = URL.createObjectURL(blob)
-      prevBlobUrl.current = newBlobUrl
-      setBlobUrl(newBlobUrl)
+      applyBlob(data.html, jsEnabled)
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue")
     } finally {
@@ -188,6 +201,17 @@ export default function Home() {
             </span>
           </div>
           <div className="actions-row">
+            {/* Toggle JS */}
+            <button
+              onClick={() => setJsEnabled(v => !v)}
+              className={"js-toggle" + (jsEnabled ? " js-on" : " js-off")}
+              title={jsEnabled ? "Désactiver JavaScript" : "Activer JavaScript"}
+            >
+              {jsEnabled ? "⚡ JS ON" : "🚫 JS OFF"}
+            </button>
+            <button onClick={toggleJs} className={`action-btn js-toggle-btn ${jsEnabled ? "js-on" : "js-off"}`}>
+              {jsEnabled ? "⚡ JS activé" : "🎨 HTML+CSS only"}
+            </button>
             <div className="device-switcher">
               {(Object.keys(DEVICE_SIZES) as DeviceMode[]).map((mode) => (
                 <button
@@ -218,7 +242,7 @@ export default function Home() {
               ref={iframeRef}
               src={blobUrl}
               className="preview-iframe"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+              sandbox={jsEnabled ? "allow-scripts allow-same-origin allow-forms allow-popups allow-modals" : "allow-same-origin"}
               title="Pixel Clone Preview"
             />
           </div>
@@ -292,6 +316,12 @@ export default function Home() {
         .download-btn { background: rgba(34,197,94,.15); color: #86efac; border: 1px solid rgba(34,197,94,.2); }
         .copy-btn { background: rgba(148,163,184,.1); color: #94a3b8; border: 1px solid rgba(148,163,184,.15); }
         .action-btn:hover { opacity: .8; }
+        .js-toggle-btn { font-size: 12px; font-weight: 700; border: 1px solid; transition: all .2s; }
+        .js-toggle-btn.js-on  { background: rgba(34,197,94,.12); color: #86efac; border-color: rgba(34,197,94,.25); }
+        .js-toggle-btn.js-off { background: rgba(251,191,36,.12); color: #fcd34d; border-color: rgba(251,191,36,.25); }
+        .js-toggle { border: none; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .2s; }
+        .js-on  { background: rgba(34,197,94,.15); color: #86efac; border: 1px solid rgba(34,197,94,.3); }
+        .js-off { background: rgba(239,68,68,.15); color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
 
         .preview-wrapper { flex: 1; display: flex; justify-content: center; min-height: 500px; }
         .iframe-shell { width: 100%; border: 1px solid #334155; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; background: #1e1e2e; transition: max-width .3s ease; }
@@ -312,4 +342,4 @@ export default function Home() {
       `}</style>
     </div>
   )
-  }
+            }
