@@ -143,11 +143,34 @@ ${content}`)
         const viewportTag = viewportMatch ? viewportMatch[0] : '<meta name="viewport" content="width=device-width, initial-scale=1">'
 
         // --- 2. Extraction des sources CSS externes ---
-        const linkHrefCaptureRegex = /(<link\s+[^>]*?href=["']([^"']+)["'][^>]*?>)/gi
-        const cssSources = [...rawHTML.matchAll(linkHrefCaptureRegex)]
-          .filter(match => /rel=["']stylesheet["']/i.test(match[0]))
-          .map(match => normalizeUrl(match[2]))
-          .filter(Boolean) as string[]
+        // Extraction robuste des CSS : gère tous les patterns courants
+        // 1. <link rel="stylesheet" href="...">            (standard)
+        // 2. <link rel="preload" as="style" href="...">    (chargement async)
+        // 3. <link rel="stylesheet preload" href="...">    (rel multi-valeurs)
+        // 4. attributs sur plusieurs lignes
+        const extractCssSources = (html: string): string[] => {
+            const found = new Set<string>()
+            // Extraire toutes les balises <link ...> en tolérant les sauts de ligne
+            const linkTagRegex = /<link(\s[^>]*?)>/gi
+            for (const tagMatch of html.matchAll(linkTagRegex)) {
+                const attrs = tagMatch[1]
+                // Extraire rel et vérifier que c'est un stylesheet (ou preload de style)
+                const relMatch = /rel=["']([^"']+)["']/i.exec(attrs)
+                const asMatch = /as=["']style["']/i.exec(attrs)
+                if (!relMatch) continue
+                const relVal = relMatch[1].toLowerCase()
+                const isStylesheet = relVal.includes("stylesheet")
+                const isPreloadStyle = relVal.includes("preload") && asMatch
+                if (!isStylesheet && !isPreloadStyle) continue
+                // Extraire href
+                const hrefMatch = /href=["']([^"']+)["']/i.exec(attrs)
+                if (!hrefMatch) continue
+                const normalized = normalizeUrl(hrefMatch[1])
+                if (normalized) found.add(normalized)
+            }
+            return Array.from(found)
+        }
+        const cssSources = extractCssSources(rawHTML)
 
         // --- 3. Extraction des scripts EN ORDRE DOCUMENT ---
         // On parse tous les scripts une seule fois en préservant leur ordre original
@@ -262,7 +285,7 @@ ${content}`)
         cleanHTML = cleanHTML
           .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
           .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-          .replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, '')
+          .replace(/<link[^>]*rel=["'][^"']*(stylesheet|preload)[^"']*["'][^>]*>/gi, '')
           .trim()
 
         // --- 7. Stats ---
@@ -295,4 +318,4 @@ ${content}`)
           { status: 500 },
         )
     }
-    }
+  }
