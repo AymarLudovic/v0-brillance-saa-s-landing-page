@@ -31,7 +31,7 @@ export default function Home() {
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop")
   const [jsEnabled, setJsEnabled] = useState(true)
-  const [jsEnabled, setJsEnabled] = useState(true)
+  
   const [loadingStep, setLoadingStep] = useState("")
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const prevBlobUrl = useRef<string | null>(null)
