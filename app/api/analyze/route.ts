@@ -1,324 +1,176 @@
 import { NextResponse } from "next/server"
 
-// NOTE: Assurez-vous que vos fonctions utilitaires (fetchUrlContent, detectAnimationLibrary)
-// sont définies et disponibles dans le même contexte de fichier.
-
-/**
- * Récupère le contenu d'une URL de manière sécurisée. (Inchangée)
- */
-async function fetchUrlContent(url: string, cookies?: string, referer?: string): Promise<{ success: boolean; content: string }> {
-  try {
-    const isCss = /\.css(\?|$)/i.test(url)
-    const isJs  = /\.js(\?|$)/i.test(url)
-    const headers: Record<string, string> = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept": isCss ? "text/css,*/*;q=0.1" : isJs ? "application/javascript,*/*;q=0.1" : "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
+async function fetchHtml(url: string, cookies?: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
       "Accept-Encoding": "gzip, deflate, br",
-      "DNT": "1",
-      "Connection": "keep-alive",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
       "Upgrade-Insecure-Requests": "1",
-    }
-    // Referer CRUCIAL : beaucoup de CDNs rejettent les requetes sans Referer
-    if (referer) headers["Referer"] = referer
-    if (cookies?.trim()) headers["Cookie"] = cookies.trim()
-    const response = await fetch(url, { headers, redirect: "follow" })
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-    }
-
-    const content = await response.text()
-    return { success: true, content }
-  } catch (error) {
-    console.error(`Failed to fetch ${url}:`, error)
-    return { success: false, content: "" }
-  }
+      ...(cookies ? { "Cookie": cookies } : {}),
+    },
+    redirect: "follow",
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
+  return res.text()
 }
 
 /**
- * Détecte les librairies d'animation dans le contenu JS. (Inchangée)
+ * Convertit toutes les URLs relatives en absolues dans le HTML brut.
+ * On fait ça avec une seule passe de remplacement sur les attributs connus.
  */
-function detectAnimationLibrary(content: string): { isAnimation: boolean; library?: string; confidence: number } {
-  const patterns = [
-    { regex: /gsap|tweenmax|tweenlite|timelinemax|timelinelite/gi, library: "GSAP", confidence: 90 },
-    { regex: /new THREE\.|THREE\.Scene|THREE\.WebGLRenderer/gi, library: "Three.js", confidence: 95 },
-    { regex: /anime\(|anime\.js/gi, library: "Anime.js", confidence: 85 },
-    { regex: /lottie|bodymovin/gi, library: "Lottie", confidence: 90 },
-    { regex: /framer-motion|motion\./gi, library: "Framer Motion", confidence: 85 },
-    { regex: /aos\.init|AOS\./gi, library: "AOS", confidence: 80 },
-    { regex: /scrollmagic/gi, library: "ScrollMagic", confidence: 80 },
-    { regex: /@keyframes|animation:|transform:|transition:/gi, library: "CSS Animations", confidence: 70 },
-  ]
+function absolutifyHtml(html: string, base: string): string {
+  const origin = (() => { try { return new URL(base).origin } catch { return base } })()
 
-  for (const pattern of patterns) {
-    if (pattern.regex.test(content)) {
-      return { isAnimation: true, library: pattern.library, confidence: pattern.confidence }
-    }
+  const toAbs = (val: string): string => {
+    if (!val || val.startsWith("data:") || val.startsWith("blob:") ||
+        val.startsWith("javascript:") || val.startsWith("mailto:") ||
+        val.startsWith("tel:") || val.startsWith("#")) return val
+    if (val.startsWith("http://") || val.startsWith("https://")) return val
+    if (val.startsWith("//")) return "https:" + val
+    try { return new URL(val, base).href } catch { return val }
   }
 
-  return { isAnimation: false, confidence: 0 }
+  // Attributs src/href/action/srcset sur toutes les balises
+  html = html.replace(
+    /(<[a-z][a-z0-9]*\s[^>]*?\s?)(src|href|action|data-src|data-href)=(['"])([^'"]*)\3/gi,
+    (_, pre, attr, q, val) => `${pre}${attr}=${q}${toAbs(val)}${q}`
+  )
+
+  // srcset (format "url 2x, url2 1x")
+  html = html.replace(
+    /srcset=(['"])([^'"]+)\1/gi,
+    (_, q, val) => {
+      const fixed = val.split(",").map((part: string) => {
+        const [url, ...rest] = part.trim().split(/\s+/)
+        return [toAbs(url), ...rest].join(" ")
+      }).join(", ")
+      return `srcset=${q}${fixed}${q}`
+    }
+  )
+
+  // url() dans les style= inline
+  html = html.replace(
+    /style=(['"])(.*?)\1/gi,
+    (_, q, css) => `style=${q}${fixCssUrls(css, base)}${q}`
+  )
+
+  // url() dans les blocs <style>
+  html = html.replace(
+    /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
+    (_, open, css, close) => `${open}${fixCssUrls(css, base)}${close}`
+  )
+
+  return html
 }
 
+function fixCssUrls(css: string, base: string): string {
+  return css.replace(
+    /url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi,
+    (match, q, val) => {
+      if (!val || val.startsWith("data:") || val.startsWith("http") || val.startsWith("//")) return match
+      try { return `url(${q}${new URL(val, base).href}${q})` } catch { return match }
+    }
+  )
+}
 
-// --- Route principale (CORRIGÉE) ---
+/**
+ * Compte les ressources dans le HTML pour les stats
+ */
+function countResources(html: string) {
+  const cssLinks = (html.match(/<link[^>]+rel=["'][^"']*stylesheet[^"']*["'][^>]*>/gi) || []).length
+  const preloadStyles = (html.match(/<link[^>]+as=["']style["'][^>]*>/gi) || []).length
+  const scripts = (html.match(/<script\b[^>]+src=["'][^"']+["'][^>]*>/gi) || []).length
+  const inlineStyles = (html.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi) || []).length
+  const inlineScripts = (html.match(/<script\b(?![^>]*\bsrc\b)[^>]*>[\s\S]*?<\/script>/gi) || []).length
+  return { cssLinks: cssLinks + preloadStyles, scripts, inlineStyles, inlineScripts }
+}
+
+/**
+ * Injecte les patches JS en premier dans <head> et supprime les headers anti-iframe
+ */
+function injectPatches(html: string, siteUrl: string): string {
+  let hostname = ""
+  let origin = ""
+  try {
+    const u = new URL(siteUrl)
+    hostname = u.hostname
+    origin = u.origin
+  } catch {}
+
+  // Patch injecté en PREMIER avant tout autre script
+  // - Neutralise la détection iframe (window.top, window.parent, window.frameElement)
+  // - Neutralise les redirections
+  // - Silences les erreurs non-fatales
+  const patch = `<script>
+(function(){
+  // Patch 1: neutraliser détection iframe
+  try{Object.defineProperty(window,'top',{get:function(){return window;},configurable:true});}catch(e){}
+  try{Object.defineProperty(window,'parent',{get:function(){return window;},configurable:true});}catch(e){}
+  try{Object.defineProperty(window,'frameElement',{get:function(){return null;},configurable:true});}catch(e){}
+  // Patch 2: empêcher redirections
+  try{window.history.pushState=function(){};window.history.replaceState=function(){};}catch(e){}
+  // Patch 3: opener null
+  try{window.opener=null;}catch(e){}
+  // Patch 4: console.error silencieux (évite les crashs d'erreurs non-fatales)
+  var _ce=console.error;console.error=function(){try{_ce.apply(console,arguments);}catch(e){}};
+})();
+</script>`
+
+  // Retirer les balises <base> existantes (on met la nôtre)
+  html = html.replace(/<base\s[^>]*>/gi, "")
+
+  // Notre <base href> pour que les URLs relatives restantes fonctionnent
+  const baseTag = `<base href="${origin}/">`
+
+  // Injecter au tout début de <head>
+  if (/<head\b[^>]*>/i.test(html)) {
+    html = html.replace(/(<head\b[^>]*>)/i, `$1\n${baseTag}\n${patch}`)
+  } else {
+    html = baseTag + "\n" + patch + "\n" + html
+  }
+
+  // Retirer les meta CSP et X-Frame-Options inline (certains sites les mettent en meta)
+  html = html.replace(/<meta[^>]*http-equiv=["'](?:Content-Security-Policy|X-Frame-Options)["'][^>]*>/gi, "")
+
+  return html
+}
 
 export async function POST(request: Request) {
-    
-    try {
-        const body = await request.json()
-        let urlToAnalyze = body.url as string
-        const cookies = (body.cookies as string | undefined) || ""
+  try {
+    const body = await request.json()
+    let siteUrl: string = body.url || ""
+    const cookies: string = body.cookies || ""
 
-        if (!urlToAnalyze) {
-            return NextResponse.json({ error: "URL is required" }, { status: 400 })
-        }
+    if (!siteUrl) return NextResponse.json({ error: "URL manquante" }, { status: 400 })
+    if (!/^https?:\/\//i.test(siteUrl)) siteUrl = "https://" + siteUrl
 
-        if (!/^https?:\/\//i.test(urlToAnalyze)) {
-            urlToAnalyze = "https://" + urlToAnalyze
-        }
+    // 1. Récupérer le HTML brut
+    const rawHtml = await fetchHtml(siteUrl, cookies)
 
-        const mainResponse = await fetchUrlContent(urlToAnalyze, cookies)
-        if (!mainResponse.success) {
-          throw new Error("Could not fetch the main HTML content")
-        }
+    // 2. Convertir toutes les URLs relatives en absolues
+    const absoluteHtml = absolutifyHtml(rawHtml, siteUrl)
 
-        const rawHTML = mainResponse.content
-        let baseURL: string
-        try {
-             baseURL = new URL(urlToAnalyze).origin
-        } catch {
-             baseURL = urlToAnalyze
-        }
+    // 3. Injecter les patches
+    const finalHtml = injectPatches(absoluteHtml, siteUrl)
 
-        // --- UTILITAIRE: Normalisation des URLs ---
-        const normalizeUrl = (path: string, base: string = baseURL): string | null => {
-            if (!path || path.startsWith('data:') || path.startsWith('blob:')) return path
-            try {
-                if (path.startsWith('//')) return `https:${path}`
-                return new URL(path, base).href
-            } catch {
-                return null
-            }
-        }
+    // 4. Stats
+    const stats = countResources(rawHtml)
 
-        // --- UTILITAIRE: Réécriture des URLs relatives dans le CSS ---
-        const rewriteCssUrls = (css: string, cssFileUrl: string): string => {
-            return css.replace(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi, (match, quote, urlVal) => {
-                if (!urlVal || urlVal.startsWith('data:') || urlVal.startsWith('http') || urlVal.startsWith('//')) return match
-                const absolute = normalizeUrl(urlVal, cssFileUrl)
-                return absolute ? `url(${quote}${absolute}${quote})` : match
-            })
-        }
+    return NextResponse.json({
+      success: true,
+      html: finalHtml,
+      stats,
+    })
 
-        // --- UTILITAIRE: Résolution récursive des @import CSS (Google Fonts, etc.) ---
-        // Sans ça, les polices et CSS importés dans d'autres CSS sont perdus
-        const resolveImports = async (css: string, cssFileUrl: string, depth = 0): Promise<string> => {
-            if (depth > 3) return css // protection anti-boucle infinie
-            const importRegex = /@import\s+(?:url\()?['"]?([^'")\s]+)['"]?\)?[^;]*;/gi
-            const imports: { full: string; url: string }[] = []
-            for (const m of css.matchAll(importRegex)) {
-                const importUrl = normalizeUrl(m[1], cssFileUrl)
-                if (importUrl) imports.push({ full: m[0], url: importUrl })
-            }
-            if (imports.length === 0) return css
-            // Fetch tous les imports en parallèle
-            const fetched = await Promise.allSettled(
-                imports.map(async ({ url }) => {
-                    const res = await fetchUrlContent(url, undefined, cssFileUrl)
-                    if (!res.success) return { url, content: `/* @import failed: ${url} */` }
-                    const rewritten = rewriteCssUrls(res.content, url)
-                    const resolved = await resolveImports(rewritten, url, depth + 1)
-                    return { url, content: resolved }
-                })
-            )
-            // Remplacer les @import par le contenu réel
-            let result = css
-            fetched.forEach((r, i) => {
-                const content = r.status === 'fulfilled' ? r.value.content : `/* @import failed */`
-                result = result.replace(imports[i].full, `/* @import inlined: ${imports[i].url} */
-${content}`)
-            })
-            return result
-        }
-
-        // --- 1. Extraction du viewport tag ---
-        const viewportMatch = rawHTML.match(/<meta[^>]*name=["']viewport["'][^>]*>/i)
-        const viewportTag = viewportMatch ? viewportMatch[0] : '<meta name="viewport" content="width=device-width, initial-scale=1">'
-
-        // --- 2. Extraction des sources CSS externes ---
-        // Gere: standard, preload as=style, rel multi-valeurs, multi-lignes
-        const extractCssSources = (html: string): string[] => {
-            const found = new Set<string>()
-            const linkTagRegex = /<link([\s\S]*?)>/gi
-            for (const tagMatch of html.matchAll(linkTagRegex)) {
-                const attrs = tagMatch[1]
-                const relMatch = /(?:^|[\s])rel=["']([^"']+)["']/i.exec(attrs)
-                const asMatch  = /(?:^|[\s])as=["']style["']/i.exec(attrs)
-                if (!relMatch) continue
-                const relVal = relMatch[1].toLowerCase()
-                const isStylesheet   = relVal.includes('stylesheet')
-                const isPreloadStyle = relVal.includes('preload') && !!asMatch
-                if (!isStylesheet && !isPreloadStyle) continue
-                const hrefMatch = /(?:^|[\s])href=["']([^"']+)["']/i.exec(attrs)
-                if (!hrefMatch) continue
-                const normalized = normalizeUrl(hrefMatch[1])
-                if (normalized) found.add(normalized)
-            }
-            return Array.from(found)
-        }
-        const cssSources = extractCssSources(rawHTML)
-
-        // --- 3. Extraction des scripts EN ORDRE DOCUMENT ---
-        // On parse tous les scripts une seule fois en préservant leur ordre original
-        type ScriptEntry =
-          | { kind: 'external'; src: string }
-          | { kind: 'inline'; content: string }
-
-        const orderedScripts: ScriptEntry[] = []
-        const allScriptRegex = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi
-        for (const m of rawHTML.matchAll(allScriptRegex)) {
-            const attrs = m[1]
-            const inline = m[2]
-            const srcMatch = /src=["']([^"']+)["']/i.exec(attrs)
-            if (srcMatch) {
-                const normalized = normalizeUrl(srcMatch[1])
-                if (normalized) orderedScripts.push({ kind: 'external', src: normalized })
-            } else if (inline.trim()) {
-                orderedScripts.push({ kind: 'inline', content: inline })
-            }
-        }
-
-        // --- 4. Fetch CSS (en parallèle, ordre preservé) ---
-        const cssFetches = await Promise.allSettled(
-          cssSources.map(async (href) => {
-            const res = await fetchUrlContent(href, cookies, urlToAnalyze)
-            if (!res.success) throw new Error(`CSS fetch failed: ${href}`)
-            const rewritten = rewriteCssUrls(res.content, href)
-            // Résoudre les @import (Google Fonts, etc.) récursivement
-            const resolved = await resolveImports(rewritten, href)
-            return { href, content: resolved }
-          })
-        )
-
-        const cssFilesContent: string[] = []
-        let cssFilesCount = 0
-        let cssFilesFailed = 0
-        for (const r of cssFetches) {
-            if (r.status === 'fulfilled') {
-                cssFilesContent.push(`/* From: ${r.value.href} */\n${r.value.content}`)
-                cssFilesCount++
-            } else {
-                cssFilesFailed++
-                console.warn("[CSS] fetch failed:", (r as any).reason?.message)
-            }
-        }
-
-        const inlineCssRegex = /<style\b[^>]*>([\s\S]*?)<\/style>/gi
-        const inlineCssBlocks = [...rawHTML.matchAll(inlineCssRegex)]
-          .map(m => m[1]).filter(Boolean)
-
-        // Résoudre les @import dans les blocs CSS inline aussi
-        const resolvedInlineCss = await Promise.all(
-            inlineCssBlocks.map((css, i) =>
-                resolveImports(rewriteCssUrls(css, urlToAnalyze), urlToAnalyze)
-                    .then(resolved => `/* Inline style ${i + 1} */\n${resolved}`)
-            )
-        )
-
-        const fullCSS = [
-          ...cssFilesContent,
-          ...resolvedInlineCss,
-        ].join("\n\n")
-
-        // --- 5. Fetch JS externes (en parallèle) puis reconstruction dans l'ordre ---
-        const externalSrcs = orderedScripts
-          .filter((s): s is { kind: 'external'; src: string } => s.kind === 'external')
-          .map(s => s.src)
-
-        const jsFetchMap = new Map<string, string>()
-        await Promise.allSettled(
-          externalSrcs.map(async (src) => {
-            const res = await fetchUrlContent(src, cookies, urlToAnalyze)
-            if (res.success) jsFetchMap.set(src, res.content)
-          })
-        )
-
-        // Reconstruction dans l'ordre original du document
-        const jsChunks: string[] = []
-        let jsFilesCount = 0
-        let jsInlineCount = 0
-        for (const entry of orderedScripts) {
-            if (entry.kind === 'external') {
-                const content = jsFetchMap.get(entry.src)
-                if (content) {
-                    jsChunks.push(`/* From: ${entry.src} */\n${content}`)
-                    jsFilesCount++
-                }
-            } else {
-                jsChunks.push(`/* Inline script ${jsInlineCount + 1} */\n${entry.content}`)
-                jsInlineCount++
-            }
-        }
-        const fullJS = jsChunks.join("\n\n")
-
-        // --- 6. Extraction + nettoyage du HTML body ---
-        const bodyContentMatch = rawHTML.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
-        let cleanHTML = bodyContentMatch ? bodyContentMatch[1] : rawHTML
-
-        // Convertir les src d'images/vidéos/liens en absolus
-        cleanHTML = cleanHTML
-          .replace(/(<(?:img|source|video|audio|embed)[^>]*?\s(?:src|srcset)=["'])([^"']+)(["'])/gi,
-            (_, pre, val, post) => {
-              const abs = normalizeUrl(val)
-              return abs ? `${pre}${abs}${post}` : `${pre}${val}${post}`
-            }
-          )
-          .replace(/(<a\s[^>]*?href=["'])([^"'#][^"']*)(["'])/gi,
-            (_, pre, val, post) => {
-              if (val.startsWith('http') || val.startsWith('//') || val.startsWith('mailto:') || val.startsWith('tel:')) return `${pre}${val}${post}`
-              const abs = normalizeUrl(val)
-              return abs ? `${pre}${abs}${post}` : `${pre}${val}${post}`
-            }
-          )
-
-        // Retirer les balises script/style/link (le contenu est déjà extrait)
-        cleanHTML = cleanHTML
-          .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-          .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-          .replace(/<link[^>]*rel=["'][^"']*(stylesheet|preload)[^"']*["'][^>]*>/gi, '')
-          .trim()
-
-        // --- 7. Stats ---
-        const totalCssSize = Math.round(fullCSS.length / 1024)
-        const totalJsSize = Math.round(fullJS.length / 1024)
-
-        return NextResponse.json({
-          success: true,
-          fullHTML: cleanHTML,
-          fullCSS: fullCSS,
-          fullJS: fullJS,
-          viewportTag,
-          stats: {
-            cssFilesCount,
-            cssFilesFound: cssSources.length,
-            cssFilesFailed,
-            cssInlineCount: inlineCssBlocks.length,
-            jsFilesCount,
-            jsInlineCount,
-            totalCssSize,
-            totalJsSize,
-          },
-        })
-
-    } catch (err: any) {
-        console.error("[v0] ❌ ERREUR FATALE DANS L'ANALYSE (Nouvelle méthode) :", err)
-        return NextResponse.json(
-          {
-            error: `Analysis failed: ${err.message}`,
-            details: "Analysis failed due to server-side error.",
-          },
-          { status: 500 },
-        )
-    }
-                                       }
+  } catch (err: any) {
+    console.error("[analyze] error:", err)
+    return NextResponse.json({ error: err.message || "Erreur serveur" }, { status: 500 })
+  }
+}
