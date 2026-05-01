@@ -10,6 +10,8 @@ interface AnalyzeResult {
   viewportTag: string
   stats: {
     cssFilesCount: number
+    cssFilesFound: number
+    cssFilesFailed: number
     cssInlineCount: number
     jsFilesCount: number
     jsInlineCount: number
@@ -263,7 +265,9 @@ export default function Home() {
         <div className="controls-bar">
           <div className="stats-row">
             <span className="stat-chip css">
-              🎨 CSS: {result.stats?.cssFilesCount ?? 0} fichiers + {result.stats?.cssInlineCount ?? 0} inline
+              🎨 CSS: {result.stats?.cssFilesCount ?? 0}/{result.stats?.cssFilesFound ?? 0} fichiers
+              {(result.stats?.cssFilesFailed ?? 0) > 0 && <span className="stat-failed"> ⚠️{result.stats.cssFilesFailed} échecs</span>}
+              + {result.stats?.cssInlineCount ?? 0} inline
               <em>{result.stats?.totalCssSize ?? 0} KB</em>
             </span>
             <span className="stat-chip js">
@@ -373,6 +377,7 @@ export default function Home() {
         .stat-chip em { font-style: normal; font-weight: 600; margin-left: 4px; opacity: .7; }
         .stat-chip.css { background: rgba(96,165,250,.1); color: #93c5fd; border: 1px solid rgba(96,165,250,.2); }
         .stat-chip.js { background: rgba(251,191,36,.1); color: #fcd34d; border: 1px solid rgba(251,191,36,.2); }
+        .stat-failed { color: #f87171; font-size: 10px; margin-left: 4px; }
         .actions-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .device-switcher { display: flex; background: #0a0a0f; border: 1px solid #334155; border-radius: 10px; overflow: hidden; }
         .device-btn { background: transparent; border: none; color: #64748b; padding: 7px 14px; font-size: 12px; cursor: pointer; transition: all .2s; white-space: nowrap; }
@@ -416,4 +421,4 @@ export default function Home() {
       `}</style>
     </div>
   )
-}
+  }
