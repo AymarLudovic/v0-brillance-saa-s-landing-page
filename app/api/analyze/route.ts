@@ -107,6 +107,36 @@ export async function POST(request: Request) {
             })
         }
 
+        // --- UTILITAIRE: Résolution récursive des @import CSS (Google Fonts, etc.) ---
+        // Sans ça, les polices et CSS importés dans d'autres CSS sont perdus
+        const resolveImports = async (css: string, cssFileUrl: string, depth = 0): Promise<string> => {
+            if (depth > 3) return css // protection anti-boucle infinie
+            const importRegex = /@import\s+(?:url\()?['"]?([^'")\s]+)['"]?\)?[^;]*;/gi
+            const imports: { full: string; url: string }[] = []
+            for (const m of css.matchAll(importRegex)) {
+                const importUrl = normalizeUrl(m[1], cssFileUrl)
+                if (importUrl) imports.push({ full: m[0], url: importUrl })
+            }
+            if (imports.length === 0) return css
+            // Fetch tous les imports en parallèle
+            const fetched = await Promise.allSettled(
+                imports.map(async ({ url }) => {
+                    const res = await fetchUrlContent(url)
+                    if (!res.success) return { url, content: \`/* @import failed: \${url} */\` }
+                    const rewritten = rewriteCssUrls(res.content, url)
+                    const resolved = await resolveImports(rewritten, url, depth + 1)
+                    return { url, content: resolved }
+                })
+            )
+            // Remplacer les @import par le contenu réel
+            let result = css
+            fetched.forEach((r, i) => {
+                const content = r.status === 'fulfilled' ? r.value.content : \`/* @import failed */\`
+                result = result.replace(imports[i].full, \`/* @import inlined: \${imports[i].url} */\n\${content}\`)
+            })
+            return result
+        }
+
         // --- 1. Extraction du viewport tag ---
         const viewportMatch = rawHTML.match(/<meta[^>]*name=["']viewport["'][^>]*>/i)
         const viewportTag = viewportMatch ? viewportMatch[0] : '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -144,7 +174,9 @@ export async function POST(request: Request) {
             const res = await fetchUrlContent(href, cookies)
             if (!res.success) throw new Error(`CSS fetch failed: ${href}`)
             const rewritten = rewriteCssUrls(res.content, href)
-            return { href, content: rewritten }
+            // Résoudre les @import (Google Fonts, etc.) récursivement
+            const resolved = await resolveImports(rewritten, href)
+            return { href, content: resolved }
           })
         )
 
@@ -161,9 +193,17 @@ export async function POST(request: Request) {
         const inlineCssBlocks = [...rawHTML.matchAll(inlineCssRegex)]
           .map(m => m[1]).filter(Boolean)
 
+        // Résoudre les @import dans les blocs CSS inline aussi
+        const resolvedInlineCss = await Promise.all(
+            inlineCssBlocks.map((css, i) =>
+                resolveImports(rewriteCssUrls(css, urlToAnalyze), urlToAnalyze)
+                    .then(resolved => `/* Inline style ${i + 1} */\n${resolved}`)
+            )
+        )
+
         const fullCSS = [
           ...cssFilesContent,
-          ...inlineCssBlocks.map((css, i) => `/* Inline style ${i + 1} */\n${css}`)
+          ...resolvedInlineCss,
         ].join("\n\n")
 
         // --- 5. Fetch JS externes (en parallèle) puis reconstruction dans l'ordre ---
@@ -254,4 +294,4 @@ export async function POST(request: Request) {
           { status: 500 },
         )
     }
-    }
+      }
