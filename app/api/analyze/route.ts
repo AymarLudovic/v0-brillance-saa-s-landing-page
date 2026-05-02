@@ -163,9 +163,17 @@ export async function POST(request: Request) {
     // 4. Stats
     const stats = countResources(rawHtml)
 
+    // Extract inline CSS and JS from the HTML for tech detection and code export
+    const inlineCSS = Array.from(rawHtml.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi))
+      .map(m => m[1]).join("\n")
+    const inlineJS = Array.from(rawHtml.matchAll(/<script\b(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi))
+      .map(m => m[1]).join("\n")
+
     return NextResponse.json({
       success: true,
-      html: finalHtml,
+      fullHTML: finalHtml,
+      fullCSS: inlineCSS,
+      fullJS: inlineJS,
       stats,
     })
 
@@ -173,4 +181,5 @@ export async function POST(request: Request) {
     console.error("[analyze] error:", err)
     return NextResponse.json({ error: err.message || "Erreur serveur" }, { status: 500 })
   }
-}
+        }
+      
