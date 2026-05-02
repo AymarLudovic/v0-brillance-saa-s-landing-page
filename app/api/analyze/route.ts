@@ -106,150 +106,169 @@ function injectPatches(html: string, siteUrl: string): string {
   // ─── 1. PATCH JS (doit s'exécuter AVANT tous les autres scripts) ──────────
   const jsPatch = `<script data-preview-patch="1">
 (function(){
-  // ── A. Neutraliser la détection iframe ──────────────────────────────────
-  try{Object.defineProperty(window,'top',{get:function(){return window;},configurable:true});}catch(e){}
-  try{Object.defineProperty(window,'parent',{get:function(){return window;},configurable:true});}catch(e){}
-  try{Object.defineProperty(window,'frameElement',{get:function(){return null;},configurable:true});}catch(e){}
-  try{Object.defineProperty(window,'self',{get:function(){return window;},configurable:true});}catch(e){}
+  // ══ A. Neutraliser TOUTE détection iframe ═══════════════════════════════
+  var _win = window;
+  ['top','parent','self'].forEach(function(k){
+    try{Object.defineProperty(_win,k,{get:function(){return _win;},configurable:true});}catch(e){}
+  });
+  try{Object.defineProperty(_win,'frameElement',{get:function(){return null;},configurable:true});}catch(e){}
+  // Certains sites comparent window.location.href à document.referrer
+  try{Object.defineProperty(_win,'location',{
+    get:function(){return {href:_win.location&&_win.location.href||'',hostname:'',pathname:'/',assign:function(){},replace:function(){},reload:function(){}};},
+    configurable:true
+  });}catch(e){}
 
-  // ── B. Bloquer les redirections et navigation ────────────────────────────
-  try{
-    var _assign=window.location.assign.bind(window.location);
-    var _replace=window.location.replace.bind(window.location);
-    Object.defineProperty(window.location,'assign',{value:function(){},writable:true,configurable:true});
-    Object.defineProperty(window.location,'replace',{value:function(){},writable:true,configurable:true});
-  }catch(e){}
-  try{window.history.pushState=function(){};window.history.replaceState=function(){};}catch(e){}
-  try{window.opener=null;}catch(e){}
+  // ══ B. Bloquer navigation / redirections ════════════════════════════════
+  try{_win.history.pushState=function(){};_win.history.replaceState=function(){};}catch(e){}
+  try{_win.opener=null;}catch(e){}
+  // Bloquer document.write qui peut effacer la page
+  try{document.write=function(){};document.writeln=function(){};}catch(e){}
 
-  // ── C. Intercepter les setters CSS pour bloquer le masquage par JS ───────
-  //    Cible : opacity:0, visibility:hidden, transform initial des animations
-  try{
-    var opDesc=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'opacity');
-    if(opDesc&&opDesc.set){
-      Object.defineProperty(CSSStyleDeclaration.prototype,'opacity',{
-        set:function(v){
-          // Autoriser seulement les valeurs > 0
-          var n=parseFloat(v);
-          if(!isNaN(n)&&n===0) return;
-          opDesc.set.call(this,v);
-        },
-        get:opDesc.get, configurable:true, enumerable:opDesc.enumerable
+  // ══ C. Intercepter TOUS les setters CSS de masquage ════════════════════
+  //   opacity, visibility, filter (blur), display (hide seulement)
+  var proto = CSSStyleDeclaration.prototype;
+
+  function patchProp(name, blockFn){
+    try{
+      var d=Object.getOwnPropertyDescriptor(proto,name);
+      if(!d||!d.set) return;
+      Object.defineProperty(proto,name,{
+        set:function(v){ if(blockFn(v)) return; d.set.call(this,v); },
+        get:d.get, configurable:true, enumerable:d.enumerable
       });
-    }
-  }catch(e){}
-  try{
-    var visDesc=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'visibility');
-    if(visDesc&&visDesc.set){
-      Object.defineProperty(CSSStyleDeclaration.prototype,'visibility',{
-        set:function(v){
-          if(v==='hidden'||v==='collapse') return;
-          visDesc.set.call(this,v);
-        },
-        get:visDesc.get, configurable:true, enumerable:visDesc.enumerable
-      });
-    }
-  }catch(e){}
+    }catch(e){}
+  }
 
-  // ── D. Intercepter setProperty() (utilisé par Framer Motion, GSAP, etc.) ─
+  patchProp('opacity',   function(v){ return parseFloat(v)===0; });
+  patchProp('visibility',function(v){ return v==='hidden'||v==='collapse'; });
+  // filter: blur(Xpx) avec X > 0 → bloquer
+  patchProp('filter',    function(v){
+    if(typeof v!=='string') return false;
+    var m=v.match(/blur\(\s*([\d.]+)/);
+    return m && parseFloat(m[1])>0;
+  });
+  // display: none → laisser passer sauf si le parent est body/html
+  // (on ne bloque pas display:none globalement car ça casse les menus)
+
+  // ══ D. Intercepter setProperty() ═══════════════════════════════════════
   try{
-    var origSetProp=CSSStyleDeclaration.prototype.setProperty;
-    CSSStyleDeclaration.prototype.setProperty=function(prop,val,priority){
+    var origSP=proto.setProperty;
+    proto.setProperty=function(prop,val,prio){
       var p=prop.trim().toLowerCase();
-      if(p==='opacity'&&(val==='0'||parseFloat(val)===0)) return;
+      if(p==='opacity'&&parseFloat(val)===0) return;
       if(p==='visibility'&&(val==='hidden'||val==='collapse')) return;
-      return origSetProp.call(this,prop,val,priority);
+      if(p==='filter'&&typeof val==='string'){
+        var bm=val.match(/blur\(\s*([\d.]+)/);
+        if(bm&&parseFloat(bm[1])>0) return;
+      }
+      return origSP.call(this,prop,val,prio);
     };
   }catch(e){}
 
-  // ── E. Silencer les erreurs non-fatales (évite les crashs d'UI) ──────────
-  window.onerror=function(msg,src,line,col,err){
-    // Laisser passer les erreurs critiques de parsing
-    if(typeof msg==='string'&&(msg.indexOf('Script error')>-1||msg.indexOf('ResizeObserver')>-1)) return true;
-    return false;
-  };
-  var _ce=console.error;console.error=function(){try{_ce.apply(console,arguments);}catch(e){}};
-
-  // ── F. Après le chargement : révéler tout ce qui reste caché ─────────────
-  function revealHiddenElements(){
+  // ══ E. MutationObserver — surveille les changements APRÈS le chargement ═
+  //   C'est lui qui attrape les scripts qui re-cachent après init (linear, etc.)
+  function fixEl(el){
     try{
-      var all=document.querySelectorAll('*');
-      for(var i=0;i<all.length;i++){
-        var el=all[i];
-        var s=el.style;
-        // Réparer les inline styles résiduels
-        if(s.opacity==='0') s.cssText=s.cssText.replace(/opacity\s*:\s*0[^;]*;?/g,'opacity:1;');
-        if(s.visibility==='hidden') s.cssText=s.cssText.replace(/visibility\s*:\s*hidden[^;]*;?/g,'visibility:visible;');
-        // Réparer les transforms d'animation initiale communs
-        if(s.transform&&(
-          s.transform.indexOf('translateY(')>-1||
-          s.transform.indexOf('translateX(')>-1||
-          s.transform.indexOf('scale(0')>-1
-        )){
-          var cs=window.getComputedStyle(el);
-          if(parseFloat(cs.opacity)<0.1){
-            s.transform='none';
-            s.opacity='1';
-          }
-        }
+      var s=el.style;
+      if(!s) return;
+      if(s.opacity==='0') s.opacity='1';
+      if(s.visibility==='hidden'||s.visibility==='collapse') s.visibility='visible';
+      if(s.filter&&s.filter.indexOf('blur(')>-1){
+        var bm=s.filter.match(/blur\(\s*([\d.]+)/);
+        if(bm&&parseFloat(bm[1])>0) s.filter=s.filter.replace(/blur\([^)]*\)/g,'blur(0px)');
       }
     }catch(e){}
   }
 
-  // Lancer à plusieurs moments pour couvrir les animations retardées
+  function startObserver(){
+    try{
+      if(_win.__previewObserver) return;
+      _win.__previewObserver=new MutationObserver(function(muts){
+        for(var i=0;i<muts.length;i++){
+          var m=muts[i];
+          if(m.type==='attributes'&&m.attributeName==='style'){
+            fixEl(m.target);
+          }
+          if(m.type==='childList'){
+            for(var j=0;j<m.addedNodes.length;j++){
+              var n=m.addedNodes[j];
+              if(n.nodeType===1){ fixEl(n); n.querySelectorAll&&n.querySelectorAll('*').forEach&&n.querySelectorAll('*').forEach(fixEl); }
+            }
+          }
+        }
+      });
+      _win.__previewObserver.observe(document.documentElement,{
+        attributes:true, attributeFilter:['style'],
+        childList:true, subtree:true
+      });
+    }catch(e){}
+  }
+
+  // ══ F. Scan initial + passes différées ═════════════════════════════════
+  function revealAll(){
+    try{
+      document.querySelectorAll('*').forEach(function(el){ fixEl(el); });
+    }catch(e){}
+  }
+
+  // ══ G. Silencer les erreurs non-fatales ════════════════════════════════
+  _win.onerror=function(){ return true; };
+  _win.onunhandledrejection=function(e){ try{e.preventDefault();}catch(x){} };
+  var _ce=console.error;console.error=function(){try{_ce.apply(console,arguments);}catch(e){}};
+
+  // ══ Lancement ═══════════════════════════════════════════════════════════
   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded',function(){
-      revealHiddenElements();
-      setTimeout(revealHiddenElements,800);
-      setTimeout(revealHiddenElements,2000);
+      startObserver(); revealAll();
+      setTimeout(revealAll,500); setTimeout(revealAll,1500); setTimeout(revealAll,3500);
     });
   } else {
-    revealHiddenElements();
-    setTimeout(revealHiddenElements,800);
-    setTimeout(revealHiddenElements,2000);
+    startObserver(); revealAll();
+    setTimeout(revealAll,500); setTimeout(revealAll,1500); setTimeout(revealAll,3500);
   }
 })();
 </script>`
 
-  // ─── 2. PATCH CSS (override de haute priorité avec !important) ───────────
-  //    Cible les patterns de masquage CSS connus sans casser les layouts
+  // ─── 2. PATCH CSS ────────────────────────────────────────────────────────
   const cssPatch = `<style data-preview-patch="1">
-  /* ── Attributs inline opacity:0 / visibility:hidden ── */
+  /* ── opacity:0 / visibility:hidden inline ── */
   [style*="opacity: 0"],[style*="opacity:0"] { opacity: 1 !important; }
-  [style*="visibility: hidden"],[style*="visibility:hidden"] { visibility: visible !important; }
+  [style*="visibility: hidden"],[style*="visibility:hidden"],
   [style*="visibility: collapse"],[style*="visibility:collapse"] { visibility: visible !important; }
 
-  /* ── Transforms d'animation initiales courantes (Framer Motion, GSAP, AOS) ── */
-  [style*="translateY(20px)"],[style*="translateY(30px)"],[style*="translateY(40px)"],
-  [style*="translateY(50px)"],[style*="translateY(60px)"],[style*="translateY(100px)"],
-  [style*="translateY(-20px)"],[style*="translateY(-30px)"],[style*="translateY(-40px)"],
-  [style*="translateY(-50px)"],[style*="translateY(-100px)"],
-  [style*="translateX(20px)"],[style*="translateX(-20px)"],[style*="translateX(100px)"],
-  [style*="translateX(-100px)"],
-  [style*="scale(0)"],[style*="scale(0.8)"],[style*="scale(0.9)"] {
-    transform: none !important;
-    opacity: 1 !important;
+  /* ── filter:blur inline (texte flou de cosmos.so et similaires) ── */
+  [style*="filter: blur"],[style*="filter:blur"] { filter: none !important; }
+
+  /* ── Transforms d'init d'animation (Framer Motion, GSAP, AOS) ── */
+  [style*="translateY(10px)"],[style*="translateY(20px)"],[style*="translateY(30px)"],
+  [style*="translateY(40px)"],[style*="translateY(50px)"],[style*="translateY(60px)"],
+  [style*="translateY(80px)"],[style*="translateY(100px)"],[style*="translateY(120px)"],
+  [style*="translateY(-10px)"],[style*="translateY(-20px)"],[style*="translateY(-30px)"],
+  [style*="translateY(-40px)"],[style*="translateY(-50px)"],[style*="translateY(-100px)"],
+  [style*="translateX(10px)"],[style*="translateX(20px)"],[style*="translateX(-20px)"],
+  [style*="translateX(100px)"],[style*="translateX(-100px)"],
+  [style*="scale(0)"],[style*="scale(0.8)"],[style*="scale(0.9)"],[style*="scale(0.95)"] {
+    transform: none !important; opacity: 1 !important;
   }
 
-  /* ── Frameworks d'animation (AOS, ScrollReveal, Locomotive, etc.) ── */
-  [data-aos], .aos-init, .aos-animate { opacity: 1 !important; transform: none !important; transition: none !important; }
-  [data-sal], [data-sal-duration], [data-sal-easing] { opacity: 1 !important; transform: none !important; }
-  [data-scroll], [data-scroll-reveal] { opacity: 1 !important; transform: none !important; }
-  .sr, .js-reveal, .js-fade, .js-slide { opacity: 1 !important; transform: none !important; }
+  /* ── Frameworks (AOS, SAL, ScrollReveal, Lenis, Locomotive) ── */
+  [data-aos],[data-aos-delay],[data-aos-duration],
+  .aos-init,.aos-animate { opacity:1!important; transform:none!important; transition:none!important; }
+  [data-sal],[data-sal-duration],[data-sal-easing] { opacity:1!important; transform:none!important; }
+  [data-scroll],[data-scroll-reveal],[data-locomotive] { opacity:1!important; transform:none!important; }
+  .sr,.js-reveal,.js-fade,.js-slide,.js-animate { opacity:1!important; transform:none!important; }
 
-  /* ── Classes utilitaires de masquage communes ── */
-  .is-hidden:not([aria-hidden="true"]) { visibility: visible !important; opacity: 1 !important; }
-  .invisible { visibility: visible !important; opacity: 1 !important; }
+  /* ── Framer Motion: will-change:opacity state ── */
+  [style*="will-change: opacity"],[style*="will-change:opacity"] { opacity:1!important; }
+  [style*="pointer-events: none"][style*="opacity"] { opacity:1!important; pointer-events:auto!important; }
 
-  /* ── Framer Motion / React Spring : état initial will-change ── */
-  [style*="will-change: opacity"],[style*="will-change:opacity"] { opacity: 1 !important; }
-  [style*="pointer-events: none"][style*="opacity"] { opacity: 1 !important; pointer-events: auto !important; }
-
-  /* ── Désactiver les transitions pour que les états finaux s'affichent immédiatement ── */
+  /* ── Sauter les animations CSS à leur état final immédiatement ── */
   *, *::before, *::after {
     animation-play-state: paused !important;
     animation-delay: -9999s !important;
     animation-fill-mode: both !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
   }
 </style>`
 
@@ -345,5 +364,5 @@ export async function POST(request: Request) {
     console.error("[analyze] error:", err)
     return NextResponse.json({ error: err.message || "Erreur serveur" }, { status: 500 })
   }
-      }
-                               
+        }
+      
