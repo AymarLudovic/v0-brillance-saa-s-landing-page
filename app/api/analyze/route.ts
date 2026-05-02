@@ -93,51 +93,180 @@ function countResources(html: string) {
 }
 
 /**
- * Injecte les patches JS en premier dans <head> et supprime les headers anti-iframe
+ * Injecte les patches JS+CSS en premier dans <head>.
+ * 
+ * REVEAL MODE : neutralise toutes les techniques de masquage JS/CSS courantes
+ * (animations initiales, opacity:0, visibility:hidden, iframe detection, etc.)
+ * tout en préservant la mise en page (on ne touche pas à display:none global).
  */
 function injectPatches(html: string, siteUrl: string): string {
-  let hostname = ""
   let origin = ""
-  try {
-    const u = new URL(siteUrl)
-    hostname = u.hostname
-    origin = u.origin
-  } catch {}
+  try { origin = new URL(siteUrl).origin } catch {}
 
-  // Patch injecté en PREMIER avant tout autre script
-  // - Neutralise la détection iframe (window.top, window.parent, window.frameElement)
-  // - Neutralise les redirections
-  // - Silences les erreurs non-fatales
-  const patch = `<script>
+  // ─── 1. PATCH JS (doit s'exécuter AVANT tous les autres scripts) ──────────
+  const jsPatch = `<script data-preview-patch="1">
 (function(){
-  // Patch 1: neutraliser détection iframe
+  // ── A. Neutraliser la détection iframe ──────────────────────────────────
   try{Object.defineProperty(window,'top',{get:function(){return window;},configurable:true});}catch(e){}
   try{Object.defineProperty(window,'parent',{get:function(){return window;},configurable:true});}catch(e){}
   try{Object.defineProperty(window,'frameElement',{get:function(){return null;},configurable:true});}catch(e){}
-  // Patch 2: empêcher redirections
+  try{Object.defineProperty(window,'self',{get:function(){return window;},configurable:true});}catch(e){}
+
+  // ── B. Bloquer les redirections et navigation ────────────────────────────
+  try{
+    var _assign=window.location.assign.bind(window.location);
+    var _replace=window.location.replace.bind(window.location);
+    Object.defineProperty(window.location,'assign',{value:function(){},writable:true,configurable:true});
+    Object.defineProperty(window.location,'replace',{value:function(){},writable:true,configurable:true});
+  }catch(e){}
   try{window.history.pushState=function(){};window.history.replaceState=function(){};}catch(e){}
-  // Patch 3: opener null
   try{window.opener=null;}catch(e){}
-  // Patch 4: console.error silencieux (évite les crashs d'erreurs non-fatales)
+
+  // ── C. Intercepter les setters CSS pour bloquer le masquage par JS ───────
+  //    Cible : opacity:0, visibility:hidden, transform initial des animations
+  try{
+    var opDesc=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'opacity');
+    if(opDesc&&opDesc.set){
+      Object.defineProperty(CSSStyleDeclaration.prototype,'opacity',{
+        set:function(v){
+          // Autoriser seulement les valeurs > 0
+          var n=parseFloat(v);
+          if(!isNaN(n)&&n===0) return;
+          opDesc.set.call(this,v);
+        },
+        get:opDesc.get, configurable:true, enumerable:opDesc.enumerable
+      });
+    }
+  }catch(e){}
+  try{
+    var visDesc=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'visibility');
+    if(visDesc&&visDesc.set){
+      Object.defineProperty(CSSStyleDeclaration.prototype,'visibility',{
+        set:function(v){
+          if(v==='hidden'||v==='collapse') return;
+          visDesc.set.call(this,v);
+        },
+        get:visDesc.get, configurable:true, enumerable:visDesc.enumerable
+      });
+    }
+  }catch(e){}
+
+  // ── D. Intercepter setProperty() (utilisé par Framer Motion, GSAP, etc.) ─
+  try{
+    var origSetProp=CSSStyleDeclaration.prototype.setProperty;
+    CSSStyleDeclaration.prototype.setProperty=function(prop,val,priority){
+      var p=prop.trim().toLowerCase();
+      if(p==='opacity'&&(val==='0'||parseFloat(val)===0)) return;
+      if(p==='visibility'&&(val==='hidden'||val==='collapse')) return;
+      return origSetProp.call(this,prop,val,priority);
+    };
+  }catch(e){}
+
+  // ── E. Silencer les erreurs non-fatales (évite les crashs d'UI) ──────────
+  window.onerror=function(msg,src,line,col,err){
+    // Laisser passer les erreurs critiques de parsing
+    if(typeof msg==='string'&&(msg.indexOf('Script error')>-1||msg.indexOf('ResizeObserver')>-1)) return true;
+    return false;
+  };
   var _ce=console.error;console.error=function(){try{_ce.apply(console,arguments);}catch(e){}};
+
+  // ── F. Après le chargement : révéler tout ce qui reste caché ─────────────
+  function revealHiddenElements(){
+    try{
+      var all=document.querySelectorAll('*');
+      for(var i=0;i<all.length;i++){
+        var el=all[i];
+        var s=el.style;
+        // Réparer les inline styles résiduels
+        if(s.opacity==='0') s.cssText=s.cssText.replace(/opacity\s*:\s*0[^;]*;?/g,'opacity:1;');
+        if(s.visibility==='hidden') s.cssText=s.cssText.replace(/visibility\s*:\s*hidden[^;]*;?/g,'visibility:visible;');
+        // Réparer les transforms d'animation initiale communs
+        if(s.transform&&(
+          s.transform.indexOf('translateY(')>-1||
+          s.transform.indexOf('translateX(')>-1||
+          s.transform.indexOf('scale(0')>-1
+        )){
+          var cs=window.getComputedStyle(el);
+          if(parseFloat(cs.opacity)<0.1){
+            s.transform='none';
+            s.opacity='1';
+          }
+        }
+      }
+    }catch(e){}
+  }
+
+  // Lancer à plusieurs moments pour couvrir les animations retardées
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',function(){
+      revealHiddenElements();
+      setTimeout(revealHiddenElements,800);
+      setTimeout(revealHiddenElements,2000);
+    });
+  } else {
+    revealHiddenElements();
+    setTimeout(revealHiddenElements,800);
+    setTimeout(revealHiddenElements,2000);
+  }
 })();
 </script>`
 
-  // Retirer les balises <base> existantes (on met la nôtre)
-  html = html.replace(/<base\s[^>]*>/gi, "")
+  // ─── 2. PATCH CSS (override de haute priorité avec !important) ───────────
+  //    Cible les patterns de masquage CSS connus sans casser les layouts
+  const cssPatch = `<style data-preview-patch="1">
+  /* ── Attributs inline opacity:0 / visibility:hidden ── */
+  [style*="opacity: 0"],[style*="opacity:0"] { opacity: 1 !important; }
+  [style*="visibility: hidden"],[style*="visibility:hidden"] { visibility: visible !important; }
+  [style*="visibility: collapse"],[style*="visibility:collapse"] { visibility: visible !important; }
 
-  // Notre <base href> pour que les URLs relatives restantes fonctionnent
-  const baseTag = `<base href="${origin}/">`
-
-  // Injecter au tout début de <head>
-  if (/<head\b[^>]*>/i.test(html)) {
-    html = html.replace(/(<head\b[^>]*>)/i, `$1\n${baseTag}\n${patch}`)
-  } else {
-    html = baseTag + "\n" + patch + "\n" + html
+  /* ── Transforms d'animation initiales courantes (Framer Motion, GSAP, AOS) ── */
+  [style*="translateY(20px)"],[style*="translateY(30px)"],[style*="translateY(40px)"],
+  [style*="translateY(50px)"],[style*="translateY(60px)"],[style*="translateY(100px)"],
+  [style*="translateY(-20px)"],[style*="translateY(-30px)"],[style*="translateY(-40px)"],
+  [style*="translateY(-50px)"],[style*="translateY(-100px)"],
+  [style*="translateX(20px)"],[style*="translateX(-20px)"],[style*="translateX(100px)"],
+  [style*="translateX(-100px)"],
+  [style*="scale(0)"],[style*="scale(0.8)"],[style*="scale(0.9)"] {
+    transform: none !important;
+    opacity: 1 !important;
   }
 
-  // Retirer les meta CSP et X-Frame-Options inline (certains sites les mettent en meta)
-  html = html.replace(/<meta[^>]*http-equiv=["'](?:Content-Security-Policy|X-Frame-Options)["'][^>]*>/gi, "")
+  /* ── Frameworks d'animation (AOS, ScrollReveal, Locomotive, etc.) ── */
+  [data-aos], .aos-init, .aos-animate { opacity: 1 !important; transform: none !important; transition: none !important; }
+  [data-sal], [data-sal-duration], [data-sal-easing] { opacity: 1 !important; transform: none !important; }
+  [data-scroll], [data-scroll-reveal] { opacity: 1 !important; transform: none !important; }
+  .sr, .js-reveal, .js-fade, .js-slide { opacity: 1 !important; transform: none !important; }
+
+  /* ── Classes utilitaires de masquage communes ── */
+  .is-hidden:not([aria-hidden="true"]) { visibility: visible !important; opacity: 1 !important; }
+  .invisible { visibility: visible !important; opacity: 1 !important; }
+
+  /* ── Framer Motion / React Spring : état initial will-change ── */
+  [style*="will-change: opacity"],[style*="will-change:opacity"] { opacity: 1 !important; }
+  [style*="pointer-events: none"][style*="opacity"] { opacity: 1 !important; pointer-events: auto !important; }
+
+  /* ── Désactiver les transitions pour que les états finaux s'affichent immédiatement ── */
+  *, *::before, *::after {
+    animation-play-state: paused !important;
+    animation-delay: -9999s !important;
+    animation-fill-mode: both !important;
+  }
+</style>`
+
+  // ─── 3. Nettoyage ─────────────────────────────────────────────────────────
+  // Retirer les balises <base> existantes
+  html = html.replace(/<base\s[^>]*>/gi, "")
+  // Retirer les meta CSP et X-Frame-Options inline
+  html = html.replace(/<meta[^>]*http-equiv=["'](?:Content-Security-Policy|X-Frame-Options|Content-Security-Policy-Report-Only)["'][^>]*>/gi, "")
+  // Notre <base href>
+  const baseTag = `<base href="${origin}/">`
+
+  // ─── 4. Injection dans <head> (le plus tôt possible) ─────────────────────
+  if (/<head\b[^>]*>/i.test(html)) {
+    html = html.replace(/(<head\b[^>]*>)/i, `$1\n${baseTag}\n${jsPatch}\n${cssPatch}`)
+  } else {
+    html = baseTag + "\n" + jsPatch + "\n" + cssPatch + "\n" + html
+  }
 
   return html
 }
@@ -216,5 +345,5 @@ export async function POST(request: Request) {
     console.error("[analyze] error:", err)
     return NextResponse.json({ error: err.message || "Erreur serveur" }, { status: 500 })
   }
-        }
-    
+      }
+                               
