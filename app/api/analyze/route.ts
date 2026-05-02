@@ -142,6 +142,38 @@ function injectPatches(html: string, siteUrl: string): string {
   return html
 }
 
+/**
+ * Fetches all external <link rel="stylesheet"> and replaces them with <style> blocks.
+ * Makes the HTML fully self-contained so CORS can't block styles in the iframe.
+ */
+async function inlineExternalCSS(html: string, base: string): Promise<string> {
+  const hrefPattern = /\bhref=["']([^"']+)["']/i
+  const linkTags = [...html.matchAll(/<link\b[^>]*\brel=["']stylesheet["'][^>]*>/gi)].map(m => m[0])
+
+  for (const tag of linkTags) {
+    const hrefMatch = tag.match(hrefPattern)
+    if (!hrefMatch) continue
+    const href = hrefMatch[1]
+    const absUrl = href.startsWith("http") ? href
+      : href.startsWith("//") ? "https:" + href
+      : (() => { try { return new URL(href, base).href } catch { return null } })()
+    if (!absUrl) continue
+    try {
+      const res = await fetch(absUrl, {
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/css,*/*;q=0.8" },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!res.ok) continue
+      let css = await res.text()
+      css = fixCssUrls(css, absUrl)
+      html = html.replace(tag, `<style data-href="${absUrl}">\n${css}\n</style>`)
+    } catch {
+      // Leave the original <link> if fetch fails
+    }
+  }
+  return html
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -158,12 +190,15 @@ export async function POST(request: Request) {
     const absoluteHtml = absolutifyHtml(rawHtml, siteUrl)
 
     // 3. Injecter les patches
-    const finalHtml = injectPatches(absoluteHtml, siteUrl)
+    const patchedHtml = injectPatches(absoluteHtml, siteUrl)
 
-    // 4. Stats
+    // 4. Inliner tous les CSS externes (évite le blocage CORS dans l'iframe)
+    const finalHtml = await inlineExternalCSS(patchedHtml, siteUrl)
+
+    // 5. Stats
     const stats = countResources(rawHtml)
 
-    // Extract inline CSS and JS from the HTML for tech detection and code export
+    // 6. Extraire CSS et JS inline pour la détection de technos et l'export
     const inlineCSS = Array.from(rawHtml.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi))
       .map(m => m[1]).join("\n")
     const inlineJS = Array.from(rawHtml.matchAll(/<script\b(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi))
@@ -182,4 +217,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: err.message || "Erreur serveur" }, { status: 500 })
   }
         }
-      
+    
