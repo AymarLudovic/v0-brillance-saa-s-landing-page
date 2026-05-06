@@ -12,7 +12,7 @@ export default function TerminalPage() {
     setLoading(true)
     setOutput("")
     try {
-      const res = await fetch("/api/sandbox", {
+      const res = await fetch("/api/sand", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "runCommand", command }),
