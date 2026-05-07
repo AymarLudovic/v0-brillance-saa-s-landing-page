@@ -1,6 +1,6 @@
 "use client";
 // app/page.tsx
-import { useChat } from "ai/react";
+import { useChat } from "@ai-sdk/react";
 import { useEffect, useRef } from "react";
 
 export default function Page() {
@@ -96,5 +96,5 @@ export default function Page() {
       </form>
     </div>
   );
-}
-  
+                 }
+        
