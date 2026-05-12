@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import Nango from "@nangohq/node"
+import { Nango } from "@nangohq/node"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /api/connector/route.ts  — Tout en un : statut, session Nango, exécution skill
