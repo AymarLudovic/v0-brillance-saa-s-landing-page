@@ -11,6 +11,8 @@
   "dependencies": {
     "@lezer/highlight": "1.2.1",
     "@monaco-editor/react": "4.7.0",
+    "@nangohq/frontend": "0.70.1",
+    "@nangohq/node": "0.70.1",
     "@babel/runtime": "latest",
     "@uiw/codemirror-theme-eclipse": "4.25.2",
     "@codemirror/lang-javascript": "latest",
