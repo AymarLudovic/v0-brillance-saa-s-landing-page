@@ -1,351 +1,236 @@
 import { NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import Nango from "@nangohq/node"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /api/connector/route.ts  — Gère TOUT : OAuth, callbacks, déconnexion, MCP
+// /api/connector/route.ts  — Tout en un : statut, session Nango, exécution skill
 //
-// GET  /api/connector                               → statut des connexions
-// GET  /api/connector?action=auth&provider=google   → OAuth redirect
-// GET  /api/connector?action=callback&provider=...  → OAuth callback
-// GET  /api/connector?action=disconnect&service=... → déconnexion
-// GET  /api/connector?action=trello-save&token=...  → sauvegarde token Trello
-// POST /api/connector                               → exécution outil MCP
+// .env.local : NANGO_SECRET_KEY=<ta clé secrète depuis app.nango.dev>
+//
+// GET  /api/connector?userId=xxx              → statut connexions de l'user
+// POST {action:"session", provider, userId}   → session token pour Nango Connect UI
+// POST {action:"run", service, ...}           → exécute un skill via Nango proxy
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Config MCP servers ────────────────────────────────────────────────────────
-const MCP: Record<string, { url: string; cookie: string; transport: "http" | "sse" }> = {
-  gmail:    { url: "https://gmailmcp.googleapis.com/mcp/v1",    cookie: "google_access_token", transport: "http" },
-  drive:    { url: "https://drivemcp.googleapis.com/mcp/v1",    cookie: "google_access_token", transport: "http" },
-  calendar: { url: "https://calendarmcp.googleapis.com/mcp/v1", cookie: "google_access_token", transport: "http" },
-  notion:   { url: "https://mcp.notion.com/sse",                cookie: "notion_access_token", transport: "sse"  },
+const nango = new Nango({ secretKey: process.env.NANGO_SECRET_KEY! })
+
+// Integration IDs tels que configurés dans ton dashboard Nango
+// app.nango.dev → Integrations → le "Integration ID" de chaque fiche
+const INTEGRATIONS: Record<string, string> = {
+  gmail:    "google-mail",
+  drive:    "google-drive",
+  calendar: "google-calendar",
+  notion:   "notion",
+  trello:   "trello",
 }
 
-// ── Cookies liés à chaque service (pour le statut + déconnexion) ──────────────
-const SERVICE_COOKIES: Record<string, string[]> = {
-  google: ["google_access_token", "google_refresh_token"],
-  notion: ["notion_access_token"],
-  trello: ["trello_token"],
-}
-
-// ── Web Crypto helpers (pas besoin du package Node "crypto") ──────────────────
-function randomHex(bytes = 16): string {
-  const arr = new Uint8Array(bytes)
-  crypto.getRandomValues(arr)
-  return Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join("")
-}
-
-function randomBase64url(bytes = 32): string {
-  const arr = new Uint8Array(bytes)
-  crypto.getRandomValues(arr)
-  return btoa(String.fromCharCode(...arr))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
-}
-
-async function sha256Base64url(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input)
-  const hash = await crypto.subtle.digest("SHA-256", data)
-  return btoa(String.fromCharCode(...new Uint8Array(hash)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+const STATUS_GROUPS: Record<string, string[]> = {
+  google: ["gmail", "drive", "calendar"],
+  notion: ["notion"],
+  trello: ["trello"],
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET handler
+// GET — statut des connexions
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const sp       = req.nextUrl.searchParams
-  const action   = sp.get("action")
-  const provider = sp.get("provider")
-  const service  = sp.get("service")
-  const origin   = req.nextUrl.origin
-  const jar      = await cookies()
+  const userId = req.nextUrl.searchParams.get("userId")
+  if (!userId) return NextResponse.json({ google: false, notion: false, trello: false })
 
-  // ── Statut (aucun action) ──────────────────────────────────────────────────
-  if (!action) {
-    return NextResponse.json({
-      google: !!jar.get("google_access_token")?.value,
-      notion: !!jar.get("notion_access_token")?.value,
-      trello: !!jar.get("trello_token")?.value,
+  const status: Record<string, boolean> = {}
+
+  await Promise.allSettled(
+    Object.entries(STATUS_GROUPS).map(async ([group, services]) => {
+      for (const svc of services) {
+        const id = INTEGRATIONS[svc]
+        if (!id) continue
+        try {
+          await nango.getConnection(id, userId)
+          status[group] = true
+          return
+        } catch { /* pas connecté */ }
+      }
+      if (!status[group]) status[group] = false
     })
-  }
+  )
 
-  // ── auth — Démarre le flow OAuth ──────────────────────────────────────────
-  if (action === "auth") {
-    // Google : OAuth 2.0 + PKCE
-    if (provider === "google") {
-      const clientId = process.env.GOOGLE_CLIENT_ID
-      if (!clientId) return jsonErr("GOOGLE_CLIENT_ID manquant dans .env.local")
-
-      const state        = randomHex(16)
-      const codeVerifier = randomBase64url(32)
-      const challenge    = await sha256Base64url(codeVerifier)
-
-      const res = NextResponse.redirect(buildUrl("https://accounts.google.com/o/oauth2/v2/auth", {
-        client_id:             clientId,
-        redirect_uri:          `${origin}/api/connector?action=callback&provider=google`,
-        response_type:         "code",
-        scope:                 "openid email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar",
-        state,
-        code_challenge:        challenge,
-        code_challenge_method: "S256",
-        access_type:           "offline",
-        prompt:                "consent",
-      }))
-      setCookie(res, "oauth_state",         state,        600)
-      setCookie(res, "oauth_code_verifier", codeVerifier, 600)
-      return res
-    }
-
-    // Notion : OAuth 2.0 standard
-    if (provider === "notion") {
-      const clientId = process.env.NOTION_CLIENT_ID
-      if (!clientId) return jsonErr("NOTION_CLIENT_ID manquant dans .env.local")
-
-      const state = randomHex(16)
-      const res = NextResponse.redirect(buildUrl("https://api.notion.com/v1/oauth/authorize", {
-        client_id:     clientId,
-        redirect_uri:  `${origin}/api/connector?action=callback&provider=notion`,
-        response_type: "code",
-        owner:         "user",
-        state,
-      }))
-      setCookie(res, "oauth_state", state, 600)
-      return res
-    }
-
-    // Trello : OAuth 1.0a simplifié (token dans le fragment — géré côté client)
-    if (provider === "trello") {
-      const apiKey = process.env.TRELLO_API_KEY
-      if (!apiKey) return jsonErr("TRELLO_API_KEY manquant dans .env.local")
-
-      return NextResponse.redirect(buildUrl("https://trello.com/1/authorize", {
-        expiration:      "never",
-        name:            "SkillsPlatform",
-        scope:           "read,write",
-        response_type:   "token",
-        key:             apiKey,
-        return_url:      `${origin}/api/connector?action=callback&provider=trello`,
-        callback_method: "fragment",
-      }))
-    }
-
-    return jsonErr(`Provider "${provider}" inconnu`)
-  }
-
-  // ── callback — Reçoit le code/token ───────────────────────────────────────
-  if (action === "callback") {
-    // Google callback
-    if (provider === "google") {
-      const code        = sp.get("code")
-      const state       = sp.get("state")
-      const savedState  = jar.get("oauth_state")?.value
-      const verifier    = jar.get("oauth_code_verifier")?.value
-
-      if (!code || state !== savedState || !verifier) return redirect(`${origin}/?error=google_state_mismatch`)
-
-      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type:    "authorization_code",
-          client_id:     process.env.GOOGLE_CLIENT_ID!,
-          client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-          redirect_uri:  `${origin}/api/connector?action=callback&provider=google`,
-          code,
-          code_verifier: verifier,
-        }),
-      })
-      const token = await tokenRes.json()
-      if (!tokenRes.ok || !token.access_token) return redirect(`${origin}/?error=google_token_exchange`)
-
-      const res = redirect(`${origin}/?connected=google`)
-      setCookie(res, "google_access_token",  token.access_token,  token.expires_in ?? 3600)
-      if (token.refresh_token) setCookie(res, "google_refresh_token", token.refresh_token, 30 * 24 * 3600)
-      res.cookies.delete("oauth_state")
-      res.cookies.delete("oauth_code_verifier")
-      return res
-    }
-
-    // Notion callback
-    if (provider === "notion") {
-      const code       = sp.get("code")
-      const state      = sp.get("state")
-      const savedState = jar.get("oauth_state")?.value
-      if (!code || state !== savedState) return redirect(`${origin}/?error=notion_state_mismatch`)
-
-      const credentials = btoa(`${process.env.NOTION_CLIENT_ID}:${process.env.NOTION_CLIENT_SECRET}`)
-      const tokenRes = await fetch("https://api.notion.com/v1/oauth/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Basic ${credentials}` },
-        body: JSON.stringify({
-          grant_type:   "authorization_code",
-          code,
-          redirect_uri: `${origin}/api/connector?action=callback&provider=notion`,
-        }),
-      })
-      const token = await tokenRes.json()
-      if (!tokenRes.ok || !token.access_token) return redirect(`${origin}/?error=notion_token_exchange`)
-
-      const res = redirect(`${origin}/?connected=notion`)
-      setCookie(res, "notion_access_token", token.access_token, 365 * 24 * 3600)
-      res.cookies.delete("oauth_state")
-      return res
-    }
-
-    // Trello callback — le token est dans le fragment (#token=...) pas le query string.
-    // On sert une micro-page HTML qui lit le hash et fait une redirection propre.
-    if (provider === "trello") {
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Trello</title></head><body>
-<script>
-  var token = new URLSearchParams(location.hash.replace('#','')).get('token');
-  location.href = token
-    ? '/api/connector?action=trello-save&token=' + encodeURIComponent(token)
-    : '/?error=trello_no_token';
-</script>
-<p>Connexion Trello...</p></body></html>`
-      return new NextResponse(html, { headers: { "Content-Type": "text/html" } })
-    }
-  }
-
-  // ── trello-save — Sauvegarde le token Trello (vient du callback HTML) ─────
-  if (action === "trello-save") {
-    const token = sp.get("token")
-    if (!token) return redirect(`${origin}/?error=trello_no_token`)
-    const res = redirect(`${origin}/?connected=trello`)
-    setCookie(res, "trello_token", token, 30 * 24 * 3600)
-    return res
-  }
-
-  // ── disconnect — Supprime les cookies d'un service ────────────────────────
-  if (action === "disconnect") {
-    const toClear = SERVICE_COOKIES[service ?? ""]
-    if (!toClear) return jsonErr(`Service "${service}" inconnu`)
-    const res = redirect(`${origin}/`)
-    toClear.forEach(name => res.cookies.delete(name))
-    return res
-  }
-
-  return jsonErr("Action inconnue")
+  return NextResponse.json(status)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST handler — Exécute un outil via MCP
+// POST
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const { service, intent, geminiKey, subSkillId } = await req.json()
+  const body = await req.json()
+  const { action = "run", provider, userId, service, intent, geminiKey, subSkillId } = body
 
-  const resolved = resolveService(service, subSkillId)
-  const cfg      = MCP[resolved]
-  if (!cfg) return NextResponse.json({ error: `Service "${service}" non supporté` }, { status: 400 })
+  if (!userId) return NextResponse.json({ error: "userId requis" }, { status: 400 })
 
-  const jar   = await cookies()
-  const token = jar.get(cfg.cookie)?.value
-
-  if (!token) {
-    return NextResponse.json({ error: "non_connecté", service }, { status: 401 })
-  }
-
-  // Refresh Google token si expiré
-  const freshToken = cfg.cookie === "google_access_token"
-    ? await maybeRefreshGoogle(token, jar.get("google_refresh_token")?.value, req)
-    : token
-
-  let client: Client | null = null
-  try {
-    client = new Client({ name: "skills-platform", version: "1.0.0" })
-
-    const authHeader = { Authorization: `Bearer ${freshToken}` }
-    const transport  = cfg.transport === "sse"
-      ? new SSEClientTransport(new URL(cfg.url), { requestInit: { headers: authHeader } })
-      : new StreamableHTTPClientTransport(new URL(cfg.url), { requestInit: { headers: authHeader } })
-
-    await client.connect(transport)
-
-    // Découverte des outils disponibles sur ce MCP server
-    const { tools } = await client.listTools()
-    if (!tools.length) return NextResponse.json({ error: "Aucun outil disponible sur ce MCP server" }, { status: 502 })
-
-    // Gemini sélectionne l'outil + génère les paramètres
-    const { tool, params } = await askGemini({
-      geminiKey,
-      service: resolved,
-      subSkillId,
-      intent,
-      tools: tools.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
-    })
-
-    // Appel MCP
-    const result = await client.callTool(tool, params)
-    return NextResponse.json({ success: true, tool, result })
-
-  } catch (err: unknown) {
-    if ((err as { status?: number })?.status === 401) {
-      const res = NextResponse.json({ error: "non_connecté", service }, { status: 401 })
-      res.cookies.delete(cfg.cookie)
-      return res
+  // ── Créer une session pour Nango Connect UI (frontend) ────────────────────
+  if (action === "session") {
+    try {
+      const session = await nango.createConnectSession({
+        end_user: { id: userId },
+        ...(provider && INTEGRATIONS[provider]
+          ? { allowed_integrations: [INTEGRATIONS[provider]] }
+          : {}),
+      })
+      return NextResponse.json({ sessionToken: session.token })
+    } catch (err: unknown) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Erreur Nango session" },
+        { status: 500 }
+      )
     }
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Erreur MCP" }, { status: 500 })
-  } finally {
-    try { await client?.close() } catch {}
   }
+
+  // ── Exécuter un skill ─────────────────────────────────────────────────────
+  if (action === "run") {
+    if (!geminiKey) return NextResponse.json({ error: "Clé Gemini manquante" }, { status: 400 })
+
+    const resolved = resolveService(service, subSkillId)
+    const integId  = INTEGRATIONS[resolved]
+    if (!integId) return NextResponse.json({ error: `Service "${service}" non supporté` }, { status: 400 })
+
+    try { await nango.getConnection(integId, userId) }
+    catch { return NextResponse.json({ error: "non_connecté", service }, { status: 401 }) }
+
+    try {
+      const plan = await askGemini({ geminiKey, service: resolved, subSkillId, intent })
+
+      const proxyRes = await nango.proxy({
+        method:            plan.method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+        endpoint:          plan.endpoint,
+        providerConfigKey: integId,
+        connectionId:      userId,
+        data:              plan.body     ?? undefined,
+        params:            plan.params   ?? undefined,
+        headers:           plan.headers  ?? undefined,
+      })
+
+      return NextResponse.json({
+        success: true,
+        label:   plan.label,
+        result:  formatResult(proxyRes.data, plan.label),
+      })
+    } catch (err: unknown) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Erreur" },
+        { status: 500 }
+      )
+    }
+  }
+
+  return NextResponse.json({ error: "Action inconnue" }, { status: 400 })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers internes
+// resolveService — mappe le service générique vers le bon integration ID
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Mappe service générique → MCP server précis selon le sub-skill */
-function resolveService(service: string, subSkillId?: string): string {
-  const s = subSkillId ?? ""
+function resolveService(service: string, subSkillId = ""): string {
   if (service === "google" || service === "gmail") {
-    if (s.startsWith("drive"))    return "drive"
-    if (s.startsWith("calendar")) return "calendar"
+    if (subSkillId.startsWith("drive"))    return "drive"
+    if (subSkillId.startsWith("calendar")) return "calendar"
     return "gmail"
   }
   return service
 }
 
-/** Rafraîchit le Google access_token si on a un refresh_token */
-async function maybeRefreshGoogle(
-  accessToken: string,
-  refreshToken: string | undefined,
-  req: NextRequest
-): Promise<string> {
-  if (!refreshToken) return accessToken
-  try {
-    const res = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type:    "refresh_token",
-        refresh_token: refreshToken,
-        client_id:     process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      }),
-    })
-    const data = await res.json()
-    if (data.access_token) {
-      // Met à jour le cookie dans la réponse (best-effort, pas bloquant)
-      return data.access_token
-    }
-  } catch {}
-  return accessToken
+// ─────────────────────────────────────────────────────────────────────────────
+// formatResult — formate la réponse API en texte lisible pour l'UI
+// ─────────────────────────────────────────────────────────────────────────────
+function formatResult(data: unknown, label?: string): string {
+  if (!data) return "Action effectuée avec succès."
+  if (typeof data === "string") return data
+  const d = data as Record<string, unknown>
+  if (d.id && d.threadId)                              return `${label ?? "Email traité"} !\nID message : \`${d.id}\``
+  if (d.webViewLink)                                   return `Fichier créé !\n🔗 [Ouvrir dans Drive](${d.webViewLink})`
+  if (d.id && d.name)                                  return `"${d.name}" créé avec succès !\nID : \`${d.id}\``
+  if (d.url && (d.object === "page" || d.object === "database")) return `Créé dans Notion !\n🔗 [Ouvrir](${d.url})`
+  if (d.shortUrl)                                      return `Carte Trello créée !\n🔗 [Ouvrir](${d.shortUrl})`
+  return JSON.stringify(data, null, 2).slice(0, 800)
 }
 
-/** Demande à Gemini de choisir l'outil MCP + générer les paramètres */
+// ─────────────────────────────────────────────────────────────────────────────
+// askGemini — génère le plan d'action API complet
+// ─────────────────────────────────────────────────────────────────────────────
+const API_DOCS: Record<string, string> = {
+  gmail: `
+Base URL gérée par Nango — donne seulement le path.
+- Envoyer un email   : POST /gmail/v1/users/me/messages/send
+  body: { "raw": "<email encodé en base64url au format RFC 2822>" }
+  Format RFC 2822 à encoder:
+    To: destinataire@email.com\\r\\n
+    Subject: =?UTF-8?B?<btoa(sujet)>?=\\r\\n
+    Content-Type: text/plain; charset=utf-8\\r\\n
+    MIME-Version: 1.0\\r\\n
+    \\r\\n
+    <corps de l'email>
+- Créer un brouillon : POST /gmail/v1/users/me/drafts
+  body: { "message": { "raw": "<même format base64url>" } }
+`,
+  drive: `
+Base URL gérée par Nango.
+- Créer un Google Doc   : POST /drive/v3/files
+  body: { "name": "<titre>", "mimeType": "application/vnd.google-apps.document" }
+- Créer une Google Sheet: POST /drive/v3/files
+  body: { "name": "<titre>", "mimeType": "application/vnd.google-apps.spreadsheet" }
+- Uploader un fichier texte: POST /upload/drive/v3/files?uploadType=media
+  headers: { "Content-Type": "text/plain" }
+  body: "<contenu texte brut>"
+`,
+  calendar: `
+Base URL gérée par Nango.
+- Créer un événement : POST /calendar/v3/calendars/primary/events
+  body: {
+    "summary": "<titre>",
+    "description": "<description>",
+    "start": { "dateTime": "<ISO8601>", "timeZone": "Europe/Paris" },
+    "end":   { "dateTime": "<ISO8601>", "timeZone": "Europe/Paris" }
+  }
+`,
+  notion: `
+Base URL gérée par Nango. Headers requis: { "Notion-Version": "2022-06-28" }
+- Créer une page/note : POST /v1/pages
+  body: {
+    "parent": { "type": "workspace", "workspace": true },
+    "icon": { "type": "emoji", "emoji": "<emoji>" },
+    "properties": { "title": { "title": [{ "text": { "content": "<titre>" } }] } },
+    "children": [{ "object": "block", "type": "paragraph", "paragraph": { "rich_text": [{ "type": "text", "text": { "content": "<contenu>" } }] } }]
+  }
+- Créer une tâche : même endpoint, utilise type "to_do" dans children avec checked:false
+- Créer une base de données : POST /v1/databases
+  body: {
+    "parent": { "type": "workspace", "workspace": true },
+    "title": [{ "type": "text", "text": { "content": "<titre>" } }],
+    "properties": { "Nom": { "title": {} }, "Statut": { "select": { "options": [{"name":"À faire","color":"red"},{"name":"En cours","color":"yellow"},{"name":"Terminé","color":"green"}] } }, "Date": { "date": {} } }
+  }
+`,
+  trello: `
+Base URL gérée par Nango.
+- Créer une carte : POST /1/cards
+  body: { "name": "<nom>", "desc": "<description>", "idList": "<idDeLaListe>", "pos": "top" }
+  Pour trouver idList: GET /1/members/me/boards?fields=id,name puis GET /1/boards/<id>/lists
+- Créer une liste : POST /1/lists
+  body: { "name": "<nom>", "idBoard": "<idDuBoard>", "pos": "bottom" }
+  Pour trouver idBoard: GET /1/members/me/boards?fields=id,name
+`,
+}
+
 async function askGemini({
-  geminiKey, service, subSkillId, intent, tools,
+  geminiKey, service, subSkillId, intent,
 }: {
   geminiKey: string
   service: string
   subSkillId: string
   intent: string
-  tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
-}): Promise<{ tool: string; params: Record<string, unknown> }> {
-  if (!geminiKey) throw new Error("Clé Gemini manquante")
-
+}): Promise<{
+  method: string
+  endpoint: string
+  body?: Record<string, unknown>
+  params?: Record<string, string>
+  headers?: Record<string, string>
+  label: string
+}> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
     {
@@ -354,31 +239,34 @@ async function askGemini({
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Tu es un expert en intégrations MCP. Tu dois choisir le bon outil et générer des paramètres précis et complets.
+            text: `Tu es un expert en intégrations API REST. Génère un plan d'appel API précis et complet.
 
-Service MCP: "${service}"
-Sub-skill demandé: "${subSkillId}"
-Instruction de l'utilisateur: "${intent}"
+Service: "${service}"
+Sub-skill: "${subSkillId}"
+Instruction utilisateur: "${intent}"
 
-Outils disponibles sur ce MCP server:
-${JSON.stringify(tools, null, 2)}
-
-INSTRUCTIONS:
-- Choisis l'outil le plus approprié pour accomplir ce que demande l'utilisateur
-- Génère des paramètres complets, réalistes et directement utilisables
-- Si l'utilisateur n'a pas spécifié certains champs requis, utilise des valeurs sensées
-- Pour les emails : génère un vrai contenu professionnel
-- Pour les documents : génère un vrai titre et contenu structuré
-- Pour les tâches : génère une vraie description claire
+Documentation API:
+${API_DOCS[service] ?? "API REST standard"}
 
 Réponds UNIQUEMENT en JSON strict (sans markdown, sans commentaires) :
-{"tool": "nom_exact_de_l_outil", "params": { ...tous les paramètres nécessaires... }}`,
+{
+  "method": "POST",
+  "endpoint": "/chemin/exact",
+  "body": { ...données complètes... },
+  "params": { ...query string si nécessaire... },
+  "headers": { ...headers spéciaux si nécessaire... },
+  "label": "description courte de l'action réalisée"
+}
+
+RÈGLES ABSOLUES :
+- Génère un VRAI contenu professionnel, pas de placeholders ni de <...>
+- Pour les emails Gmail : encode correctement en base64url le message RFC 2822 complet
+- Pour les pages Notion : génère un vrai titre et contenu structuré basés sur l'instruction
+- "params" et "headers" sont optionnels — ne les inclus que si nécessaires
+- Le "label" décrit ce qui a été fait (ex: "Email envoyé à john@example.com — Réunion du 15 mai")`,
           }],
         }],
-        generationConfig: {
-          temperature:     1,
-          maxOutputTokens: 10000,
-        },
+        generationConfig: { temperature: 1, maxOutputTokens: 10000 },
       }),
     }
   )
@@ -386,36 +274,13 @@ Réponds UNIQUEMENT en JSON strict (sans markdown, sans commentaires) :
   const data = await res.json()
   if (!res.ok) throw new Error(data.error?.message ?? `Gemini API ${res.status}`)
 
-  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+  const raw = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? "")
+    .replace(/```json|```/g, "").trim()
+
   try {
-    return JSON.parse(raw.replace(/```json|```/g, "").trim())
+    return JSON.parse(raw)
   } catch {
-    throw new Error(`Gemini — réponse JSON invalide : ${raw.slice(0, 300)}`)
+    throw new Error(`Gemini — JSON invalide reçu : ${raw.slice(0, 300)}`)
   }
-}
-
-// ── Petits utilitaires ────────────────────────────────────────────────────────
-function buildUrl(base: string, params: Record<string, string>): string {
-  const url = new URL(base)
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
-  return url.toString()
-}
-
-function redirect(url: string): NextResponse {
-  return NextResponse.redirect(url)
-}
-
-function jsonErr(msg: string, status = 400): NextResponse {
-  return NextResponse.json({ error: msg }, { status })
-}
-
-function setCookie(res: NextResponse, name: string, value: string, maxAge: number) {
-  res.cookies.set(name, value, {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge,
-    path:     "/",
-  })
-                           }
-    
+  }
+                                              
