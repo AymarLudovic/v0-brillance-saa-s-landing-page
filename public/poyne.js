@@ -6,10 +6,11 @@
 (function () {
   'use strict';
 
-  var script = document.currentScript || (function () {
-    var scripts = document.getElementsByTagName('script');
-    return scripts[scripts.length - 1];
-  })();
+  // document.currentScript est null avec defer ou injection dynamique (next/script).
+  // On cherche le script par son attribut data-site-id ou par son src.
+  var script = document.currentScript ||
+    document.querySelector('script[data-site-id]') ||
+    document.querySelector('script[src*="poyne"]');
 
   var siteId = script && script.getAttribute('data-site-id');
   if (!siteId) {
