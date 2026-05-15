@@ -1,27 +1,46 @@
 /**
- * Poyne Analytics Tracker v1.0
- * Usage: <script src="https://your-domain.com/poyne.js" data-site-id="YOUR_SITE_ID" defer></script>
- * Optional: data-api-url="https://your-domain.com" (if self-hosted on a different domain)
+ * Poyne Analytics Tracker v1.1
+ * Usage:
+ *   <script src="https://v0vibebeta.vercel.app/poyne.js" data-site-id="YOUR_SITE_ID" defer></script>
+ *
+ * Next.js (recommandé) :
+ *   import Script from 'next/script'
+ *   <Script src="https://v0vibebeta.vercel.app/poyne.js" data-site-id="YOUR_SITE_ID" strategy="afterInteractive" />
+ *
+ * Debug : ajouter data-debug="true" pour voir les logs dans la console.
  */
 (function () {
   'use strict';
 
-  // document.currentScript est null avec defer ou injection dynamique (next/script).
-  // On cherche le script par son attribut data-site-id ou par son src.
-  var script = document.currentScript ||
+  // ─── Trouver le script tag ─────────────────────────────────────────────────
+  // document.currentScript est null avec defer et next/script (injection dynamique).
+  // On cherche en priorité par data-site-id, puis par le src.
+  var script =
+    document.currentScript ||
     document.querySelector('script[data-site-id]') ||
     document.querySelector('script[src*="poyne"]');
 
   var siteId = script && script.getAttribute('data-site-id');
+  var debug  = script && script.getAttribute('data-debug') === 'true';
+
+  function log() {
+    if (debug) console.log.apply(console, ['[Poyne]'].concat(Array.prototype.slice.call(arguments)));
+  }
+  function warn() {
+    console.warn.apply(console, ['[Poyne]'].concat(Array.prototype.slice.call(arguments)));
+  }
+
   if (!siteId) {
-    console.warn('[Poyne] Missing data-site-id attribute on the script tag.');
+    warn('data-site-id manquant sur le script tag. Tracking désactivé.');
     return;
   }
-  var apiBase = (script.getAttribute('data-api-url') || 'https://v0vibebeta.vercel.app').replace(/\/$/, '');
- var endpoint = apiBase + '/api/track';
 
-  // ─── Anonymous Session ID ──────────────────────────────────────────────────
-  // Stored in sessionStorage (cleared when tab closes) — cookieless & GDPR-safe
+  var apiBase  = (script.getAttribute('data-api-url') || 'https://v0vibebeta.vercel.app').replace(/\/$/, '');
+  var endpoint = apiBase + '/api/track';
+
+  log('Initialisé — siteId:', siteId, '| endpoint:', endpoint);
+
+  // ─── Session ID (cookieless, GDPR-safe) ────────────────────────────────────
   var SESSION_KEY = '__pyn_' + siteId;
 
   function getSessionId() {
@@ -37,7 +56,7 @@
     }
   }
 
-  // ─── Track Pageview ────────────────────────────────────────────────────────
+  // ─── Envoi du pageview ─────────────────────────────────────────────────────
   function track() {
     var payload = JSON.stringify({
       siteId:    siteId,
@@ -48,31 +67,50 @@
       width:     window.innerWidth || 0,
     });
 
-    // sendBeacon is preferred: non-blocking, survives page unload
+    log('Envoi pageview →', location.pathname);
+
+    // fetch (moderne, avec logs d'erreur)
+    if (typeof fetch !== 'undefined') {
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,   // survit au déchargement de page comme sendBeacon
+      })
+        .then(function (res) {
+          if (res.ok) { log('✓ Pageview enregistré'); }
+          else { res.text().then(function (t) { warn('Erreur API', res.status, t); }); }
+        })
+        .catch(function (err) { warn('Fetch échoué:', err); });
+      return;
+    }
+
+    // sendBeacon fallback
     if (navigator.sendBeacon) {
       try {
         navigator.sendBeacon(endpoint, new Blob([payload], { type: 'application/json' }));
+        log('✓ sendBeacon envoyé');
         return;
-      } catch (_) { /* fallback below */ }
+      } catch (_) { /* fallback xhr */ }
     }
 
-    // XHR fallback for older browsers
+    // XHR fallback pour vieux navigateurs
     try {
       var xhr = new XMLHttpRequest();
       xhr.open('POST', endpoint, true);
       xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.send(payload);
-    } catch (_) { /* silent fail — never break the host site */ }
+    } catch (_) { /* ne jamais casser le site hôte */ }
   }
 
-  // ─── Initial Page Load ─────────────────────────────────────────────────────
+  // ─── Chargement initial ────────────────────────────────────────────────────
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', track);
   } else {
     track();
   }
 
-  // ─── SPA Navigation (React Router, Next.js, Vue Router…) ──────────────────
+  // ─── Navigation SPA (Next.js, React Router, Vue Router…) ──────────────────
   var lastPath = location.pathname;
 
   var _pushState = history.pushState.bind(history);
@@ -95,7 +133,6 @@
     }, 0);
   });
 
-  // ─── Public API ────────────────────────────────────────────────────────────
-  // window.poyne.track() — call manually for custom events
+  // ─── API publique ──────────────────────────────────────────────────────────
   window.poyne = { track: track, siteId: siteId };
 })();
