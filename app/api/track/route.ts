@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
     await addDoc(
       collection(db, 'analytics', body.siteId, 'pageviews'),
       {
+        siteId:      body.siteId,           // ← requis par les Firestore rules (isValidPageview)
         page:        body.page,
         referrer:    body.referrer   || '',
         title:       body.title      || '',
@@ -141,5 +142,4 @@ export async function POST(req: NextRequest) {
 // ─── OPTIONS /api/track (CORS preflight) ─────────────────────────────────────
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
-        }
-    
+    }
