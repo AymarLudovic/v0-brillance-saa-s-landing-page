@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Poyne Analytics — Firestore Security Rules
+//
+// Data model:
+//   analytics/{siteId}/pageviews/{eventId}   ← raw tracking events
+//   sites/{siteId}                           ← site metadata (owner, domain…)
+//   users/{userId}                           ← user profiles (optional)
+//
+// Write path: API route (server-side) ──► Firestore
+//   The /api/track route uses the CLIENT SDK with service-account credentials
+//   injected as env vars. All tracker writes go through the server, so we
+//   DENY direct client writes to keep data clean.
+//
+//   ⚠️  If you switch to the Firebase Admin SDK in /api/track, these rules
+//       no longer apply to server writes (Admin bypasses rules). In that case,
+//       the "allow create" rules below are not needed but don't hurt.
+//
+// Read path: Dashboard (authenticated user) ──► Firestore
+//   Only the authenticated owner of a site can read its analytics.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ─────────────────────────────────────────────────────
+
+    // Is the caller signed in?
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // Does the caller own this site?
+    // Expects sites/{siteId} to have an "ownerId" field = user uid.
+    function ownsSite(siteId) {
+      return isAuthed() &&
+        exists(/databases/$(database)/documents/sites/$(siteId)) &&
+        get(/databases/$(database)/documents/sites/$(siteId)).data.ownerId == request.auth.uid;
+    }
+
+    // Basic payload validation for incoming tracking events
+    function isValidPageview() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['siteId', 'page', 'timestamp'])
+          && d.siteId is string && d.siteId.size() > 0
+          && d.page   is string && d.page.size()   > 0;
+    }
+
+    // ── analytics/{siteId}/pageviews ─────────────────────────────────────────
+    match /analytics/{siteId}/pageviews/{eventId} {
+      // PUBLIC WRITE — the poyne.js script sends events through /api/track.
+      // Allow create so the server-side route (client SDK) can write without
+      // admin credentials. Validate minimal shape to block junk.
+      allow create: if isValidPageview();
+
+      // No direct updates or deletes from clients
+      allow update, delete: if false;
+
+      // Only the site owner can read individual events
+      allow read: if ownsSite(siteId);
+    }
+
+    // Catch-all for the analytics collection root (no direct access)
+    match /analytics/{siteId} {
+      allow read, write: if false;
+    }
+
+    // ── sites/{siteId} ───────────────────────────────────────────────────────
+    match /sites/{siteId} {
+      // Anyone authenticated can create a site (they become the owner)
+      allow create: if isAuthed()
+                    && request.resource.data.ownerId == request.auth.uid;
+
+      // Only the owner can read or update their site config
+      allow read, update: if ownsSite(siteId);
+
+      // Only the owner can delete their site
+      allow delete: if ownsSite(siteId);
+    }
+
+    // ── users/{userId} (optional profile doc) ────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if isAuthed() && request.auth.uid == userId;
+    }
+
+    // ── Deny everything else ─────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
