@@ -16,9 +16,8 @@
     console.warn('[Poyne] Missing data-site-id attribute on the script tag.');
     return;
   }
-
-  var apiBase = (script.getAttribute('data-api-url') || '').replace(/\/$/, '');
-  var endpoint = apiBase + '/api/track';
+  var apiBase = (script.getAttribute('data-api-url') || 'https://v0vibebeta.vercel.app').replace(/\/$/, '');
+ var endpoint = apiBase + '/api/track';
 
   // ─── Anonymous Session ID ──────────────────────────────────────────────────
   // Stored in sessionStorage (cleared when tab closes) — cookieless & GDPR-safe
