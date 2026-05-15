@@ -41,8 +41,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
         />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:wght@400&display=swap" />
-        <script src="https://v0vibebeta.vercel.app/poyne.js" data-site-id="test" defer />
-      </head>
+              </head>
       <body className="font-sans antialiased">
         {children}
         <Analytics />
