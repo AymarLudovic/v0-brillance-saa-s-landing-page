@@ -113,19 +113,46 @@
   }
 
   var _heartbeatTimer = null;
+  var _isVisible = !document.hidden; // true si l'onglet est visible
+
   function startHeartbeat() {
     if (_heartbeatTimer) clearInterval(_heartbeatTimer);
+    if (!_isVisible) return; // ne pas heartbeat si l'onglet est caché
     heartbeat(); // immédiat
-    _heartbeatTimer = setInterval(heartbeat, 30000);
+    _heartbeatTimer = setInterval(function() {
+      if (_isVisible) heartbeat();
+    }, 30000);
   }
 
-  // ─── Départ (on stoppe la présence quand l'onglet se ferme) ───────────────
-  window.addEventListener('beforeunload', function() {
-    if (_heartbeatTimer) clearInterval(_heartbeatTimer);
-    // DELETE presence → visiteur parti
+  function stopHeartbeat() {
+    if (_heartbeatTimer) { clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
+    // Supprimer la présence immédiatement → disparaît du dashboard live
     try {
-      fetch(presenceUrl + '/' + encodeURIComponent(sessionId), { method:'DELETE', keepalive:true });
+      fetch(presenceUrl, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sessionId }),
+        keepalive: true,
+      });
     } catch(_) {}
+  }
+
+  // ─── Pause quand l'onglet passe en arrière-plan ────────────────────────────
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      log('Tab caché → pause heartbeat');
+      _isVisible = false;
+      stopHeartbeat();
+    } else {
+      log('Tab visible → reprise heartbeat');
+      _isVisible = true;
+      startHeartbeat();
+    }
+  });
+
+  // ─── Fermeture de l'onglet ─────────────────────────────────────────────────
+  window.addEventListener('beforeunload', function() {
+    stopHeartbeat();
   });
 
   // ─── Navigation SPA ────────────────────────────────────────────────────────
