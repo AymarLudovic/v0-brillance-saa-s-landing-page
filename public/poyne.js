@@ -1,20 +1,18 @@
 /**
- * Poyne Analytics Tracker v1.1
- * Usage:
- *   <script src="https://v0vibebeta.vercel.app/poyne.js" data-site-id="YOUR_SITE_ID" defer></script>
- *
- * Next.js (recommandé) :
+ * Poyne Analytics Tracker v1.2
+ * Usage Next.js (recommandé) :
  *   import Script from 'next/script'
  *   <Script src="https://v0vibebeta.vercel.app/poyne.js" data-site-id="YOUR_SITE_ID" strategy="afterInteractive" />
  *
- * Debug : ajouter data-debug="true" pour voir les logs dans la console.
+ * HTML classique :
+ *   <script src="https://v0vibebeta.vercel.app/poyne.js" data-site-id="YOUR_SITE_ID" defer></script>
+ *
+ * Options : data-debug="true" pour les logs console.
  */
 (function () {
   'use strict';
 
   // ─── Trouver le script tag ─────────────────────────────────────────────────
-  // document.currentScript est null avec defer et next/script (injection dynamique).
-  // On cherche en priorité par data-site-id, puis par le src.
   var script =
     document.currentScript ||
     document.querySelector('script[data-site-id]') ||
@@ -23,116 +21,135 @@
   var siteId = script && script.getAttribute('data-site-id');
   var debug  = script && script.getAttribute('data-debug') === 'true';
 
-  function log() {
-    if (debug) console.log.apply(console, ['[Poyne]'].concat(Array.prototype.slice.call(arguments)));
-  }
-  function warn() {
-    console.warn.apply(console, ['[Poyne]'].concat(Array.prototype.slice.call(arguments)));
-  }
+  function log()  { if (debug) console.log.apply(console,  ['[Poyne]'].concat(Array.prototype.slice.call(arguments))); }
+  function warn() { console.warn.apply(console, ['[Poyne]'].concat(Array.prototype.slice.call(arguments))); }
 
-  if (!siteId) {
-    warn('data-site-id manquant sur le script tag. Tracking désactivé.');
-    return;
-  }
+  if (!siteId) { warn('data-site-id manquant. Tracking désactivé.'); return; }
 
   var apiBase  = (script.getAttribute('data-api-url') || 'https://v0vibebeta.vercel.app').replace(/\/$/, '');
-  var endpoint = apiBase + '/api/track';
+  var trackUrl   = apiBase + '/api/track';
+  var presenceUrl = apiBase + '/api/presence/' + encodeURIComponent(siteId);
 
-  log('Initialisé — siteId:', siteId, '| endpoint:', endpoint);
+  // ─── IDs ───────────────────────────────────────────────────────────────────
 
-  // ─── Session ID (cookieless, GDPR-safe) ────────────────────────────────────
-  var SESSION_KEY = '__pyn_' + siteId;
-
+  /** sessionId : vide à la fermeture du tab (GDPR safe) */
+  var SESSION_KEY = '__pyn_s_' + siteId;
   function getSessionId() {
     try {
       var id = sessionStorage.getItem(SESSION_KEY);
-      if (!id) {
-        id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-        sessionStorage.setItem(SESSION_KEY, id);
-      }
+      if (!id) { id = Math.random().toString(36).slice(2,10) + Date.now().toString(36); sessionStorage.setItem(SESSION_KEY, id); }
       return id;
-    } catch (_) {
-      return Math.random().toString(36).slice(2, 10);
-    }
+    } catch(_) { return Math.random().toString(36).slice(2,10); }
   }
 
-  // ─── Envoi du pageview ─────────────────────────────────────────────────────
+  /** visitorId : persiste dans localStorage → permet de détecter les retours */
+  var VISITOR_KEY = '__pyn_v_' + siteId;
+  /** isNew : false si le visiteur a déjà visité ce site */
+  var SEEN_KEY    = '__pyn_seen_' + siteId;
+  function getVisitorId() {
+    try {
+      var vid = localStorage.getItem(VISITOR_KEY);
+      if (!vid) { vid = 'v_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); localStorage.setItem(VISITOR_KEY, vid); }
+      return vid;
+    } catch(_) { return 'v_anon'; }
+  }
+  function isNewVisitor() {
+    try {
+      var seen = localStorage.getItem(SEEN_KEY);
+      if (!seen) { localStorage.setItem(SEEN_KEY, '1'); return true; }
+      return false;
+    } catch(_) { return true; }
+  }
+
+  var sessionId = getSessionId();
+  var visitorId = getVisitorId();
+  var isNew     = isNewVisitor();
+
+  log('Init — siteId:', siteId, '| session:', sessionId, '| visitor:', visitorId, '| new:', isNew);
+
+  // ─── POST générique ────────────────────────────────────────────────────────
+  function post(url, payload) {
+    var body = JSON.stringify(payload);
+    if (typeof fetch !== 'undefined') {
+      fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:body, keepalive:true })
+        .then(function(r){ if(!r.ok) r.text().then(function(t){ warn('API error', r.status, t); }); })
+        .catch(function(e){ warn('fetch failed:', e); });
+      return;
+    }
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.send(body);
+    } catch(_) {}
+  }
+
+  // ─── Pageview ──────────────────────────────────────────────────────────────
   function track() {
-    var payload = JSON.stringify({
+    log('Pageview →', location.pathname);
+    post(trackUrl, {
       siteId:    siteId,
       page:      location.pathname + location.search,
       referrer:  document.referrer || '',
       title:     document.title   || '',
-      sessionId: getSessionId(),
+      sessionId: sessionId,
+      visitorId: visitorId,
+      isNew:     isNew,
       width:     window.innerWidth || 0,
     });
+  }
 
-    log('Envoi pageview →', location.pathname);
+  // ─── Presence heartbeat ────────────────────────────────────────────────────
+  // Envoyé toutes les 30 s + à chaque changement de page SPA
+  function heartbeat() {
+    log('Heartbeat →', location.pathname);
+    post(presenceUrl, {
+      sessionId: sessionId,
+      visitorId: visitorId,
+      isNew:     isNew,
+      page:      location.pathname + location.search,
+      title:     document.title || '',
+    });
+  }
 
-    // fetch (moderne, avec logs d'erreur)
-    if (typeof fetch !== 'undefined') {
-      fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-        keepalive: true,   // survit au déchargement de page comme sendBeacon
-      })
-        .then(function (res) {
-          if (res.ok) { log('✓ Pageview enregistré'); }
-          else { res.text().then(function (t) { warn('Erreur API', res.status, t); }); }
-        })
-        .catch(function (err) { warn('Fetch échoué:', err); });
-      return;
-    }
+  var _heartbeatTimer = null;
+  function startHeartbeat() {
+    if (_heartbeatTimer) clearInterval(_heartbeatTimer);
+    heartbeat(); // immédiat
+    _heartbeatTimer = setInterval(heartbeat, 30000);
+  }
 
-    // sendBeacon fallback
-    if (navigator.sendBeacon) {
-      try {
-        navigator.sendBeacon(endpoint, new Blob([payload], { type: 'application/json' }));
-        log('✓ sendBeacon envoyé');
-        return;
-      } catch (_) { /* fallback xhr */ }
-    }
-
-    // XHR fallback pour vieux navigateurs
+  // ─── Départ (on stoppe la présence quand l'onglet se ferme) ───────────────
+  window.addEventListener('beforeunload', function() {
+    if (_heartbeatTimer) clearInterval(_heartbeatTimer);
+    // DELETE presence → visiteur parti
     try {
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', endpoint, true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.send(payload);
-    } catch (_) { /* ne jamais casser le site hôte */ }
-  }
+      fetch(presenceUrl + '/' + encodeURIComponent(sessionId), { method:'DELETE', keepalive:true });
+    } catch(_) {}
+  });
 
-  // ─── Chargement initial ────────────────────────────────────────────────────
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', track);
-  } else {
-    track();
-  }
-
-  // ─── Navigation SPA (Next.js, React Router, Vue Router…) ──────────────────
+  // ─── Navigation SPA ────────────────────────────────────────────────────────
   var lastPath = location.pathname;
-
   var _pushState = history.pushState.bind(history);
-  history.pushState = function (state, title, url) {
+  history.pushState = function(state, title, url) {
     _pushState(state, title, url);
-    setTimeout(function () {
-      if (location.pathname !== lastPath) {
-        lastPath = location.pathname;
-        track();
-      }
+    setTimeout(function() {
+      if (location.pathname !== lastPath) { lastPath = location.pathname; track(); startHeartbeat(); }
     }, 0);
   };
-
-  window.addEventListener('popstate', function () {
-    setTimeout(function () {
-      if (location.pathname !== lastPath) {
-        lastPath = location.pathname;
-        track();
-      }
+  window.addEventListener('popstate', function() {
+    setTimeout(function() {
+      if (location.pathname !== lastPath) { lastPath = location.pathname; track(); startHeartbeat(); }
     }, 0);
   });
 
-  // ─── API publique ──────────────────────────────────────────────────────────
-  window.poyne = { track: track, siteId: siteId };
+  // ─── Init ──────────────────────────────────────────────────────────────────
+  function init() { track(); startHeartbeat(); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  window.poyne = { track:track, siteId:siteId, visitorId:visitorId, sessionId:sessionId };
 })();
