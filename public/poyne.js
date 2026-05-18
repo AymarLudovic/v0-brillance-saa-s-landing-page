@@ -119,9 +119,10 @@
     if (_heartbeatTimer) clearInterval(_heartbeatTimer);
     if (!_isVisible) return; // ne pas heartbeat si l'onglet est caché
     heartbeat(); // immédiat
+    // heartbeat toutes les 15s (fenêtre présence = 45s)
     _heartbeatTimer = setInterval(function() {
       if (_isVisible) heartbeat();
-    }, 30000);
+    }, 15000);
   }
 
   function stopHeartbeat() {
