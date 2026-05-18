@@ -118,8 +118,8 @@ export async function GET(
   try {
     const { siteId } = params;
 
-    // Fenêtre : 90 secondes (le heartbeat tourne toutes les 30s → 3 battements max)
-    const cutoff = new Date(Date.now() - 90_000).toISOString();
+    // Fenêtre : 45 secondes (le heartbeat tourne toutes les 15s → 3 battements max)
+    const cutoff = new Date(Date.now() - 45_000).toISOString();
 
     const parent = `projects/${PROJECT}/databases/(default)/documents/analytics/${encodeURIComponent(siteId)}`;
     const url    = `https://firestore.googleapis.com/v1/${parent}:runQuery?key=${API_KEY}`;
