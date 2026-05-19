@@ -128,6 +128,16 @@ function SiteCard({ site, onDelete }: { site: Site; onDelete: () => void }) {
   const [showScript, setShowScript] = useState(false);
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition-shadow">
+      <div className="flex w-full items-center justify-between">
+        <p className="font-semibold">{site.name}</p>
+        <Link
+          href={`/dashboard/${site.siteId}`}
+          className="flex items-center gap-1 underline-dashed text-sm"
+        >
+          
+          Analytics
+        </Link>
+      </div>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center text-white font-bold text-sm shrink-0">
