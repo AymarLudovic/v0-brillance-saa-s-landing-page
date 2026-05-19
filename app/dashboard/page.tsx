@@ -342,7 +342,7 @@ export default function DashboardIndex() {
   // ── Loading screen ────────────────────────────────────────────────────────
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-[#fcfcfc]">
         <svg className="animate-spin w-8 h-8 text-gray-300" viewBox="0 0 24 24" fill="none">
           <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3"/>
           <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
@@ -386,7 +386,7 @@ export default function DashboardIndex() {
 
   // ── Authenticated ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#fcfcfc]">
       {/* Nav */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
