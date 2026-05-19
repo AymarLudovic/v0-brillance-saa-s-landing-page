@@ -69,13 +69,21 @@ function getClientIP(req: NextRequest): string {
 // ─── Geo lookup ───────────────────────────────────────────────────────────────
 interface GeoResult { country: string; countryCode: string; city: string; }
 
+// Convertit un code ISO 3166-1 en nom de pays anglais (ex: "CM" → "Cameroon")
+// Intl.DisplayNames est natif en Node.js 12+ — zéro API externe
+function isoToCountryName(code: string): string {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' }).of(code.toUpperCase()) || code;
+  } catch { return code; }
+}
+
 async function getGeo(req: NextRequest, ip: string): Promise<GeoResult> {
   const vercelCountry = req.headers.get('x-vercel-ip-country');
   const vercelCity    = req.headers.get('x-vercel-ip-city');
   if (vercelCountry) {
     return {
-      country:     decodeURIComponent(req.headers.get('x-vercel-ip-country-region') || vercelCountry),
-      countryCode: vercelCountry,
+      country:     isoToCountryName(vercelCountry),   // "CM" → "Cameroon"
+      countryCode: vercelCountry.toUpperCase(),        // "CM" (pas la région "CE")
       city:        vercelCity ? decodeURIComponent(vercelCity) : 'Unknown',
     };
   }
@@ -161,4 +169,4 @@ export async function POST(req: NextRequest) {
 // ─── OPTIONS /api/track (CORS preflight) ─────────────────────────────────────
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
-    }
+}
