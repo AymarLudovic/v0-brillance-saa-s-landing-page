@@ -34,10 +34,16 @@ export async function GET(
 ) {
   const { siteId } = params;
   const { searchParams } = new URL(req.url);
-  const days = Math.min(Number(searchParams.get('days') || '30'), 365);
+  const days   = Math.min(Number(searchParams.get('days')   || '30'), 365);
+  const offset = Math.min(Number(searchParams.get('offset') || '0'),  365);
+
+  // offset=N → fenêtre [N+days jours en arrière .. N jours en arrière]
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() - offset);
+  endDate.setHours(23, 59, 59, 999);
 
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
+  startDate.setDate(startDate.getDate() - offset - days);
   startDate.setHours(0, 0, 0, 0);
 
   // ── Firestore runQuery (subcollection pageviews) ──────────────────────────
@@ -46,16 +52,28 @@ export async function GET(
 
   const url = `https://firestore.googleapis.com/v1/${parent}:runQuery?key=${FIREBASE_API_KEY}`;
 
-  const body = {
-    structuredQuery: {
-      from: [{ collectionId: 'pageviews' }],
-      where: {
+  const filters = offset > 0
+    ? {
+        compositeFilter: {
+          op: 'AND',
+          filters: [
+            { fieldFilter: { field: { fieldPath: 'timestamp' }, op: 'GREATER_THAN_OR_EQUAL', value: { timestampValue: startDate.toISOString() } } },
+            { fieldFilter: { field: { fieldPath: 'timestamp' }, op: 'LESS_THAN_OR_EQUAL',    value: { timestampValue: endDate.toISOString()   } } },
+          ],
+        },
+      }
+    : {
         fieldFilter: {
           field: { fieldPath: 'timestamp' },
           op: 'GREATER_THAN_OR_EQUAL',
           value: { timestampValue: startDate.toISOString() },
         },
-      },
+      };
+
+  const body = {
+    structuredQuery: {
+      from: [{ collectionId: 'pageviews' }],
+      where: filters,
       orderBy: [{ field: { fieldPath: 'timestamp' }, direction: 'ASCENDING' }],
     },
   };
@@ -85,4 +103,4 @@ export async function GET(
     console.error('[Poyne] Analytics fetch error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-}
+  }
