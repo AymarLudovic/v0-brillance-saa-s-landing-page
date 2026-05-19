@@ -134,7 +134,10 @@ function SiteCard({ site, onDelete }: { site: Site; onDelete: () => void }) {
             {site.name[0]?.toUpperCase()}
           </div>
           <div className="min-w-0">
-            <div className="font-semibold text-gray-900 truncate">{site.name}</div>
+            <div className="font-semibold text-gray-900 truncate">
+              {site.name}
+              <img src=`https://www.google.com/s2/favicons?domain={site.url}&sz=32` alt="image" />
+            </div>
             {site.url && (
               <div className="text-xs text-gray-400 truncate">{site.url}</div>
             )}
