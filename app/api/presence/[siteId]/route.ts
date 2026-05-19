@@ -65,10 +65,15 @@ export async function POST(
 
     const { siteId } = params;
 
-    const country     = req.headers.get('x-vercel-ip-country')            || 'Unknown';
-    const countryCode = req.headers.get('x-vercel-ip-country')            || 'XX';
-    const rawCity     = req.headers.get('x-vercel-ip-city');
-    const city        = rawCity ? decodeURIComponent(rawCity) : 'Unknown';
+    const rawCode     = req.headers.get('x-vercel-ip-country') || 'XX';
+    const countryCode = rawCode.toUpperCase();
+    // Intl.DisplayNames : "CM" → "Cameroon" (natif Node.js, zéro API)
+    const country = (() => {
+      try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(countryCode) || countryCode; }
+      catch { return countryCode; }
+    })();
+    const rawCity = req.headers.get('x-vercel-ip-city');
+    const city    = rawCity ? decodeURIComponent(rawCity) : 'Unknown';
 
     // PATCH = create-or-update (pas besoin de vérifier si le doc existe)
     const docPath = `${BASE_URL}/analytics/${encodeURIComponent(siteId)}/presence/${encodeURIComponent(body.sessionId)}`;
@@ -189,4 +194,4 @@ export async function DELETE(
 // ─── OPTIONS ──────────────────────────────────────────────────────────────────
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
-}
+      }
