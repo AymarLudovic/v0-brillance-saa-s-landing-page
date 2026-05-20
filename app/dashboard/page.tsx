@@ -174,45 +174,13 @@ function SiteCard({ site }: { site: Site }) {
 
   return (
     <div className="bg-transparent border-[#b0b0b0] p-2 hover:shadow-md hover:border-gray-300 transition-all">
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div className="flex items-center gap-1 min-w-0">
-          <SiteFavicon url={site.url || site.siteId} name={site.name} />
-          <svg className="h-[22px] fill-[#171717] flex w-[22px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#fff"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
-         
-           
-          <div className="min-w-0">
-            <div className="font-semibold text-sm text-[#171717] truncate">{site.name}</div>
-            <div className="text-xs hidden text-gray-400 truncate mt-0.5">
-              {site.url
-                ? site.url.replace(/^https?:\/\//, '').replace(/\/$/, '')
-                : `${site.siteId}`
-              }
-            </div>
-          </div>
-        </div>
-        <span className="text-[10px] hidden font-mono bg-gray-100 text-gray-500 px-2 py-1 rounded-lg shrink-0 border border-gray-200">
-          {site.siteId}
+      <div className="w-full flex items-center justify-between">
+        <span className="flex items-center gap-1">
+          <svg className="h-[18px] fill-[#171717] flex w-[18px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#fff"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
+         <a href={`${site.url}`} className="text-sm underline text-decoration">
+           {site.url}
+         </a>
         </span>
-        
-      </div>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <a href={`/dashboard/${site.siteId}`}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-700 transition-colors">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 20V10M12 20V4M6 20v-6"/>
-          </svg>
-          Analytics
-        </a>
-        <button onClick={() => setShowScript((s) => !s)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors ${
-            showScript ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-          }`}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-          </svg>
-          Script tag
-        </button>
       </div>
 
       {showScript && <ScriptBlock siteId={site.siteId} />}
