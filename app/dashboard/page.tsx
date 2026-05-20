@@ -58,7 +58,7 @@ function SiteFavicon({ url, name }: { url: string; name: string }) {
       <img
         src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
         alt={name}
-        width={28} height={28}
+        width={18} height={18}
         className="object-contain"
         onError={() => setErr(true)}
       />
@@ -173,7 +173,7 @@ function SiteCard({ site }: { site: Site }) {
   const [showScript, setShowScript] = useState(false);
 
   return (
-    <div className="bg-white  p-1 hover:shadow-md hover:border-gray-300 transition-all">
+    <div className="bg-white border-[1.5px] border-[#b0b0b0] p-2 hover:shadow-md hover:border-gray-300 transition-all">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-3 min-w-0">
           <SiteFavicon url={site.url || site.siteId} name={site.name} />
