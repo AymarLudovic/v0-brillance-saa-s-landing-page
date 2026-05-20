@@ -17,7 +17,7 @@ function Logo({ className = '' }: { className?: string }) {
     <svg viewBox="350 60 560 115" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
       <ellipse cx="420" cy="120" rx="58" ry="32" fill="currentColor" transform="rotate(-18 430 120)" />
       <text x="500" y="150" fontSize="100" fontFamily="Inter, Helvetica, Arial, sans-serif"
-        fontWeight="400" fill="currentColor" letterSpacing="-4">Artbox.</text>
+        fontWeight="400" fill="currentColor" letterSpacing="-4"></text>
     </svg>
   );
 }
@@ -91,10 +91,7 @@ function AvatarMenu({ user }: { user: User }) {
             {(user.displayName?.[0] || 'U').toUpperCase()}
           </div>
         )}
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-          className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}>
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
+        
       </button>
 
       {open && (
@@ -366,7 +363,7 @@ export default function DashboardIndex() {
       {/* Nav */}
       <nav className=" bg-[#fafafa] sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Logo className="h-5 font-semibold w-auto text-[#171717]" />
+          <Logo className="h-7 font-semibold w-auto text-[#171717]" />
           <AvatarMenu user={user} />
         </div>
       </nav>
@@ -394,7 +391,7 @@ export default function DashboardIndex() {
             </p>
           </div>
           <button onClick={() => setShowAdd(true)}
-            className="flex fixed bottom-2 left-1/2 rounded-[25px] items-center gap-2 px-3 py-2 bg-[#171717] text-white  text-sm font-medium hover:bg-gray-700 transition-colors shadow-sm">
+            className="flex fixed bottom-2 left-[45%] w-[150px] justify-center rounded-[25px] items-center gap-2 px-3 py-2 bg-[#171717] text-white  text-sm font-medium hover:bg-gray-700 transition-colors shadow-sm">
             <svg className="h-[16px] fill-white flex w-[16px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#fff"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
          
            
