@@ -173,7 +173,7 @@ function SiteCard({ site }: { site: Site }) {
   const [showScript, setShowScript] = useState(false);
 
   return (
-    <div className="bg-white border-[1.5px] border-[#b0b0b0] p-2 hover:shadow-md hover:border-gray-300 transition-all">
+    <div className="bg-white border-[1px] border-[#b0b0b0] p-2 hover:shadow-md hover:border-gray-300 transition-all">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-3 min-w-0">
           <SiteFavicon url={site.url || site.siteId} name={site.name} />
@@ -301,6 +301,9 @@ function AddSiteModal({ onClose, onSuccess }: {
               <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl mb-4">
                 <div className="w-10 h-10 rounded-xl bg-white border border-emerald-200 flex items-center justify-center">
                   <SiteFavicon url={done.url || ''} name={done.name} />
+                  <svg className="h-[16px] fill-white flex w-[16px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#fff"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
+         
+           
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-emerald-900">{done.name}</p>
@@ -310,10 +313,10 @@ function AddSiteModal({ onClose, onSuccess }: {
               <p className="text-sm text-gray-600 mb-3 font-medium">Add this script to start tracking:</p>
               <ScriptBlock siteId={done.siteId} />
               <div className="flex justify-end mt-5">
-                <Link href={`/dashboard/${done.siteId}`} onClick={onClose}
+                <a href={`/dashboard/${done.siteId}`} onClick={onClose}
                   className="px-5 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors">
-                  View Analytics →
-                </Link>
+                  View Analytics
+                </a>
               </div>
             </>
           )}
@@ -387,7 +390,7 @@ export default function DashboardIndex() {
       {/* Nav */}
       <nav className=" bg-[#fafafa] sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Logo className="h-1 w-auto text-[#171717]" />
+          <Logo className="h-3 w-auto text-[#171717]" />
           <AvatarMenu user={user} />
         </div>
       </nav>
@@ -415,10 +418,10 @@ export default function DashboardIndex() {
             </p>
           </div>
           <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-2 py-1 bg-[#171717] text-white  text-sm font-medium hover:bg-gray-700 transition-colors shadow-sm">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
+            className="flex items-center gap-2 px-3 py-2 bg-[#171717] text-white  text-sm font-medium hover:bg-gray-700 transition-colors shadow-sm">
+            <svg className="h-[16px] fill-white flex w-[16px]" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#fff"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Zm0-82q26-36 45-75t31-83H404q12 44 31 83t45 75Zm-104-16q-18-33-31.5-68.5T322-320H204q29 50 72.5 87t99.5 55Zm208 0q56-18 99.5-55t72.5-87H638q-9 38-22.5 73.5T584-178ZM170-400h136q-3-20-4.5-39.5T300-480q0-21 1.5-40.5T306-560H170q-5 20-7.5 39.5T160-480q0 21 2.5 40.5T170-400Zm216 0h188q3-20 4.5-39.5T580-480q0-21-1.5-40.5T574-560H386q-3 20-4.5 39.5T380-480q0 21 1.5 40.5T386-400Zm268 0h136q5-20 7.5-39.5T800-480q0-21-2.5-40.5T790-560H654q3 20 4.5 39.5T660-480q0 21-1.5 40.5T654-400Zm-16-240h118q-29-50-72.5-87T584-782q18 33 31.5 68.5T638-640Zm-234 0h152q-12-44-31-83t-45-75q-26 36-45 75t-31 83Zm-200 0h118q9-38 22.5-73.5T376-782q-56 18-99.5 55T204-640Z"/></svg>
+         
+           
             Add a site
           </button>
         </div>
