@@ -173,7 +173,7 @@ function SiteCard({ site }: { site: Site }) {
   const [showScript, setShowScript] = useState(false);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md hover:border-gray-300 transition-all">
+    <div className="bg-white  p-1 hover:shadow-md hover:border-gray-300 transition-all">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-3 min-w-0">
           <SiteFavicon url={site.url || site.siteId} name={site.name} />
@@ -193,13 +193,13 @@ function SiteCard({ site }: { site: Site }) {
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <Link href={`/dashboard/${site.siteId}`}
+        <a href={`/dashboard/${site.siteId}`}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-700 transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M18 20V10M12 20V4M6 20v-6"/>
           </svg>
           Analytics
-        </Link>
+        </a>
         <button onClick={() => setShowScript((s) => !s)}
           className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors ${
             showScript ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
@@ -383,17 +383,17 @@ export default function DashboardIndex() {
 
   // ── Authenticated ──────────────────────────────────────────────────────────
   return (
-    <div className={`${font.className} min-h-screen bg-white`}>
+    <div className={`${font.className} min-h-screen bg-[#fafafa]`}>
       {/* Nav */}
-      <nav className="border-b border-gray-100 bg-white sticky top-0 z-10">
+      <nav className=" bg-[#fafafa] sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Logo className="h-7 w-auto text-gray-900" />
+          <Logo className="h-1 w-auto text-[#171717]" />
           <AvatarMenu user={user} />
         </div>
       </nav>
 
       {/* Breadcrumb */}
-      <div className="border-b border-gray-100">
+      <div className="">
         <div className="max-w-4xl mx-auto px-4 py-2 text-xs text-gray-500">
           <span className="font-medium text-gray-700">
             {user.displayName?.split(' ')[0] || user.email}
@@ -415,7 +415,7 @@ export default function DashboardIndex() {
             </p>
           </div>
           <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors shadow-sm">
+            className="flex items-center gap-2 px-2 py-1 bg-[#171717] text-white  text-sm font-medium hover:bg-gray-700 transition-colors shadow-sm">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
