@@ -182,7 +182,9 @@ function SiteCard({ site }: { site: Site }) {
            visit
          </a>
         </div>
-        <div className="flex items-center gap-1">
+        
+      </div>
+<div className="flex items-center gap-1">
           <a href={`/dashboard/${site.Id}`} className="text-sm px-1 py-3 rounded-[25px] bg-[#e6e6e6]">
             <ArrowUpRight size={16} />
             Analitycs 
@@ -191,8 +193,6 @@ function SiteCard({ site }: { site: Site }) {
             <Ellipsis size={16} />
           </button>
         </div>
-      </div>
-
       {showScript && <ScriptBlock siteId={site.siteId} />}
     </div>
   );
