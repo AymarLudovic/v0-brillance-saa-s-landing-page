@@ -6,7 +6,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/aut
 import { collection, getDocs, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import Link from 'next/link';
 import { Space_Grotesk } from 'next/font/google';
-
+import { Ellipsis, ArrowUpRight } from 'lucide-react';
 const font = Space_Grotesk({ subsets: ['latin'], weight: ['400', '500', '600', '700'], display: 'swap' });
 
 
@@ -181,6 +181,15 @@ function SiteCard({ site }: { site: Site }) {
             <svg className="h-[18px] fill-[#171717] flex w-[18px]" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M440-280H280q-83 0-141.5-58.5T80-480q0-83 58.5-141.5T280-680h160v80H280q-50 0-85 35t-35 85q0 50 35 85t85 35h160v80ZM320-440v-80h320v80H320Zm200 160v-80h160q50 0 85-35t35-85q0-50-35-85t-85-35H520v-80h160q83 0 141.5 58.5T880-480q0 83-58.5 141.5T680-280H520Z"/></svg>
            visit
          </a>
+        </div>
+        <div className="flex items-center gap-1">
+          <a href={`/dashboard/${site.Id}`} className="text-sm px-1 py-3 rounded-[25px] bg-[#e6e6e6]">
+            <ArrowUpRight size={16} />
+            Analitycs 
+         </a>
+          <button className="px-1 py-1">
+            <Ellipsis size={16} />
+          </button>
         </div>
       </div>
 
