@@ -184,7 +184,7 @@ function SiteCard({ site }: { site: Site }) {
         </div>
         
       </div>
-<div className="flex items-center gap-1">
+<div className="flex items-center w-full gap-1">
           <a href={`/dashboard/${site.Id}`} className="text-sm px-1 py-3 rounded-[25px] bg-[#e6e6e6]">
             <ArrowUpRight size={16} />
             Analitycs 
