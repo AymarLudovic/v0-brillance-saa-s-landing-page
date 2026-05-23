@@ -20,7 +20,7 @@ function Logo({ className = '' }: { className?: string }) {
     <svg viewBox="350 60 560 115" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
       <ellipse cx="420" cy="120" rx="58" ry="32" fill="currentColor" transform="rotate(-18 430 120)" />
       <text x="500" y="150" fontSize="100" fontFamily="Inter, Helvetica, Arial, sans-serif"
-        fontWeight="400" fill="currentColor" letterSpacing="-4">Artbox.</text>
+        fontWeight="400" fill="currentColor" letterSpacing="-4"></text>
     </svg>
   );
 }
@@ -222,7 +222,7 @@ function LivePanel({ siteId }: { siteId: string }) {
         {visitors.length} online
       </button>
       {open && (
-        <div className="fixed bottom-0 w-full rounded-tl-[25px] rounded-tr-[25px] h-[50%]  w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-40">
+        <div className="fixed bottom-0 left-0 w-full rounded-tl-[25px] rounded-tr-[25px] h-[50%]  w-72 bg-white border border-gray-200   z-40">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
             <span className="text-xs font-semibold text-gray-700">Live visitors</span>
             <div className="flex items-center gap-2">
