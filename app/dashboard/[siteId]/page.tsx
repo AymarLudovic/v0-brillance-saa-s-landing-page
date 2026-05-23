@@ -178,7 +178,7 @@ function AvatarMenu({ user }: { user: User }) {
             <div className="text-xs text-gray-400 truncate">{user.email}</div>
           </div>
           <div className="p-1">
-            <Link href="/dashboard" onClick={() => setOpen(false)}
+            <Link href="/" onClick={() => setOpen(false)}
               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg w-full">
               <Logo className="h-3 w-auto" />
               My websites
@@ -463,7 +463,7 @@ export default function Dashboard({ params }: { params: { siteId: string } }) {
         <div className="max-w-5xl mx-auto px-4">
           {/* breadcrumb */}
           <div className="flex items-center gap-1 py-1.5 text-xs text-gray-400 border-b border-gray-50">
-            <Link href="/dashboard" className="hover:text-gray-700 transition-colors font-medium">
+            <Link href="/" className="hover:text-gray-700 transition-colors font-medium">
               {user.displayName?.split(' ')[0] || 'Home'}
             </Link>
             <span>/</span>
