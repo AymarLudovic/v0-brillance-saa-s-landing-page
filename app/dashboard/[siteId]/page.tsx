@@ -169,9 +169,7 @@ function AvatarMenu({ user }: { user: User }) {
           ? <img src={user.photoURL} alt="avatar" className="w-7 h-7 rounded-full object-cover border border-gray-200" />
           : <div className="w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-bold flex items-center justify-center">{(user.displayName?.[0] || 'U').toUpperCase()}</div>
         }
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}>
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
+        
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg z-40 overflow-hidden">
@@ -182,11 +180,11 @@ function AvatarMenu({ user }: { user: User }) {
           <div className="p-1">
             <Link href="/dashboard" onClick={() => setOpen(false)}
               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg w-full">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-              My Sites
+              <Logo className="h-3 w-auto" />
+              My websites
             </Link>
             <button onClick={() => { signOut(auth); setOpen(false); }}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg w-full">
+              className="flex items-center gap-2 px-3 py-2 text-sm text-[#171717] text-decoration underline-dashed hover:bg-red-50 rounded-lg w-full">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               Sign out
             </button>
@@ -224,7 +222,7 @@ function LivePanel({ siteId }: { siteId: string }) {
         {visitors.length} online
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-40">
+        <div className="fixed bottom-0 w-full rounded-tl-[25px] rounded-tr-[25px] h-[50%]  w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-40">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
             <span className="text-xs font-semibold text-gray-700">Live visitors</span>
             <div className="flex items-center gap-2">
@@ -440,7 +438,7 @@ export default function Dashboard({ params }: { params: { siteId: string } }) {
   );
 
   if (!user) return (
-    <div className={`${font.className} min-h-screen bg-gray-50 flex items-center justify-center px-4`}>
+    <div className=" min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-xs text-center">
         <Logo className="h-10 w-auto text-gray-900 mx-auto mb-6" />
         <p className="text-gray-500 text-sm mb-6">Sign in to view your analytics.</p>
@@ -556,9 +554,7 @@ export default function Dashboard({ params }: { params: { siteId: string } }) {
           <BreakdownCard title="Operating Systems" items={os}        total={total} />
         </div>
 
-        <div className="py-6 text-center text-[10px] text-gray-300">
-          Poyne Analytics · {siteInfo?.name || siteId}
-        </div>
+        
       </div>
     </div>
   );
