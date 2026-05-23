@@ -45,6 +45,11 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         {children}
         <Analytics />
+        <script
+  src="https://v0vibebeta.vercel.app/poyne.js"
+  data-site-id="studio-ier2"
+  defer
+></script>
       </body>
     </html>
   )
