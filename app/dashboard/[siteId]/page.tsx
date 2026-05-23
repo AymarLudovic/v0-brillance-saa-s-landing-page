@@ -458,7 +458,7 @@ export default function Dashboard({ params }: { params: { siteId: string } }) {
     : `${siteId}`;
 
   return (
-    <div className={`${font.className} min-h-screen bg-white text-gray-900`}>
+    <div className=" min-h-screen bg-white text-gray-900">
 
       {/* ── Top nav ── */}
       <div className="border-b border-gray-100 sticky top-0 bg-white z-20">
@@ -468,8 +468,8 @@ export default function Dashboard({ params }: { params: { siteId: string } }) {
             <Link href="/dashboard" className="hover:text-gray-700 transition-colors font-medium">
               {user.displayName?.split(' ')[0] || 'Home'}
             </Link>
-            <span>›</span>
-            <span className="text-gray-600">Analytics</span>
+            <span>/</span>
+            <span className="text-[#171717]">Analytics</span>
           </div>
 
           {/* sub-header */}
