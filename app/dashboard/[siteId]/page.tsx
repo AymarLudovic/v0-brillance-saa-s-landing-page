@@ -707,7 +707,7 @@ export default function Dashboard({ params }: { params: { siteId: string } }) {
     setAiInsightLoading(true);
     setAiInsight(null);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
       addLog('info', 'analyzeAnalytics — start', `apiKey present: ${!!apiKey}`);
       const tPages    = topN(current.map(p => p.page));
       const tSources  = topN(current.map(p => parseSource(p.referrer)));
