@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -239,4 +241,4 @@ export const POST = handle;
 export const DELETE = handle;
 
 // Empêche Next.js de mettre en cache les réponses MCP
-export const dynamic = "force-dynamic";
+
