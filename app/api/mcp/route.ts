@@ -1,94 +1,184 @@
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+import { NextResponse } from "next/server";
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { z } from "zod";
-import { NextRequest, NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
 
-// ─── Factory : un serveur MCP neuf par requête (stateless) ───────────────────
+// ── JSON-RPC helpers ─────────────────────────────────────────────────────────
 
-function buildServer(): McpServer {
-  const server = new McpServer({ name: "text-tools", version: "1.0.0" });
+const ok  = (id: unknown, result: unknown) =>
+  NextResponse.json({ jsonrpc: "2.0", id, result });
 
-  // 1. Compter les caractères
-  server.tool(
-    "count_characters",
-    "Counts total characters, characters without spaces, and space count.",
-    { text: z.string().describe("Text to analyze") },
-    async ({ text }) => ({
-      content: [{
-        type: "text",
-        text: JSON.stringify({
-          total: text.length,
-          withoutSpaces: text.replace(/\s/g, "").length,
-          spaces: text.length - text.replace(/\s/g, "").length,
-        }),
-      }],
-    })
-  );
+const err = (id: unknown, code: number, message: string) =>
+  NextResponse.json({ jsonrpc: "2.0", id, error: { code, message } });
 
-  // 2. Compter les mots
-  server.tool(
-    "count_words",
-    "Counts the number of words in a text.",
-    { text: z.string().describe("Text to count words in") },
-    async ({ text }) => ({
-      content: [{
-        type: "text",
-        text: JSON.stringify({
-          wordCount: text.trim().split(/\s+/).filter(Boolean).length,
-        }),
-      }],
-    })
-  );
+const text = (str: string) => ({ content: [{ type: "text", text: str }] });
 
-  // 3. Fréquence des caractères
-  server.tool(
-    "character_frequency",
-    "Returns a sorted frequency map of each character (case-insensitive).",
-    {
-      text: z.string().describe("Text to analyze"),
-      ignoreSpaces: z.boolean().optional().default(true),
+// ── Tools definitions ────────────────────────────────────────────────────────
+
+const TOOLS = [
+  {
+    name: "count_characters",
+    description: "Counts total characters, without spaces, and space count.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Text to analyze" },
+      },
+      required: ["text"],
     },
-    async ({ text, ignoreSpaces }) => {
-      const src = ignoreSpaces ? text.replace(/\s/g, "") : text;
+  },
+  {
+    name: "count_words",
+    description: "Counts the number of words in a text.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Text to count words in" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "character_frequency",
+    description: "Returns a sorted frequency map of each character (case-insensitive).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text:         { type: "string",  description: "Text to analyze" },
+        ignoreSpaces: { type: "boolean", description: "Ignore spaces (default true)" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "word_frequency",
+    description: "Returns the top N most frequent words.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Text to analyze" },
+        topN: { type: "number", description: "How many top words to return (default 10)" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "detect_language",
+    description: "Guesses the language of a text using common stop words.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Text to detect language for" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "reverse_text",
+    description: "Reverses text character by character or word by word.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Text to reverse" },
+        mode: { type: "string", description: "characters or words", enum: ["characters", "words"] },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "text_stats",
+    description: "Full analysis: chars, words, sentences, paragraphs, reading time.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Text to fully analyze" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "convert_case",
+    description: "Converts text to upper, lower, title, camelCase, snake_case, kebab-case, or sentence case.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text:       { type: "string", description: "Text to convert" },
+        targetCase: {
+          type: "string",
+          description: "Target case format",
+          enum: ["upper", "lower", "title", "camel", "snake", "kebab", "sentence"],
+        },
+      },
+      required: ["text", "targetCase"],
+    },
+  },
+  {
+    name: "check_palindrome",
+    description: "Checks if a word or phrase is a palindrome.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Text to check" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "extract_emails_and_urls",
+    description: "Extracts all email addresses and URLs found in the text.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Text to scan" },
+      },
+      required: ["text"],
+    },
+  },
+];
+
+// ── Tool execution ────────────────────────────────────────────────────────────
+
+function callTool(name: string, args: Record<string, unknown>) {
+  const t = String(args.text ?? "");
+
+  switch (name) {
+
+    case "count_characters":
+      return text(JSON.stringify({
+        total:        t.length,
+        withoutSpaces: t.replace(/\s/g, "").length,
+        spaces:       t.length - t.replace(/\s/g, "").length,
+      }));
+
+    case "count_words":
+      return text(JSON.stringify({
+        wordCount: t.trim().split(/\s+/).filter(Boolean).length,
+      }));
+
+    case "character_frequency": {
+      const ignore = args.ignoreSpaces !== false;
+      const src = ignore ? t.replace(/\s/g, "") : t;
       const freq: Record<string, number> = {};
       for (const c of src.toLowerCase()) freq[c] = (freq[c] ?? 0) + 1;
       const sorted = Object.fromEntries(
         Object.entries(freq).sort((a, b) => b[1] - a[1])
       );
-      return { content: [{ type: "text", text: JSON.stringify(sorted) }] };
+      return text(JSON.stringify(sorted));
     }
-  );
 
-  // 4. Top N mots les plus fréquents
-  server.tool(
-    "word_frequency",
-    "Returns the top N most frequent words.",
-    {
-      text: z.string().describe("Text to analyze"),
-      topN: z.number().int().min(1).max(100).optional().default(10),
-    },
-    async ({ text, topN }) => {
-      const words = text.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).filter(Boolean);
+    case "word_frequency": {
+      const topN = Number(args.topN ?? 10);
+      const words = t.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).filter(Boolean);
       const freq: Record<string, number> = {};
       for (const w of words) freq[w] = (freq[w] ?? 0) + 1;
       const top = Object.entries(freq)
         .sort((a, b) => b[1] - a[1])
         .slice(0, topN)
         .map(([word, count]) => ({ word, count }));
-      return { content: [{ type: "text", text: JSON.stringify(top) }] };
+      return text(JSON.stringify(top));
     }
-  );
 
-  // 5. Détection de langue (heuristique stop-words)
-  server.tool(
-    "detect_language",
-    "Guesses the language of a text using common stop words (heuristic, not ML).",
-    { text: z.string().min(5).describe("Text to detect language for") },
-    async ({ text }) => {
-      const lower = text.toLowerCase();
+    case "detect_language": {
+      const lower = t.toLowerCase();
       const stops: Record<string, string[]> = {
         French:     ["le","la","les","de","du","est","une","et","en","que","il","je","tu","nous","vous"],
         English:    ["the","is","are","and","of","to","in","it","that","a","you","he","she","we","they"],
@@ -96,149 +186,116 @@ function buildServer(): McpServer {
         German:     ["der","die","das","ist","und","ein","eine","von","mit","zu","im","ich","sie","wir"],
         Portuguese: ["o","a","os","de","em","que","um","uma","com","para","ao","na","no","por","se"],
       };
-      const words = lower.split(/\s+/);
+      const ws = lower.split(/\s+/);
       const scores = Object.fromEntries(
-        Object.entries(stops).map(([lang, sw]) => [lang, words.filter(w => sw.includes(w)).length])
+        Object.entries(stops).map(([lang, sw]) => [lang, ws.filter(w => sw.includes(w)).length])
       );
       const [lang, score] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            detectedLanguage: lang,
-            confidence: score > 2 ? "medium" : score > 0 ? "low" : "unknown",
-            scores,
-          }),
-        }],
-      };
+      return text(JSON.stringify({
+        detectedLanguage: lang,
+        confidence: score > 2 ? "medium" : score > 0 ? "low" : "unknown",
+        scores,
+      }));
     }
-  );
 
-  // 6. Inverser le texte
-  server.tool(
-    "reverse_text",
-    "Reverses text character by character, or word by word.",
-    {
-      text: z.string().describe("Text to reverse"),
-      mode: z.enum(["characters", "words"]).optional().default("characters"),
-    },
-    async ({ text, mode }) => ({
-      content: [{
-        type: "text",
-        text: mode === "words"
-          ? text.split(/\s+/).reverse().join(" ")
-          : text.split("").reverse().join(""),
-      }],
-    })
-  );
+    case "reverse_text": {
+      const mode = String(args.mode ?? "characters");
+      return text(
+        mode === "words"
+          ? t.split(/\s+/).reverse().join(" ")
+          : t.split("").reverse().join("")
+      );
+    }
 
-  // 7. Rapport complet
-  server.tool(
-    "text_stats",
-    "Full analysis: chars, words, sentences, paragraphs, unique words, reading time.",
-    { text: z.string().min(1).describe("Text to fully analyze") },
-    async ({ text }) => {
-      const words = text.trim().split(/\s+/).filter(Boolean);
-      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
-      const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0).length;
-      const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-z]/g, ""))).size;
-      const avgWordLen = words.length > 0
+    case "text_stats": {
+      const words     = t.trim().split(/\s+/).filter(Boolean);
+      const sentences = t.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+      const paragraphs = t.split(/\n\s*\n/).filter(p => p.trim().length > 0).length;
+      const unique    = new Set(words.map(w => w.toLowerCase().replace(/[^a-z]/g, ""))).size;
+      const avgLen    = words.length > 0
         ? +(words.reduce((s, w) => s + w.replace(/[^a-zA-Z]/g, "").length, 0) / words.length).toFixed(2)
         : 0;
       const readingSec = Math.ceil((words.length / 200) * 60);
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            characters: { total: text.length, withoutSpaces: text.replace(/\s/g, "").length },
-            words: { total: words.length, unique: uniqueWords },
-            sentences,
-            paragraphs,
-            avgWordLength: avgWordLen,
-            readingTime: `~${Math.ceil(readingSec / 60)} min (${readingSec}s)`,
-          }),
-        }],
-      };
+      return text(JSON.stringify({
+        characters:  { total: t.length, withoutSpaces: t.replace(/\s/g, "").length },
+        words:       { total: words.length, unique },
+        sentences,
+        paragraphs,
+        avgWordLength: avgLen,
+        readingTime: `~${Math.ceil(readingSec / 60)} min (${readingSec}s)`,
+      }));
     }
-  );
 
-  // 8. Conversion de casse
-  server.tool(
-    "convert_case",
-    "Converts text to upper, lower, title, camelCase, snake_case, kebab-case, or sentence case.",
-    {
-      text: z.string().describe("Text to convert"),
-      targetCase: z.enum(["upper","lower","title","camel","snake","kebab","sentence"]),
-    },
-    async ({ text, targetCase }) => {
-      const results: Record<string, string> = {
-        upper:    text.toUpperCase(),
-        lower:    text.toLowerCase(),
-        title:    text.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase()),
-        camel:    text.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (_, c) => c.toUpperCase()),
-        snake:    text.replace(/\s+/g, "_").replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase(),
-        kebab:    text.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase(),
-        sentence: text.charAt(0).toUpperCase() + text.slice(1).toLowerCase(),
+    case "convert_case": {
+      const target = String(args.targetCase ?? "lower");
+      const map: Record<string, string> = {
+        upper:    t.toUpperCase(),
+        lower:    t.toLowerCase(),
+        title:    t.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase()),
+        camel:    t.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (_, c: string) => c.toUpperCase()),
+        snake:    t.replace(/\s+/g, "_").replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase(),
+        kebab:    t.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase(),
+        sentence: t.charAt(0).toUpperCase() + t.slice(1).toLowerCase(),
       };
-      return { content: [{ type: "text", text: results[targetCase] }] };
+      return text(map[target] ?? t);
     }
-  );
 
-  // 9. Vérifier palindrome
-  server.tool(
-    "check_palindrome",
-    "Checks if a word or phrase is a palindrome (ignores punctuation and spaces).",
-    { text: z.string().describe("Text to check") },
-    async ({ text }) => {
-      const clean = text.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const isPalindrome = clean === clean.split("").reverse().join("");
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({ isPalindrome, cleanedInput: clean }),
-        }],
-      };
+    case "check_palindrome": {
+      const clean = t.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return text(JSON.stringify({
+        isPalindrome: clean === clean.split("").reverse().join(""),
+        cleanedInput: clean,
+      }));
     }
-  );
 
-  // 10. Extraire emails et URLs
-  server.tool(
-    "extract_emails_and_urls",
-    "Extracts all email addresses and URLs found in the text.",
-    { text: z.string().describe("Text to scan") },
-    async ({ text }) => {
-      const emails = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? [];
-      const urls   = text.match(/https?:\/\/[^\s/$.?#].[^\s]*/g) ?? [];
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({ emails, urls, totalFound: emails.length + urls.length }),
-        }],
-      };
+    case "extract_emails_and_urls": {
+      const emails = t.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? [];
+      const urls   = t.match(/https?:\/\/[^\s/$.?#].[^\s]*/g) ?? [];
+      return text(JSON.stringify({ emails, urls, totalFound: emails.length + urls.length }));
     }
-  );
 
-  return server;
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
 }
 
-// ─── Handler Next.js App Router ─────────────────────────────────────────────
+// ── Route handler ─────────────────────────────────────────────────────────────
 
-async function handle(req: NextRequest): Promise<NextResponse> {
-  const server = buildServer();
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless — parfait pour Vercel serverless
-  });
+export async function POST(req: Request) {
+  let body: { jsonrpc: string; id: unknown; method: string; params?: Record<string, unknown> };
 
-  await server.connect(transport);
+  try {
+    body = await req.json();
+  } catch {
+    return err(0, -32700, "Parse error: invalid JSON");
+  }
 
-  const res = await transport.handleRequest(req);
+  const { id, method, params = {} } = body;
 
-  return res as unknown as NextResponse;
-}
+  switch (method) {
 
-export const GET  = handle;
-export const POST = handle;
-export const DELETE = handle;
+    case "initialize":
+      return ok(id, {
+        protocolVersion: "2024-11-05",
+        capabilities:    { tools: { listChanged: false } },
+        serverInfo:      { name: "text-tools", version: "1.0.0" },
+      });
 
-// Empêche Next.js de mettre en cache les réponses MCP
+    case "tools/list":
+      return ok(id, { tools: TOOLS });
 
+    case "tools/call": {
+      const name = String(params.name ?? "");
+      const args = (params.arguments ?? {}) as Record<string, unknown>;
+      try {
+        return ok(id, callTool(name, args));
+      } catch (e: unknown) {
+        return err(id, -32000, e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    default:
+      return err(id, -32601, `Method not found: ${method}`);
+  }
+                                            }
+      
