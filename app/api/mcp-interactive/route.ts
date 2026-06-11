@@ -249,8 +249,7 @@ function callTool(name: string, args: Record<string, unknown>) {
       const b64     = toBase64(svg);
       return {
         content: [
-          { type: "text",  text: `📊 Bar chart "${title}" — ${data.length} bars` },
-          { type: "image", data: b64, mimeType: "image/svg+xml" },
+          { type: "text", text: `📊 Bar chart "${title}" — ${data.length} bars\n\n![${title}](data:image/svg+xml;base64,${b64})` },
         ],
       };
     }
@@ -268,8 +267,7 @@ function callTool(name: string, args: Record<string, unknown>) {
       const b64 = toBase64(svg);
       return {
         content: [
-          { type: "text",  text: `🪪 Profile card for ${name} — ${role}` },
-          { type: "image", data: b64, mimeType: "image/svg+xml" },
+          { type: "text", text: `🪪 Profile card for ${name} — ${role}\n\n![${name}](data:image/svg+xml;base64,${b64})` },
         ],
       };
     }
@@ -285,8 +283,7 @@ function callTool(name: string, args: Record<string, unknown>) {
       const b64 = toBase64(svg);
       return {
         content: [
-          { type: "text",  text: `🎨 Color palette for ${hex.toUpperCase()}${colorName ? ` — ${colorName}` : ""}` },
-          { type: "image", data: b64, mimeType: "image/svg+xml" },
+          { type: "text", text: `🎨 Color palette for ${hex.toUpperCase()}${colorName ? ` — ${colorName}` : ""}\n\n![${hex}](data:image/svg+xml;base64,${b64})` },
         ],
       };
     }
@@ -333,4 +330,5 @@ export async function POST(req: Request) {
     default:
       return err(id, -32601, `Method not found: ${method}`);
   }
-}
+                     }
+  
