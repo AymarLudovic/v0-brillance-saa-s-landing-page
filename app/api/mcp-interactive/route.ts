@@ -80,16 +80,17 @@ function barChartHTML(): string {
     document.getElementById("status").textContent = labels.length + " bars rendered";
   }
 
-  // Signal ready to host
-  window.parent.postMessage({ jsonrpc:"2.0", method:"ui/ready", params:{} }, "*");
-
-  // Listen for data from host
+  // Listen for all host formats (MCPJam, Claude, ChatGPT, etc.)
   window.addEventListener("message", (event) => {
     const msg = event.data;
-    if (msg?.method === "ui/notifications/tool-input") {
-      render(msg.params?.structuredContent || {});
-    }
+    if (!msg) return;
+    if (msg.method === "ui/notifications/tool-input") { render(msg.params?.structuredContent || msg.params?.data || {}); return; }
+    if (msg.structuredContent) { render(msg.structuredContent); return; }
+    if (msg.data?.title || msg.data?.labels || msg.data?.hex || msg.data?.name) { render(msg.data); return; }
+    if (msg.type === "tool-result" && msg.result) { render(msg.result); return; }
   });
+  function signalReady() { window.parent.postMessage({ jsonrpc:"2.0", method:"ui/ready", params:{} }, "*"); }
+  signalReady(); setTimeout(signalReady, 300); setTimeout(signalReady, 800);
 </script>
 </body>
 </html>`;
@@ -155,11 +156,16 @@ function profileCardHTML(): string {
       \`<div class="stat"><div class="stat-val">\${s.value}</div><div class="stat-label">\${s.label}</div></div>\`
     ).join("");
   }
-  window.parent.postMessage({ jsonrpc:"2.0", method:"ui/ready", params:{} }, "*");
   window.addEventListener("message", (e) => {
     const msg = e.data;
-    if (msg?.method === "ui/notifications/tool-input") render(msg.params?.structuredContent || {});
+    if (!msg) return;
+    if (msg.method === "ui/notifications/tool-input") { render(msg.params?.structuredContent || msg.params?.data || {}); return; }
+    if (msg.structuredContent) { render(msg.structuredContent); return; }
+    if (msg.data?.name || msg.data?.role) { render(msg.data); return; }
+    if (msg.type === "tool-result" && msg.result) { render(msg.result); return; }
   });
+  function signalReady() { window.parent.postMessage({ jsonrpc:"2.0", method:"ui/ready", params:{} }, "*"); }
+  signalReady(); setTimeout(signalReady, 300); setTimeout(signalReady, 800);
 </script>
 </body>
 </html>`;
@@ -234,11 +240,16 @@ function colorPaletteHTML(): string {
     document.getElementById("lum-fill").style.width = Math.round(lum*100)+"%";
     document.getElementById("lum-fill").style.background = hex;
   }
-  window.parent.postMessage({ jsonrpc:"2.0", method:"ui/ready", params:{} }, "*");
   window.addEventListener("message", (e) => {
     const msg = e.data;
-    if (msg?.method === "ui/notifications/tool-input") render(msg.params?.structuredContent || {});
+    if (!msg) return;
+    if (msg.method === "ui/notifications/tool-input") { render(msg.params?.structuredContent || msg.params?.data || {}); return; }
+    if (msg.structuredContent) { render(msg.structuredContent); return; }
+    if (msg.data?.name || msg.data?.role) { render(msg.data); return; }
+    if (msg.type === "tool-result" && msg.result) { render(msg.result); return; }
   });
+  function signalReady() { window.parent.postMessage({ jsonrpc:"2.0", method:"ui/ready", params:{} }, "*"); }
+  signalReady(); setTimeout(signalReady, 300); setTimeout(signalReady, 800);
 </script>
 </body>
 </html>`;
@@ -428,4 +439,5 @@ export async function POST(req: Request) {
     default:
       return err(id, -32601, `Method not found: ${method}`);
   }
-}
+  }
+  
