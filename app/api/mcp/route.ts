@@ -173,6 +173,22 @@ const TOOLS = [
       required: ["workspace_id"],
     },
   },
+  {
+    name: "wait_for_event",
+    description:
+      "Blocks and waits until another agent triggers a specific event (ex: task released). " +
+      "Use this so you don't have to manually poll — the tool returns the moment the event fires. " +
+      "Max wait is 25 seconds. If timeout, call again to keep waiting.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspace_id: { type: "string" },
+        event:        { type: "string", description: "Event name to wait for. Ex: task:activites-jour1:released" },
+        timeout:      { type: "number", description: "Seconds to wait, max 25. Default 20." },
+      },
+      required: ["workspace_id", "event"],
+    },
+  },
 ];
 
 // ── Tool execution ────────────────────────────────────────────────────────────
@@ -308,10 +324,14 @@ async function callTool(name: string, args: Record<string, unknown>) {
       const tasks = ((await rGet(K.tasks(ws)) as string[] | null) ?? []).filter(t => t !== tk);
       await rSet(K.tasks(ws), tasks);
 
+      // Publie l'event — tout agent qui fait wait_for_event sur ce nom sera débloqué
+      const eventKey = `event:${ws}:task:${tk}:released`;
+      await rSet(eventKey, { by: ag, task: tk, result: String(args.result ?? "Done") }, 120);
+
       return { content: [{ type: "text", text:
         `🔓 Task "${tk}" released by ${ag}.\n` +
         `Result: ${String(args.result ?? "Done")}\n\n` +
-        `Other agents can now work on this task.`
+        `Event publié → les agents qui attendent "task:${tk}:released" vont être notifiés.`
       }]};
     }
 
@@ -333,6 +353,33 @@ async function callTool(name: string, args: Record<string, unknown>) {
 
       return { content: [{ type: "text", text:
         `🔒 Claimed tasks in "${ws}" (${active.length}):\n\n${lines.join("\n")}`
+      }]};
+    }
+
+    // ── wait_for_event ─────────────────────────────────────────────────────
+    case "wait_for_event": {
+      const event   = String(args.event   ?? "");
+      const timeout = Math.min(Number(args.timeout ?? 20), 25);
+      const deadline = Date.now() + timeout * 1000;
+      const eventKey = `event:${ws}:${event}`;
+
+      while (Date.now() < deadline) {
+        const found = await rGet(eventKey);
+        if (found) {
+          await rDel(eventKey); // consomme l'event — un seul agent le reçoit
+          return { content: [{ type: "text", text:
+            `🔔 Event reçu : "${event}"\n` +
+            `Data: ${JSON.stringify(found)}\n\n` +
+            `Tu peux maintenant agir immédiatement.`
+          }]};
+        }
+        // Poll toutes les 500ms
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      return { content: [{ type: "text", text:
+        `⏱️ Timeout après ${timeout}s — aucun event "${event}" reçu.\n` +
+        `L'autre agent n'a pas encore terminé. Rappelle wait_for_event pour continuer d'attendre.`
       }]};
     }
 
@@ -376,5 +423,4 @@ export async function POST(req: Request) {
     default:
       return err(id, -32601, `Method not found: ${method}`);
   }
-}
-  
+                                    }
