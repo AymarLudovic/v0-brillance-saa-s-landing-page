@@ -6,27 +6,29 @@ export const dynamic = "force-dynamic";
 const R_URL   = process.env.UPSTASH_REDIS_REST_URL!;
 const R_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
 
-async function rGet(key: string): Promise<unknown> {
-  const res = await fetch(`${R_URL}/get/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${R_TOKEN}` },
+// Pipeline Upstash — les commandes en JSON body évitent les problèmes
+// d'encodage des clés avec des deux-points dans l'URL REST.
+async function upstash(commands: unknown[][]): Promise<unknown[]> {
+  const res = await fetch(`${R_URL}/pipeline`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${R_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(commands),
   });
-  const { result } = await res.json();
-  return result ? JSON.parse(result) : null;
+  const data = await res.json() as { result: unknown }[];
+  return data.map(d => d.result);
+}
+
+async function rGet(key: string): Promise<unknown> {
+  const [result] = await upstash([["GET", key]]);
+  return result ? JSON.parse(result as string) : null;
 }
 
 async function rSet(key: string, value: unknown, exSeconds = 86400 * 7) {
-  await fetch(`${R_URL}/set/${encodeURIComponent(key)}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${R_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ value: JSON.stringify(value), ex: exSeconds }),
-  });
+  await upstash([["SET", key, JSON.stringify(value), "EX", exSeconds]]);
 }
 
 async function rDel(key: string) {
-  await fetch(`${R_URL}/del/${encodeURIComponent(key)}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${R_TOKEN}` },
-  });
+  await upstash([["DEL", key]]);
 }
 
 // ── JSON-RPC helpers ──────────────────────────────────────────────────────────
@@ -374,5 +376,5 @@ export async function POST(req: Request) {
     default:
       return err(id, -32601, `Method not found: ${method}`);
   }
-                    }
-              
+}
+  
