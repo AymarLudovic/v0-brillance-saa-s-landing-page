@@ -2,256 +2,336 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// ── JSON-RPC helpers ─────────────────────────────────────────────────────────
+// ── Upstash Redis REST client (zero dependency) ───────────────────────────────
+const R_URL   = process.env.UPSTASH_REDIS_REST_URL!;
+const R_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN!;
 
+async function rGet(key: string): Promise<unknown> {
+  const res = await fetch(`${R_URL}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${R_TOKEN}` },
+  });
+  const { result } = await res.json();
+  return result ? JSON.parse(result) : null;
+}
+
+async function rSet(key: string, value: unknown, exSeconds = 86400 * 7) {
+  await fetch(`${R_URL}/set/${encodeURIComponent(key)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${R_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ value: JSON.stringify(value), ex: exSeconds }),
+  });
+}
+
+async function rDel(key: string) {
+  await fetch(`${R_URL}/del/${encodeURIComponent(key)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${R_TOKEN}` },
+  });
+}
+
+// ── JSON-RPC helpers ──────────────────────────────────────────────────────────
 const ok  = (id: unknown, result: unknown) =>
   NextResponse.json({ jsonrpc: "2.0", id, result });
-
 const err = (id: unknown, code: number, message: string) =>
   NextResponse.json({ jsonrpc: "2.0", id, error: { code, message } });
 
-const text = (str: string) => ({ content: [{ type: "text", text: str }] });
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface WorkspaceContext {
+  summary:     string;
+  decisions:   string[];
+  files:       string[];
+  progress:    string;
+  updated_at:  number;
+  updated_by:  string;
+}
 
-// ── Tools definitions ────────────────────────────────────────────────────────
+interface AgentRecord {
+  agent_id:     string;
+  status:       string;
+  current_task: string;
+  last_seen:    number;
+}
 
+interface TaskRecord {
+  description: string;
+  claimed_by:  string;
+  claimed_at:  number;
+}
+
+// ── Redis key helpers ─────────────────────────────────────────────────────────
+const K = {
+  context: (ws: string)              => `ws:${ws}:context`,
+  agent:   (ws: string, ag: string)  => `ws:${ws}:agent:${ag}`,
+  agents:  (ws: string)              => `ws:${ws}:agents`,      // Set of agent_ids
+  task:    (ws: string, tk: string)  => `ws:${ws}:task:${tk}`,
+  tasks:   (ws: string)              => `ws:${ws}:tasks`,       // Set of task_ids
+};
+
+// ── Tools ─────────────────────────────────────────────────────────────────────
 const TOOLS = [
   {
-    name: "count_characters",
-    description: "Counts total characters, without spaces, and space count.",
+    name: "save_context",
+    description:
+      "Saves the current conversation context to a shared workspace. " +
+      "Call this regularly so other Claude instances (or your future self in a new chat) " +
+      "can pick up exactly where you left off.",
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", description: "Text to analyze" },
+        workspace_id: { type: "string", description: "Project identifier. Ex: my-app-v2" },
+        agent_id:     { type: "string", description: "Your unique instance ID. Ex: claude-frontend-01" },
+        summary:      { type: "string", description: "What has been done so far in this conversation" },
+        progress:     { type: "string", description: "Current state / next step" },
+        decisions:    { type: "array",  items: { type: "string" }, description: "Key decisions made" },
+        files:        { type: "array",  items: { type: "string" }, description: "Files touched or created" },
       },
-      required: ["text"],
+      required: ["workspace_id", "agent_id", "summary", "progress"],
     },
   },
   {
-    name: "count_words",
-    description: "Counts the number of words in a text.",
+    name: "get_context",
+    description:
+      "Retrieves the full context of a workspace. Call this at the start of a new chat " +
+      "to instantly know everything that was done before without re-explaining anything.",
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", description: "Text to count words in" },
+        workspace_id: { type: "string" },
       },
-      required: ["text"],
+      required: ["workspace_id"],
     },
   },
   {
-    name: "character_frequency",
-    description: "Returns a sorted frequency map of each character (case-insensitive).",
+    name: "register_agent",
+    description:
+      "Registers this Claude instance as active on a workspace. " +
+      "Other agents will see you in list_agents and know what you're working on.",
     inputSchema: {
       type: "object",
       properties: {
-        text:         { type: "string",  description: "Text to analyze" },
-        ignoreSpaces: { type: "boolean", description: "Ignore spaces (default true)" },
+        workspace_id: { type: "string" },
+        agent_id:     { type: "string", description: "Your unique ID. Ex: claude-backend-02" },
+        status:       { type: "string", description: "What you're currently doing" },
+        current_task: { type: "string", description: "The specific task you're handling right now" },
       },
-      required: ["text"],
+      required: ["workspace_id", "agent_id", "status"],
     },
   },
   {
-    name: "word_frequency",
-    description: "Returns the top N most frequent words.",
+    name: "list_agents",
+    description:
+      "Lists all Claude instances currently active on a workspace. " +
+      "Use this before starting a task to check if another agent is already working on it.",
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", description: "Text to analyze" },
-        topN: { type: "number", description: "How many top words to return (default 10)" },
+        workspace_id: { type: "string" },
       },
-      required: ["text"],
+      required: ["workspace_id"],
     },
   },
   {
-    name: "detect_language",
-    description: "Guesses the language of a text using common stop words.",
+    name: "claim_task",
+    description:
+      "Claims a task so other agents know not to touch it. " +
+      "Always claim before starting work on something shared.",
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", description: "Text to detect language for" },
+        workspace_id: { type: "string" },
+        agent_id:     { type: "string" },
+        task_id:      { type: "string", description: "Short task identifier. Ex: auth-module, navbar-component" },
+        description:  { type: "string", description: "What you're going to do on this task" },
       },
-      required: ["text"],
+      required: ["workspace_id", "agent_id", "task_id", "description"],
     },
   },
   {
-    name: "reverse_text",
-    description: "Reverses text character by character or word by word.",
+    name: "release_task",
+    description: "Releases a task you previously claimed, so other agents can work on it.",
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", description: "Text to reverse" },
-        mode: { type: "string", description: "characters or words", enum: ["characters", "words"] },
+        workspace_id: { type: "string" },
+        agent_id:     { type: "string" },
+        task_id:      { type: "string" },
+        result:       { type: "string", description: "What was done / outcome" },
       },
-      required: ["text"],
+      required: ["workspace_id", "agent_id", "task_id"],
     },
   },
   {
-    name: "text_stats",
-    description: "Full analysis: chars, words, sentences, paragraphs, reading time.",
+    name: "list_tasks",
+    description: "Lists all currently claimed tasks in a workspace and who owns them.",
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", description: "Text to fully analyze" },
+        workspace_id: { type: "string" },
       },
-      required: ["text"],
-    },
-  },
-  {
-    name: "convert_case",
-    description: "Converts text to upper, lower, title, camelCase, snake_case, kebab-case, or sentence case.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        text:       { type: "string", description: "Text to convert" },
-        targetCase: {
-          type: "string",
-          description: "Target case format",
-          enum: ["upper", "lower", "title", "camel", "snake", "kebab", "sentence"],
-        },
-      },
-      required: ["text", "targetCase"],
-    },
-  },
-  {
-    name: "check_palindrome",
-    description: "Checks if a word or phrase is a palindrome.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        text: { type: "string", description: "Text to check" },
-      },
-      required: ["text"],
-    },
-  },
-  {
-    name: "extract_emails_and_urls",
-    description: "Extracts all email addresses and URLs found in the text.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        text: { type: "string", description: "Text to scan" },
-      },
-      required: ["text"],
+      required: ["workspace_id"],
     },
   },
 ];
 
 // ── Tool execution ────────────────────────────────────────────────────────────
-
-function callTool(name: string, args: Record<string, unknown>) {
-  const t = String(args.text ?? "");
+async function callTool(name: string, args: Record<string, unknown>) {
+  const ws  = String(args.workspace_id ?? "");
+  const ag  = String(args.agent_id     ?? "");
 
   switch (name) {
 
-    case "count_characters":
-      return text(JSON.stringify({
-        total:        t.length,
-        withoutSpaces: t.replace(/\s/g, "").length,
-        spaces:       t.length - t.replace(/\s/g, "").length,
-      }));
-
-    case "count_words":
-      return text(JSON.stringify({
-        wordCount: t.trim().split(/\s+/).filter(Boolean).length,
-      }));
-
-    case "character_frequency": {
-      const ignore = args.ignoreSpaces !== false;
-      const src = ignore ? t.replace(/\s/g, "") : t;
-      const freq: Record<string, number> = {};
-      for (const c of src.toLowerCase()) freq[c] = (freq[c] ?? 0) + 1;
-      const sorted = Object.fromEntries(
-        Object.entries(freq).sort((a, b) => b[1] - a[1])
-      );
-      return text(JSON.stringify(sorted));
-    }
-
-    case "word_frequency": {
-      const topN = Number(args.topN ?? 10);
-      const words = t.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).filter(Boolean);
-      const freq: Record<string, number> = {};
-      for (const w of words) freq[w] = (freq[w] ?? 0) + 1;
-      const top = Object.entries(freq)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, topN)
-        .map(([word, count]) => ({ word, count }));
-      return text(JSON.stringify(top));
-    }
-
-    case "detect_language": {
-      const lower = t.toLowerCase();
-      const stops: Record<string, string[]> = {
-        French:     ["le","la","les","de","du","est","une","et","en","que","il","je","tu","nous","vous"],
-        English:    ["the","is","are","and","of","to","in","it","that","a","you","he","she","we","they"],
-        Spanish:    ["el","la","los","de","es","en","que","una","con","por","se","un","su","al","del"],
-        German:     ["der","die","das","ist","und","ein","eine","von","mit","zu","im","ich","sie","wir"],
-        Portuguese: ["o","a","os","de","em","que","um","uma","com","para","ao","na","no","por","se"],
+    // ── save_context ───────────────────────────────────────────────────────
+    case "save_context": {
+      const ctx: WorkspaceContext = {
+        summary:    String(args.summary  ?? ""),
+        progress:   String(args.progress ?? ""),
+        decisions:  (args.decisions as string[]) ?? [],
+        files:      (args.files     as string[]) ?? [],
+        updated_at: Date.now(),
+        updated_by: ag,
       };
-      const ws = lower.split(/\s+/);
-      const scores = Object.fromEntries(
-        Object.entries(stops).map(([lang, sw]) => [lang, ws.filter(w => sw.includes(w)).length])
-      );
-      const [lang, score] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
-      return text(JSON.stringify({
-        detectedLanguage: lang,
-        confidence: score > 2 ? "medium" : score > 0 ? "low" : "unknown",
-        scores,
-      }));
+      await rSet(K.context(ws), ctx);
+      return { content: [{ type: "text", text:
+        `✅ Context saved to workspace "${ws}" by ${ag}.\n` +
+        `Summary: ${ctx.summary.slice(0, 100)}…\n` +
+        `Progress: ${ctx.progress}`
+      }]};
     }
 
-    case "reverse_text": {
-      const mode = String(args.mode ?? "characters");
-      return text(
-        mode === "words"
-          ? t.split(/\s+/).reverse().join(" ")
-          : t.split("").reverse().join("")
-      );
+    // ── get_context ────────────────────────────────────────────────────────
+    case "get_context": {
+      const ctx = await rGet(K.context(ws)) as WorkspaceContext | null;
+      if (!ctx) return { content: [{ type: "text", text:
+        `⚠️ No context found for workspace "${ws}". Start a new project or check the workspace ID.`
+      }]};
+      const age = Math.round((Date.now() - ctx.updated_at) / 60000);
+      return { content: [{ type: "text", text:
+        `📋 Workspace: "${ws}" — last updated ${age} min ago by ${ctx.updated_by}\n\n` +
+        `**Summary:**\n${ctx.summary}\n\n` +
+        `**Progress / Next step:**\n${ctx.progress}\n\n` +
+        `**Key decisions:**\n${ctx.decisions.map(d => `• ${d}`).join("\n") || "None"}\n\n` +
+        `**Files touched:**\n${ctx.files.map(f => `• ${f}`).join("\n") || "None"}`
+      }]};
     }
 
-    case "text_stats": {
-      const words     = t.trim().split(/\s+/).filter(Boolean);
-      const sentences = t.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
-      const paragraphs = t.split(/\n\s*\n/).filter(p => p.trim().length > 0).length;
-      const unique    = new Set(words.map(w => w.toLowerCase().replace(/[^a-z]/g, ""))).size;
-      const avgLen    = words.length > 0
-        ? +(words.reduce((s, w) => s + w.replace(/[^a-zA-Z]/g, "").length, 0) / words.length).toFixed(2)
-        : 0;
-      const readingSec = Math.ceil((words.length / 200) * 60);
-      return text(JSON.stringify({
-        characters:  { total: t.length, withoutSpaces: t.replace(/\s/g, "").length },
-        words:       { total: words.length, unique },
-        sentences,
-        paragraphs,
-        avgWordLength: avgLen,
-        readingTime: `~${Math.ceil(readingSec / 60)} min (${readingSec}s)`,
-      }));
-    }
-
-    case "convert_case": {
-      const target = String(args.targetCase ?? "lower");
-      const map: Record<string, string> = {
-        upper:    t.toUpperCase(),
-        lower:    t.toLowerCase(),
-        title:    t.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase()),
-        camel:    t.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (_, c: string) => c.toUpperCase()),
-        snake:    t.replace(/\s+/g, "_").replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase(),
-        kebab:    t.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase(),
-        sentence: t.charAt(0).toUpperCase() + t.slice(1).toLowerCase(),
+    // ── register_agent ─────────────────────────────────────────────────────
+    case "register_agent": {
+      const record: AgentRecord = {
+        agent_id:     ag,
+        status:       String(args.status       ?? "active"),
+        current_task: String(args.current_task ?? ""),
+        last_seen:    Date.now(),
       };
-      return text(map[target] ?? t);
+      await rSet(K.agent(ws, ag), record, 3600); // expire après 1h d'inactivité
+
+      // Ajouter à la liste des agents actifs
+      const agents = (await rGet(K.agents(ws)) as string[] | null) ?? [];
+      if (!agents.includes(ag)) agents.push(ag);
+      await rSet(K.agents(ws), agents);
+
+      return { content: [{ type: "text", text:
+        `🤖 Agent "${ag}" registered on workspace "${ws}".\n` +
+        `Status: ${record.status}\n` +
+        `Current task: ${record.current_task || "none"}`
+      }]};
     }
 
-    case "check_palindrome": {
-      const clean = t.toLowerCase().replace(/[^a-z0-9]/g, "");
-      return text(JSON.stringify({
-        isPalindrome: clean === clean.split("").reverse().join(""),
-        cleanedInput: clean,
-      }));
+    // ── list_agents ────────────────────────────────────────────────────────
+    case "list_agents": {
+      const agentIds = (await rGet(K.agents(ws)) as string[] | null) ?? [];
+      if (agentIds.length === 0) return { content: [{ type: "text", text:
+        `No active agents on workspace "${ws}" yet.`
+      }]};
+
+      const records = await Promise.all(
+        agentIds.map(id => rGet(K.agent(ws, id)) as Promise<AgentRecord | null>)
+      );
+      const active = records.filter(Boolean) as AgentRecord[];
+      const lines  = active.map(a => {
+        const age = Math.round((Date.now() - a.last_seen) / 60000);
+        return `• **${a.agent_id}** — ${a.status} | task: ${a.current_task || "—"} | last seen ${age}min ago`;
+      });
+
+      return { content: [{ type: "text", text:
+        `🤖 Active agents on "${ws}" (${active.length}):\n\n${lines.join("\n")}`
+      }]};
     }
 
-    case "extract_emails_and_urls": {
-      const emails = t.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? [];
-      const urls   = t.match(/https?:\/\/[^\s/$.?#].[^\s]*/g) ?? [];
-      return text(JSON.stringify({ emails, urls, totalFound: emails.length + urls.length }));
+    // ── claim_task ─────────────────────────────────────────────────────────
+    case "claim_task": {
+      const tk  = String(args.task_id ?? "");
+      const existing = await rGet(K.task(ws, tk)) as TaskRecord | null;
+
+      if (existing) {
+        const age = Math.round((Date.now() - existing.claimed_at) / 60000);
+        return { content: [{ type: "text", text:
+          `⛔ Task "${tk}" is already claimed by **${existing.claimed_by}** (${age}min ago).\n` +
+          `What they're doing: ${existing.description}\n\n` +
+          `Wait for them to release_task or pick a different task.`
+        }]};
+      }
+
+      const task: TaskRecord = {
+        description: String(args.description ?? ""),
+        claimed_by:  ag,
+        claimed_at:  Date.now(),
+      };
+      await rSet(K.task(ws, tk), task, 7200);
+
+      const tasks = (await rGet(K.tasks(ws)) as string[] | null) ?? [];
+      if (!tasks.includes(tk)) tasks.push(tk);
+      await rSet(K.tasks(ws), tasks);
+
+      return { content: [{ type: "text", text:
+        `✅ Task "${tk}" claimed by ${ag}.\n` +
+        `Description: ${task.description}\n\n` +
+        `Other agents will see this task is locked. Release it when done.`
+      }]};
+    }
+
+    // ── release_task ───────────────────────────────────────────────────────
+    case "release_task": {
+      const tk  = String(args.task_id ?? "");
+      const existing = await rGet(K.task(ws, tk)) as TaskRecord | null;
+
+      if (!existing) return { content: [{ type: "text", text:
+        `Task "${tk}" is not currently claimed.`
+      }]};
+
+      if (existing.claimed_by !== ag) return { content: [{ type: "text", text:
+        `⚠️ Task "${tk}" is claimed by ${existing.claimed_by}, not by you (${ag}).`
+      }]};
+
+      await rDel(K.task(ws, tk));
+      const tasks = ((await rGet(K.tasks(ws)) as string[] | null) ?? []).filter(t => t !== tk);
+      await rSet(K.tasks(ws), tasks);
+
+      return { content: [{ type: "text", text:
+        `🔓 Task "${tk}" released by ${ag}.\n` +
+        `Result: ${String(args.result ?? "Done")}\n\n` +
+        `Other agents can now work on this task.`
+      }]};
+    }
+
+    // ── list_tasks ─────────────────────────────────────────────────────────
+    case "list_tasks": {
+      const taskIds = (await rGet(K.tasks(ws)) as string[] | null) ?? [];
+      if (taskIds.length === 0) return { content: [{ type: "text", text:
+        `No tasks currently claimed in workspace "${ws}".`
+      }]};
+
+      const records = await Promise.all(
+        taskIds.map(id => rGet(K.task(ws, id)).then(r => r ? { id, ...r as TaskRecord } : null))
+      );
+      const active = records.filter(Boolean) as (TaskRecord & { id: string })[];
+      const lines  = active.map(t => {
+        const age = Math.round((Date.now() - t.claimed_at) / 60000);
+        return `• **${t.id}** → ${t.claimed_by} (${age}min) — ${t.description}`;
+      });
+
+      return { content: [{ type: "text", text:
+        `🔒 Claimed tasks in "${ws}" (${active.length}):\n\n${lines.join("\n")}`
+      }]};
     }
 
     default:
@@ -260,15 +340,10 @@ function callTool(name: string, args: Record<string, unknown>) {
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
-
 export async function POST(req: Request) {
   let body: { jsonrpc: string; id: unknown; method: string; params?: Record<string, unknown> };
-
-  try {
-    body = await req.json();
-  } catch {
-    return err(0, -32700, "Parse error: invalid JSON");
-  }
+  try { body = await req.json(); }
+  catch { return err(0, -32700, "Parse error"); }
 
   const { id, method, params = {} } = body;
 
@@ -277,18 +352,20 @@ export async function POST(req: Request) {
     case "initialize":
       return ok(id, {
         protocolVersion: "2024-11-05",
-        capabilities:    { tools: { listChanged: false } },
-        serverInfo:      { name: "text-tools", version: "1.0.0" },
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: { name: "claude-workspace", version: "1.0.0" },
       });
 
     case "tools/list":
       return ok(id, { tools: TOOLS });
 
     case "tools/call": {
-      const name = String(params.name ?? "");
-      const args = (params.arguments ?? {}) as Record<string, unknown>;
+      const toolName = String(params.name ?? "");
+      const toolArgs = (params.arguments ?? {}) as Record<string, unknown>;
       try {
-        return ok(id, callTool(name, args));
+        if (!R_URL || !R_TOKEN)
+          return err(id, -32000, "Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN env vars.");
+        return ok(id, await callTool(toolName, toolArgs));
       } catch (e: unknown) {
         return err(id, -32000, e instanceof Error ? e.message : String(e));
       }
@@ -297,5 +374,5 @@ export async function POST(req: Request) {
     default:
       return err(id, -32601, `Method not found: ${method}`);
   }
-                                            }
-      
+                    }
+              
