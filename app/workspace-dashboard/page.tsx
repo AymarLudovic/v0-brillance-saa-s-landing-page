@@ -243,11 +243,11 @@ export default function WorkspaceDashboard() {
   const fetch_ = useCallback(async () => {
     try {
       const res = await fetch("/api/workspace-status");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
       setData(json);
       setError(null);
-      setPulse(p => !p); // trigger pulse animation
+      setPulse(p => !p);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -351,5 +351,4 @@ export default function WorkspaceDashboard() {
       ))}
     </div>
   );
-}
-
+  }
