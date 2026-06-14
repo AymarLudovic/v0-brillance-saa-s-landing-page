@@ -1,6 +1,4 @@
-// app/api/workspace-status/route.ts
 import { NextResponse } from "next/server";
-
 export const dynamic = "force-dynamic";
 
 const R_URL   = process.env.UPSTASH_REDIS_REST_URL!;
@@ -12,15 +10,17 @@ async function upstash(commands: unknown[][]): Promise<unknown[]> {
     headers: { Authorization: `Bearer ${R_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify(commands),
   });
-  if (!res.ok) throw new Error(`Upstash error: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new Error(`Upstash ${res.status}: ${await res.text()}`);
   const data = await res.json() as { result: unknown; error?: string }[];
   return data.map(d => d.result);
 }
 
+// rGet safe — retourne null si la valeur n'est pas parseable
 async function rGet(key: string): Promise<unknown> {
   try {
     const [result] = await upstash([["GET", key]]);
-    return result ? JSON.parse(result as string) : null;
+    if (!result || typeof result !== "string") return null;
+    return JSON.parse(result);
   } catch { return null; }
 }
 
@@ -28,67 +28,91 @@ async function rSet(key: string, value: unknown) {
   await upstash([["SET", key, JSON.stringify(value), "EX", "7776000"]]);
 }
 
-// SCAN via pipeline — trouve tous les ws:*:context
+// Garantit un array — évite le .map is not a function
+function toArray<T>(v: unknown): T[] {
+  return Array.isArray(v) ? (v as T[]) : [];
+}
+
 async function discoverWorkspaces(): Promise<string[]> {
-  const wsIds = new Set<string>();
-  let cursor = "0";
+  try {
+    const wsIds = new Set<string>();
+    let cursor = "0";
+    let attempts = 0;
 
-  do {
-    const [[nextCursor, keys]] = await upstash([
-      ["SCAN", cursor, "MATCH", "ws:*:context", "COUNT", "100"]
-    ]) as [[string, string[]]];
+    do {
+      const [scanResult] = await upstash([
+        ["SCAN", cursor, "MATCH", "ws:*:context", "COUNT", "100"]
+      ]);
 
-    cursor = nextCursor;
-    for (const key of (keys ?? [])) {
-      const match = key.match(/^ws:(.+):context$/);
-      if (match) wsIds.add(match[1]);
-    }
-  } while (cursor !== "0");
+      // Upstash pipeline retourne [cursor, [keys...]]
+      if (!Array.isArray(scanResult)) break;
+      const [nextCursor, keys] = scanResult as [string, string[]];
+      cursor = String(nextCursor ?? "0");
 
-  return Array.from(wsIds);
+      for (const key of toArray<string>(keys)) {
+        const match = key.match(/^ws:(.+):context$/);
+        if (match) wsIds.add(match[1]);
+      }
+
+      attempts++;
+      if (attempts > 20) break; // safety limit
+    } while (cursor !== "0");
+
+    return Array.from(wsIds);
+  } catch (e) {
+    console.error("SCAN failed:", e);
+    return [];
+  }
 }
 
 export async function GET() {
   try {
     if (!R_URL || !R_TOKEN)
-      return NextResponse.json({ error: "Missing env vars: UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN in env" },
+        { status: 500 }
+      );
 
-    // 1. Index global d'abord
-    let workspaceIds = (await rGet("global:workspaces") as string[] | null) ?? [];
+    // 1. Index global
+    let workspaceIds = toArray<string>(await rGet("global:workspaces"));
 
-    // 2. Fallback SCAN si index vide
+    // 2. Fallback SCAN
     if (workspaceIds.length === 0) {
       workspaceIds = await discoverWorkspaces();
       if (workspaceIds.length > 0) await rSet("global:workspaces", workspaceIds);
     }
 
-    // 3. Charge chaque workspace
+    // 3. Charge chaque workspace de façon défensive
     const workspaces = await Promise.all(workspaceIds.map(async (wsId) => {
-      const [agentIds, taskIds, context, history, bcasts] = await Promise.all([
+      const [rawAgentIds, rawTaskIds, context, history, bcasts] = await Promise.all([
         rGet(`ws:${wsId}:agents`),
         rGet(`ws:${wsId}:tasks`),
         rGet(`ws:${wsId}:context`),
         rGet(`ws:${wsId}:history`),
         rGet(`ws:${wsId}:broadcast`),
-      ]) as [string[]|null, string[]|null, Record<string,unknown>|null, unknown[]|null, unknown[]|null];
+      ]);
+
+      const agentIds = toArray<string>(rawAgentIds);
+      const taskIds  = toArray<string>(rawTaskIds);
 
       const agents = await Promise.all(
-        (agentIds ?? []).map(id => rGet(`ws:${wsId}:agent:${id}`))
+        agentIds.map(id => rGet(`ws:${wsId}:agent:${id}`))
       );
+
       const tasks = await Promise.all(
-        (taskIds ?? []).map(async id => {
-          const task = await rGet(`ws:${wsId}:task:${id}`) as Record<string,unknown>|null;
-          return task ? { id, ...task } : null;
+        taskIds.map(async id => {
+          const task = await rGet(`ws:${wsId}:task:${id}`);
+          return task && typeof task === "object" ? { id, ...(task as object) } : null;
         })
       );
 
       return {
         id:      wsId,
-        context: context ?? null,
+        context: context && typeof context === "object" ? context : null,
         agents:  agents.filter(Boolean),
         tasks:   tasks.filter(Boolean),
-        history: (history ?? []).slice(0, 15),
-        bcasts:  (bcasts ?? []).slice(0, 5),
+        history: toArray(history).slice(0, 15),
+        bcasts:  toArray(bcasts).slice(0, 5),
       };
     }));
 
@@ -96,8 +120,8 @@ export async function GET() {
     return NextResponse.json({ workspaces: active, total: active.length, updated_at: Date.now() });
 
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
     }
-    
+  
