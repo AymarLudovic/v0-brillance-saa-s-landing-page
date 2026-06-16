@@ -8,7 +8,7 @@ export const maxDuration = 250;
 export const dynamic = "force-dynamic";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const GEMINI_DEFAULT = "gemini-3.5-flash";
+const GEMINI_DEFAULT = "gemini-3-flash-preview";
 const ANTHROPIC_MODELS = new Set([
   // Claude 4.x
   "claude-opus-4-7",
