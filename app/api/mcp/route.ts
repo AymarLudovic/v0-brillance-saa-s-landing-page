@@ -747,7 +747,7 @@ async function callTool(name: string, args: Record<string, unknown>) {
       // Claude relance automatiquement (jusqu'à 4 rounds = ~90s total).
       const ROUND     = 23;
       const round     = Number(args.round ?? 1);
-      const maxRounds = 4;
+      const maxRounds = 10;
       const deadline  = Date.now() + ROUND * 1000;
 
       // Snapshot initial
