@@ -425,7 +425,7 @@ const TOOLS = [
 ];
 
 // ── Tool execution ────────────────────────────────────────────────────────────
-async async function callTool(name: string, args: Record<string, unknown>) {
+async function callTool(name: string, args: Record<string, unknown>) {
   const ws  = String(args.workspace_id ?? "");
   const ag  = String(args.agent_id     ?? "auto");
 
